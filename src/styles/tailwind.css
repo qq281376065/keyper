@@ -1,0 +1,340 @@
+/*
+ * Tailwind v4 entry — scoped to the shadcn / Cult UI layer only.
+ *
+ * Why a separate stylesheet instead of converting the whole app:
+ *   This product's UI is hand-written CSS in src/styles (design tokens,
+ *   component scopes, 9 skins). Converting it to Tailwind would rewrite
+ *   ~8k lines of tuned styles for zero user-visible gain, so the two
+ *   systems coexist:
+ *     · src/styles/*      → the app shell (unchanged)
+ *     · this file         → components/ui/*  (shadcn + Cult UI)
+ *
+ * Preflight is disabled on purpose. Tailwind's reset would override
+ * element selectors from src/styles/main.css (button/input/select), which
+ * are load-bearing for the existing chrome. Components under components/ui
+ * bring their own resets where they need them.
+ */
+/* Pixel faces + their CSS variables must land before @theme inline reads them. */
+@import './geist-pixel.css';
+
+@layer theme, base, components, utilities;
+
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+/*
+ * shadcn theme tokens.
+ *
+ * The values mirror the app's existing dark palette in src/styles/main.css so a
+ * component dropped into a panel does not look foreign. They are expressed as
+ * shadcn's semantic names (background / foreground / ring / …) because Cult UI
+ * components are written against those names.
+ */
+@theme inline {
+  --color-background: var(--bg-app);
+  --color-foreground: var(--text-primary);
+
+  --color-card: var(--bg-panel);
+  --color-card-foreground: var(--text-primary);
+
+  --color-popover: var(--bg-elevated);
+  --color-popover-foreground: var(--text-primary);
+
+  --color-primary: var(--accent);
+  --color-primary-foreground: var(--on-accent);
+
+  --color-secondary: var(--bg-elevated);
+  --color-secondary-foreground: var(--text-secondary);
+
+  --color-muted: var(--bg-elevated);
+  --color-muted-foreground: var(--text-muted);
+
+  --color-accent: var(--bg-hover);
+  --color-accent-foreground: var(--text-primary);
+
+  --color-destructive: var(--accent);
+  --color-destructive-foreground: var(--on-accent);
+
+  --color-border: var(--border);
+  --color-input: var(--border);
+  --color-ring: var(--accent);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: calc(var(--radius-lg) + 4px);
+
+  /*
+   * Geist pixel families, registered from the `geist` package's CSS variables.
+   * PixelHeading renders `font-pixel-square` … `font-pixel-line`; those utility
+   * names only resolve because of these four lines.
+   */
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-pixel-square: var(--font-geist-pixel-square);
+  --font-pixel-grid: var(--font-geist-pixel-grid);
+  --font-pixel-circle: var(--font-geist-pixel-circle);
+  --font-pixel-triangle: var(--font-geist-pixel-triangle);
+  --font-pixel-line: var(--font-geist-pixel-line);
+}
+
+/*
+ * `font-pixel-*` utilities are generated from the --font-pixel-* theme keys
+ * above, but only when a class of that shape is actually used. Declaring them
+ * explicitly keeps the component working even if a build tree-shakes the
+ * automatic generation away.
+ */
+@utility font-pixel-square {
+  font-family: var(--font-geist-pixel-square), ui-monospace, monospace;
+}
+@utility font-pixel-grid {
+  font-family: var(--font-geist-pixel-grid), ui-monospace, monospace;
+}
+@utility font-pixel-circle {
+  font-family: var(--font-geist-pixel-circle), ui-monospace, monospace;
+}
+@utility font-pixel-triangle {
+  font-family: var(--font-geist-pixel-triangle), ui-monospace, monospace;
+}
+@utility font-pixel-line {
+  font-family: var(--font-geist-pixel-line), ui-monospace, monospace;
+}
+
+/*
+ * Reduced motion: the pixel headings animate by swapping typefaces, which is
+ * exactly the kind of rapid visual change that vestibular-sensitive users ask
+ * to avoid. Freezing them to the at-rest distribution keeps the look, drops
+ * the churn. (Cult UI's docs also call this out; the component itself has no
+ * media query, so it belongs here.)
+ */
+@media (prefers-reduced-motion: reduce) {
+  [data-slot='pixel-heading'] [data-state='active'] {
+    animation: none !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Home title gradient — Ember Duotone (option 03 of the review).
+ *
+ * PixelHeading renders one <span> per character, so a gradient declared on the
+ * <h1> would restart at every glyph. Two things make the sweep continuous:
+ *   1. the gradient is painted on the heading itself, and
+ *   2. every child span is forced transparent so the glyph interior shows the
+ *      clipped background instead of its own colour.
+ * Hence `.px-title span` clears the fill and `.px-grad-ember` paints it.
+ *
+ * Palette: Redis red → ember orange → amber → magenta → violet.
+ * Dark values are tuned for --bg-app #15171c; the light block below re-declares
+ * only background-image with deeper stops, because the pastels used on dark
+ * fall below ~1.6:1 on the light canvas.
+ * ------------------------------------------------------------------------- */
+@layer components {
+  .px-title {
+    cursor: default;
+  }
+
+  /* the transparent glyph interior that lets the gradient through */
+  .px-title span {
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+
+  .px-grad-ember {
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    background-image: linear-gradient(
+      92deg,
+      #dc382d 0%,
+      #f4650f 22%,
+      #e5a13a 44%,
+      #f472b6 68%,
+      #a78bfa 88%
+    );
+    /* oversized so the drift has somewhere to travel */
+    background-size: 150% 100%;
+    animation: px-sweep 11s ease-in-out infinite;
+  }
+}
+
+@keyframes px-sweep {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Light-theme legibility.
+ *
+ * Measured on the light palette (--bg-app #f4f5f7): the pastel end of the ember
+ * ramp washed out. The stops below keep the same hues at lower lightness, so the
+ * ramp still reads warm→cool but stays above ~4.5:1.
+ * ------------------------------------------------------------------------- */
+[data-theme='light'] .px-grad-ember {
+  background-image: linear-gradient(
+    92deg,
+    #b91c1c 0%,
+    #c2410c 22%,
+    #a16207 44%,
+    #be185d 68%,
+    #6d28d9 88%
+  );
+}
+
+/*
+ * Reduced motion: the drift and the per-character font cycling are both rapid
+ * visual change. Freezing the drift keeps the static ramp; the heading keeps its
+ * at-rest golden-ratio distribution.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .px-grad-ember {
+    animation: none;
+  }
+}
+/* ===========================================================================
+ * Home feature grid — Cult UI Expandable（按组件原样呈现）
+ * ===========================================================================
+ *
+ * 兼容性前提：组件内部用 `dark:bg-muted` 这类 Tailwind 的 dark 变体。
+ * Tailwind v4 默认的 dark 变体基于 `prefers-color-scheme`，而本应用的主题
+ * 是 `[data-theme="light|dark"]` 属性（还有 9 套皮肤）—— 两者不对接的话，
+ * 深色主题下组件会落到 `bg-white` 分支，卡片一片惨白。
+ *
+ * 所以先把 dark 变体重绑定到属性上（见下方 @custom-variant）。
+ * 这比在每个类上写 !important 覆盖干净得多，也让组件里其它 dark: 类
+ * （阴影、边框）自动跟随主题。
+ */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+/* 皮肤映射：shadcn 语义 token → 本应用的设计令牌。
+   组件用 bg-muted / ring-border / bg-white，需要它们落在现有配色体系里。 */
+@theme inline {
+  --color-muted: var(--bg-elevated);
+}
+
+@layer components {
+  /* 卡片在网格里铺满单元格；高度仍由 motion 的 spring 驱动，不能碰 */
+  .feat-card {
+    width: 100% !important;
+    cursor: pointer;
+  }
+
+  /*
+   * 圆角按网格尺度收敛。
+   *
+   * 组件默认 md:rounded-[2rem] = 32px，那是给"一张独立展示的大卡片"设计的；
+   * 放进 271px 宽的密集网格会显得过度圆润（像按钮不像卡片）。
+   * 保留组件"外层大圆角包住内层小圆角"的双层结构，只把尺度按比例缩小：
+   *   外层 32 → 14，内层 24 → 10（比值一致 1.33:1）。
+   * 阴影环（shadow-md / shadow-xl）与 ring 边框原样保留 —— 那才是这套
+   * 组件最可辨识的特征。
+   */
+  .feat-card > div {
+    border-radius: 14px !important;
+  }
+  .feat-card > div > div {
+    border-radius: 12px !important;
+  }
+  .feat-card > div > div > div {
+    border-radius: 10px !important;
+  }
+
+  /* 组件内层用的是 `dark:bg-muted ... bg-white`。
+     深色主题下 --color-muted 已映射到 --bg-elevated，
+     这里只把「浅色也白得刺眼」的纯白换成面板色，保持整套配色一致。 */
+  .feat-card .bg-white {
+    background-color: var(--bg-panel);
+  }
+
+  /* 头部：组件默认 flex-col + p-6，对"图标+标题+箭头"一行太松。
+     改成横排并收紧内边距 —— 这是唯一改布局的地方，视觉其余部分保持原样。 */
+  /*
+   * 头部宽度必须逐层拉满。
+   *
+   * 实测过一个问题：卡片 271px 宽，但 .feat-head 只有 159px ——
+   * 因为组件内部是 `grid grid-cols-1` 嵌套，子项按**内容宽度**收缩，
+   * 而不是撑满。结果 h3 只分到 79px，"六类型可视化""SSH 多级跳板"
+   * "Pub/Sub 订阅"三个标题被省略号截断。
+   * 从卡片根一路 width:100% 传下来，同时清掉组件的 p-6 内边距
+   * （由 .feat-head 自己的 padding 接管）。
+   */
+  .feat-card,
+  .feat-card > div,
+  .feat-card > div > div,
+  .feat-card > div > div > div {
+    width: 100% !important;
+    box-sizing: border-box;
+  }
+  .feat-card > div > div > div {
+    padding: 0 !important;
+  }
+
+  .feat-head {
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 9px;
+    padding: 14px 16px !important;
+    min-height: 52px;
+    width: 100% !important;
+    box-sizing: border-box;
+  }
+  .feat-head > div {
+    display: flex !important;
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 9px;
+    margin: 0 !important;
+  }
+  .feat-head > div > * + *,
+  .feat-head > * + * {
+    margin-top: 0 !important;
+  }
+
+  .feat-head h3 {
+    margin: 0;
+    font-size: var(--fs-lg);
+    font-weight: 600;
+    color: var(--text-primary);
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .feat-chevron {
+    flex: 0 0 auto;
+    display: inline-flex;
+    color: var(--text-muted);
+    transition: transform 0.28s ease, color 0.15s ease;
+  }
+  .feat-chevron.is-open {
+    transform: rotate(180deg);
+    color: var(--accent);
+  }
+
+  /* 展开内容：组件默认 p-6 px-4 pt-0，按头部内边距对齐即可 */
+  .feat-desc {
+    margin: 0 !important;
+    padding: 0 16px 14px !important;
+    font-size: var(--fs-md);
+    line-height: 1.6;
+    color: var(--text-muted);
+  }
+
+  /* 键盘可达性：ExpandableTrigger 已处理 Enter/Space */
+  .feat-card:focus-within {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: var(--radius-xl);
+  }
+}

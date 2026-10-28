@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RedisDocter · Home title options</title>
+    <!--
+      Standalone preview entry.
+
+      Runs through the real Vite pipeline (Tailwind v4 + the geist woff2 assets),
+      so the component and its font/theme wiring are the ones that ship — this is
+      not a mockup. Opened by `npm run preview:title`.
+    -->
+    <script>
+      /* Light/dark follows the OS for this preview page only; the app's own
+         theme script is not involved. */
+      try {
+        var dark = window.matchMedia('(prefers-color-scheme: dark)').matches
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
+      } catch (e) {
+        document.documentElement.dataset.theme = 'dark'
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/preview/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,75 @@
+appId: com.redisdocter.app
+productName: RedisDocter
+copyright: Copyright © 2026 RedisDocter
+
+directories:
+  output: release/${version}
+  buildResources: build
+
+# 打进安装包的内容
+files:
+  - dist/**/*
+  - dist-electron/**/*
+  - package.json
+  - '!**/*.map'
+
+extraMetadata:
+  main: dist-electron/main.js
+
+asar: true
+compression: normal
+npmRebuild: false
+
+# 国内网络建议走镜像，避免 Electron 二进制下载超时
+electronDownload:
+  mirror: https://npmmirror.com/mirrors/electron/
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  # 应用图标：build/icon.ico 内含 16/24/32/48/64/128/256 七个尺寸
+  icon: build/icon.ico
+  artifactName: ${productName}-${version}-win-${arch}.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: true
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  # 开始菜单快捷方式改为安装时勾选决定（默认勾选）：
+  # electron-builder 25.1.8 的 assisted 安装器没有快捷方式勾选框机制，
+  # true = 静默总是创建。这里关闭默认创建，由 build/installer.nsh 的
+  # 「附加选项」勾选页（ShortcutsPageCreate）接管创建与卸载清理。
+  createStartMenuShortcut: false
+  shortcutName: RedisDocter
+  deleteAppDataOnUninstall: false
+  # 安装器自身在「程序和功能」里显示的图标
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerHeaderIcon: build/icon.ico
+  # 自定义安装逻辑：环境检查页 + 写入用户 PATH
+  include: build/installer.nsh
+  # 中文界面（默认跟随系统语言，显式列出保证中文用户看到的都是中文）
+  installerLanguages:
+    - zh_CN
+    - en_US
+
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  category: public.app-category.developer-tools
+  artifactName: ${productName}-${version}-mac-${arch}.${ext}
+
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Development
+  maintainer: RedisDocter
+  artifactName: ${productName}-${version}-linux-${arch}.${ext}

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RedisDocter</title>
+    <script>
+      /*
+       * 在首帧渲染前确定主题，避免亮暗切换闪烁。
+       * 皮肤即主题：皮肤值时 data-theme 直接取皮肤 id，
+       * colorScheme 按皮肤自带的明暗归并，
+       * 与 useTheme.ts 的 SKIN_SCHEME 保持一致。
+       */
+      (function () {
+        var SCHEME = {
+          ocean: 'dark',
+          solarized: 'light',
+          forest: 'dark',
+          sakura: 'light',
+          mint: 'light',
+          mist: 'light',
+          aurora: 'light',
+        }
+        try {
+          var stored = localStorage.getItem('redisdocter:theme') || 'system'
+          if (SCHEME[stored]) {
+            document.documentElement.dataset.theme = stored
+            document.documentElement.style.colorScheme = SCHEME[stored]
+            return
+          }
+          var dark =
+            stored === 'dark' ||
+            (stored === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+          var theme = dark ? 'dark' : 'light'
+          document.documentElement.dataset.theme = theme
+          document.documentElement.style.colorScheme = theme
+        } catch (error) {
+          document.documentElement.dataset.theme = 'dark'
+        }
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

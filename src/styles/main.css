@@ -1,0 +1,1004 @@
+/* ============================================================
+   RedisDocter 设计令牌
+   双主题：暗色（默认）/ 亮色，通过 <html data-theme="light|dark"> 切换
+   强调色统一取 Redis 品牌红
+   ============================================================ */
+:root {
+  /* ---------------------------------------------------------- 暗色（默认） */
+  --bg-app: #15171c;
+  --bg-panel: #1b1e25;
+  --bg-elevated: #21252e;
+  --bg-hover: #272c37;
+  --bg-active: #2f3542;
+
+  --border: #2b3140;
+  --border-strong: #3a4256;
+
+  --text-primary: #e6e9ef;
+  --text-secondary: #9aa4b8;
+  --text-muted: #6b7488;
+
+  --accent: #dc382d;
+  --accent-hover: #ef4a3e;
+  --accent-soft: rgba(220, 56, 45, 0.14);
+  --on-accent: #ffffff;
+
+  --blue: #4a9eff;
+  --green: #3fbf7f;
+  --amber: #e5a13a;
+  --danger-soft: rgba(240, 138, 128, 0.14);
+  --ok-soft: rgba(63, 191, 127, 0.14);
+  --amber-soft: rgba(229, 161, 58, 0.14);
+  --purple: #a78bfa;
+  --pink: #f472b6;
+
+  --scrollbar-thumb: #333a4a;
+  --scrollbar-thumb-hover: #444d61;
+
+  --mask: rgba(8, 10, 14, 0.62);
+  --shadow-panel: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --cli-bg: #111318;
+  --cli-output: #8fd6b1;
+  --cli-error: #f08a80;
+  --cli-dim: #4d566a;
+
+  --badge-string-fg: #6ee7b7;
+  --badge-string-bg: rgba(63, 191, 127, 0.14);
+  --badge-hash-fg: #93c5fd;
+  --badge-hash-bg: rgba(74, 158, 255, 0.14);
+  --badge-list-fg: #fcd34d;
+  --badge-list-bg: rgba(229, 161, 58, 0.14);
+  --badge-set-fg: #c4b5fd;
+  --badge-set-bg: rgba(167, 139, 250, 0.14);
+  --badge-zset-fg: #f9a8d4;
+  --badge-zset-bg: rgba(244, 114, 182, 0.14);
+  --badge-stream-fg: #7dd3fc;
+  --badge-stream-bg: rgba(56, 189, 248, 0.14);
+  --badge-none-fg: var(--text-muted);
+  --badge-none-bg: rgba(107, 116, 136, 0.14);
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  /* ---------------------------------------------------------- 行号槽（gutter）
+   * string 值左侧的只读行号列。视觉对齐浏览器插件（json-viewer 的 .jv-gutter）：
+   * 一条实底竖带 + 右侧 1px 分隔线 + 右对齐等宽数字，而不是透明刻度。
+   *
+   * 底色以 --bg-panel 为基、混入 28% 的 --border-strong。
+   * 为什么不直接取 --bg-app：暗色主题的 app 与 panel 只差 6 个通道值，
+   * 直接取 app 做底色时行号槽和内容区几乎分不出来（实测通道均差 3）。
+   * 混入边框色后：
+   *   · 浅色主题 → 行号槽比内容区暗约 17 个通道值（可辨的浅灰轨道）
+   *   · 暗色主题 → 暗约 9 个通道值（内容区是「面」，行号槽退到「轨道」）
+   * 两头都成立，且不依赖 --bg-app 与 --bg-panel 的间距，换皮肤无需改值。
+   *
+   * color-mix 在 Chromium 111+ 可用（Electron 33 = Chromium 130）。
+   * --gutter-w 必须与 .line-no 的
+   *   padding-left + min-width(4ch) + padding-right
+   * 之和严格相等，否则分隔线与行号数字错位。
+   * 取 4ch 是因为逐行视图上限 3000 行（STRING_LINE_LIMIT），行号最长 4 位；
+   * 定宽而非 auto，行数从 9 跨到 10 时竖带不会突然变宽。
+   */
+  --gutter-bg: color-mix(in srgb, var(--bg-panel) 72%, var(--border-strong) 28%);
+  --gutter-border: var(--border);
+  --gutter-pad-left: 12px;
+  --gutter-pad-right: 10px;
+  --gutter-w: calc(var(--gutter-pad-left) + 4ch + var(--gutter-pad-right));
+
+  --font-ui: "Segoe UI", system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", Consolas, "Courier New", monospace;
+
+  /* ---------------------------------------------------------- 字号体系 */
+  /* 由 --fs-base 推导；全局设置里的「界面字号」即调整该基准值 */
+  --fs-base: 13px;
+  --fs-3xs: calc(var(--fs-base) - 5px);
+  --fs-2xs: calc(var(--fs-base) - 4px);
+  --fs-xs: calc(var(--fs-base) - 3px);
+  --fs-sm: calc(var(--fs-base) - 2px);
+  --fs-md: calc(var(--fs-base) - 1px);
+  --fs-lg: calc(var(--fs-base) + 1px);
+  --fs-xl: calc(var(--fs-base) + 3px);
+  --fs-2xl: calc(var(--fs-base) + 9px);
+  --fs-3xl: calc(var(--fs-base) + 11px);
+
+  /* 列表行高，由「界面密度」设置覆盖 */
+  --row-h: 24px;
+}
+
+:root[data-theme="light"] {
+  /* ---------------------------------------------------------- 亮色 */
+  --bg-app: #f4f5f7;
+  --bg-panel: #ffffff;
+  --bg-elevated: #f0f1f4;
+  --bg-hover: #e8eaef;
+  --bg-active: #dfe2e9;
+
+  --border: #d9dce3;
+  --border-strong: #c2c7d0;
+
+  --text-primary: #1c2129;
+  --text-secondary: #566072;
+  --text-muted: #868fa1;
+
+  --accent: #d0342c;
+  --accent-hover: #b62b24;
+  --accent-soft: rgba(208, 52, 44, 0.1);
+  --on-accent: #ffffff;
+
+  --blue: #1d6fe0;
+  --green: #12855a;
+  --amber: #b3690a;
+  --danger-soft: rgba(192, 39, 27, 0.1);
+  --ok-soft: rgba(18, 133, 90, 0.1);
+  --amber-soft: rgba(179, 105, 10, 0.1);
+  --purple: #7c4ddb;
+  --pink: #c3247f;
+
+  --scrollbar-thumb: #c9ced8;
+  --scrollbar-thumb-hover: #b3b9c6;
+
+  --mask: rgba(24, 28, 36, 0.42);
+  --shadow-panel: 0 8px 24px rgba(15, 23, 42, 0.1);
+  --cli-bg: #f7f8fa;
+  --cli-output: #0f7a4d;
+  --cli-error: #c0271b;
+  --cli-dim: #9aa2b2;
+
+  --badge-string-fg: #0f7a4d;
+  --badge-string-bg: rgba(18, 133, 90, 0.12);
+  --badge-hash-fg: #1d6fe0;
+  --badge-hash-bg: rgba(29, 111, 224, 0.12);
+  --badge-list-fg: #a06406;
+  --badge-list-bg: rgba(214, 138, 20, 0.14);
+  --badge-set-fg: #6d3fc4;
+  --badge-set-bg: rgba(124, 77, 219, 0.12);
+  --badge-zset-fg: #b3246f;
+  --badge-zset-bg: rgba(195, 36, 127, 0.12);
+  --badge-stream-fg: #0b7ea3;
+  --badge-stream-bg: rgba(11, 126, 163, 0.12);
+  --badge-none-fg: #868fa1;
+  --badge-none-bg: rgba(134, 143, 161, 0.14);
+}
+
+/* ---------------------------------------------------------- 皮肤 · 深海
+   深海蓝黑基底 + 珊瑚红强调：蓝调比中性灰更抗疲劳，
+   珊瑚红保留 Redis 品牌温度，在冷底上更醒目。暗色系。 */
+:root[data-theme="ocean"] {
+  --bg-app: #0d1420;
+  --bg-panel: #121b2b;
+  --bg-elevated: #182338;
+  --bg-hover: #1e2c46;
+  --bg-active: #253654;
+
+  --border: #22304a;
+  --border-strong: #31456a;
+
+  --text-primary: #dde7f5;
+  --text-secondary: #93a5c1;
+  --text-muted: #5f7192;
+
+  --accent: #ff5c49;
+  --accent-hover: #ff7566;
+  --accent-soft: rgba(255, 92, 73, 0.15);
+  --on-accent: #ffffff;
+
+  --blue: #56a8ff;
+  --green: #3ddc97;
+  --amber: #f0b451;
+  --danger-soft: rgba(255, 145, 132, 0.15);
+  --ok-soft: rgba(61, 220, 151, 0.15);
+  --amber-soft: rgba(240, 180, 81, 0.15);
+  --purple: #b39aff;
+  --pink: #ff7ec2;
+
+  --scrollbar-thumb: #2a3c5c;
+  --scrollbar-thumb-hover: #3a5078;
+
+  --mask: rgba(4, 8, 16, 0.66);
+  --shadow-panel: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --cli-bg: #0a101b;
+  --cli-output: #7fe3b0;
+  --cli-error: #ff9184;
+  --cli-dim: #45577a;
+
+  --badge-string-fg: #5eead4;
+  --badge-string-bg: rgba(61, 220, 151, 0.14);
+  --badge-hash-fg: #93c5fd;
+  --badge-hash-bg: rgba(86, 168, 255, 0.14);
+  --badge-list-fg: #fcd34d;
+  --badge-list-bg: rgba(240, 180, 81, 0.14);
+  --badge-set-fg: #c4b5fd;
+  --badge-set-bg: rgba(179, 154, 255, 0.14);
+  --badge-zset-fg: #f9a8d4;
+  --badge-zset-bg: rgba(255, 126, 194, 0.14);
+  --badge-stream-fg: #7dd3fc;
+  --badge-stream-bg: rgba(90, 200, 247, 0.14);
+  --badge-none-fg: var(--text-muted);
+  --badge-none-bg: rgba(95, 113, 146, 0.14);
+}
+
+/* ---------------------------------------------------------- 皮肤 · 暖纸
+   Solarized 经典：米黄纸底 + 蓝绿墨水字，CIELab 调校的低刺激
+   对比度，白天强光环境比纯白亮色更护眼。亮色系。 */
+:root[data-theme="solarized"] {
+  --bg-app: #eee8d5;
+  --bg-panel: #fdf6e3;
+  --bg-elevated: #f3ecd8;
+  --bg-hover: #e6dfc8;
+  --bg-active: #dcd4b9;
+
+  --border: #d9d1b6;
+  --border-strong: #c2b995;
+
+  --text-primary: #073642;
+  --text-secondary: #586e75;
+  --text-muted: #93a1a1;
+
+  --accent: #dc322f;
+  --accent-hover: #b93a2b;
+  --accent-soft: rgba(220, 50, 47, 0.12);
+  --on-accent: #fdf6e3;
+
+  --blue: #268bd2;
+  --green: #5c7000;
+  --amber: #b58900;
+  --danger-soft: rgba(220, 50, 47, 0.12);
+  --ok-soft: rgba(133, 153, 0, 0.12);
+  --amber-soft: rgba(181, 137, 0, 0.12);
+  --purple: #6c71c4;
+  --pink: #d33682;
+
+  --scrollbar-thumb: #cfc7ab;
+  --scrollbar-thumb-hover: #bab08d;
+
+  --mask: rgba(50, 55, 40, 0.4);
+  --shadow-panel: 0 8px 24px rgba(88, 110, 117, 0.16);
+  --cli-bg: #fdf6e3;
+  --cli-output: #859900;
+  --cli-error: #dc322f;
+  --cli-dim: #93a1a1;
+
+  --badge-string-fg: #859900;
+  --badge-string-bg: rgba(133, 153, 0, 0.12);
+  --badge-hash-fg: #268bd2;
+  --badge-hash-bg: rgba(38, 139, 210, 0.12);
+  --badge-list-fg: #b58900;
+  --badge-list-bg: rgba(181, 137, 0, 0.12);
+  --badge-set-fg: #6c71c4;
+  --badge-set-bg: rgba(108, 113, 196, 0.12);
+  --badge-zset-fg: #d33682;
+  --badge-zset-bg: rgba(211, 54, 130, 0.12);
+  --badge-stream-fg: #2aa198;
+  --badge-stream-bg: rgba(42, 161, 152, 0.12);
+  --badge-none-fg: var(--text-muted);
+  --badge-none-bg: rgba(147, 161, 161, 0.14);
+}
+
+/* ---------- 皮肤：墨林 forest（暗色系） ----------
+   夜森林深墨绿底 + 苔藓绿强调：低饱和绿抗疲劳，
+   适合夜间长时间盯库；与「成功状态绿」错开明度不混淆。 */
+:root[data-theme="forest"] {
+  --bg-app: #0e1512;
+  --bg-panel: #131c17;
+  --bg-elevated: #19241d;
+  --bg-hover: #1f2c24;
+  --bg-active: #26352b;
+
+  --border: #243329;
+  --border-strong: #354a3b;
+
+  --text-primary: #e2ece5;
+  --text-secondary: #9db4a7;
+  --text-muted: #687f72;
+
+  --accent: #58c98d;
+  --accent-hover: #6fdca1;
+  --accent-soft: rgba(88, 201, 141, 0.14);
+  --on-accent: #06251a;
+
+  --blue: #5fbbf8;
+  --green: #3ddc97;
+  --amber: #eebb62;
+  --danger-soft: rgba(255, 145, 132, 0.14);
+  --ok-soft: rgba(61, 220, 151, 0.14);
+  --amber-soft: rgba(238, 187, 98, 0.14);
+  --purple: #b8a6f5;
+  --pink: #f58fc8;
+
+  --scrollbar-thumb: #2a3d32;
+  --scrollbar-thumb-hover: #3a5244;
+
+  --mask: rgba(4, 10, 7, 0.66);
+  --shadow-panel: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --cli-bg: #0a120e;
+  --cli-output: #7fe3b0;
+  --cli-error: #ff9184;
+  --cli-dim: #44604f;
+
+  --badge-string-fg: #5eead4;
+  --badge-string-bg: rgba(61, 220, 151, 0.14);
+  --badge-hash-fg: #93c5fd;
+  --badge-hash-bg: rgba(95, 187, 248, 0.14);
+  --badge-list-fg: #fcd34d;
+  --badge-list-bg: rgba(238, 187, 98, 0.14);
+  --badge-set-fg: #c4b5fd;
+  --badge-set-bg: rgba(184, 166, 245, 0.14);
+  --badge-zset-fg: #f9a8d4;
+  --badge-zset-bg: rgba(245, 143, 200, 0.14);
+  --badge-stream-fg: #7dd3fc;
+  --badge-stream-bg: rgba(90, 200, 247, 0.14);
+  --badge-none-fg: var(--text-muted);
+  --badge-none-bg: rgba(104, 127, 114, 0.14);
+}
+
+/* ---------- 皮肤：樱花 sakura（亮色系） ----------
+   春樱淡粉底 + 玫粉强调：亮色里最柔软的一套，
+   文字用深酒红而非纯黑，保持粉色系和谐。 */
+:root[data-theme="sakura"] {
+  --bg-app: #f9f4f6;
+  --bg-panel: #ffffff;
+  --bg-elevated: #fdf6f8;
+  --bg-hover: #f6ecef;
+  --bg-active: #efdee4;
+
+  --border: #ecdbe1;
+  --border-strong: #d9bcc8;
+
+  --text-primary: #40252f;
+  --text-secondary: #7c5c69;
+  --text-muted: #a68894;
+
+  --accent: #d4507e;
+  --accent-hover: #e2688f;
+  --accent-soft: rgba(212, 80, 126, 0.1);
+  --on-accent: #ffffff;
+
+  --blue: #2f7bd9;
+  --green: #17915c;
+  --amber: #b26a0d;
+  --danger-soft: rgba(192, 39, 27, 0.1);
+  --ok-soft: rgba(23, 145, 92, 0.1);
+  --amber-soft: rgba(178, 106, 13, 0.1);
+  --purple: #7d49d6;
+  --pink: #c3247f;
+
+  --scrollbar-thumb: #e4cfd7;
+  --scrollbar-thumb-hover: #d3b6c1;
+
+  --mask: rgba(64, 37, 47, 0.4);
+  --shadow-panel: 0 8px 24px rgba(64, 37, 47, 0.1);
+  --cli-bg: #f8f2f4;
+  --cli-output: #0f7a4d;
+  --cli-error: #c0271b;
+  --cli-dim: #b0a0a8;
+
+  --badge-string-fg: #0f7a4d;
+  --badge-string-bg: rgba(23, 145, 92, 0.12);
+  --badge-hash-fg: #2f7bd9;
+  --badge-hash-bg: rgba(47, 123, 217, 0.12);
+  --badge-list-fg: #a06406;
+  --badge-list-bg: rgba(178, 106, 13, 0.12);
+  --badge-set-fg: #6d3fc4;
+  --badge-set-bg: rgba(125, 73, 214, 0.12);
+  --badge-zset-fg: #b3246f;
+  --badge-zset-bg: rgba(195, 36, 127, 0.12);
+  --badge-stream-fg: #0b7ea3;
+  --badge-stream-bg: rgba(11, 126, 163, 0.12);
+  --badge-none-fg: var(--text-muted);
+  --badge-none-bg: rgba(166, 136, 148, 0.12);
+}
+
+/* ---------- 皮肤：薄荷 mint（亮色系） ----------
+   薄荷清晨绿白底 + 深青强调：清爽干净的绿色系亮色；
+   强调用 teal 而非草绿，与「成功状态绿」语义错开。 */
+:root[data-theme="mint"] {
+  --bg-app: #f3f8f4;
+  --bg-panel: #fcfffc;
+  --bg-elevated: #ecf5ee;
+  --bg-hover: #e0efe5;
+  --bg-active: #d0e6d7;
+
+  --border: #d7e8dc;
+  --border-strong: #b5d4bf;
+
+  --text-primary: #1e3327;
+  --text-secondary: #53705e;
+  --text-muted: #7e9888;
+
+  --accent: #0e8f76;
+  --accent-hover: #1a9f83;
+  --accent-soft: rgba(14, 143, 118, 0.1);
+  --on-accent: #ffffff;
+
+  --blue: #1f74cf;
+  --green: #12855a;
+  --amber: #b3690a;
+  --danger-soft: rgba(192, 39, 27, 0.1);
+  --ok-soft: rgba(18, 133, 90, 0.1);
+  --amber-soft: rgba(179, 105, 10, 0.1);
+  --purple: #7c4ddb;
+  --pink: #c3247f;
+
+  --scrollbar-thumb: #cddecf;
+  --scrollbar-thumb-hover: #b3ccb8;
+
+  --mask: rgba(30, 51, 39, 0.4);
+  --shadow-panel: 0 8px 24px rgba(30, 51, 39, 0.1);
+  --cli-bg: #f0f7f1;
+  --cli-output: #0f7a4d;
+  --cli-error: #c0271b;
+  --cli-dim: #9db3a5;
+
+  --badge-string-fg: #0f7a4d;
+  --badge-string-bg: rgba(18, 133, 90, 0.12);
+  --badge-hash-fg: #1f74cf;
+  --badge-hash-bg: rgba(31, 116, 207, 0.12);
+  --badge-list-fg: #a06406;
+  --badge-list-bg: rgba(179, 105, 10, 0.12);
+  --badge-set-fg: #6d3fc4;
+  --badge-set-bg: rgba(124, 77, 219, 0.12);
+  --badge-zset-fg: #b3246f;
+  --badge-zset-bg: rgba(195, 36, 127, 0.12);
+  --badge-stream-fg: #0b7ea3;
+  --badge-stream-bg: rgba(11, 126, 163, 0.12);
+  --badge-none-fg: var(--text-muted);
+  --badge-none-bg: rgba(126, 152, 136, 0.12);
+}
+
+/* ---------- 皮肤：雾蓝 mist（亮色系） ----------
+   晨雾海面蓝灰底 + 雾靛蓝强调：亮色里最冷静专业的一套，
+   几乎无暖色；适合白天办公、嫌默认亮色太平淡的用户。 */
+:root[data-theme="mist"] {
+  --bg-app: #f1f4f8;
+  --bg-panel: #fafcfd;
+  --bg-elevated: #e9eef4;
+  --bg-hover: #dfe7ef;
+  --bg-active: #cfdce8;
+
+  --border: #d2dde7;
+  --border-strong: #a9bfd1;
+
+  --text-primary: #2a3542;
+  --text-secondary: #5a6a7c;
+  --text-muted: #8295a9;
+
+  --accent: #3f7ec1;
+  --accent-hover: #4f8fd0;
+  --accent-soft: rgba(63, 126, 193, 0.1);
+  --on-accent: #ffffff;
+
+  --blue: #1f6fbe;
+  --green: #12855a;
+  --amber: #b3690a;
+  --danger-soft: rgba(192, 39, 27, 0.1);
+  --ok-soft: rgba(18, 133, 90, 0.1);
+  --amber-soft: rgba(179, 105, 10, 0.1);
+  --purple: #7c4ddb;
+  --pink: #c3247f;
+
+  --scrollbar-thumb: #ccdae6;
+  --scrollbar-thumb-hover: #b1c5d6;
+
+  --mask: rgba(42, 53, 66, 0.4);
+  --shadow-panel: 0 8px 24px rgba(42, 53, 66, 0.1);
+  --cli-bg: #eef3f8;
+  --cli-output: #0f7a4d;
+  --cli-error: #c0271b;
+  --cli-dim: #93a5b8;
+
+  --badge-string-fg: #0f7a4d;
+  --badge-string-bg: rgba(18, 133, 90, 0.12);
+  --badge-hash-fg: #1f6fbe;
+  --badge-hash-bg: rgba(31, 111, 190, 0.12);
+  --badge-list-fg: #a06406;
+  --badge-list-bg: rgba(179, 105, 10, 0.12);
+  --badge-set-fg: #6d3fc4;
+  --badge-set-bg: rgba(124, 77, 219, 0.12);
+  --badge-zset-fg: #b3246f;
+  --badge-zset-bg: rgba(195, 36, 127, 0.12);
+  --badge-stream-fg: #0b7ea3;
+  --badge-stream-bg: rgba(11, 126, 163, 0.12);
+  --badge-none-fg: var(--text-muted);
+  --badge-none-bg: rgba(130, 149, 169, 0.12);
+}
+
+/* ---------- 皮肤：极光 aurora（亮色系） ----------
+   近白底 + 蓝紫双色：主色 #4a63e0（蓝）、副色 #8b3fd0（紫）。
+   两色只在「主按钮」以渐变形式同时出现，其余位置保持单色 ——
+   整屏渐变会失去焦点，工具型界面尤其不能这样。
+
+   与其他亮色皮肤的区别有两处，都不靠抢色相：
+     1. 圆角整体放大到 8/10/13（默认 4/6/10），这是观感的直接来源；
+     2. 唯一带渐变强调的一套（见下方 .btn-primary 覆盖）。 */
+:root[data-theme="aurora"] {
+  --bg-app: #f8f9fc;
+  --bg-panel: #ffffff;
+  --bg-elevated: #f2f4fa;
+  --bg-hover: #eaeef8;
+  --bg-active: #dfe5f4;
+
+  --border: #e6e9f3;
+  --border-strong: #cbd2e6;
+
+  --text-primary: #161a24;
+  --text-secondary: #4a5266;
+  --text-muted: #7d859a;
+
+  --accent: #4a63e0;
+  --accent-hover: #3a50c9;
+  --accent-soft: rgba(74, 99, 224, 0.1);
+  --on-accent: #ffffff;
+
+  --blue: #4a63e0;
+  --green: #10896a;
+  --amber: #95601a;
+  --danger-soft: rgba(192, 39, 27, 0.1);
+  --ok-soft: rgba(16, 137, 106, 0.1);
+  --amber-soft: rgba(149, 96, 26, 0.1);
+  --purple: #8b3fd0;
+  --pink: #c1348c;
+
+  --scrollbar-thumb: #d5dae8;
+  --scrollbar-thumb-hover: #bfc6db;
+
+  --mask: rgba(22, 26, 36, 0.4);
+  --shadow-panel: 0 1px 2px rgba(16, 24, 40, 0.04), 0 14px 34px -22px rgba(70, 90, 180, 0.34);
+  --cli-bg: #f4f6fc;
+  --cli-output: #0f6b52;
+  --cli-error: #c0271b;
+  --cli-dim: #a2aac0;
+
+  --badge-string-fg: #10896a;
+  --badge-string-bg: rgba(16, 137, 106, 0.09);
+  --badge-hash-fg: #4a63e0;
+  --badge-hash-bg: rgba(74, 99, 224, 0.09);
+  --badge-list-fg: #8a5814;
+  --badge-list-bg: rgba(138, 88, 20, 0.09);
+  --badge-set-fg: #8b3fd0;
+  --badge-set-bg: rgba(139, 63, 208, 0.09);
+  --badge-zset-fg: #c1348c;
+  --badge-zset-bg: rgba(193, 52, 140, 0.09);
+  --badge-stream-fg: #0b7ea3;
+  --badge-stream-bg: rgba(11, 126, 163, 0.09);
+  --badge-none-fg: var(--text-muted);
+  --badge-none-bg: rgba(125, 133, 154, 0.1);
+
+  /* 形态：比其他皮肤更圆，是极光的观感来源之一 */
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 13px;
+
+  /* 渐变强调：仅本主题定义，其他主题不读这两个变量 */
+  --accent-alt: #8b3fd0;
+  --accent-gradient: linear-gradient(96deg, #4a63e0 0%, #6f4fe8 52%, #8b3fd0 100%);
+}
+
+/*
+ * 极光专属质感：主按钮走蓝紫渐变。
+ *
+ * 只在本主题下覆盖 —— 其他主题的 .btn-primary 仍是纯色 var(--accent)，
+ * 所以这里不能直接改全局规则，否则会把所有皮肤一起改掉。
+ * hover 用 filter: brightness 而不是再写一套渐变值，少一处维护。
+ */
+:root[data-theme="aurora"] .btn-primary {
+  background: var(--accent-gradient);
+  border-color: transparent;
+  box-shadow: 0 2px 8px -3px rgba(74, 99, 224, 0.5);
+}
+
+:root[data-theme="aurora"] .btn-primary:hover:not(:disabled) {
+  background: var(--accent-gradient);
+  border-color: transparent;
+  filter: brightness(1.07);
+}
+
+:root[data-theme="aurora"] .btn-primary:disabled {
+  filter: none;
+}
+
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--fs-base);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* ------------------------------------------------------------ 滚动条 */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  background-clip: padding-box;
+}
+
+/* ------------------------------------------------------------ 通用元素 */
+button {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+  color: var(--text-primary);
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 5px 8px;
+  outline: none;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  transition: background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+}
+
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.btn-primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-secondary);
+}
+
+.btn-ghost:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ------------------------------------------------------------ 类型徽标 */
+/*
+ * 18px 圆形单字符徽标（S / H / L / E / Z / X / ?）。
+ *
+ * 演进原因：原先是「大写全称 + min-width:46px」的胶囊。
+ * 在 450px 宽的键栏里，STRING/STREAM 实测 52px，相当于键名的 6~7 个字符；
+ * 而 SET 字面只需 33px 却被 min-width 撑到 46px，是纯粹浪费。
+ *
+ * 为什么是 18px：
+ *   树形行高 = calc(--row-h + 2px) = 26px，平铺行高约 26~28px。
+ *   16px 圆形内切正方形仅 11.3px，11px 字母几乎贴边；
+ *   20px 在 26px 行里只剩 3px 上下留白，密集列表会显闷。
+ *   18px 上下各留 4px，是这档行高的安全上限。
+ *
+ * 为什么用圆形而不是圆角方形：
+ *   圆形读起来像「状态点」，视觉更轻，与左侧文件夹图标的圆润造型协调；
+ *   方形更像「标签」，在一行里更"块"。
+ *
+ * 必须配 tooltip（v-tip）：字母有歧义（S=string、E=set、X=stream），
+ * 靠 typeLabel() 给出全称。见 src/utils/typeLabel.ts。
+ */
+.type-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  /* 不许被 flex 压缩：行内空间紧张时圆形被挤成椭圆会很难看 */
+  flex: 0 0 auto;
+  border-radius: 50%;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  /* 小字号下 600 会糊，500 在深色底上更清晰 */
+  font-weight: 500;
+  /* 圆形内字母的光学重心略偏上，靠 flex 居中 + line-height:1 校正 */
+  line-height: 1;
+  /* 纯符号，不需要被选中 */
+  user-select: none;
+  /* 提示"可 hover 看全称" */
+  cursor: default;
+}
+
+.type-string {
+  color: var(--badge-string-fg);
+  background: var(--badge-string-bg);
+}
+.type-hash {
+  color: var(--badge-hash-fg);
+  background: var(--badge-hash-bg);
+}
+.type-list {
+  color: var(--badge-list-fg);
+  background: var(--badge-list-bg);
+}
+.type-set {
+  color: var(--badge-set-fg);
+  background: var(--badge-set-bg);
+}
+.type-zset {
+  color: var(--badge-zset-fg);
+  background: var(--badge-zset-bg);
+}
+.type-stream {
+  color: var(--badge-stream-fg);
+  background: var(--badge-stream-bg);
+}
+.type-none {
+  color: var(--badge-none-fg);
+  background: var(--badge-none-bg);
+}
+
+/* ------------------------------------------------------------ 浮层菜单 */
+.popover-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+}
+
+.menu {
+  position: fixed;
+  z-index: 71;
+  min-width: 176px;
+  padding: 4px;
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-panel);
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-md);
+  color: var(--text-primary);
+  text-align: left;
+}
+
+.menu-item:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.menu-item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.menu-item.danger {
+  color: var(--accent);
+}
+
+.menu-item .shortcut {
+  margin-left: auto;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.menu-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--border);
+}
+
+/* ------------------------------------------------------------ 工具类 */
+.mono {
+  font-family: var(--font-mono);
+}
+
+.ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+}
+
+.spacer {
+  flex: 1;
+}
+
+/* ============================================================
+ * 拖拽期间的全局状态
+ *
+ * 这些规则必须放在全局样式而非组件 <style scoped> 中：
+ * scoped 会把选择器编译成 `body.xxx[data-v-yyy]`，
+ * 而 <body> 上没有该属性，规则永远不会命中 —— 表现为
+ * "光标没锁定、文字仍被选中"，且不报任何错。
+ * ============================================================ */
+
+/*
+ * 拖拽期间的行为约束。
+ *
+ * 只做两件事：锁光标、禁选中。**不碰任何颜色。**
+ * （曾经在这里写过选区配色，加上 ValueViewer 里一条被 Vue 编译器压平的
+ *  `:global()` 规则，导致拖拽时整页被涂成品牌红 —— 见 ValueViewer 的注释。）
+ */
+body.col-resizing {
+  cursor: col-resize;
+}
+
+body.col-resizing,
+body.col-resizing * {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* 拖拽期间不显示残留选区；`*` 覆盖任意元素内部的选区，body 自身也要单列一条 */
+body.col-resizing::selection,
+body.col-resizing *::selection {
+  background: transparent;
+}
+
+/* 弹窗拖拽：光标统一为移动态，并禁止选中文字
+   （拖动时鼠标会扫过标题与正文，不禁用会整片反白） */
+body.dialog-dragging {
+  cursor: move !important;
+  user-select: none;
+}
+
+body.dialog-dragging * {
+  cursor: move !important;
+  user-select: none !important;
+}
+
+/* ============================================================
+ * 弹窗底部操作栏的按钮圆角
+ *
+ * 12 个弹窗统一使用 .dialog-foot，因此规则集中在此处维护。
+ *
+ * ⚠️ 选择器必须含**两个类**，例如 .dialog-foot button.btn：
+ *   组件内的 .btn 经 Vue 编译后带 scoped 属性，形如 `.btn[data-v-x]`，
+ *   特异性为 [0,2,0]；而 `body .dialog-foot button` 只有 [0,1,2] ——
+ *   **类比元素权重高**，加再多的 body/button 都换不来一个类权重，
+ *   规则会被静默压过（页面看不出任何异常，只是圆角没变）。
+ *
+ * .confirm-btn 是 ConfirmDialog 的自定义按钮类、不带 .btn，
+ * 故无法被下方规则覆盖，已在该组件内直接声明胶囊圆角。
+ * ============================================================ */
+.dialog-foot button.btn {
+  border-radius: 999px;
+  /*
+   * 胶囊形的两端是弧线，同样的左右内边距在视觉上会比方角更"紧"，
+   * 因此略增横向内边距补偿。
+   */
+  padding-left: 16px;
+  padding-right: 16px;
+  /*
+   * 统一高度与字号。
+   *
+   * 同一行里既有 .btn 也有 .btn-primary 时，后者带 font-weight: 600，
+   * 粗体字的字体度量更高，inline-flex 按内容撑高会差 1px；
+   * 若再混入 .btn.tiny（字号更小、内边距更窄），差异会更明显。
+   * 用 min-height + 同一字号把高度钉在字形之外，并排放置才齐平。
+   * 用 min-height 而非固定 height：字号可在设置里调大。
+   */
+  min-height: 28px;
+  font-size: var(--fs-md);
+  line-height: 1.2;
+  align-items: center;
+}
+
+/*
+ * .tiny 在弹窗底部只用于"次要操作"，尺寸仍应与主按钮一致 ——
+ * 同一行的按钮一高一矮，视觉重心会歪向大的那侧。
+ */
+.dialog-foot button.btn.tiny {
+  min-height: 28px;
+  padding-left: 16px;
+  padding-right: 16px;
+  font-size: var(--fs-md);
+}
+
+/* ---------- 渲染层错误边界横幅（App.vue） ----------
+   组件树异常时替代白屏：置顶横幅 + 复制详情。 */
+.render-error-bar {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 80vw;
+  padding: 7px 14px;
+  border: 1px solid var(--cli-error);
+  border-radius: 0 0 8px 8px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-panel);
+  animation: render-error-in 0.18s ease-out;
+}
+
+.render-error-bar .bar-icon {
+  color: var(--cli-error);
+  flex-shrink: 0;
+}
+
+.render-error-text {
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes render-error-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}

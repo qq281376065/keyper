@@ -1,0 +1,64 @@
+/*
+ * Geist Pixel font faces.
+ *
+ * The Cult UI docs tell you to import from `geist/font/pixel` and apply the
+ * `.variable` classes on <html>. That entry point is a Next.js `localFont`
+ * wrapper — it resolves the woff2 through next/font and therefore throws in a
+ * Vite renderer. We keep the *same CSS variable names* the component expects
+ * (--font-geist-pixel-*) but declare the faces ourselves, pointing straight at
+ * the woff2 files that ship inside the `geist` package. Vite fingerprints and
+ * emits them as build assets.
+ *
+ * Weight is declared 100–900 (the package ships a single weight per family and
+ * browsers synthesise nothing beyond it) so `font-weight` on a heading cannot
+ * accidentally trigger a fallback face.
+ */
+
+@font-face {
+  font-family: 'Geist Pixel Square';
+  src: url('../../node_modules/geist/dist/fonts/geist-pixel/GeistPixel-Square.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: 'Geist Pixel Grid';
+  src: url('../../node_modules/geist/dist/fonts/geist-pixel/GeistPixel-Grid.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: 'Geist Pixel Circle';
+  src: url('../../node_modules/geist/dist/fonts/geist-pixel/GeistPixel-Circle.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: 'Geist Pixel Triangle';
+  src: url('../../node_modules/geist/dist/fonts/geist-pixel/GeistPixel-Triangle.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: 'Geist Pixel Line';
+  src: url('../../node_modules/geist/dist/fonts/geist-pixel/GeistPixel-Line.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: block;
+}
+
+/*
+ * Variables the Cult UI component's Tailwind classes resolve against.
+ * Declared on :root here (instead of via next/font's `.variable` class on <html>)
+ * because this app has no root layout component to attach them to.
+ */
+:root {
+  --font-geist-pixel-square: 'Geist Pixel Square';
+  --font-geist-pixel-grid: 'Geist Pixel Grid';
+  --font-geist-pixel-circle: 'Geist Pixel Circle';
+  --font-geist-pixel-triangle: 'Geist Pixel Triangle';
+  --font-geist-pixel-line: 'Geist Pixel Line';
+}

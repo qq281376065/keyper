@@ -1,6 +1,52 @@
-composer.phar
-/vendor/
+node_modules/
+dist/
+dist-electron/
+release/
+build/icons/
+*.local
+*.log
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+node_modules/.tmp/
 
-# Commit your application's lock file https://getcomposer.org/doc/01-basic-usage.md#commit-your-composer-lock-file-to-version-control
-# You may choose to ignore a library lock file http://getcomposer.org/doc/02-libraries.md#lock-file
-# composer.lock
+# 便携模式的本地配置与日志（开发态落在项目根目录）
+# 里面含加密后的连接凭据，绝不能提交
+config/
+
+# 历史构建产物（electron-builder 旧输出目录）
+out-build/
+out4/
+out5/
+release-build/
+release-cfg/
+release-ssh/
+
+# 开发期的截图与临时探针产物（不属于源码）
+hero-*.png
+previews/
+nul
+docs/_head.md
+docs/_tail.md
+*.full.png
+
+# 一次性调试探针（本次迁移/排障期间生成，非项目交付物）
+scripts/_probe-crypto-stub.js
+scripts/probe-save-conn.cjs
+scripts/probe-save-password.cjs
+scripts/probe-workspace.cjs
+scripts/probe-multitab.cjs
+scripts/probe-per-tab.cjs
+scripts/probe-layout.cjs
+scripts/repro-switch2.cjs
+scripts/repro-switch3.cjs
+scripts/repro-switch4.cjs
+scripts/repro-viewer-switch.cjs
+scripts/repro-state-leak.cjs
+scripts/repro-db-switch.cjs
+scripts/repro-portal-leak.cjs
+scripts/shot-welcome-title.cjs
+scripts/measure-hero.cjs
+scripts/measure-pixel-fonts.cjs
+xargs.exe.stackdump
