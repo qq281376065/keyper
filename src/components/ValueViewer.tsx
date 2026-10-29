@@ -784,11 +784,31 @@ export function ValueViewer() {
                  * 用户看到的就是"行号消失、内容错位"。
                  * 虚拟滚动下 DOM 节点数只与视口高度有关，行号在任何行数下都存在。
                  */
-                <VirtualStringLines
-                  lines={stringEditor.stringLines}
-                  wrap={wrap}
-                  onDoubleClick={stringEditor.enterStringEditExplicit}
-                />
+                <>
+                  <VirtualStringLines
+                    lines={stringEditor.stringLines}
+                    wrap={wrap}
+                    onDoubleClick={stringEditor.enterStringEditExplicit}
+                  />
+                  {/*
+                    只读标记：与 hash/list/set/zset/stream 放在同一位置 ——
+                    值区底部的 .row-tip 行。其它类型的表格用 sticky 吸底，
+                    string 是纯文本块，这里用普通吸底行达成同样的视觉位置：
+                    贴住值区底边、始终可见（不随文本滚动）。
+
+                    位置统一的意义：用户在任意类型下"只读"都在同一个地方，
+                    不用每换一种类型就重新找一遍。
+                  */}
+                  <p className="row-tip text-row-tip">
+                    <span className="tip-text">双击文本可进入编辑 · 或用操作栏「编辑」</span>
+                    <span
+                      className="readonly-tag"
+                      {...tipProps('值区域仅作只读展示，修改请用操作栏「编辑」或双击文本')}
+                    >
+                      只读
+                    </span>
+                  </p>
+                </>
               ) : value.type === 'string' ? (
                 /* string 搜索态：只显示命中行（带原始行号），命中片段高亮。同样虚拟滚动 */
                 stringEditor.stringFilteredLines.length ? (

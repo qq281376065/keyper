@@ -8472,3 +8472,44 @@ body.col-resizing .col-handle::after{
   background: var(--border-strong);
   opacity: 0.75;
 }
+
+/* --------------------------------------------------------------------------
+ * string 值区的只读说明行
+ * --------------------------------------------------------------------------
+ * 与 hash/list/set/zset/stream 的 .row-tip 同位置、同结构：
+ *   左：操作提示文字；右：琥珀色「只读」胶囊。
+ *
+ * 差别只在吸底方式：表格那侧靠 position: sticky（表格自身在滚动容器里），
+ * string 这侧是普通 flex 子项，用 margin-top: auto 顶到容器底部 ——
+ * 文本块自身滚动，说明行始终贴住值区底边，不随文本滚走。
+ * -------------------------------------------------------------------------- */
+.s-value-viewer .text-row-tip {
+  flex: 0 0 auto;
+  margin-top: auto;
+  /*
+   * 与表格那侧保持同一外观。
+   *
+   * 其它类型的 .row-tip 是 .pair-table 的子元素，而 .pair-table 自带
+   * 1px 边框 + 圆角，所以那条说明行看起来"被一个盒子包着"。
+   * string 的 row-tip 直接挂在 .value-body 下，没有这层盒子 ——
+   * 实测两者左边缘差 1px、且 string 侧缺少外框轮廓，
+   * 切换类型时底栏观感会跳一下。
+   * 这里补齐同样的边框与圆角。
+   */
+  /*
+   * 与上方文本块拼成同一个盒子，而不是各自一个盒子。
+   *
+   * 原来的问题：.text-block 自带 1px 边框 + 6px 圆角，row-tip 又画一圈描边，
+   * 两个独立盒子上下相接 —— 中间出现两条并排的横线，底部圆角也重复了一次，
+   * 看起来像"表格外又套了一个表格"。
+   *
+   * 做法：row-tip 去掉上边框与上部圆角，只保留下半圈圆角，
+   * 视觉上与 text-block 合成一个连续的容器；
+   * 用 margin 负 1px 让两者的边框重叠为一条。
+   */
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  margin-top: -1px;
+  box-sizing: border-box;
+}
