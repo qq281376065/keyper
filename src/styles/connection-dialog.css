@@ -768,10 +768,12 @@
   width: 100%;
   height: 32px;
   /*
-   * 下拉触发器按"按钮"处理，与全局按钮约定保持一致（胶囊形）。
-   * 它虽然长得像输入框，但交互是"点开选一个值"，和按钮同族。
+   * Select 是**表单控件**，不是按钮 —— 保持 shadcn / Cult UI 原生的
+   * rounded-md（本项目的 --radius-md）。胶囊化只针对按钮；
+   * 输入框、文本域、下拉这类"可输入/可选值"的控件维持紧凑圆角，
+   * 让"可点击"与"可填写"在视觉上仍可区分。
    */
-  border-radius: 999px !important;
+  border-radius: var(--radius-md);
   border-color: var(--border);
   background: var(--bg-app);
   color: var(--text-primary);
@@ -836,8 +838,8 @@
 }
 .dlg-select-menu .dlg-select-item,
 .dlg-select-menu [data-slot='select-item'] {
-  /* 选项是按钮，按全局约定胶囊化 */
-  border-radius: 999px;
+  /* 与 shadcn 原生一致：选项用圆角方块，不是胶囊 */
+  border-radius: var(--radius-sm);
   font-size: var(--fs-md);
   padding: 6px 26px 6px 10px;
   color: var(--text-secondary);
@@ -849,6 +851,106 @@
   outline: none;
 }
 .dlg-select-menu [data-slot='select-item'][data-state='checked'] {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ===========================================================================
+ * 新建键弹窗（复用 .dlg 外壳，仅补它独有的部分）
+ * ===========================================================================
+ *
+ * 结构与视觉完全沿用连接弹窗：同一套 .dlg-* 外壳、同一组 shadcn 原子组件，
+ * 所以这里只写它自己的两处差异：
+ *   ① 头部多一个「当前库」胶囊徽标；
+ *   ② 初始内容是多行文本域，需要固定最小高度并允许纵向拉伸。
+ * =========================================================================== */
+
+/* 头部徽标：与标题同排，靠胶囊底表达"这是当前库"这类上下文信息 */
+.dlg-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  /* 与标题基线对齐时略下沉 1px 更稳 */
+  position: relative;
+  top: 1px;
+}
+
+/* 键名输入区：前缀（只读片断）+ 输入框，拼成一条完整输入框的观感 */
+.dlg .key-input-wrap {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-app);
+  overflow: hidden;
+}
+.dlg .key-input-wrap:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+/* 前缀：只读片断，底色略深以表达"不可编辑" */
+.dlg .prefix-fixed {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  padding: 0 9px;
+  font-size: var(--fs-md);
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  border-right: 1px solid var(--border);
+  white-space: nowrap;
+  /* 前缀过长时截断，避免把输入区挤没 */
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 输入框嵌在外框里：去掉自身边框与圆角，由外框统一承担 */
+.dlg .key-input-wrap > input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 32px;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 10px !important;
+}
+.dlg .key-input-wrap > input:focus {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* 初始内容文本域：比普通输入高，且允许用户纵向拉伸 */
+.dlg .ck-content {
+  min-height: 120px;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+/* TTL 字段窄一些，与类型下拉形成主次 */
+.dlg .field.ttl {
+  flex: 0 0 116px;
+}
+
+/* 顶部小提示（如"前缀固定，只需填写后半段"）：跟在标签后，弱化处理 */
+.dlg .prefix-hint {
+  margin-left: 6px;
+  font-size: var(--fs-xs);
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+/* 最终键名预览 */
+.dlg .full-name {
+  color: var(--text-muted);
+}
+.dlg .full-name b {
   color: var(--accent);
   font-weight: 600;
 }

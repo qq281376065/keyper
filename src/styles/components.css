@@ -3537,7 +3537,19 @@
   /* 覆盖进场动画，避免两套 animation 互相抢占 */
   animation: drawer-slide-out 0.26s cubic-bezier(0.55, 0.06, 0.68, 0.19) both;
 }
-.s-log-panel .log-layer.closing .drawer-handle{
+/*
+ * 离场：把手与面板同步右滑收起。
+ *
+ * 选择器修正：DOM 是 `.log-layer.closing.s-log-panel > .drawer-handle`，
+ * closing 与 s-log-panel 在**同一个**元素上；原写法
+ * `.s-log-panel .log-layer.closing .drawer-handle` 要求 .log-layer 是
+ * .s-log-panel 的后代，与实际层级相反 —— 于是这条规则从未命中，
+ * 面板收起时把手只会原地消失。
+ *
+ * 时长与缓动刻意与 .log-drawer 的离场完全一致（0.26s / 同一曲线），
+ * 两者才能看起来是"一整块一起滑走"，而不是各走各的。
+ */
+.log-layer.closing .drawer-handle{
   animation: handle-slide-out 0.26s cubic-bezier(0.55, 0.06, 0.68, 0.19) both;
 }
 

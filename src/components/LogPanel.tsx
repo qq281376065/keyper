@@ -46,6 +46,14 @@ export function LogPanel({ closing, onClose, onClosed }: LogPanelProps) {
    * 并检查 event.target 排除子元素冒泡上来的动画事件 ——
    * 抽屉内部还有其它元素可能带动画，不加以区分会提前触发卸载。
    */
+  /**
+   * 离场动画结束 → 通知父组件卸载。
+   *
+   * 抽屉与把手是两个并列元素，各自跑动画；两者时长相同（0.26s），
+   * 但浏览器不保证回调顺序。这里以**抽屉**的结束事件为准（它是主体），
+   * 把手的动画只负责视觉同步，不参与卸载判定 —— 若两个都触发 onClosed，
+   * 会卸载两次（第二次时组件已不在，父层状态机可能重复转移）。
+   */
   function handleDrawerAnimationEnd(event: React.AnimationEvent): void {
     if (!closing) return
     if (event.target !== drawerRef.current) return

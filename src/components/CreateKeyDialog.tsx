@@ -1,9 +1,20 @@
 import { useState } from 'react'
 import { api } from '@/api'
 import { DialogIcon } from '@/components/DialogIcon'
-import { tipProps } from '@/components/tip'
 import { useDialogDrag } from '@/hooks/useDialogDrag'
 import { useRedis } from '@/store/useRedis'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import type { RedisValueType } from '@shared/types'
 
 const TYPES: Array<{ value: RedisValueType; label: string }> = [
@@ -142,105 +153,162 @@ export function CreateKeyDialog({ prefix, separator, onClose, onCreated }: Creat
   const { style, onDragStart } = useDialogDrag()
 
   return (
-    <div className="mask s-create-key-dialog">
-      <div className="dialog" style={style}>
-        <header className="dialog-head" onMouseDown={onDragStart}>
-          <span>新建键</span>
-          <span className="where mono">db{state.activeDb}</span>
-          <span className="spacer" />
-          <button className="btn-ghost tiny" onClick={onClose}>
-            <DialogIcon name="cancel" size={12} />
-          </button>
-        </header>
+    <Dialog open onOpenChange={(next) => (!next ? onClose() : undefined)}>
+      <DialogContent
+        className="dialog dlg create-key-dialog"
+        style={style}
+        showCloseButton={false}
+        /* 点击遮罩不关闭：键名与内容可能已填一半，误触外部导致全丢代价太高 */
+        onPointerDownOutside={(event) => event.preventDefault()}
+        aria-describedby="ck-desc"
+      >
+        <div className="dlg-shell">
+          <header className="dlg-head" onMouseDown={onDragStart}>
+            <div className="dlg-head-main">
+              <div className="dlg-head-top">
+                {/*
+                  图标语义：新建键的产物是"一条键值记录"，用 text（三行文本条目）
+                  比 add（加号）更贴切 —— 加号与连接弹窗的「新建连接」重复，
+                  在标题栏里两个弹窗看起来会是同一个图标。
+                */}
+                <span className="dlg-head-icon">
+                  <DialogIcon name="text" size={15} />
+                </span>
+                <DialogTitle className="dlg-title">新建键</DialogTitle>
+                {/* 当前库：与连接弹窗的副标题同一行位置，用胶囊徽标区分 */}
+                <span className="dlg-badge mono">db{state.activeDb}</span>
+              </div>
+              <DialogDescription id="ck-desc" className="dlg-sub">
+                {prefix ? `在 ${prefix} 下创建，前缀不可修改` : '填写键名、类型与初始内容'}
+              </DialogDescription>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="dlg-close"
+              aria-label="关闭"
+              onClick={onClose}
+            >
+              <DialogIcon name="cancel" size={13} />
+            </Button>
+          </header>
 
-        <div className="dialog-body">
-          <label className="field">
-            <span className="label">
-              键名 <i>*</i>
-              {prefix ? <span className="prefix-hint">前缀固定，只需填写后半段</span> : null}
-            </span>
+          <div className="dlg-body">
+            <section className="dlg-section">
+              <h3 className="dlg-section-title">键信息</h3>
 
-            {/*
-              前缀模式：前缀作为不可编辑的静态片断贴在输入框左侧，
-              与用户输入的后缀视觉上连成一个完整键名。
-              两段之间由分隔符衔接，输入框里只填后缀。
-            */}
-            <span className="key-input-wrap">
-              {prefix ? <span className="prefix-fixed mono">{prefix}{sep}</span> : null}
-              <input
-                value={suffix}
-                onChange={(event) => setSuffix(event.target.value)}
-                className="mono"
-                placeholder={prefix ? '后半段键名' : '例如 user:1001:profile'}
-                autoFocus
-                spellCheck={false}
-                autoComplete="off"
-              />
-            </span>
-            {/* 实时预览最终键名：前缀 + 后缀的组合结果比两段更直观 */}
-            {prefix && keyName ? (
-              <span className="hint full-name">
-                将创建：<b className="mono">{keyName}</b>
-              </span>
-            ) : null}
-          </label>
+              <div className="field">
+                <Label htmlFor="ck-name" className="field-label">
+                  键名
+                  <span className="req" aria-hidden="true">
+                    *
+                  </span>
+                  {prefix ? <span className="prefix-hint">前缀固定，只需填写后半段</span> : null}
+                </Label>
 
-          <div className="field-row">
-            <label className="field grow">
-              <span className="label">类型</span>
-              <select
-                value={keyType}
-                onChange={(event) => setKeyType(event.target.value as RedisValueType)}
-              >
-                {TYPES.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field ttl">
-              <span className="label">TTL（秒，可空）</span>
-              {/* 不用 type="number"：v-model 会把值自动转成 JS 数字，
-                  提交时的 .trim() 直接抛错（zset 弹窗同款炸雷） */}
-              <input
-                value={ttl}
-                onChange={(event) => setTtl(event.target.value)}
-                className="mono"
-                inputMode="numeric"
-                min="0"
-                placeholder="留空 = 永久"
-              />
-            </label>
+                {/*
+                  前缀模式：前缀作为不可编辑的静态片断贴在输入框左侧，
+                  与用户输入的后缀视觉上连成一个完整键名。
+                  两段之间由分隔符衔接，输入框里只填后缀。
+                */}
+                <span className="key-input-wrap">
+                  {prefix ? (
+                    <span className="prefix-fixed mono">
+                      {prefix}
+                      {sep}
+                    </span>
+                  ) : null}
+                  <Input
+                    id="ck-name"
+                    value={suffix}
+                    onChange={(event) => setSuffix(event.target.value)}
+                    className="mono"
+                    placeholder={prefix ? '后半段键名' : '例如 user:1001:profile'}
+                    autoFocus
+                    spellCheck={false}
+                    autoComplete="off"
+                  />
+                </span>
+
+                {/* 实时预览最终键名：前缀 + 后缀的组合结果比两段更直观 */}
+                {prefix && keyName ? (
+                  <span className="hint full-name">
+                    将创建：<b className="mono">{keyName}</b>
+                  </span>
+                ) : null}
+              </div>
+
+              <div className="field-row">
+                <div className="field grow">
+                  <Label htmlFor="ck-type" className="field-label">
+                    类型
+                  </Label>
+                  <Select value={keyType} onValueChange={(next) => setKeyType(next as RedisValueType)}>
+                    <SelectTrigger id="ck-type" className="dlg-select">
+                      <SelectValue placeholder="选择类型" />
+                    </SelectTrigger>
+                    <SelectContent className="dlg-select-menu">
+                      {TYPES.map((item) => (
+                        <SelectItem key={item.value} value={item.value}>
+                          {item.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="field ttl">
+                  <Label htmlFor="ck-ttl" className="field-label">
+                    TTL（秒，可空）
+                  </Label>
+                  {/* 不用 type="number"：提交时的 .trim() 会直接抛错 */}
+                  <Input
+                    id="ck-ttl"
+                    value={ttl}
+                    onChange={(event) => setTtl(event.target.value)}
+                    className="mono"
+                    inputMode="numeric"
+                    placeholder="留空 = 永久"
+                  />
+                </div>
+              </div>
+            </section>
+
+            <section className="dlg-section">
+              <h3 className="dlg-section-title">初始内容</h3>
+              <div className="field">
+                <Textarea
+                  value={content}
+                  onChange={(event) => setContent(event.target.value)}
+                  className="mono ck-content"
+                  spellCheck={false}
+                  placeholder={placeholder}
+                />
+                <span className="hint">{hint}</span>
+              </div>
+            </section>
           </div>
 
-          <label className="field">
-            <span className="label">初始内容</span>
-            <textarea
-              value={content}
-              onChange={(event) => setContent(event.target.value)}
-              className="content mono"
-              spellCheck={false}
-              placeholder={placeholder}
-            />
-            <span className="hint">{hint}</span>
-          </label>
+          <footer className="dlg-foot">
+            <span className="foot-hint">创建后会自动选中该键，可在右侧继续编辑</span>
+            <span className="spacer" />
+            <Button type="button" variant="ghost" className="foot-btn foot-quiet" onClick={onClose}>
+              <DialogIcon name="cancel" size={13} />
+              取消
+            </Button>
+            <Button
+              type="button"
+              className="foot-btn foot-primary"
+              disabled={!canSubmit}
+              onClick={() => void submit()}
+            >
+              <DialogIcon name="add" size={13} />
+              {submitting ? '创建中…' : '创建'}
+            </Button>
+          </footer>
         </div>
-
-        <footer className="dialog-foot">
-          <span className="foot-hint">创建后会自动选中该键，可在右侧继续编辑</span>
-          <span className="spacer" />
-          <button className="btn" onClick={onClose}>
-            <DialogIcon name="cancel" />
-            取消
-          </button>
-          <button className="btn-primary btn" disabled={!canSubmit} onClick={() => void submit()}>
-            <DialogIcon name="add" />
-            {submitting ? '创建中…' : '创建'}
-          </button>
-        </footer>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
