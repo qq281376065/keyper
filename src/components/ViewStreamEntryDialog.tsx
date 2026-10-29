@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { DialogIcon } from '@/components/DialogIcon'
-import { tipProps } from '@/components/tip'
-import { useDialogDrag } from '@/hooks/useDialogDrag'
+import { DialogShell } from '@/components/DialogShell'
+import { Button } from '@/components/ui/button'
 import { useRedis } from '@/store/useRedis'
 import { copyText } from '@/utils/clipboard'
 import { formatBytes } from '@/utils/format'
@@ -40,7 +40,6 @@ export function ViewStreamEntryDialog({
   onClose,
 }: ViewStreamEntryDialogProps) {
   const { notify } = useRedis()
-  const { style, onDragStart } = useDialogDrag()
 
   /**
    * 字段区的展示视图。
@@ -121,7 +120,7 @@ export function ViewStreamEntryDialog({
   /** 字数与字节统计（按原始文本算，不受解析方式影响） */
   const stats = {
     chars: fields.length,
-    bytes: new Blob([fields]).size,
+    bytes: new TextEncoder().encode(fields).length,
     lines: fields ? fields.split('\n').length : 0,
     fieldCount: parsedFields?.length ?? 0,
   }
@@ -140,111 +139,118 @@ export function ViewStreamEntryDialog({
   }
 
   return (
-    <div className="mask s-view-stream-entry-dialog">
-      <div className="dialog" style={style}>
-        <header className="dialog-head" onMouseDown={onDragStart}>
-          <span>查看 entry</span>
-          <span className="spacer" />
-          <button className="btn-ghost tiny" onClick={onClose}>
-            <DialogIcon name="cancel" size={12} />
-          </button>
-        </header>
-
-        {/* key 预览：类型徽标 + 键名 + entry 在 stream 中的位置 */}
-        <div className="key-preview">
-          <span className="type-badge">stream</span>
-          <span className="key-name mono ellipsis" {...tipProps(keyName)}>
-            {keyName}
-          </span>
-          <span className="pos mono">
-            #{position} / {total}
-          </span>
-        </div>
-
-        <div className="dialog-body">
-          {/* 元信息 */}
-          <dl className="meta">
-            <dt>entry ID</dt>
-            <dd className="mono">
-              {entryId}
-              <button className="mini icon-only" {...tipProps('复制 entry ID')} onClick={() => void copy(entryId, ' entry ID')}>
-                {/* 与表格行内的复制按钮同一套图标，避免同一操作在不同位置长得不一样 */}
-                <svg viewBox="0 0 16 16" className="mini-ico" aria-hidden="true">
-                  <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
-                  <path d="M10.5 5.5V4a1.5 1.5 0 0 0-1.5-1.5H4A1.5 1.5 0 0 0 2.5 4v5A1.5 1.5 0 0 0 4 10.5h1.5" />
-                </svg>
-              </button>
-            </dd>
-
-            {timestamp ? (
-              <>
-                <dt>时间</dt>
-                <dd className="mono">{timestamp}</dd>
-              </>
-            ) : null}
-
-            <dt>字段数</dt>
-            <dd className="mono">{stats.fieldCount || '—'}</dd>
-          </dl>
-
-          {/* 字段区：可切换「字段明细（逐项拆开）」与「JSON 明细（完整原文）」 */}
-          <section className="section">
-            <div className="section-head">
-              <span className="section-title">字段</span>
-
-              {/* 视图切换固定在最右：位置稳定，切换时不会因文案长短而左右跳动 */}
-              {parsedFields || jsonAvailable ? (
-                <div className="view-switch">
-                  <button className={view === 'fields' ? 'on' : ''} onClick={() => setView('fields')}>
-                    字段明细
-                  </button>
-                  {jsonAvailable ? (
-                    <button className={view === 'json' ? 'on' : ''} onClick={() => setView('json')}>
-                      JSON 明细
-                    </button>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
-
-            {/* 视图一：逐字段拆开（解析成功时） */}
-            {view === 'fields' && parsedFields ? (
-              <div className="field-table">
-                {parsedFields.map((item) => (
-                  <div key={item.field} className="field-row">
-                    <span className="field-name mono">{item.field}</span>
-                    <pre className="field-value mono">{item.value}</pre>
-                  </div>
-                ))}
-              </div>
-            ) : view === 'json' && jsonText ? (
-              /* 视图二：完整 JSON（美化缩进，保留嵌套层级） */
-              <pre className="raw json mono">{jsonText}</pre>
-            ) : (
-              <>
-                <pre className="raw mono">{fields || '（空）'}</pre>
-                {/* 仅在「内容可拆成字段、但当前停在 JSON 视图」时给出回切引导 */}
-                {parsedFields ? <p className="note">切换到「字段明细」可按字段逐项查看。</p> : null}
-              </>
-            )}
-          </section>
-        </div>
-
-        <footer className="dialog-foot">
+    <DialogShell
+      icon="document"
+      title="查看 entry"
+      description="只读视图，stream 条目不可原地修改"
+      badge={<span className="dlg-badge mono">stream</span>}
+      className="view-stream-entry-dialog"
+      closeOnOverlay
+      onClose={onClose}
+      footer={
+        <>
           <span className="stat mono">{stats.chars} 字符</span>
           <span className="sep">·</span>
           <span className="stat mono">{stats.lines} 行</span>
           <span className="sep">·</span>
           <span className="stat mono">{formatBytes(stats.bytes)}</span>
-
           <span className="spacer" />
-          <button className="btn" onClick={onClose}>
-            <DialogIcon name="close" />
+          <Button type="button" variant="ghost" className="foot-btn foot-quiet" onClick={onClose}>
+            <DialogIcon name="cancel" size={13} />
             关闭
-          </button>
-        </footer>
+          </Button>
+        </>
+      }
+    >
+      {/* 目标键：类型徽标 + 键名 + entry 在 stream 中的位置 */}
+      <div className="key-preview">
+        <span className="type-badge">stream</span>
+        <span className="key-name mono ellipsis" title={keyName}>
+          {keyName}
+        </span>
+        <span className="pos mono">
+          #{position} / {total}
+        </span>
       </div>
-    </div>
+
+      {/* 元信息：entry ID（可复制）、时间、字段数 */}
+      <dl className="details">
+        <dt>entry ID</dt>
+        <dd className="mono entry-id-cell">
+          <span className="ellipsis">{entryId}</span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="mini-copy"
+            aria-label="复制 entry ID"
+            onClick={() => void copy(entryId, ' entry ID')}
+          >
+            <DialogIcon name="copy" size={11} />
+          </Button>
+        </dd>
+
+        {timestamp ? (
+          <>
+            <dt>时间</dt>
+            <dd className="mono">{timestamp}</dd>
+          </>
+        ) : null}
+
+        <dt>字段数</dt>
+        <dd className="mono">{stats.fieldCount || '—'}</dd>
+      </dl>
+
+      {/* 字段区：可切换「字段明细」与「JSON 明细」 */}
+      <section className="stream-section">
+        <div className="stream-section-head">
+          <span className="stream-section-title">字段</span>
+
+          {/* 视图切换固定在最右：位置稳定，切换时不会因文案长短左右跳动 */}
+          {parsedFields || jsonAvailable ? (
+            <div className="view-switch">
+              <button
+                type="button"
+                className={view === 'fields' ? 'on' : ''}
+                onClick={() => setView('fields')}
+              >
+                字段明细
+              </button>
+              {jsonAvailable ? (
+                <button
+                  type="button"
+                  className={view === 'json' ? 'on' : ''}
+                  onClick={() => setView('json')}
+                >
+                  JSON 明细
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+
+        {/* 视图一：逐字段拆开（解析成功时） */}
+        {view === 'fields' && parsedFields ? (
+          <div className="field-table">
+            {parsedFields.map((item) => (
+              <div key={item.field} className="field-row">
+                <span className="field-name mono">{item.field}</span>
+                <pre className="field-value mono">{item.value}</pre>
+              </div>
+            ))}
+          </div>
+        ) : view === 'json' && jsonText ? (
+          /* 视图二：完整 JSON（美化缩进，保留嵌套层级） */
+          <pre className="raw json mono">{jsonText}</pre>
+        ) : (
+          <>
+            <pre className="raw mono">{fields || '（空）'}</pre>
+            {/* 仅在「内容可拆成字段、但当前停在 JSON 视图」时给出回切引导 */}
+            {parsedFields ? <p className="note">切换到「字段明细」可按字段逐项查看。</p> : null}
+          </>
+        )}
+      </section>
+    </DialogShell>
   )
 }
 

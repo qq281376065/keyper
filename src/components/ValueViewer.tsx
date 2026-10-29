@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { api } from '@/api'
 import { BulkOpsPanel } from '@/components/BulkOpsPanel'
 import { DialogIcon } from '@/components/DialogIcon'
+import { VirtualStringLines } from '@/components/VirtualStringLines'
 import { EditHashFieldDialog } from '@/components/EditHashFieldDialog'
 import { EditHashFieldTtlDialog } from '@/components/EditHashFieldTtlDialog'
 import { EditListElementDialog } from '@/components/EditListElementDialog'
@@ -745,46 +746,40 @@ export function ValueViewer() {
                   />
                 </div>
               ) : value.type === 'string' && !keyword ? (
-                /* string：无搜索时逐行渲染 —— 左侧行号列 + 行文本，双击进入编辑 */
-                <div
-                  className={`text-block mono${wrap ? '' : ' nowrap'}`}
-                  {...tipProps('双击进入编辑')}
+                /*
+                 * string：无搜索时逐行渲染（左侧行号列 + 行文本，双击进入编辑）。
+                 *
+                 * 用虚拟滚动而不是「超过 N 行就整块渲染」——
+                 * 后者会让大值完全没有行号（getConfigPub 140 行即踩中），
+                 * 用户看到的就是"行号消失、内容错位"。
+                 * 虚拟滚动下 DOM 节点数只与视口高度有关，行号在任何行数下都存在。
+                 */
+                <VirtualStringLines
+                  lines={stringEditor.stringLines}
+                  wrap={wrap}
                   onDoubleClick={stringEditor.enterStringEditExplicit}
-                >
-                  {stringEditor.stringLinesCapped ? (
-                    <pre className="line-text mono capped">{stringEditor.stringView.text}</pre>
-                  ) : (
-                    stringEditor.stringLines.map((line) => (
-                      <div key={line.no} className="text-line">
-                        <span className="line-no mono">{line.no}</span>
-                        <pre className="line-text mono">{line.text}</pre>
-                      </div>
-                    ))
-                  )}
-                </div>
+                />
               ) : value.type === 'string' ? (
-                /* string 搜索态：只显示命中行（带原始行号），命中片段高亮 */
-                <div className={`text-lines${wrap ? '' : ' nowrap'}`}>
-                  {stringEditor.stringFilteredLines.map((line) => (
-                    <div key={line.no} className="text-line">
-                      <span className="line-no mono">{line.no}</span>
-                      <pre className="line-text mono">
-                        {stringEditor.highlightSegments(line.text).map((seg, i) =>
-                          seg.hit ? (
-                            <mark key={i} className="hit">
-                              {seg.text}
-                            </mark>
-                          ) : (
-                            <span key={i}>{seg.text}</span>
-                          ),
-                        )}
-                      </pre>
-                    </div>
-                  ))}
-                  {!stringEditor.stringFilteredLines.length ? (
-                    <p className="lines-empty">没有匹配的行，清除搜索条件可查看完整内容</p>
-                  ) : null}
-                </div>
+                /* string 搜索态：只显示命中行（带原始行号），命中片段高亮。同样虚拟滚动 */
+                stringEditor.stringFilteredLines.length ? (
+                  <VirtualStringLines
+                    lines={stringEditor.stringFilteredLines}
+                    wrap={wrap}
+                    renderLine={(line) =>
+                      stringEditor.highlightSegments(line.text).map((seg, i) =>
+                        seg.hit ? (
+                          <mark key={i} className="hit">
+                            {seg.text}
+                          </mark>
+                        ) : (
+                          <span key={i}>{seg.text}</span>
+                        ),
+                      )
+                    }
+                  />
+                ) : (
+                  <p className="lines-empty">没有匹配的行，清除搜索条件可查看完整内容</p>
+                )
               ) : value.type === 'hash' ? (
                 /* hash：field / value 两列 */
                 <div ref={tableRef} className="pair-table" style={colVars as React.CSSProperties}>

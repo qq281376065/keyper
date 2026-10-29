@@ -6486,7 +6486,19 @@
 }
 .s-value-viewer.text-line, .s-value-viewer .text-line{
   display: flex;
-  align-items: flex-start;
+  /*
+   * 关键：stretch 而不是 flex-start。
+   *
+   * 开启「自动换行」时，一条逻辑行可能折成多行视觉行（长 JSON 值很常见）。
+   * 用 flex-start 时行号只有一行高（20px），而文本块高 41px ——
+   * 行号槽的背景只铺到首行，下面那截露出容器底色，看起来就像
+   * "行号与内容错位"。
+   *
+   * 改成 stretch 后行号槽会撑满整条逻辑行的高度，竖带连续；
+   * 数字本身靠 .line-no 内部的 align-items: flex-start 仍贴在首行，
+   * 与文本首行严格对齐。
+   */
+  align-items: stretch;
   gap: 8px;
   min-width: 0;
 }
@@ -8160,4 +8172,18 @@ body.col-resizing .col-handle::after{
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* --------------------------------------------------------------------------
+ * string 行号视图 · 虚拟滚动占位
+ * --------------------------------------------------------------------------
+ * 虚拟滚动用上下两个 spacer 撑出完整滚动高度。它们必须是纯占位：
+ *   · flex: 0 0 auto —— 不参与伸缩，高度严格按内联值；
+ *   · pointer-events: none —— 不响应双击（否则会在空白区触发进入编辑）；
+ *   · 不可选中，避免全选复制时带入占位块。
+ * -------------------------------------------------------------------------- */
+.vlines-pad {
+  flex: 0 0 auto;
+  pointer-events: none;
+  user-select: none;
 }

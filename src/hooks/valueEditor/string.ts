@@ -163,13 +163,18 @@ export function useStringEditor(ctx: ValueEditorContext) {
   const stringLines = allRows
 
   /**
-   * 行数超过上限时回退整块单节点渲染（不带行号）。
+   * 是否走虚拟滚动。
    *
-   * 逐行渲染每行 3 个节点（行 div + 行号 span + 文本 pre），2 万行的
-   * 大值会造出 6 万 DOM 节点直接卡死滚动 —— 行号是锦上添花，不能拖垮
-   * 大值浏览（旧行为「单节点渲染大值性能最优」在超限场景原样保留）。
+   * 历史实现：行数超过 100 就回退成整块单节点（**不带行号**）——
+   * 因为逐行渲染每行 3 个节点，140 行实测就产生 1.6 秒长任务。
+   * 代价是超过阈值的值完全没有行号，用户看到的是"行号消失"，
+   * 与本该有的"行号与内容对齐"直接矛盾（getConfigPub 140 行即踩中）。
+   *
+   * 现在改为虚拟滚动：仍然逐行渲染，但只渲染可视区内的行，
+   * DOM 节点数与总行数无关。行号在任何行数下都存在且准确，
+   * 长任务也消失了 —— 阈值不再需要，常量保留仅作语义说明。
    */
-  const stringLinesCapped = lineCount > STRING_LINE_LIMIT
+  const stringLinesVirtual = lineCount > STRING_LINE_LIMIT
 
   /**
    * 把一行文本按关键词切成片段（命中 / 未命中交替），供渲染高亮。
@@ -211,7 +216,7 @@ export function useStringEditor(ctx: ValueEditorContext) {
     stringStats,
     stringFilteredLines,
     stringLines,
-    stringLinesCapped,
+    stringLinesVirtual,
     highlightSegments,
   }
 }

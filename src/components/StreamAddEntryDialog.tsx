@@ -1,7 +1,10 @@
 import { useState } from 'react'
+import { DialogShell } from '@/components/DialogShell'
 import { DialogIcon } from '@/components/DialogIcon'
-import { tipProps } from '@/components/tip'
-import { useDialogDrag } from '@/hooks/useDialogDrag'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 
 export interface StreamAddEntryDialogProps {
   keyName: string
@@ -22,89 +25,91 @@ export interface StreamAddEntryDialogProps {
 export function StreamAddEntryDialog({ keyName, total, onConfirm, onCancel }: StreamAddEntryDialogProps) {
   const [fieldDraft, setFieldDraft] = useState('')
   const [valueDraft, setValueDraft] = useState('')
-  const { style, onDragStart } = useDialogDrag()
 
   const fieldValid = fieldDraft.trim().length > 0
   const canSubmit = fieldValid
-  const valueBytes = new Blob([valueDraft]).size
+  /* TextEncoder 而不是 new Blob().size：Blob 每次都会触发一次内存拷贝，
+     长文本下开销可观；TextEncoder 是纯计算，且不依赖 DOM。 */
+  const valueBytes = new TextEncoder().encode(valueDraft).length
 
   return (
-    <div className="mask s-stream-add-entry-dialog">
-      <div className="dialog" style={style}>
-        <header className="dialog-head" onMouseDown={onDragStart}>
-          <span>追加消息</span>
-          <span className="key-name mono ellipsis" {...tipProps(keyName)}>
-            {keyName}
-          </span>
-          <span className="spacer" />
-          <button className="btn-ghost tiny" onClick={onCancel}>
-            <DialogIcon name="cancel" size={12} />
-          </button>
-        </header>
-
-        {/* key 预览：stream 是只追加的日志流，位置信息用条数表达 */}
-        <div className="key-preview">
-          <span className="type-badge">stream</span>
-          <span className="key-name mono ellipsis" {...tipProps(keyName)}>
-            {keyName}
-          </span>
-          <span className="pos mono">{total} 条消息</span>
-        </div>
-
-        <div className="dialog-body">
-          <label className="field">
-            <span className="label">
-              field
-              <span className="hint-inline">（消息的字段名，如 event / user_id）</span>
-            </span>
-            <input
-              value={fieldDraft}
-              onChange={(event) => setFieldDraft(event.target.value)}
-              className="mono"
-              placeholder="如 order_paid"
-              autoComplete="off"
-              spellCheck={false}
-              onKeyUp={(event) => {
-                if (event.key === 'Enter' && canSubmit) onConfirm(fieldDraft.trim(), valueDraft)
-              }}
-            />
-          </label>
-
-          <label className="field">
-            <span className="label">value</span>
-            <textarea
-              value={valueDraft}
-              onChange={(event) => setValueDraft(event.target.value)}
-              className="mono content"
-              spellCheck={false}
-              placeholder="消息内容，可多行"
-            />
-          </label>
-
-          <p className="note">消息 ID 由服务端自动生成（XADD *），总是追加在流的末尾、不影响历史消息。</p>
-        </div>
-
-        <footer className="dialog-foot">
+    <DialogShell
+      icon="add"
+      title="追加消息"
+      description="消息 ID 由服务端自动生成，总是追加在流末尾"
+      badge={<span className="dlg-badge mono">stream</span>}
+      className="stream-add-entry-dialog"
+      onClose={onCancel}
+      footer={
+        <>
           <span className="stat mono">{fieldDraft.length} 字符</span>
           <span className="sep">·</span>
           <span className="stat mono">value {valueBytes} B</span>
-
           <span className="spacer" />
-          <button className="btn" onClick={onCancel}>
-            <DialogIcon name="cancel" />
+          <Button type="button" variant="ghost" className="foot-btn foot-quiet" onClick={onCancel}>
+            <DialogIcon name="cancel" size={13} />
             取消
-          </button>
-          <button
-            className="btn-primary btn"
+          </Button>
+          <Button
+            type="button"
+            className="foot-btn foot-primary"
             disabled={!canSubmit}
             onClick={() => onConfirm(fieldDraft.trim(), valueDraft)}
           >
-            <DialogIcon name="add" />
+            <DialogIcon name="add" size={13} />
             追加
-          </button>
-        </footer>
+          </Button>
+        </>
+      }
+    >
+      {/* 目标键：stream 是只追加的日志流，用条数表达规模 */}
+      <div className="key-preview">
+        <span className="type-badge">stream</span>
+        <span className="key-name mono ellipsis" title={keyName}>
+          {keyName}
+        </span>
+        <span className="pos mono">{total} 条消息</span>
       </div>
-    </div>
+
+      <div className="field">
+        <Label htmlFor="sae-field" className="field-label">
+          field
+          <span className="hint-inline">（消息的字段名，如 event / user_id）</span>
+        </Label>
+        <Input
+          id="sae-field"
+          value={fieldDraft}
+          onChange={(event) => setFieldDraft(event.target.value)}
+          className="mono"
+          placeholder="如 order_paid"
+          autoComplete="off"
+          spellCheck={false}
+          autoFocus
+          onKeyUp={(event) => {
+            if (event.key === 'Enter' && canSubmit) onConfirm(fieldDraft.trim(), valueDraft)
+          }}
+        />
+      </div>
+
+      <div className="field">
+        <Label htmlFor="sae-value" className="field-label">
+          value
+        </Label>
+        <Textarea
+          id="sae-value"
+          value={valueDraft}
+          onChange={(event) => setValueDraft(event.target.value)}
+          className="mono dlg-content"
+          spellCheck={false}
+          placeholder="消息内容，可多行"
+        />
+      </div>
+
+      <div className="dlg-alert" role="status">
+        <DialogIcon name="info" size={14} />
+        <span>消息 ID 由服务端自动生成（XADD *），总是追加在流的末尾、不影响历史消息。</span>
+      </div>
+    </DialogShell>
   )
 }
 

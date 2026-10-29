@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { api } from '@/api'
 import { DialogIcon } from '@/components/DialogIcon'
-import { tipProps } from '@/components/tip'
-import { useDialogDrag } from '@/hooks/useDialogDrag'
+import { DialogShell } from '@/components/DialogShell'
+import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 import { useRedis } from '@/store/useRedis'
 import { copyText } from '@/utils/clipboard'
 import { parseRedisVersion, resolveCapabilities } from '@/utils/redisCapability'
@@ -54,7 +55,6 @@ export function VersionInfoDialog({
   /** 只看关键项：默认收起次要字段，避免一屏堆几十行 */
   const [essentialOnly, setEssentialOnly] = useState(true)
 
-  const { style, onDragStart } = useDialogDrag()
 
   async function load(): Promise<void> {
     setLoading(true)
@@ -126,83 +126,106 @@ export function VersionInfoDialog({
     : allGroups
 
   return (
-    <div className="mask s-version-info-dialog">
-      <div className="dialog" style={style}>
-        <header className="dialog-head" onMouseDown={onDragStart}>
-          <span>版本信息</span>
-          <span className="conn-name ellipsis" {...tipProps(connectionName)}>
-            {connectionName}
-          </span>
-          <span className="target mono">
-            {host}:{port}
-          </span>
-          <span className="spacer" />
-          <button className="btn-ghost tiny" disabled={loading} onClick={() => void load()}>
-            <DialogIcon name="refresh" size={13} />
-          </button>
-          <button className="btn-ghost tiny" onClick={onClose}>
-            <DialogIcon name="cancel" size={12} />
-          </button>
-        </header>
-
-        <div className="dialog-body">
-          {loading ? (
-            <p className="placeholder">正在读取 INFO…</p>
-          ) : error ? (
-            <p className="placeholder err">{error}</p>
-          ) : info ? (
-            <>
-              {/* 版本概览 */}
-              <section className="hero">
-                <div className="version-box">
-                  <span className="version mono">{info.version || '未知'}</span>
-                  <span className="mode">{info.mode}</span>
-                </div>
-                <div className="hero-note">
-                  版本号决定界面可用能力，下方「能力探测」列出本实例的实际支持情况。
-                </div>
-              </section>
-
-              {/* 能力探测：直接影响界面功能是否展示 */}
-              {/* INFO 分组 */}
-              {groups.map((group) => (
-                <section key={group.section} className="block">
-                  <h3>{group.section}</h3>
-                  <div className="kv-table">
-                    {group.entries.map((entry) => (
-                      <div key={entry.key} className="kv-row">
-                        <span className="kv-key mono">{entry.key}</span>
-                        <span className="kv-value mono">{entry.value}</span>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              ))}
-            </>
-          ) : null}
-        </div>
-
-        <footer className="dialog-foot">
-          <label className="switch">
-            <input
-              type="checkbox"
-              checked={essentialOnly}
-              onChange={(event) => setEssentialOnly(event.target.checked)}
-            />
+    <DialogShell
+      icon="info"
+      title="版本信息"
+      description="版本号决定界面可用能力，下方列出本实例的实际支持情况"
+      badge={
+        <span className="dlg-badge mono ellipsis">
+          {host}:{port}
+        </span>
+      }
+      className="version-info-dialog"
+      closeOnOverlay
+      onClose={onClose}
+      /* 头部右侧的刷新按钮并入页脚 —— 头部只留关闭，避免两个图标按钮挤在一起 */
+      footer={
+        <>
+          <label className="essential-toggle">
+            <Switch checked={essentialOnly} onCheckedChange={setEssentialOnly} />
             <span>仅显示关键项</span>
           </label>
           <span className="spacer" />
-          <button className="btn" disabled={!info} onClick={copyRaw}>
+          <Button
+            type="button"
+            variant="outline"
+            className="foot-btn"
+            disabled={loading}
+            onClick={() => void load()}
+          >
+            <DialogIcon name="refresh" size={13} />
+            刷新
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            className="foot-btn"
+            disabled={!info}
+            onClick={() => void copyRaw()}
+          >
             <DialogIcon name="copy" size={13} />
-            复制完整 INFO
-          </button>
-          <button className="btn-primary btn" onClick={onClose}>
-            <DialogIcon name="cancel" size={13} />
+            复制 INFO
+          </Button>
+          <Button type="button" className="foot-btn foot-primary" onClick={onClose}>
+            <DialogIcon name="check" size={13} />
             关闭
-          </button>
-        </footer>
-      </div>
-    </div>
+          </Button>
+        </>
+      }
+    >
+      {loading ? (
+        <p className="placeholder scan-state">
+          <span className="spinner" />
+          <span>正在读取 INFO…</span>
+        </p>
+      ) : error ? (
+        <div className="dlg-alert is-err" role="status">
+          <DialogIcon name="warning" size={14} />
+          <span>{error}</span>
+        </div>
+      ) : info ? (
+        <>
+          {/* 版本概览：版本号是这一屏的主信息，单独给一块视觉权重 */}
+          <section className="vi-hero">
+            <span className="vi-version mono">{info.version || '未知'}</span>
+            <span className="vi-mode">{info.mode}</span>
+          </section>
+
+          {/* 能力探测：直接对应界面上哪些功能会出现 */}
+          {compatibility.length ? (
+            <section className="vi-section">
+              <h3 className="vi-section-title">能力探测</h3>
+              <div className="vi-caps">
+                {compatibility.map((item) => (
+                  <div key={item.name} className={`vi-cap${item.ok ? ' ok' : ''}`}>
+                    <span className="vi-cap-mark">
+                      <DialogIcon name={item.ok ? 'check' : 'cancel'} size={11} />
+                    </span>
+                    <span className="vi-cap-name">{item.name}</span>
+                    <span className="vi-cap-note">{item.note}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {/* INFO 分组 */}
+          {groups.map((group) => (
+            <section key={group.section} className="vi-section">
+              <h3 className="vi-section-title">{group.section}</h3>
+              <div className="vi-kv">
+                {group.entries.map((entry) => (
+                  <div key={entry.key} className="vi-kv-row">
+                    <span className="vi-kv-key mono">{entry.key}</span>
+                    <span className="vi-kv-value mono">{entry.value}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ))}
+        </>
+      ) : null}
+    </DialogShell>
   )
 }
 

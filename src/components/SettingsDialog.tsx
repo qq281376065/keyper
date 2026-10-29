@@ -11,7 +11,17 @@ import { globalHolder } from '@/store/global'
 
 const FONT_SIZES = [12, 13, 14, 15, 16]
 const PAGE_SIZES = [100, 200, 500, 1000]
-const SEPARATORS = [':', '/', '.', '-']
+/*
+ * 常见键名分隔符。
+ *
+ * `_` 与 `-` 都属于「扁平命名」场景：`user_profile_name`、`order-2024-01`。
+ * 它们不是层级结构的分隔符，但用户确实按这个粒度组织键名 —— 用它们建树
+ * 能把一长串同族键归到一个目录下，比平铺更容易扫读。
+ *
+ * 注意 tree 侧对这两种字符没有特殊处理：buildKeyTree 只是按分隔符切段，
+ * 空段（如 `a__b`）会退化成根级节点，不会产生错误的层级。
+ */
+const SEPARATORS = [':', '/', '.', '-', '_']
 const RETENTIONS = [7, 30, 90, 180]
 /* 明暗档位与配色皮肤分两行 segmented：9 项挤一行放不下，且两组语义本就不同 */
 const THEMES: Array<{ value: ThemeMode; label: string }> = [
