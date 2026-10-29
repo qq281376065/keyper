@@ -767,7 +767,11 @@
 .dlg .dlg-select.dlg-select {
   width: 100%;
   height: 32px;
-  border-radius: 8px;
+  /*
+   * 下拉触发器按"按钮"处理，与全局按钮约定保持一致（胶囊形）。
+   * 它虽然长得像输入框，但交互是"点开选一个值"，和按钮同族。
+   */
+  border-radius: 999px !important;
   border-color: var(--border);
   background: var(--bg-app);
   color: var(--text-primary);
@@ -821,7 +825,8 @@
 
 /* 下拉面板：与弹窗同一套配色，避免落到 shadcn 默认的 popover 白底 */
 .dlg-select-menu.dlg-select-menu {
-  border-radius: 10px;
+  /* 面板是浮层容器，保持卡片圆角；选项才是按钮，见下条 */
+  border-radius: 12px;
   border: 1px solid var(--border);
   background: var(--bg-elevated);
   box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.45);
@@ -831,7 +836,8 @@
 }
 .dlg-select-menu .dlg-select-item,
 .dlg-select-menu [data-slot='select-item'] {
-  border-radius: 6px;
+  /* 选项是按钮，按全局约定胶囊化 */
+  border-radius: 999px;
   font-size: var(--fs-md);
   padding: 6px 26px 6px 10px;
   color: var(--text-secondary);

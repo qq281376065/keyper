@@ -1015,3 +1015,119 @@ body.dialog-dragging * {
     transform: translateX(-50%) translateY(0);
   }
 }
+
+/* ===========================================================================
+ * 按钮统一胶囊圆角（全局约定）
+ * ===========================================================================
+ *
+ * 产品层面约定：**所有按钮一律胶囊形**（左右两端各一个半圆）。
+ * 这里用一组集中规则统一收口，而不是去改散落在各组件作用域里的 45 处
+ * border-radius —— 后者既容易漏，也会在下次新增按钮时再次分叉。
+ *
+ * 为什么用 !important：
+ *   各组件的作用域规则形如 `.s-app .bar-btn { border-radius: 4px }`
+ *   （权重 0,2,0），且位于本文件之前。若这里只写低权重的
+ *   `:where(.bar-btn)`（权重 0），会被它们全部压过 —— 实测 20 个按钮里
+ *   15 个仍是 4px。这条是产品级视觉约定，理应高于局部细节，因此用
+ *   !important 明确表达"按钮形状不允许被局部规则改写"。
+ *
+ * 半径统一 999px：由浏览器按元素高度自动封顶为「高度的一半」，
+ * 22px 的图标按钮与 36px 的主按钮都能得到精确半圆，
+ * 不必为每种高度单独算半径。
+ * =========================================================================== */
+
+/* 基础 .btn 家族 + 通用按钮类 */
+.btn,
+.btn-primary,
+.btn-danger,
+.btn-ghost,
+.btn-lg,
+.tiny,
+.add-btn,
+.bar-btn,
+.win-btn,
+.del-btn,
+.more,
+.more-btn,
+.link-btn,
+.icon-btn,
+.cancel-btn,
+.foot-btn,
+.cta-sec-btn,
+.cta-animate,
+.db-chip,
+.ps-btn,
+.trigger,
+.chip,
+.pill,
+.seg,
+.seg-item,
+.tool,
+.mem-more,
+.get-more {
+  border-radius: 999px !important;
+}
+
+/* 兜底：任何以 -btn 结尾的类（含各弹窗作用域内的自定义按钮） */
+[class$='-btn'],
+[class*='-btn '] {
+  border-radius: 999px !important;
+}
+
+/* 顶部窗口控制：三颗并列的小按钮同样胶囊化 */
+.win-controls .win-btn {
+  border-radius: 999px !important;
+}
+
+/*
+ * 表单行内的小图标按钮（日志行的复制/展开等）。
+ * 这类按钮常无稳定类名或类名随作用域变化，用属性选择器兜住。
+ */
+.row-copy,
+.row-toggle,
+.row-expand,
+.segmented > button,
+.prefix-tabs > button,
+.tool-tabs > button {
+  border-radius: 999px !important;
+}
+
+/*
+ * 贴边把手（日志面板左侧的收起按钮）：它是按钮，但物理上贴在面板边缘，
+ * 四角全圆会与面板边框脱开、看着像浮在外面。
+ * 按"只圆外侧两角"处理 —— 这是胶囊语义在贴边场景下的等价表达：
+ * 用户看到的两条自由边缘呈半圆。
+ */
+.drawer-handle {
+  border-radius: 0 999px 999px 0 !important;
+}
+
+/*
+ * 分段控件（.segmented）外壳同样胶囊化。
+ * 内部 button 的选择器写在上面那条里 —— 它们的未选中态往往没有类名，
+ * 只能按结构选，所以单独列出。
+ */
+.segmented {
+  border-radius: 999px !important;
+}
+
+/*
+ * 开关：轨道胶囊，滑块保持正圆。
+ * 滑块必须显式压回 50%，否则会被上面的通配规则改成胶囊而变形。
+ */
+[data-slot='switch'] {
+  border-radius: 999px !important;
+}
+[data-slot='switch'] [data-slot='switch-thumb'] {
+  border-radius: 50% !important;
+}
+
+/*
+ * 明确排除（不做任何声明，仅备忘）：
+ *   · 表格 / 列表 / 卡片容器 —— 改圆角会破坏版面结构；
+ *   · 输入框 / 文本域 / 下拉 —— 与按钮不同族，保持紧凑圆角，
+ *     让"可输入"与"可点击"在视觉上可区分。
+ * 上面的选择器列表本身就不含这些元素，因此无需额外覆盖。
+ */
+
+
