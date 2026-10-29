@@ -2872,45 +2872,53 @@
   padding: 5px 10px;
   border-bottom: 1px solid var(--border);
 }
-.s-key-browser.view-switch, .s-key-browser .view-switch{
-  display: flex;
+/*
+ * 树形 / 平铺 视图切换 —— 胶囊分段控件
+ * ---------------------------------------------------------------------------
+ * 与 value 工具条的分段控件保持同一套语言：
+ *   容器：999px 胶囊凹槽 + 2px 内边距，靠背景色区分于工具条；
+ *   选项：各自独立胶囊，间隙 2px —— 选中项是完整胶囊块，
+ *         而不是"整组一刀切"的左右半圆。
+ *
+ * 改之前是 --radius-md(6px) 的圆角矩形：外层小圆角 + 内部紧贴，
+ * 选中态整块填 accent —— 在一排胶囊控件中间显得方正、突兀。
+ */
+.s-key-browser .view-switch{
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  overflow: hidden;
+  border-radius: 999px;
+  background: var(--bg-app);
+  box-sizing: border-box;
 }
 .s-key-browser .view-switch button{
   /* 按钮内带 SVG 图标：需要 flex 才能让图标与文字垂直居中对齐 */
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 10px;
+  padding: 3px 11px;
+  border-radius: 999px;
   font-size: var(--fs-sm);
   color: var(--text-secondary);
-  background: var(--bg-app);
-}
-/*
- * 首尾按钮自带圆角：只靠外层 overflow: hidden 裁剪时，
- * hover / 选中背景在边缘会残留直角（Chromium 对子元素背景的
- * 圆角裁剪渲染不完整），按钮自己圆了才可靠。
- */
-.view-switch button:first-child{
-  border-radius: var(--radius-md) 0 0 var(--radius-md);
-}
-.s-key-browser .view-switch button:last-child{
-  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  background: transparent;
+  transition: background-color 0.15s, color 0.15s;
 }
 /* 图标不收缩，否则窄窗口下会被文字挤出可视区 */
-.view-switch button svg{
+.s-key-browser .view-switch button svg{
   flex: 0 0 auto;
 }
 .s-key-browser .view-switch button:hover{
   background: var(--bg-hover);
   color: var(--text-primary);
 }
+/* 选中：accent 实底 + 反色文字，与分段控件里的激活块同一语义 */
 .s-key-browser .view-switch button.on{
   background: var(--accent);
   color: var(--on-accent);
   font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
 }
 .s-key-browser.sep-input, .s-key-browser .sep-input{
   width: 30px;
@@ -6073,6 +6081,12 @@
   flex: 0 0 auto;
   /* 内部块超出容器圆角时要被裁掉 */
   overflow: hidden;
+  /*
+   * 统一 30px：所有类型（string/hash/list/set/zset/stream）的工具条
+   * 必须等高，否则切换类型时工具条会跳一下。
+   * 内部块用 align-items: stretch 自然撑满，块高 = 30 - 2*2 - 2*1 = 24px。
+   */
+  height: 30px;
   box-sizing: border-box;
 }
 
@@ -6097,10 +6111,6 @@
   font-size: var(--fs-sm);
   box-shadow: none;
   transition: background-color 0.15s, color 0.15s, box-shadow 0.15s;
-}
-.s-value-viewer .seg-group > .tool:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
 }
 /*
  * 激活：高对比胶囊块。
@@ -6133,6 +6143,35 @@
 }
 .s-value-viewer .seg-group > .tool:last-child {
   border-top-right-radius: 999px !important;
+  border-bottom-right-radius: 999px !important;
+}
+
+/*
+ * 悬停：单块高亮，因此必须是**胶囊**而不是方块。
+ *
+ * 内部块平时是方角（整组读作连续一段），但 hover 只高亮其中一块 ——
+ * 方块状的高亮会在一条胶囊凹槽里戳出一个矩形，很违和。
+ *
+ * 位置很关键：这条必须写在 :first-child / :last-child 之后。
+ * 那两条带 !important（用来恢复首尾圆头），在 `a > b` 与 `a > b:hover`
+ * 的单类权重下，同样的 !important 由**书写顺序**决定胜负 ——
+ * 若 hover 写在前，会被首尾规则压回「999px 0 0 999px」的半圆角，
+ * hover 背景就变成一个左侧圆、右侧方的小块。
+ */
+.s-value-viewer .seg-group > .tool:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  /*
+   * 必须逐个角声明，不能只写 border-radius 简写。
+   *
+   * :first-child / :last-child 用的是 border-top-left-radius 这类**长属性**。
+   * 长属性与简写是两个独立声明：简写不会覆盖已单独声明过的角，
+   * 所以只写 `border-radius: 999px` 时，首块会保留「左圆右方」——
+   * 悬停背景就变成一个左圆右方的怪块（实测正是如此）。
+   */
+  border-top-left-radius: 999px !important;
+  border-top-right-radius: 999px !important;
+  border-bottom-left-radius: 999px !important;
   border-bottom-right-radius: 999px !important;
 }
 /*
@@ -6224,16 +6263,42 @@
   align-self: center;
 }
 /* 只读标记：提示该类型不支持修改，避免用户找不到编辑入口 */
-.s-value-viewer.readonly-tag, .s-value-viewer .readonly-tag{
+/*
+ * 「只读」标记 —— 带语义色的胶囊标签
+ *
+ * 原来是无色差的灰标签（--text-muted 字 + --bg-elevated 底），
+ * 混在状态栏的一排灰字里几乎看不出是个状态标记，
+ * 用户容易忽略"这张表不能直接改"这个前提。
+ *
+ * 现在改用与主题无关的琥珀色系（--amber / --amber-soft）：
+ *   · 琥珀在 9 套皮肤里都有定义，且与"警告/注意"的语义相符；
+ *   · 不用 --accent（红/品牌色）—— 它表达的是"主操作"，会误导；
+ *   · 胶囊形 + 前置图形符号，与页面其它胶囊标签同族。
+ * 只读不是错误，所以用琥珀而非红：提醒而非报警。
+ */
+.s-value-viewer .readonly-tag{
   flex: 0 0 auto;
-  padding: 2px 8px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: var(--bg-elevated);
-  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--amber) 38%, transparent);
+  background: var(--amber-soft);
+  color: var(--amber);
   font-size: var(--fs-xs);
+  font-weight: 600;
   letter-spacing: 0.3px;
   user-select: none;
+}
+/* 前置小圆点：让标签在长行文字里更容易被"看见" */
+.s-value-viewer .readonly-tag::before{
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: 0 0 auto;
 }
 /*
  * zset：序号 / member / score / 操作 四列。
@@ -8317,4 +8382,93 @@ body.col-resizing .col-handle::after{
   flex: 0 0 auto;
   pointer-events: none;
   user-select: none;
+}
+
+/* --------------------------------------------------------------------------
+ * value 工具条的搜索框 —— 与分段控件同形（胶囊）
+ * --------------------------------------------------------------------------
+ * 搜索框放在工具条最右，与左侧分段控件是同一行里的两个"胶囊块"：
+ *   左侧 seg-group：多个操作合成一段；
+ *   右侧搜索框：单个输入合成一段。
+ * 两者都用 999px 圆角、2px 内边距、同高，视觉上读作一行的两块，
+ * 而不是"工具栏 + 输入框"两种控件拼在一起。
+ *
+ * 宽度固定而不是 flex:1：工具条里按钮组已占大半，搜索框再撑满会把
+ * 按钮组挤到换行；150px 足够显示 8-10 个字符，配合 placeholder 够用。
+ * -------------------------------------------------------------------------- */
+/*
+ * 工具条内的搜索框：所有类型统一为胶囊，与左侧 seg-group 同形同高。
+ *
+ * 之前只有 string 类型加了胶囊，其它类型（hash/list/set/zset/stream）
+ * 仍是 --radius-sm(4px)，同一行里出现"圆角矩形 + 胶囊"两种形态 ——
+ * 切换到不同类型时观感断裂。这里统一到 .value-toolbar 下的所有 search-box，
+ * 不再逐个类名列举。
+ */
+.s-value-viewer .value-toolbar .search-box {
+  flex: 0 0 auto;
+  width: 150px;
+  /*
+   * 高度与 seg-group 严格一致（容器 2px padding + 块 21px + 上下边框 = 27px）。
+   * 两者并排时若差 1-2px，会明显看出"一高一低"。
+   */
+  /* 与 seg-group 同步为 30px，两者并排才不会一高一低 */
+  height: 30px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  border-radius: 999px;
+  gap: 6px;
+}
+/* 内层输入去掉自身任何底色/边框，由外框统一承担 */
+.s-value-viewer .value-toolbar .search-box .filter {
+  height: 100%;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: var(--fs-sm);
+  box-shadow: none;
+}
+.s-value-viewer .value-toolbar .search-box .filter:focus {
+  border: none;
+  box-shadow: none;
+}
+
+/* --------------------------------------------------------------------------
+ * seg-group 内的竖向分隔线
+ * --------------------------------------------------------------------------
+ * 动作按钮（复制/导出/新增/刷新）与「自动刷新」开关语义不同：
+ * 前者是一次性动作，后者是持续状态。放在同一个胶囊里时，
+ * 用一条 1px 竖线把它们隔开，比换个底色更轻，也不会破坏"整条"的连续感。
+ * 上下留 4px 内缩，避免顶到胶囊圆角边缘。
+ * -------------------------------------------------------------------------- */
+/*
+ * seg-group 内的自动刷新开关：约束到与按钮同高。
+ * 它是 label（含 16px 轨道 + 文字 + 状态点），自然高度 24-30px，
+ * 会顶高整条 seg-group，导致与右侧搜索框不等高。
+ * 这里把它压成"和按钮一样高的一格"，内部元素垂直居中。
+ */
+.s-value-viewer .seg-group > .switch {
+  flex: 0 0 auto;
+  /* 与按钮同为 24px（30 - 2*2 padding - 2*1 border） */
+  height: 24px;
+  padding: 0 8px;
+  margin: 0;
+  align-items: center;
+  border-radius: 999px;
+}
+.s-value-viewer .seg-group > .switch:hover {
+  background: var(--bg-hover);
+}
+/* 悬停时也保持胶囊，与按钮一致 */
+.s-value-viewer .seg-group > .switch .switch-label {
+  line-height: 1;
+}
+
+.s-value-viewer .seg-group > .seg-divider {
+  flex: 0 0 auto;
+  align-self: center;
+  width: 1px;
+  height: 13px;
+  margin: 0 3px;
+  background: var(--border-strong);
+  opacity: 0.75;
 }

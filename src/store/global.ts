@@ -57,12 +57,28 @@ export const globalState: GlobalState = globalHolder.store
 
 let toastTimer: ReturnType<typeof setTimeout> | null = null
 
+/**
+ * toast 停留时长，按类型区分。
+ *
+ * 原来统一 3200ms：复制这类操作的结果文案较长（"已复制全部内容"），
+ * 用户视线还在工具栏上，回神时提示已经消失，等于没反馈。
+ * 成功类延长到 5s（够读完一句话），失败类 6.5s ——
+ * 错误信息通常更长，且需要用户判断"要不要重试"，多给一点时间。
+ */
+const TOAST_DURATION: Record<Toast['kind'], number> = {
+  ok: 5000,
+  err: 6500,
+}
+
 function notify(kind: Toast['kind'], text: string): void {
   globalState.toast = { kind, text }
   if (toastTimer) clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => {
-    globalState.toast = null
-  }, 3200)
+  toastTimer = setTimeout(
+    () => {
+      globalState.toast = null
+    },
+    TOAST_DURATION[kind] ?? 5000,
+  )
 }
 
 function failure(error: unknown, fallback: string): void {

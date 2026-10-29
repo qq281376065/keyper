@@ -559,6 +559,8 @@ export function ValueViewer() {
             </div>
           ) : value.type === 'hash' ? (
             <div className="value-toolbar">
+              {/* 操作合成一个分段控件，与 string 类型同一套视觉 */}
+              <div className="seg-group">
               <button className="tool" {...tipProps('以 JSON 格式复制全部字段')} onClick={hashEditor.copyHashAll}>
                 <DialogIcon name="copy" size={12} className="ti" />
                 复制
@@ -579,14 +581,18 @@ export function ValueViewer() {
                 <DialogIcon name="refresh" size={12} className="ti" />
                 刷新
               </button>
-
+              {/* 分隔线：动作按钮与「自动刷新」开关语义不同，用一条竖线分组 */}
+              <span className="seg-divider" aria-hidden="true" />
               <AutoRefreshSwitch value={autoRefresh} onChange={setAutoRefresh} />
+              </div>
 
               <span className="spacer" />
               <FilterBox value={filter} onChange={setFilter} placeholder="搜索 field" className="field-filter" />
             </div>
           ) : value.type === 'list' ? (
             <div className="value-toolbar">
+              {/* 操作合成一个分段控件，与 string 类型同一套视觉 */}
+              <div className="seg-group">
               <button className="tool" {...tipProps('复制全部元素（每行一项）')} onClick={listEditor.copyListAll}>
                 <DialogIcon name="copy" size={12} className="ti" />
                 复制
@@ -607,14 +613,18 @@ export function ValueViewer() {
                 <DialogIcon name="refresh" size={12} className="ti" />
                 刷新
               </button>
-
+              {/* 分隔线：动作按钮与「自动刷新」开关语义不同，用一条竖线分组 */}
+              <span className="seg-divider" aria-hidden="true" />
               <AutoRefreshSwitch value={autoRefresh} onChange={setAutoRefresh} />
+              </div>
 
               <span className="spacer" />
               <FilterBox value={filter} onChange={setFilter} placeholder="搜索元素" className="list-filter" />
             </div>
           ) : value.type === 'set' ? (
             <div className="value-toolbar">
+              {/* 操作合成一个分段控件，与 string 类型同一套视觉 */}
+              <div className="seg-group">
               <button className="tool" {...tipProps('复制全部成员（每行一个）')} onClick={setEditor.copySetAll}>
                 <DialogIcon name="copy" size={12} className="ti" />
                 复制
@@ -635,14 +645,18 @@ export function ValueViewer() {
                 <DialogIcon name="refresh" size={12} className="ti" />
                 刷新
               </button>
-
+              {/* 分隔线：动作按钮与「自动刷新」开关语义不同，用一条竖线分组 */}
+              <span className="seg-divider" aria-hidden="true" />
               <AutoRefreshSwitch value={autoRefresh} onChange={setAutoRefresh} />
+              </div>
 
               <span className="spacer" />
               <FilterBox value={filter} onChange={setFilter} placeholder="搜索成员" className="list-filter" />
             </div>
           ) : value.type === 'zset' ? (
             <div className="value-toolbar">
+              {/* 操作合成一个分段控件，与 string 类型同一套视觉 */}
+              <div className="seg-group">
               <button
                 className="tool"
                 {...tipProps('复制全部成员（member :: score，每行一个）')}
@@ -667,8 +681,10 @@ export function ValueViewer() {
                 <DialogIcon name="refresh" size={12} className="ti" />
                 刷新
               </button>
-
+              {/* 分隔线：动作按钮与「自动刷新」开关语义不同，用一条竖线分组 */}
+              <span className="seg-divider" aria-hidden="true" />
               <AutoRefreshSwitch value={autoRefresh} onChange={setAutoRefresh} />
+              </div>
 
               <span className="spacer" />
               <FilterBox value={filter} onChange={setFilter} placeholder="搜索 member" className="list-filter" />
@@ -676,6 +692,8 @@ export function ValueViewer() {
           ) : value.type === 'stream' ? (
             /* stream 为只读日志：历史 entry 只读，但提供 XADD 追加新消息 */
             <div className="value-toolbar">
+              {/* 操作合成一个分段控件，与 string 类型同一套视觉 */}
+              <div className="seg-group">
               <button
                 className="tool"
                 {...tipProps('复制全部 entry（entry ID + 字段，每行一条）')}
@@ -700,8 +718,10 @@ export function ValueViewer() {
                 <DialogIcon name="refresh" size={12} className="ti" />
                 刷新
               </button>
-
+              {/* 分隔线：动作按钮与「自动刷新」开关语义不同，用一条竖线分组 */}
+              <span className="seg-divider" aria-hidden="true" />
               <AutoRefreshSwitch value={autoRefresh} onChange={setAutoRefresh} />
+              </div>
 
               <span className="spacer" />
               <FilterBox value={filter} onChange={setFilter} placeholder="搜索 entry" className="list-filter" />
