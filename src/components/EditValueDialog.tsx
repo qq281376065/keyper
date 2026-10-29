@@ -162,6 +162,7 @@ export function EditValueDialog({ initial, onClose }: { initial: KeyValue; onClo
             value={stringDraft}
             onChange={(event) => setStringDraft(event.target.value)}
             className="mono dlg-content"
+            autoGrow
             spellCheck={false}
             placeholder={placeholder}
           />
@@ -210,6 +211,7 @@ export function EditValueDialog({ initial, onClose }: { initial: KeyValue; onClo
             value={linesDraft}
             onChange={(event) => setLinesDraft(event.target.value)}
             className="mono dlg-content"
+            autoGrow
             spellCheck={false}
             placeholder={placeholder}
           />

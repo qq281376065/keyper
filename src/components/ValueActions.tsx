@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { DialogIcon } from '@/components/DialogIcon'
 import { tipProps } from '@/components/tip'
 import { useRedis } from '@/store/useRedis'
@@ -83,45 +84,48 @@ export function ValueActions({ onRename, onSetTtl }: ValueActionsProps) {
         <DialogIcon name="more" size={15} />
       </button>
 
-      {open ? (
-        <>
-          <div className="popover-mask" onClick={() => setOpen(false)} />
-          <div
-            ref={menuRef}
-            className="menu"
-            style={{ top: `${position.top}px`, left: `${position.left}px`, width: `${MENU_WIDTH}px` }}
-          >
-            <button className="menu-item" onClick={() => void run(onRename)}>
-              <DialogIcon name="refresh" size={13} className="mi-icon" />
-              <span>重命名键…</span>
-            </button>
+      {open
+        ? createPortal(
+            <>
+              <div className="popover-mask" onClick={() => setOpen(false)} />
+              <div
+                ref={menuRef}
+                className="menu"
+                style={{ top: `${position.top}px`, left: `${position.left}px`, width: `${MENU_WIDTH}px` }}
+              >
+                <button className="menu-item" onClick={() => void run(onRename)}>
+                  <DialogIcon name="refresh" size={13} className="mi-icon" />
+                  <span>重命名键…</span>
+                </button>
 
-            <button className="menu-item" onClick={() => void run(onSetTtl)}>
-              <DialogIcon name="clock" size={13} className="mi-icon" />
-              <span>设置 TTL…</span>
-            </button>
+                <button className="menu-item" onClick={() => void run(onSetTtl)}>
+                  <DialogIcon name="clock" size={13} className="mi-icon" />
+                  <span>设置 TTL…</span>
+                </button>
 
-            <div className="menu-sep" />
+                <div className="menu-sep" />
 
-            <button className="menu-item" onClick={() => void run(copyKey)}>
-              <DialogIcon name="copy" size={13} className="mi-icon" />
-              <span>复制键名</span>
-            </button>
+                <button className="menu-item" onClick={() => void run(copyKey)}>
+                  <DialogIcon name="copy" size={13} className="mi-icon" />
+                  <span>复制键名</span>
+                </button>
 
-            <button className="menu-item" onClick={() => void run(refresh)}>
-              <DialogIcon name="refresh" size={13} className="mi-icon" />
-              <span>刷新</span>
-            </button>
+                <button className="menu-item" onClick={() => void run(refresh)}>
+                  <DialogIcon name="refresh" size={13} className="mi-icon" />
+                  <span>刷新</span>
+                </button>
 
-            <div className="menu-sep" />
+                <div className="menu-sep" />
 
-            <button className="menu-item danger" onClick={() => void run(remove)}>
-              <DialogIcon name="cancel" size={13} className="mi-icon" />
-              <span>删除键</span>
-            </button>
-          </div>
-        </>
-      ) : null}
+                <button className="menu-item danger" onClick={() => void run(remove)}>
+                  <DialogIcon name="cancel" size={13} className="mi-icon" />
+                  <span>删除键</span>
+                </button>
+              </div>
+            </>,
+            document.body,
+          )
+        : null}
     </div>
   )
 }

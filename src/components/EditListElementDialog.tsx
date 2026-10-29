@@ -169,6 +169,7 @@ export function EditListElementDialog({
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           className="mono dlg-content"
+          autoGrow
           spellCheck={false}
           placeholder={mode === 'edit' ? '元素内容，可多行' : '要插入的内容'}
           autoFocus

@@ -161,6 +161,7 @@ export function EditHashFieldDialog({
           value={valueDraft}
           onChange={(event) => setValueDraft(event.target.value)}
           className="mono dlg-content"
+          autoGrow
           spellCheck={false}
           placeholder="字段值，可多行"
         />

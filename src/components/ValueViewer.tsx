@@ -500,7 +500,7 @@ export function ValueViewer() {
                 72px 字号在本就空着的右侧占位，不干扰阅读。
             高度固定 75px：三个部件（存根竖排字、两行文字、水印）都能容纳。
           */}
-          <header className={`viewer-head ticket-head type-${value.type}`} data-letter={value.type.charAt(0).toUpperCase()}>
+          <header className="viewer-head ticket-head" data-letter={value.type.charAt(0).toUpperCase()}>
             {/* 存根：竖排类型名 + 右侧一排半圆撕口 */}
             <div className="ticket-stub" aria-hidden="true">
               <span>{value.type}</span>

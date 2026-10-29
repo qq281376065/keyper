@@ -46,6 +46,8 @@
   /* 表单可能很长（多级跳板），限制总高让页脚始终可见 */
   max-height: calc(100vh - 140px);
   min-height: 0;
+  /* 宽度由 .dlg 决定；这里只负责不被内部长内容反向撑开 */
+  min-width: 0;
 }
 
 /* ------------------------------------------------------------------ 头部 */
@@ -357,6 +359,14 @@
   /* 只有内容区滚动，标题与页脚固定 —— 长表单下按钮永远够得到 */
   flex: 1 1 auto;
   min-height: 0;
+  /*
+   * min-width: 0 是必需的，不是保险。
+   *
+   * 正文是 flex 列容器，其子项的 min-width 默认取 auto（= 内容固有宽度）。
+   * 弹窗里一旦出现不换行的长字符串（长 JSON、长连接串、长键名），
+   * 固有宽度会把 .dlg-body 撑出弹窗，进而把页脚按钮和关闭按钮推出可视区。
+   */
+  min-width: 0;
   overflow-y: auto;
   /*
    * 底部 22px（比其它边多 4px）：长表单滚到底时，最后一个字段与页脚
@@ -1255,8 +1265,35 @@
 /* ---- 内容区文本域：统一最小高度 ---- */
 .dlg .dlg-content {
   min-height: 110px;
+  /*
+   * 高度上限：内容再多也只长到这里，之后交给内部滚动。
+   *
+   * 取 40vh 而不是固定像素 —— 弹窗本身用 min-height 约束正文区，
+   * 小窗口下固定 360px 会把页脚按钮顶出视口；40vh 在任何窗口高度下
+   * 都给页脚留出足够空间（900px 高的窗口约 360px）。
+   * 同时不超过 380px，避免大屏上文本框喧宾夺主。
+   */
+  max-height: min(380px, 40vh);
   resize: vertical;
   line-height: 1.6;
+  /*
+   * 内容不多时不撑高（兜住 min-height），超出 max-height 后内部滚动。
+   * 实际高度由 useAutoGrow 逐次写入；这里给未启用该 hook 的调用方一个安全值。
+   */
+  overflow-y: auto;
+  /*
+   * 关掉 shadcn Textarea 默认的 field-sizing-content。
+   *
+   * 该属性让 textarea 按「内容」自适应尺寸。弹窗里内容常常是一整行没有
+   * 换行的长 JSON（实测 1628 字符单行），于是它的固有宽度被撑到 7378px，
+   * 顺着 flex 链一路把 .dlg-shell 顶到 7424px；而 .dlg 有 overflow: hidden，
+   * 多出来的部分被裁掉 —— 用户看到的就是「文本框只剩一条、关闭和保存按钮
+   * 全都不见了」。宽度必须由弹窗决定，滚动交给 textarea 自己。
+   */
+  field-sizing: fixed;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* ---- EditValueDialog：hash 字段表格 ---- */

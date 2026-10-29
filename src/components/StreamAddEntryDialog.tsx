@@ -100,6 +100,7 @@ export function StreamAddEntryDialog({ keyName, total, onConfirm, onCancel }: St
           value={valueDraft}
           onChange={(event) => setValueDraft(event.target.value)}
           className="mono dlg-content"
+          autoGrow
           spellCheck={false}
           placeholder="消息内容，可多行"
         />
