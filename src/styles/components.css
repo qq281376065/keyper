@@ -5063,21 +5063,39 @@
  *   · 内部：每个选项各自胶囊，选中项用 elevated 底 + 轻投影浮起；
  *   · 不再画分隔线 —— 选项之间的 2px 间隙已经完成了分组。
  */
+/*
+ * 分段控件 —— 胶囊凹槽 + 独立胶囊选项
+ *
+ * 尺寸与设置项其它控件对齐：设置页的输入框/下拉都是 32px 高，
+ * 分段控件原先只有 26px（按钮 20px），在整列里显得偏小、细碎。
+ * 现在容器 34px、按钮 28px，与 32px 输入框同一量级，视觉重量匹配。
+ *
+ * 文字颜色分三档，全部取自主题变量，随 9 套皮肤自动适配：
+ *   常态   --text-secondary  中灰，可读但不抢
+ *   悬停   --text-primary    主文字，反馈明确
+ *   选中   --text-primary + 加粗 + elevated 底 + 轻投影
+ * 原来常态用 --text-muted（最低一档），在浅色皮肤下几乎糊成一片，
+ * 看起来"文字都是黑的"——实际是灰度太接近，缺乏层次。
+ */
 .settings-dialog .segmented, .s-settings-dialog .segmented{
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  padding: 2px;
+  gap: 3px;
+  padding: 3px;
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--bg-app);
   flex: 0 0 auto;
+  min-height: 34px;
+  box-sizing: border-box;
 }
 .settings-dialog .segmented button, .s-settings-dialog .segmented button{
-  padding: 2px 10px;
+  padding: 4px 13px;
   border-radius: 999px;
-  font-size: var(--fs-md);
-  color: var(--text-muted);
+  font-size: var(--fs-base);
+  line-height: 1.3;
+  /* 常态用 secondary 而不是 muted：muted 在浅底上灰度太浅、在深底上太暗 */
+  color: var(--text-secondary);
   background: transparent;
   /* 去掉旧的分隔线 —— 间隙已经表达分组 */
   border: none;
@@ -5093,7 +5111,7 @@
   color: var(--text-primary);
   font-weight: 600;
   /* 轻投影让选中项"浮"出凹槽，比整块填强调色更克制，也不刺眼 */
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.14);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
 }
 .s-settings-dialog select{
   font-size: var(--fs-md);
@@ -5999,10 +6017,123 @@
 .s-value-viewer.value-toolbar, .s-value-viewer .value-toolbar{
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 7px 8px;
+  gap: 8px;
+  /*
+   * 纵向 3px（原 7px）：工具条本身贴着值区顶部，上下留白过厚会让
+   * 分段控件在条带里显得"悬空"，也压缩了下方内容的可视高度。
+   * 横向保持 8px —— 与左侧边框的距离感不能一起收。
+   */
+  padding: 3px 8px;
   border-bottom: 1px solid var(--border);
   background: var(--bg-panel);
+}
+
+/* ===========================================================================
+ * value 操作栏 —— 分段控件（Segmented / iOS pill 风格）
+ * ===========================================================================
+ *
+ * 设计意图（对应 design/toolbar-10-schemes.html 方案 02）：
+ *   把若干操作按钮合成**一个整体容器**，内部无间隙；
+ *   容器与内部块都是全胶囊圆角；激活项是「白底 + 轻投影」的胶囊块，
+ *   像 iOS 的分段控件 —— 一眼能看出"这几个是同一组、当前在某一个上"。
+ *
+ * 为什么用「相邻选择器拼圆角」而不是 gap：
+ *   要"内部无间隙"，就不能留 gap；但整组两端的圆角必须是半圆。
+ *   做法是：容器负责左右两端的半圆，内部块各自方角，
+ *   这样整条是连续的一段，只有最外侧是圆头 —— 与 iOS 分段控件一致。
+ *   若每块都做成胶囊再拼，块与块之间会露出缝隙，反而不像一体。
+ *
+ * 激活态用投影浮起而不是填色：填 accent 会让整条过重，
+ * 投影只做 1px 高光 + 1px 下影，既表达"选中"，又不与主题色打架。
+ * =========================================================================== */
+
+/*
+ * 容器：整体胶囊凹槽。
+ *
+ * 间距的处理（两个方向刻意不同）：
+ *   · 纵向 padding 收到 2px —— 激活块在凹槽里"填得更满"，
+ *     视觉上是块浮在槽里，而不是块被一圈厚边包住；
+ *   · 横向 gap 给 2px —— 相邻激活块之间留一条缝，
+ *     否则两个白色胶囊会连成一条长块，看不出是两项。
+ * 块高由内容撑开（padding + 行高），不因纵向收窄而变小。
+ */
+.s-value-viewer .value-toolbar > .seg-group {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 2px;
+  /*
+   * 内边距恒为 2px（四边一致）：激活块四周留同样的呼吸量。
+   * 注意区分「容器内边距」与「工具条的纵向外空白」——
+   * 要让整条在工具栏里更紧凑，收的是后者的 padding，不是这里。
+   */
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  flex: 0 0 auto;
+  /* 内部块超出容器圆角时要被裁掉 */
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* 内部块：去掉独立边框与圆角，只做状态表达 */
+.s-value-viewer .seg-group > .tool {
+  border: none;
+  /*
+   * 块高由自身 padding 撑开：3px + 行高 + 3px ≈ 21px。
+   * 改为只控制上下 padding，左右沿用下面的 11px。
+   */
+  /*
+   * 内部块默认方角 —— 整组要读作连续一段。
+   * 注意：全局按钮约定里有 `.tool { border-radius: 999px !important }`
+   * 兜底，这里必须用同权重的 !important 才能压回方角，
+   * 否则每块都是胶囊、块与块之间出现缝隙，就不是"分段控件"了。
+   * 首尾两端的圆头由下面两条规则单独恢复。
+   */
+  border-radius: 0 !important;
+  background: transparent;
+  padding: 3px 11px;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  box-shadow: none;
+  transition: background-color 0.15s, color 0.15s, box-shadow 0.15s;
+}
+.s-value-viewer .seg-group > .tool:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+/*
+ * 激活：高对比胶囊块。
+ *
+ * 原来激活底用 --bg-elevated，在 dark 皮肤下与容器 --bg-app 几乎同色
+ * （实测 rgb(33,37,46) vs rgb(21,23,28)，对比度仅 1.3:1），
+ * 只靠投影区分，实际几乎看不出选中态。
+ *
+ * 现在改为「状态色填充 + 反色文字」：
+ *   · 底色用 accent-soft（各皮肤自己的强调色 12-15% 透明版），
+ *     与灰色凹槽形成色相差，9 套皮肤下都成立；
+ *   · 文字用 accent 本身并加粗，与未激活的 text-secondary 拉开；
+ *   · 再叠一圈 accent 内描边 + 轻投影，明确"这是一块按下的实体"。
+ * 这样不依赖灰度差，任何主题下都能一眼看出激活项。
+ */
+.s-value-viewer .seg-group > .tool.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+  /* 激活块自身是完整胶囊 —— 这是 iOS 分段控件的关键特征 */
+  border-radius: 999px !important;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.2),
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 32%, transparent);
+}
+/* 首尾两端的圆角由容器裁切完成，这里只补 hover 时的圆头不被切平 */
+.s-value-viewer .seg-group > .tool:first-child {
+  border-top-left-radius: 999px !important;
+  border-bottom-left-radius: 999px !important;
+}
+.s-value-viewer .seg-group > .tool:last-child {
+  border-top-right-radius: 999px !important;
+  border-bottom-right-radius: 999px !important;
 }
 /*
  * 搜索框：图标 + 输入 + 清除按钮同处一个容器内，

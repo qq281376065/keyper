@@ -511,39 +511,49 @@ export function ValueViewer() {
           {/* ---------------- 工具栏（按类型分支） ---------------- */}
           {value.type === 'string' && !stringEditor.stringEditing ? (
             <div className="value-toolbar">
-              {/* 编辑：与双击值区域等价的显式入口（双击是隐性手势，按钮保证可发现性） */}
-              <button className="tool" {...tipProps('进入编辑（也可双击值区域）')} onClick={stringEditor.enterStringEditExplicit}>
-                <DialogIcon name="edit" size={12} className="ti" />
-                编辑
-              </button>
-              <button className="tool" {...tipProps('复制全部内容')} onClick={copyValue}>
-                <DialogIcon name="copy" size={12} className="ti" />
-                复制
-              </button>
-              <button
-                className={`tool${pretty ? ' on' : ''}`}
-                {...tipProps(pretty ? '已开启 JSON 美化，点击查看原始内容' : '点击按 JSON 缩进重排')}
-                onClick={() => setPretty((prev) => !prev)}
-              >
-                <DialogIcon name="info" size={12} className="ti" />
-                JSON 美化
-              </button>
-              <button
-                className={`tool${wrap ? ' on' : ''}`}
-                {...tipProps(wrap ? '已开启自动换行，点击改为横向滚动' : '点击恢复自动换行')}
-                onClick={() => setWrap((prev) => !prev)}
-              >
-                <DialogIcon name="text" size={12} className="ti" />
-                自动换行
-              </button>
-              <button className="tool" {...tipProps('导出为本地文件')} onClick={exportValue}>
-                <DialogIcon name="export" size={12} className="ti" />
-                导出
-              </button>
-              <button className="tool" {...tipProps('重新读取该键')} onClick={refreshValue}>
-                <DialogIcon name="refresh" size={12} className="ti" />
-                刷新
-              </button>
+              {/*
+                六个操作合成一个分段控件（iOS pill segmented）。
+
+                前四个是「动作」，后两个是「视图开关」—— 语义上不同组，
+                但按 design/toolbar-10-schemes.html 方案 02 的取舍：
+                视觉整齐度优先，用「是否有激活态」让开关自己浮出来。
+                开关项（JSON 美化 / 自动换行）默认常开，所以常态下
+                这两个块是浮起的，动作块是平的，一眼能分辨两类。
+              */}
+              <div className="seg-group">
+                <button className="tool" {...tipProps('进入编辑（也可双击值区域）')} onClick={stringEditor.enterStringEditExplicit}>
+                  <DialogIcon name="edit" size={12} className="ti" />
+                  编辑
+                </button>
+                <button className="tool" {...tipProps('复制全部内容')} onClick={copyValue}>
+                  <DialogIcon name="copy" size={12} className="ti" />
+                  复制
+                </button>
+                <button
+                  className={`tool${pretty ? ' on' : ''}`}
+                  {...tipProps(pretty ? '已开启 JSON 美化，点击查看原始内容' : '点击按 JSON 缩进重排')}
+                  onClick={() => setPretty((prev) => !prev)}
+                >
+                  <DialogIcon name="info" size={12} className="ti" />
+                  JSON 美化
+                </button>
+                <button
+                  className={`tool${wrap ? ' on' : ''}`}
+                  {...tipProps(wrap ? '已开启自动换行，点击改为横向滚动' : '点击恢复自动换行')}
+                  onClick={() => setWrap((prev) => !prev)}
+                >
+                  <DialogIcon name="text" size={12} className="ti" />
+                  自动换行
+                </button>
+                <button className="tool" {...tipProps('导出为本地文件')} onClick={exportValue}>
+                  <DialogIcon name="export" size={12} className="ti" />
+                  导出
+                </button>
+                <button className="tool" {...tipProps('重新读取该键')} onClick={refreshValue}>
+                  <DialogIcon name="refresh" size={12} className="ti" />
+                  刷新
+                </button>
+              </div>
               <span className="spacer" />
               <FilterBox value={filter} onChange={setFilter} placeholder="搜索值内容" className="string-filter" />
             </div>
