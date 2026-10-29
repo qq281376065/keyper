@@ -104,6 +104,29 @@ export interface RedisConnectionConfig {
   credentialError?: string
 }
 
+/**
+ * 检查更新的结果。
+ *
+ * 只描述"事实"（远端最新版本 / 是否更新 / 下载地址），
+ * 判断与文案都交给渲染层 —— 主进程不该生成 UI 文案。
+ */
+export interface UpdateCheckResult {
+  /** 当前运行版本（便于用户对照） */
+  currentVersion: string
+  /** 远端最新 tag 名（已去掉前缀 v，如 1.1.0） */
+  latestVersion: string
+  /** 远端是否比本地新 */
+  hasUpdate: boolean
+  /** 版本说明（tag message 原文，可能为空） */
+  notes: string | null
+  /** 仓库主页 / 版本页，用于「查看详情」 */
+  pageUrl: string
+  /** 检查时间（ISO），用于界面提示"多久之前检查的" */
+  checkedAt: string
+  /** 远端确实可达但拿不到版本信息时的说明（例如仓库尚无 tag） */
+  notice: string | null
+}
+
 /** 连接运行时状态 */
 export interface ConnectionState extends Omit<RedisConnectionConfig, 'password' | 'ssh'> {
   status: ConnectionStatus

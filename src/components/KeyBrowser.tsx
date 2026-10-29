@@ -314,6 +314,33 @@ export function KeyBrowser() {
 
   const separator = rawSeparator || ':'
 
+  /* ---------------------------------------------------------------- 全库搜索态 / 列表数据源 */
+
+  /**
+   * 全库搜索态的判定：remoteSearch 存在 **且关键词与筛选框一致**。
+   *
+   * 一致性校验不能省：防抖窗口内（输入了新词、远程搜索还是旧词的），
+   * 若只看 remoteSearch 非空就切数据源，列表会显示旧词的结果、筛选框里却是新词。
+   */
+  const remoteActive =
+    !!state.remoteSearch && state.remoteSearch.keyword === state.keyFilter.trim() && !!state.keyFilter.trim()
+
+  /** 全库扫描进行中：列表为空时显示扫描加载态，不闪「没有匹配的键」 */
+  const remoteScanning = remoteActive && !!state.remoteSearch?.scanning
+
+  /** 列表数据源：全库搜索态用 remoteKeys，否则本地筛选结果 */
+  const displayKeys = remoteActive ? state.remoteKeys : filteredKeys
+
+  /**
+   * 树形视图的数据源必须与平铺视图一致（都用 displayKeys）。
+   *
+   * 这里曾经只喂 filteredKeys —— 那次 bug 的表现是：
+   * 全库搜索命中的键在平铺列表里能看到，切到树形却一个都不显示。
+   * 原因是 filteredKeys 只过滤「已加载的这一页」，全库搜索的结果在
+   * state.remoteKeys 里，树根本没拿到那份数据。
+   */
+  const treeNodes = useMemo(() => buildKeyTree(displayKeys, separator), [displayKeys, separator])
+
   const connected =
     !!state.activeId && state.connections.some((c) => c.id === state.activeId && c.status === 'connected')
 
@@ -323,14 +350,18 @@ export function KeyBrowser() {
    */
   const expandScope = state.activeId ? `${state.activeId}@${state.activeDb}` : ''
 
-  const treeNodes = useMemo(() => buildKeyTree(filteredKeys, separator), [filteredKeys, separator])
 
   /**
    * 数据集身份：连接 + 库 + 匹配模式。
    * 这三者是"要看哪些键"的定义，变化时才有理由重置折叠态；
    * 删除 / 新增 / 重命名键只是数据增减，用户的展开-折叠意图应当保留。
    */
-  const datasetKey = `${state.activeId}|${state.activeDb}|${state.pattern}`
+  /*
+   * 搜索态也属于「数据集身份」：全库搜索会把列表换成 remoteKeys，
+   * 树形目录结构随之整体变化。不带上关键词的话，切换搜索时不会触发
+   * 折叠权重置，新目录会被旧数据集遗留的 collapsed 路径挡住。
+   */
+  const datasetKey = `${state.activeId}|${state.activeDb}|${state.pattern}|${remoteActive ? state.keyFilter.trim() : ''}`
 
   /**
    * 恢复上次的展开状态。
@@ -684,22 +715,6 @@ export function KeyBrowser() {
     }
   }
 
-  /* ---------------------------------------------------------------- 全库搜索态 / 列表数据源 */
-
-  /**
-   * 全库搜索态的判定：remoteSearch 存在 **且关键词与筛选框一致**。
-   *
-   * 一致性校验不能省：防抖窗口内（输入了新词、远程搜索还是旧词的），
-   * 若只看 remoteSearch 非空就切数据源，列表会显示旧词的结果、筛选框里却是新词。
-   */
-  const remoteActive =
-    !!state.remoteSearch && state.remoteSearch.keyword === state.keyFilter.trim() && !!state.keyFilter.trim()
-
-  /** 全库扫描进行中：列表为空时显示扫描加载态，不闪「没有匹配的键」 */
-  const remoteScanning = remoteActive && !!state.remoteSearch?.scanning
-
-  /** 列表数据源：全库搜索态用 remoteKeys，否则本地筛选结果 */
-  const displayKeys = remoteActive ? state.remoteKeys : filteredKeys
 
   /* ---------------------------------------------------------------- 平铺虚拟滚动 */
 

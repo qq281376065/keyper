@@ -14,6 +14,7 @@ import type {
   LogEntry,
   LogFileInfo,
   LogQuery,
+  UpdateCheckResult,
   MemoryAnalysis,
   OperationResult,
   RedisConnectionConfig,
@@ -88,6 +89,11 @@ const api: RedisDesktopApi = {
     record: (connId, db, term) => invoke<SearchHistoryEntry[]>(IPC.searchHistoryRecord, connId, db, term),
     remove: (connId, db, term) => invoke<SearchHistoryEntry[]>(IPC.searchHistoryRemove, connId, db, term),
     clear: (connId, db) => invoke<SearchHistoryEntry[]>(IPC.searchHistoryClear, connId, db),
+  },
+
+  update: {
+    check: () => invoke<UpdateCheckResult>(IPC.updateCheck),
+    openPage: (url: string) => invoke<OperationResult>(IPC.updateOpenPage, url),
   },
 
   log: {

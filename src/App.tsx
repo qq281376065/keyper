@@ -4,6 +4,7 @@ import { AppTooltip } from '@/components/AppTooltip'
 import { CliConsole } from '@/components/CliConsole'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { ConnectionDialog } from '@/components/ConnectionDialog'
+import { ImportUriDialog } from '@/components/ImportUriDialog'
 import { ConnectionSidebar } from '@/components/ConnectionSidebar'
 import { DialogIcon } from '@/components/DialogIcon'
 import { LogPanel } from '@/components/LogPanel'
@@ -39,6 +40,8 @@ export function App() {
   const [dialogVisible, setDialogVisible] = useState(false)
   /** null 表示新建；有值表示编辑既有连接 */
   const [dialogInitial, setDialogInitial] = useState<RedisConnectionConfig | null>(null)
+  /** 粘贴连接串弹窗：解析成功后把结果交给标准连接表单，用户仍可改 */
+  const [importUriVisible, setImportUriVisible] = useState(false)
   const [version, setVersion] = useState(APP_VERSION)
   const [settingsVisible, setSettingsVisible] = useState(false)
   /** 正在查看版本信息的连接 */
@@ -153,6 +156,17 @@ export function App() {
     setDialogVisible(true)
   }
 
+  /**
+   * 连接串解析完成 → 用解析结果预填标准表单。
+   *
+   * 不直接连接：解析结果仍要经过用户的确认与可编辑的表单，
+   * 否则粘贴错一行就会连到别的实例上。
+   */
+  function handleUriParsed(config: RedisConnectionConfig): void {
+    setDialogInitial(config)
+    setDialogVisible(true)
+  }
+
   return (
     <div className="shell s-app">
       <header className="topbar">
@@ -207,7 +221,11 @@ export function App() {
           <TabBar />
           <div className="workspace-body">
             {/* 主页：固定标签，承载原欢迎页内容 */}
-            {!state.activeTabId ? <WelcomePanel onNewConnection={openNewConnection} /> : null}
+            {!state.activeTabId ? <WelcomePanel
+              onNewConnection={openNewConnection}
+              onImportUri={() => setImportUriVisible(true)}
+              onOpenLog={openLog}
+            /> : null}
             {state.tabs.map((connId) => (
               <Workspace key={connId} connId={connId} hidden={state.activeTabId !== connId} />
             ))}
@@ -219,6 +237,10 @@ export function App() {
 
       {dialogVisible ? (
         <ConnectionDialog initial={dialogInitial} onClose={() => setDialogVisible(false)} />
+      ) : null}
+
+      {importUriVisible ? (
+        <ImportUriDialog onClose={() => setImportUriVisible(false)} onSubmit={handleUriParsed} />
       ) : null}
 
       {settingsVisible ? <SettingsDialog onClose={() => setSettingsVisible(false)} /> : null}

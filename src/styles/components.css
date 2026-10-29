@@ -7468,19 +7468,28 @@ body.col-resizing .col-handle::after{
   background: var(--bg-app);
   min-width: 0;
   min-height: 0;
+  /*
+   * 始终为滚动条留位。
+   *
+   * 主页内容比视口高时会出现 10px 宽的纵向滚动条（::-webkit-scrollbar 宽度），
+   * 它从内容宽度里扣掉，于是「左右 32px 内边距」变成 左 32 / 右 42 ——
+   * 右侧凭空多出一条 10px 的空白，卡片右边缘与左边缘对不齐。
+   *
+   * scrollbar-gutter: stable 让槽位常驻，无论是否需要滚动，
+   * 内容宽度都一致，左右边距恢复对称。
+   */
+  scrollbar-gutter: stable;
 }
 .s-welcome-panel.inner, .s-welcome-panel .inner{
   /*
-   * 左对齐而不是居中。
+   * 铺满主区宽度（去掉原来的 max-width: 900px）。
    *
-   * 居中时 hero 图标距主区左缘 407px，而顶栏品牌图标距窗口左缘 14px ——
-   * 两个"品牌标志"落在完全不同的左边线上，视觉上像两个独立的块。
-   * 改成左对齐后，hero 图标与顶栏图标共用一条竖向轴线（都是 32px 内边距），
-   * 页面读起来是一个整体。
-   *
-   * max-width 保留：超宽窗口下正文不会被拉成一行过长的文字。
+   * 原来限宽 900px 时，主区约 1204px 宽 → 右侧空出 304px，
+   * 整页看起来"偏左、右边漏了一块"，而且九宫格与下方卡片的右边缘对不齐。
+   * 现在左右只留 32px 内边距，卡片贴住内容区两边。
+   * 超宽屏（>1600px）才重新限宽，避免一行文字过长影响阅读。
    */
-  max-width: 900px;
+  max-width: 1600px;
   margin: 0;
   /*
    * 顶部留白 52px → 26px。
@@ -7630,24 +7639,16 @@ body.col-resizing .col-handle::after{
   font-size: var(--fs-md);
   color: var(--text-muted);
 }
-/* ---------------------------------------------------------- 功能导览九宫格 */
+/* ---------------------------------------------------------- 功能清单卡内的九宫格 */
 /*
- * 3 列网格：760px 内容宽下每卡 ~240px。窄窗口降到 2 列（820px 断点
- * 与下方 cards 同步），卡片不换行溢出。
+ * 九宫格已并入单张卡片，样式统一在 src/styles/tailwind-cards.css 的
+ * .feat-grid / .feat-item 里维护（分隔线、窄窗断点都在那边）。
+ * 这里只保留与页面节奏相关的下边距，让功能卡与底部信息卡之间留白一致。
  */
 .feat-grid{
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
-
-@media (max-width: 820px) {
-.s-welcome-panel .feat-grid{
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
 .s-welcome-panel.feat, .s-welcome-panel .feat{
   padding: 14px 16px;
   border-radius: var(--radius-lg);
@@ -7678,32 +7679,13 @@ body.col-resizing .col-handle::after{
   line-height: 1.6;
 }
 /* ---------------------------------------------------------- 卡片 */
-.s-welcome-panel.cards, .s-welcome-panel .cards{
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 16px;
-}
+/*
+ * 底部两张卡已合并为一张「左右两栏」卡片（见 WelcomePanel 的 .info-card）。
+ * 卡片外壳与栏内排版统一由 src/styles/tailwind-cards.css 的
+ * .info-grid / .info-col 维护，这里不再保留旧的 .cards / .card 规则，
+ * 否则会与新的 Expandable 外壳叠加出第二层圆角和阴影。
+ */
 
-
-@media (max-width: 820px) {
-.s-welcome-panel .cards{
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-.s-welcome-panel.card, .s-welcome-panel .card{
-  padding: 16px 18px;
-  border-radius: var(--radius-lg);
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-}
-.s-welcome-panel .card h2{
-  margin: 0 0 12px;
-  font-size: var(--fs-md);
-  font-weight: 600;
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
-  color: var(--text-secondary);
-}
 /* ---------------------------------------------------------- 快捷键表 */
 .s-welcome-panel.keys-table, .s-welcome-panel .keys-table{
   width: 100%;

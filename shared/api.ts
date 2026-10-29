@@ -27,6 +27,7 @@ import type {
   PubsubMessage,
   PubsubState,
   VersionInfo,
+  UpdateCheckResult,
 } from './types'
 
 /**
@@ -37,6 +38,19 @@ export interface RedisDesktopApi {
   app: {
     getVersion: () => Promise<ApiResponse<string>>
     getEnvInfo: () => Promise<ApiResponse<EnvInfo>>
+  }
+
+  update: {
+    /**
+     * 检查是否有新版本。
+     *
+     * 走主进程而不是渲染层直接 fetch：
+     *   · 渲染进程在 file:// 下受 CORS 限制，请求会被拦；
+     *   · 主进程可以统一设置超时与 UA，失败时能给明确原因。
+     */
+    check: () => Promise<ApiResponse<UpdateCheckResult>>
+    /** 在系统浏览器中打开指定地址（下载页 / 版本说明） */
+    openPage: (url: string) => Promise<ApiResponse<OperationResult>>
   }
 
   settings: {
@@ -299,6 +313,9 @@ export interface RedisDesktopApi {
 export const IPC = {
   appVersion: 'app:getVersion',
   appEnvInfo: 'app:getEnvInfo',
+
+  updateCheck: 'update:check',
+  updateOpenPage: 'update:openPage',
 
   settingsGet: 'settings:get',
   settingsSave: 'settings:save',

@@ -640,38 +640,51 @@ body {
 }
 
 /* ------------------------------------------------------------ 通用元素 */
-button {
-  font-family: inherit;
-  font-size: inherit;
-  color: inherit;
-  border: none;
-  background: none;
-  cursor: pointer;
-}
+/*
+ * 这三条包在 @layer base 里是有意的。
+ *
+ * 它们与 Tailwind 工具类争同一批属性（background / border / color）。
+ * 无层级的普通样式永远压过任何 @layer 里的规则，结果是 shadcn / Cult UI
+ * 组件上的 `bg-primary`、`border`、`h-9` 全部失效 —— 实测开关轨道透明、
+ * 描边按钮没有边框。
+ *
+ * 放进 base 后：元素默认值仍然生效（应用里手写的 .btn 等类照旧），
+ * 但只要组件显式写了工具类，就以工具类为准，符合预期。
+ */
+@layer base {
+  button {
+    font-family: inherit;
+    font-size: inherit;
+    color: inherit;
+    border: none;
+    background: none;
+    cursor: pointer;
+  }
 
-input,
-select,
-textarea {
-  font-family: inherit;
-  font-size: inherit;
-  color: var(--text-primary);
-  background: var(--bg-app);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 5px 8px;
-  outline: none;
-}
+  input,
+  select,
+  textarea {
+    font-family: inherit;
+    font-size: inherit;
+    color: var(--text-primary);
+    background: var(--bg-app);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 5px 8px;
+    outline: none;
+  }
 
-input:focus,
-select:focus,
-textarea:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-soft);
-}
+  input:focus,
+  select:focus,
+  textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-soft);
+  }
 
-input::placeholder,
-textarea::placeholder {
-  color: var(--text-muted);
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--text-muted);
+  }
 }
 
 .btn {

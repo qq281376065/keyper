@@ -7,15 +7,15 @@ import {
   ExpandableCard,
   ExpandableCardHeader,
   ExpandableContent,
-  ExpandableTrigger,
-  useExpandable,
 } from '@/components/ui/expandable'
+import { BgAnimateButton } from '@/components/ui/bg-animate-button'
+import { UpdatePanel } from '@/components/UpdatePanel'
 import { useRedis } from '@/store/useRedis'
 import { APP_VERSION } from '@/services/errorReport'
 import type { EnvInfo } from '@shared/types'
 
 /*
- * 功能导览九宫格：把「这工具能干什么」在主页一次讲清楚 —— 新用户建立全貌。
+ * 功能清单：把「这工具能干什么」在主页一次讲清楚 —— 新用户建立全貌。
  * 图标全部复用 DialogIcon 既有集（零新增）；文案与实际能力一一对应，
  * 不写没上线的功能。纯静态展示，不发任何数据请求。
  */
@@ -31,29 +31,6 @@ const FEATS = [
   { icon: 'theme', title: '9 套皮肤', desc: '暗色 / 亮色 / 七套配色皮肤，明暗档随主题切换' },
 ] as const
 
-/**
- * 折叠箭头：跟随 Expandable 的展开态翻转。
- * 用 useExpandable() 读状态而不是自己维护一份 —— 组件支持受控/非受控
- * 两种用法，自存状态会与"只点 trigger"的场景脱节。
- */
-function ChevronSlot() {
-  const { isExpanded } = useExpandable()
-  return (
-    <span className={`feat-chevron${isExpanded ? ' is-open' : ''}`} aria-hidden>
-      <svg viewBox="0 0 12 12" width="12" height="12">
-        <path
-          d="M3 4.5L6 7.5L9 4.5"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.4"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    </span>
-  )
-}
-
 /* 快捷键速查：与产品真实交互一一对应 */
 const KEYS: Array<{ key: string; desc: string }> = [
   { key: '双击值区域', desc: '进入编辑' },
@@ -62,8 +39,68 @@ const KEYS: Array<{ key: string; desc: string }> = [
   { key: 'Ctrl+Enter', desc: '保存编辑' },
 ]
 
-/** 主页标签：Hero + 新建连接 + 功能导览九宫格 + 快捷键 / 兼容性卡片 */
-export function WelcomePanel({ onNewConnection }: { onNewConnection: () => void }) {
+/**
+ * 一张 Cult UI Expandable 外壳卡片（官方四层结构，只做静态展开）。
+ *
+ * 分层（组件自带，内层不要改）：
+ *   motion.div   —— 尺寸容器
+ *   外层 div     —— md:rounded-[2rem] + ring-1 + 内阴影（视觉外框）
+ *   中间 div     —— md:rounded-[2rem] + md:p-2（外框内 8px 留白）
+ *   内层 div     —— md:rounded-3xl + md:p-4 + bg-white/dark:bg-muted（卡片面）
+ *
+ * 主页现在只保留两张卡片：功能清单（内含九宫格）与底部信息（左右两栏）。
+ * 用同一套外壳，是为了两张卡在同一页里看起来是一族，而不是各写一套样式。
+ */
+function ShellCard({
+  children,
+  className = '',
+}: {
+  children: React.ReactNode
+  className?: string
+}) {
+  return (
+    <Expandable expanded expandBehavior="push" transitionDuration={0.28}>
+      <ExpandableCard
+        className={`feat-card ${className}`.trim()}
+        collapsedSize={{ width: 240, height: 52 }}
+        expandedSize={{ width: 240, height: undefined }}
+      >
+        {children}
+      </ExpandableCard>
+    </Expandable>
+  )
+}
+
+/**
+ * 九宫格里的单个条目。
+ *
+ * 保留 ExpandableCardHeader / ExpandableContent 这两个官方子组件，是为了让
+ * 条目与"卡片"共享同一套排版语义（头部一行、内容区独立），但它们不再各自
+ * 承担外层卡片壳 —— 外层已经由 ShellCard 提供，嵌 9 个 Expandable 会把
+ * 圆角与阴影叠 9 层，视觉上变成"卡片里的卡片"。
+ */
+function FeatItem({ item }: { item: (typeof FEATS)[number] }) {
+  return (
+    <div className="feat-item">
+      <div className="feat-head-row">
+        <DialogIcon name={item.icon} size={17} className="feat-icon" />
+        <h3>{item.title}</h3>
+      </div>
+      <p className="feat-desc">{item.desc}</p>
+    </div>
+  )
+}
+
+export interface WelcomePanelProps {
+  onNewConnection: () => void
+  /** 粘贴连接串导入（由 App 打开导入弹窗） */
+  onImportUri: () => void
+  /** 打开操作日志面板 */
+  onOpenLog: () => void
+}
+
+/** 主页标签：Hero + 操作区 + 功能清单卡 + 快捷键 / 兼容性卡 */
+export function WelcomePanel({ onNewConnection, onImportUri, onOpenLog }: WelcomePanelProps) {
   const [env, setEnv] = useState<EnvInfo | null>(null)
   const { state } = useRedis()
 
@@ -73,6 +110,9 @@ export function WelcomePanel({ onNewConnection }: { onNewConnection: () => void 
    * 已有连接时再说"还没有任何连接配置"是明显的误导。
    */
   const hasConnections = state.connections.length > 0
+
+  /** 检查更新面板的展开态：就地展开，不弹模态框打断 */
+  const [updateOpen, setUpdateOpen] = useState(false)
 
   useEffect(() => {
     void (async () => {
@@ -124,82 +164,137 @@ export function WelcomePanel({ onNewConnection }: { onNewConnection: () => void 
         </header>
 
         <div className="cta">
-          <button className="btn-primary btn-lg" onClick={onNewConnection}>
+          {/*
+            新建连接：Cult UI Background Animate Button，官方 demo 原样。
+            gradient="candy"（#ff9a9e→#fad0c4 锥形渐变、黑字）+
+            rounded="full"（胶囊）+ animation="spin"（4s 匀速旋转）。
+            不做任何样式覆盖 —— tailwind-cards.css 里只补 cursor
+            与键盘焦点环两条非视觉规则。
+          */}
+          <BgAnimateButton
+            className="cta-animate"
+            size="lg"
+            rounded="full"
+            shadow="soft"
+            gradient="candy"
+            animation="spin"
+            onClick={onNewConnection}
+          >
             <DialogIcon name="add" size={15} />
             新建连接
-          </button>
-          <span className="cta-hint">
-            {hasConnections ? '从左侧连接列表选择一个实例即可开始' : '还没有任何连接配置，添加一个 Redis 实例即可开始'}
-          </span>
+          </BgAnimateButton>
+
+          {/*
+            次级操作：与主按钮同一行、同一高度，但在视觉上明显更轻
+            （描边 + 透明底）。这三件事都是"围绕连接的一次性动作"，
+            放在主页起步位置比埋进顶栏图标更容易被发现。
+
+            顺序按使用频率排：粘贴连接串（拿到别人给的地址时最快）
+            → 操作日志（连不上时第一时间来看）→ 检查更新。
+          */}
+          <div className="cta-secondary">
+            <button className="cta-sec-btn" onClick={onImportUri} title="粘贴 redis:// 连接串快速新建">
+              <DialogIcon name="link" size={14} />
+              粘贴连接串
+            </button>
+            <button className="cta-sec-btn" onClick={onOpenLog} title="查看连接与操作日志">
+              <DialogIcon name="activity" size={14} />
+              操作日志
+            </button>
+            <button
+              className={`cta-sec-btn${updateOpen ? ' is-open' : ''}`}
+              onClick={() => setUpdateOpen((prev) => !prev)}
+              title="检查是否有新版本"
+              aria-expanded={updateOpen}
+            >
+              <DialogIcon name="refresh" size={14} />
+              检查更新
+            </button>
+            {updateOpen ? <UpdatePanel onClose={() => setUpdateOpen(false)} /> : null}
+          </div>
+          {/*
+            只在"一个连接都没有"时给一句起步提示。
+            已经有连接时不再提示"从左侧列表选一个" —— 用户既然有连接，
+            自然知道去哪点；这句在常驻状态下反而是一直占位的噪音。
+          */}
+          {!hasConnections ? (
+            <span className="cta-hint">还没有任何连接配置，添加一个 Redis 实例即可开始</span>
+          ) : null}
         </div>
 
         {/*
-          功能导览九宫格：静态特性卡（hover 提亮但不跳转 —— 卡片是说明
-          不是入口，入口都在连接后的工作区里）。3 列 × 3 行。
+          功能清单卡：一张卡片，内部是九宫格。
+          九项全部直接展示完整说明，不做折叠 —— 这里是"能力清单"，
+          用户来主页就是想一次看全，不该再让他们逐个点开。
         */}
-        <div className="feat-grid">
-          {FEATS.map((item) => (
-            <Expandable key={item.title} transitionDuration={0.28} expandBehavior="push">
-              <ExpandableCard
-                className="feat-card"
-                collapsedSize={{ width: 240, height: 52 }}
-                expandedSize={{ width: 240, height: undefined }}
-              >
-                <ExpandableTrigger>
-                  <ExpandableCardHeader className="feat-head">
-                    <DialogIcon name={item.icon} size={18} className="feat-icon" />
-                    <h3>{item.title}</h3>
-                    <ChevronSlot />
-                  </ExpandableCardHeader>
-                </ExpandableTrigger>
-                <ExpandableContent preset="slide-up" stagger>
-                  <p className="feat-desc">{item.desc}</p>
-                </ExpandableContent>
-              </ExpandableCard>
-            </Expandable>
-          ))}
-        </div>
+        {/*
+          两张卡各被 Expandable 包了一层 div，彼此不是兄弟节点，
+          间距不能靠 `+` 选择器给，这里用一个 flex 容器统一控制。
+        */}
+        <div className="card-stack">
+        <ShellCard className="feat-sheet-card">
+          <ExpandableCardHeader className="feat-sheet-head">
+            <div className="feat-sheet-title-row">
+              <h2 className="card-title">功能清单</h2>
+              <span className="feat-sheet-count">{FEATS.length} 项</span>
+            </div>
+          </ExpandableCardHeader>
+          <ExpandableContent preset="slide-up" stagger>
+            <div className="feat-grid">
+              {FEATS.map((item) => (
+                <FeatItem key={item.title} item={item} />
+              ))}
+            </div>
+          </ExpandableContent>
+        </ShellCard>
 
-        <div className="cards">
-          {/* ---------------------------------------------------- 快捷键速查 */}
-          <article className="card">
-            <h2>快捷键速查</h2>
-            <table className="keys-table">
-              <tbody>
-                {KEYS.map((item) => (
-                  <tr key={item.key}>
-                    <td className="key-cell">{item.key}</td>
-                    <td className="desc">{item.desc}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </article>
+        {/*
+          底部信息卡：一张卡片，内部左右两栏 —— 左「快捷键速查」右「兼容与性能」。
+          两栏内容一短一长，用等高布局保证中间的分隔线贯穿整卡。
+        */}
+        <ShellCard className="info-card">
+          <div className="info-grid">
+            {/* ------------------------------------------------ 快捷键速查 */}
+            <section className="info-col">
+              <h2 className="card-title">快捷键速查</h2>
+              <table className="keys-table">
+                <tbody>
+                  {KEYS.map((item) => (
+                    <tr key={item.key}>
+                      <td className="key-cell">{item.key}</td>
+                      <td className="desc">{item.desc}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
 
-          {/* ---------------------------------------------------- 兼容与性能 */}
-          <article className="card">
-            <h2>兼容与性能</h2>
-            <ul className="compat-list">
-              <li>
-                <DialogIcon name="server" size={13} className="compat-item-icon" />
-                <span>
-                  支持单机 <strong>Redis 7.x</strong> 及以上版本
-                </span>
-              </li>
-              <li>
-                <DialogIcon name="bolt" size={13} className="compat-item-icon" />
-                <span>
-                  键浏览采用 <strong>SCAN 渐进式遍历</strong>，不会阻塞服务端
-                </span>
-              </li>
-              <li>
-                <DialogIcon name="eye-off" size={13} className="compat-item-icon" />
-                <span>
-                  连接凭据经系统钥匙串 <strong>加密存储</strong>
-                </span>
-              </li>
-            </ul>
-          </article>
+            {/* ------------------------------------------------ 兼容与性能 */}
+            <section className="info-col">
+              <h2 className="card-title">兼容与性能</h2>
+              <ul className="compat-list">
+                <li>
+                  <DialogIcon name="server" size={13} className="compat-item-icon" />
+                  <span>
+                    支持单机 <strong>Redis 7.x</strong> 及以上版本
+                  </span>
+                </li>
+                <li>
+                  <DialogIcon name="bolt" size={13} className="compat-item-icon" />
+                  <span>
+                    键浏览采用 <strong>SCAN 渐进式遍历</strong>，不会阻塞服务端
+                  </span>
+                </li>
+                <li>
+                  <DialogIcon name="eye-off" size={13} className="compat-item-icon" />
+                  <span>
+                    连接凭据经系统钥匙串 <strong>加密存储</strong>
+                  </span>
+                </li>
+              </ul>
+            </section>
+          </div>
+        </ShellCard>
         </div>
       </div>
     </section>

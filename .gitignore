@@ -50,3 +50,5 @@ scripts/shot-welcome-title.cjs
 scripts/measure-hero.cjs
 scripts/measure-pixel-fonts.cjs
 xargs.exe.stackdump
+card-layers-*.png
+scripts/measure-card-layers.cjs

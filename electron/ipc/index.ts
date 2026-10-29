@@ -13,6 +13,7 @@ import {
 } from '../services/search-history-store'
 import { loadSettings, saveSettings } from '../services/settings-store'
 import { configInfo } from '../services/config-path'
+import { checkForUpdate, openUpdatePage } from '../services/update-service'
 import type {
   ApiResponse,
   AppSettings,
@@ -28,6 +29,7 @@ import type {
   MemoryAnalysis,
   OperationResult,
   RedisConnectionConfig,
+  UpdateCheckResult,
   RedisKeyItem,
   RedisValueType,
   ScanOptions,
@@ -332,6 +334,11 @@ export function registerIpcHandlers(): void {
     await openLogDir()
     return { ok: true, message: '已打开日志目录' }
   })
+
+  // -------------------------------------------------------- 检查更新
+  handle<UpdateCheckResult>(IPC.updateCheck, () => checkForUpdate())
+
+  handle<OperationResult>(IPC.updateOpenPage, async (url) => openUpdatePage(String(url ?? '')))
 
   // -------------------------------------------------------- 错误落盘
   // 渲染层错误边界的 fire-and-forget 通道：写入失败也不 reject ——

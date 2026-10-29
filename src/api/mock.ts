@@ -16,6 +16,7 @@ import type {
   MemoryAnalysis,
   MemoryBucket,
   OperationResult,
+  UpdateCheckResult,
   RedisConnectionConfig,
   RedisKeyItem,
   RedisValueType,
@@ -566,6 +567,24 @@ export const mockApi: RedisDesktopApi = {
         locale: navigator.language,
         inElectron: false,
       }),
+  },
+
+  update: {
+    /*
+     * 浏览器预览下不真的联网：这里返回一份"已是最新"的结果，
+     * 让界面能完整渲染结果态（而不是永远卡在检查中或报错）。
+     */
+    check: async (): Promise<ApiResponse<UpdateCheckResult>> =>
+      ok({
+        currentVersion: APP_VERSION,
+        latestVersion: APP_VERSION,
+        hasUpdate: false,
+        notes: null,
+        pageUrl: 'https://gitee.com/jack_ssdddd/redis-docter/tags',
+        checkedAt: new Date().toISOString(),
+        notice: '浏览器预览模式不会真的联网检查',
+      }),
+    openPage: async () => ok({ ok: true, message: '预览模式下不打开浏览器' }),
   },
 
   window: {

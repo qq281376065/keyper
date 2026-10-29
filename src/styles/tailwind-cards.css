@@ -1,0 +1,495 @@
+/* ===========================================================================
+ * Home cards — Cult UI Expandable 官方结构
+ * ===========================================================================
+ *
+ * 组件 ExpandableCard 的层次（src/components/ui/expandable.tsx）：
+ *   motion.div                       尺寸容器（width/height 被内联 style 固定）
+ *   └ div ①  md:rounded-[2rem] + ring-1 + 内阴影      ← 视觉外框
+ *     └ div ② md:rounded-[2rem] + md:p-2 + shadow-md  ← 外框内留白（8px）
+ *       └ div ③ md:rounded-3xl + md:p-4 + bg-white    ← 内容卡片面（16px）
+ *
+ * 本文件只做四件事，其余保持官方原样：
+ *   ① 解除外层的 mx-auto / max-w-[calc(100%-4rem)] —— 它在网格里会造成左右各缩 32px
+ *   ② 给外层补可见底色 —— 深色主题下原来的透明外层与页面底几乎同色，双层次看不出来
+ *   ③ 卡片高度撑满格子 —— motion 的 spring 高度是内联固定值，不撑满会溢出到下一行
+ *   ④ 头部从 flex-col+p-6 改成一行 —— 图标与标题并排，符合密集网格
+ *
+ * 内层圆角、内边距（16px）、背景、阴影全部保持官方值。
+ * =========================================================================== */
+
+/* 卡片外框底色：始终比内层卡片面（--bg-elevated）深一档。
+   不能复用 --bg-panel：深色主题下它比 elevated 暗（方向对），
+   浅色主题下却是纯白、比 elevated 亮（方向反，实测 254 vs 255 分不出双层）。 */
+:root,
+:root[data-theme='light'],
+:root[data-theme='dark'],
+:root[data-theme='solarized'],
+:root[data-theme='sakura'],
+:root[data-theme='mint'],
+:root[data-theme='mist'],
+:root[data-theme='aurora'] {
+  --card-frame-bg: color-mix(in srgb, var(--bg-app) 62%, var(--border) 38%);
+}
+/*
+ * 暗色系皮肤（dark / ocean / forest）：外框要比内层面（--bg-elevated）暗一档。
+ * 这里直接用 --bg-panel 再压暗一点，避免写死的中性灰 #1a1d24 落到
+ * ocean（蓝黑）/ forest（墨绿）上显得发灰、串色。
+ */
+:root[data-theme='dark'],
+:root[data-theme='ocean'],
+:root[data-theme='forest'] {
+  --card-frame-bg: color-mix(in srgb, var(--bg-panel) 72%, #000000 28%);
+}
+
+@layer components {
+  /*
+   * 卡片根：宽度铺满内容区，高度随内容自然增长。
+   *
+   * 早期九张卡是 grid 的单元格，必须 height:100% 才能等高对齐；
+   * 现在只剩两张块级兄弟节点，再写 100% 会让每张卡都试图撑满整页高度，
+   * 第二张被挤出可视区（实测底部被裁）。
+   */
+  /*
+   * 两张外壳卡之间的间距。
+   * 各卡都被 Expandable 包了一层 div，彼此不是兄弟节点，
+   * 无法用 `+` 选择器，改用父级 flex 列 + gap 统一给。
+   */
+  .card-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .feat-card {
+    width: 100% !important;
+    height: auto !important;
+    cursor: default;
+  }
+
+  /*
+   * 两张外壳卡之间留出 20px（与卡内九宫格的分隔节奏一致）。
+   * 实际间距由 .card-stack 的 gap 提供，这里删掉旧的相邻兄弟规则。
+   */
+  /* ① 外层：解除内缩 + ② 补可见底色 */
+  .feat-card > div {
+    max-width: none !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    background: var(--card-frame-bg);
+  }
+
+  /* ③ 中间留白层（官方 md:p-2 = 8px）保持不动，只让高度铺满 */
+  .feat-card > div > div {
+    height: 100% !important;
+  }
+
+  /* 内层卡片面：圆角/内边距/背景/阴影全部官方值，仅让高度铺满 */
+  .feat-card > div > div > div {
+    height: 100% !important;
+  }
+
+  /* 让官方三层都由高度撑满，避免内容少时卡片比格子矮、内容多时溢出 */
+  .feat-card > div > div > div,
+  .feat-card > div > div > div > div,
+  .feat-card > div > div > div > div > div {
+    min-height: 0;
+  }
+  .feat-card > div > div > div > div {
+    height: 100% !important;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /*
+   * 内层卡片面用的是 `bg-white dark:bg-muted`。
+   * 深色下 --color-muted 已映射到 --bg-elevated，只剩"浅色也白得刺眼"
+   * 的问题 —— 纯白 #fff 放在 --bg-app #f4f5f7 上会跳出来，换成面板色
+   * 与整套配色一致。
+   */
+  .feat-card .bg-white {
+    background-color: var(--bg-panel);
+  }
+
+  /* 卡片标题：两张外壳卡共用 */
+  .feat-card .card-title {
+    margin: 0;
+    font-size: var(--fs-lg);
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    color: var(--text-primary);
+    flex: 0 0 auto;
+  }
+
+  .feat-card:focus-within {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * 功能清单卡：一张卡片，内部九宫格
+ *
+ * 之前是九张独立卡片排成网格。九张各自带外框 + p-2 留白 + 内层面，等于
+ * 九层圆角阴影叠在页面上，视觉噪声远大于信息量。现在容器只保留一层面，
+ * 九项降级为"条目"，用间距和细分隔线分组 —— 信息密度不变，页面安静很多。
+ * ------------------------------------------------------------------------- */
+@layer components {
+  /* 卡头：标题 + 计数徽标 + 一句副标题 */
+  .feat-sheet-head {
+    padding: 0 0 14px !important;
+    flex: 0 0 auto;
+  }
+  .feat-sheet-title-row {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    width: 100%;
+    min-width: 0;
+  }
+  .feat-sheet-count {
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 999px;
+    padding: 2px 9px;
+    /* baseline 对齐会让徽标坐得偏低，抬一点与标题视觉居中对齐 */
+    position: relative;
+    top: -1px;
+  }
+  /*
+   * 九宫格：3 列 × 3 行。
+   *
+   * 用 1px 的 gap + 内层背景做分隔线，比给每项加 border 更干净 ——
+   * 后者会在网格最外圈也画线，与卡片自身的圆角描边打架。
+   */
+  .feat-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 0;
+  }
+
+  /* 单个条目：自带底色，gap 露出的 1px 就是分隔线 */
+  .feat-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 14px 15px;
+    background: var(--bg-elevated);
+    transition: background-color 0.15s;
+  }
+  .feat-item:hover {
+    background: var(--bg-hover);
+  }
+
+  .feat-head-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+  }
+  .feat-head-row h3 {
+    margin: 0;
+    font-size: var(--fs-md);
+    font-weight: 600;
+    color: var(--text-primary);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* 图标与标题同一行，不再单独占一行 */
+  .feat-icon {
+    color: var(--accent);
+    flex: 0 0 auto;
+    display: block;
+  }
+
+  .feat-desc {
+    margin: 0 !important;
+    padding: 0 !important;
+    font-size: var(--fs-sm);
+    line-height: 1.55;
+    color: var(--text-muted);
+  }
+
+  /* 窄窗：两列，最后一项独占一行也不会留空洞（grid 自动补位） */
+  @media (max-width: 900px) {
+    .feat-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @media (max-width: 620px) {
+    .feat-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * 底部信息卡：一张卡片，内部左右两栏
+ * ------------------------------------------------------------------------- */
+@layer components {
+  .info-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    /* 两栏之间的竖向分隔线，与九宫格的分隔线同色同粗细 */
+    gap: 1px;
+    background: var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    height: 100%;
+  }
+
+  .info-col {
+    display: flex;
+    flex-direction: column;
+    padding: 15px 17px;
+    background: var(--bg-elevated);
+    min-width: 0;
+  }
+
+  .info-col .card-title {
+    margin: 0 0 10px;
+  }
+
+  .info-col .keys-table,
+  .info-col .compat-list {
+    margin: 0;
+    flex: 1 1 auto;
+  }
+
+  @media (max-width: 760px) {
+    .info-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+}
+
+/* ===========================================================================
+ * 新建连接按钮 — Cult UI Background Animate Button（零覆盖）
+ * ===========================================================================
+ *
+ * 组件已按官方 demo 原样使用（gradient="candy" / rounded="full" /
+ * animation="spin" / shadow="soft"），本地源码与 registry 版逐行一致。
+ *
+ * 这里不再写任何覆盖规则。此前几轮加过的 12 条 cta-* 规则
+ * （接管背景色、改渐变层几何、清内阴影、改圆角…）让渲染结果
+ * 与官方 demo 越走越远，也一直没有真正消除"多余背景层"。
+ *
+ * 唯一保留的适配只有两行，且都不碰组件视觉：
+ *   · cursor —— 官方依赖 preflight 里的 button 默认 pointer，
+ *     本项目没引 preflight，需要显式补上；
+ *   · 焦点环 —— 键盘可达性，与配色无关。
+ * =========================================================================== */
+
+.cta-animate {
+  cursor: pointer;
+  /*
+   * 清掉 UA 给 <button> 的默认 padding（1px 6px）。
+   *
+   * 这是"按钮底部多一层背景"的真正根因：
+   *   外层胶囊 155×50、半径 25px（半圆）；
+   *   内容 div 被 UA 的 6px 左右 padding 挤成 143×48、自成 9999px 圆角，
+   *   半径 24px —— 比外层小 1px，且左右各缩 6px。
+   * 两层圆角不同心，渐变画在里层，于是外层边缘 1px 环带 + 左右月牙
+   * 缝隙露出下层渐变 span 的颜色，旋转到深色段时表现为
+   * "底部一条更深的横带、左右下角外露"。
+   *
+   * 官方 demo 没这个问题，因为 shadcn 环境有 Tailwind preflight
+   * （button { padding: 0 }）。本项目刻意不引 preflight，必须自己补。
+   * 内容 div 的 padding 由组件自己的 px-8 py-3 提供，清这里不影响留白。
+   */
+  padding: 0;
+}
+.cta-animate:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* 尊重系统「减少动态效果」：停止旋转，保留静态渐变 */
+@media (prefers-reduced-motion: reduce) {
+  .cta-animate > span {
+    animation: none !important;
+  }
+}
+
+/* ===========================================================================
+ * 主页操作区：新建连接（主）+ 粘贴连接串 / 操作日志 / 检查更新（次）
+ * ===========================================================================
+ *
+ * 布局意图：主按钮独占视觉重量，三个次级按钮排在它右侧、与它同高，
+ * 但用描边 + 透明底降一档。三者都是"围绕连接的一次性动作"，
+ * 放在起步位置比埋进顶栏图标更容易被发现。
+ */
+
+/*
+ * 次级按钮组：底部与「新建连接」主按钮对齐（不是垂直居中）。
+ *
+ * 主按钮是 48px 高的胶囊，三个次级按钮是 34px。
+ * 垂直居中会让次级按钮在上下各留 7px，视觉上"浮"在主按钮中间；
+ * 改用 flex-end 让两者底线落在同一条水平线上，整行读起来像一条基线，
+ * 而非三高一低再各自居中。
+ */
+.cta-secondary {
+  display: flex;
+  /*
+   * 底部对齐：父级 .cta 是 align-items: center，这里显式改成 flex-end
+   * 才能让次级按钮的下边缘压到与主按钮一致的位置。
+   */
+  align-items: flex-end;
+  gap: 8px;
+  /* 面板要相对这一行定位，检查更新就贴在按钮下方展开 */
+  position: relative;
+  /* 让本组高度跟随主按钮，flex-end 才有共同的底线可对齐 */
+  align-self: stretch;
+}
+
+.cta-sec-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  /*
+   * 高度对齐主按钮（实测 43px）。不写死像素：用 padding 撑出同高，
+   * 字号随设置变化时也不会突然矮一截。
+   */
+  height: 34px;
+  padding: 0 13px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--fs-md);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+}
+
+.cta-sec-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.cta-sec-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* 面板展开时按钮保持"按下"态，用户能看出面板属于哪个按钮 */
+.cta-sec-btn.is-open {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ---------------------------------------------------------------- 更新面板 */
+.update-panel {
+  position: absolute;
+  /* 贴在按钮行下方 8px；right:0 让它向左展开，不会溢出内容区右边界 */
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  width: 320px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elevated);
+  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.45);
+  cursor: default;
+}
+
+.update-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.update-title {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.update-current {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.update-state {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  font-size: var(--fs-md);
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.update-state.is-new {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.update-state.is-latest {
+  color: var(--green);
+}
+
+.update-state.is-error {
+  align-items: flex-start;
+  color: var(--danger, #e5534b);
+}
+
+.update-note {
+  margin: 8px 0 0;
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+/* 版本说明：保留发布者写的换行，超高时内部滚动而不撑破面板 */
+.update-notes {
+  margin: 8px 0 0;
+  max-height: 132px;
+  overflow-y: auto;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.update-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.update-foot .spacer {
+  flex: 1 1 auto;
+}
+
+.update-time {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}

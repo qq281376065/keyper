@@ -1,0 +1,848 @@
+/* ===========================================================================
+ * 新建 / 编辑连接弹窗 — shadcn 原子组件 + Cult UI 质感
+ * ===========================================================================
+ *
+ * 组件层用 @/components/ui/{dialog,input,label,switch,button,textarea}，
+ * 它们本身只有 Tailwind 类名，颜色全走 tailwind.css 的语义 token
+ * （--color-background / --color-border / --color-primary …），
+ * 因此在 9 套皮肤下自动跟随，不需要为每套皮肤重复写色值。
+ *
+ * 这里只负责三件组件本身给不了的事：
+ *   ① 版式：字段栅格、分组、滚动区与固定页脚
+ *   ② 尺寸：Electron 里信息密度比网页高，弹窗要更宽、字段更紧
+ *   ③ 取色：把业务语义（危险/成功/提示）映射到应用自己的 --green / --danger
+ *
+ * 选择器统一挂在 .dlg 下，避免影响其它使用 Dialog 的地方。
+ * =========================================================================== */
+
+/* 弹窗外壳：覆盖组件默认的居中卡片形态 */
+.dlg.dlg {
+  /* 组件默认 sm:max-w-lg（512px），装不下"主机 + 端口 + 用户名 + 密码"两列 */
+  max-width: 620px !important;
+  width: calc(100vw - 96px);
+  /*
+   * 居中交给组件自带的 top-1/2 + translate-x/y-[-50%]。
+   * 不要在这里再写 transform：Tailwind v4 的 translate-* 走的是独立的
+   * `translate` 属性，与 `transform` 会叠加，等于平移两次 —— 实测弹窗
+   * 会被顶到视口外（top 变成负数）。
+   */
+  padding: 0 !important;
+  gap: 0 !important;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--bg-panel);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.08),
+    0 18px 48px -12px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+/* 拖动位移由 useDialogDrag 以 transform 注入到内层 .dlg-shell，
+   外层保持居中不动，两者互不干扰。 */
+
+.dlg-shell {
+  display: flex;
+  flex-direction: column;
+  /* 表单可能很长（多级跳板），限制总高让页脚始终可见 */
+  max-height: calc(100vh - 140px);
+  min-height: 0;
+}
+
+/* ------------------------------------------------------------------ 头部 */
+.dlg-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elevated);
+  /* 无边框窗口下这是弹窗唯一的移动手柄 */
+  cursor: move;
+  user-select: none;
+  flex: 0 0 auto;
+}
+
+/*
+ * 图标与标题的对齐。
+ *
+ * 原来的问题：整块（图标 + 标题 + 副标题）用 align-items: flex-start，
+ * 30px 的图标顶到了第一行文字的顶边，图标中心比标题中心低 8px，
+ * 看起来图标"往下掉"了一块。
+ *
+ * 现在图标与标题是同一行的两个子项（.dlg-head-top + align-items: center），
+ * 中心必然重合 —— 不依赖字号、行高或缩放比例去换算偏移量。
+ * 副标题单独一行，用 padding-left 与标题文字左对齐（30 + 11 = 41px）。
+ */
+.dlg-head-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.dlg-head-top {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+
+.dlg-head-icon {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  background: var(--accent-soft);
+  /* 图标是行内最高的元素，行高由它决定；不要额外 margin 破坏居中 */
+  margin: 0;
+}
+
+.dlg-title.dlg-title {
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  /* 行高改 1.2：标题是单行，1.35 会多出 5px 让图标与文字更难对齐 */
+  line-height: 1.2;
+  color: var(--text-primary);
+  letter-spacing: 0.2px;
+}
+
+.dlg-sub.dlg-sub {
+  /* 与标题文字左对齐：图标 30 + gap 11 = 41px */
+  padding-left: 41px;
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+/* 关闭按钮：组件自带的 ✕ 已关掉，这里用应用图标集保持风格统一 */
+.dlg-close.dlg-close {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  /* 弹窗内的按钮统一双边圆角（胶囊形） */
+  border-radius: 999px;
+  color: var(--text-muted);
+  /* 头部是 drag 手柄，按钮必须豁免，否则点击被拖动语义吞掉 */
+  -webkit-app-region: no-drag;
+}
+.dlg-close.dlg-close:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+/* ------------------------------------------------------------------ 提示条 */
+.dlg-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0;
+  padding: 9px 18px;
+  font-size: var(--fs-sm);
+  line-height: 1.55;
+  color: var(--amber);
+  background: var(--amber-soft);
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+
+/*
+ * 测试结果 —— 悬浮抽屉 · 高饱和实心（方案 07）
+ * ===========================================================================
+ *
+ * 形态：从弹窗头部"后方"垂落 / 缩回的上下抽屉。
+ *   · 悬浮：锚点高度恒为 0，通知出现或消失都不推动内容 —— 长表单不跳、
+ *     滚动条不伸缩，彻底消除页面抖动；
+ *   · 左右各留 12px，不再通栏贴边；
+ *   · 顶部两角直角，与头部底边严丝合缝地衔接；**底部两角圆角**，
+ *     读起来是"从头部抽出的抽屉"，而不是飘着的卡片；
+ *   · 头部 z-index 高于抽屉，抽屉从它后面滑出，入场没有"凭空出现"的瞬间。
+ *
+ * 配色（高饱和实心）：整块用状态色实心填充 + 同色系描边 + 同色投影，
+ * 白字。这是最强的一档提示，在一屏表单里不会被忽略 —— 测试结果本就是
+ * 用户主动触发的、必须看到的反馈。
+ *
+ *   成功：emerald  底 #0f7a57→#0b6146，描边 #14b8a6
+ *   失败：rose     底 #9f1239→#881337，描边 #f43f5e
+ *
+ * 两套配色都按「白字可读」取值：主体在 #0b6146 / #881337 档，
+ * 与白字对比度分别约 7.6:1 / 8.3:1，高于 AA。
+ * =========================================================================== */
+
+/* 锚点：夹在头部与滚动区之间，高度恒为 0 —— 通知完全不占布局空间 */
+.drawer-anchor {
+  position: relative;
+  height: 0;
+  flex: 0 0 auto;
+  z-index: 6;
+}
+
+/* 头部压在悬浮层之上，抽屉从它后面垂落 / 缩回 */
+.dlg-head {
+  position: relative;
+  z-index: 7;
+}
+
+/* 抽屉本体 */
+.notice-flyout {
+  position: absolute;
+  top: 0;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 11px 13px 12px;
+  /* 顶部直角衔接头部，底部两角圆角 —— 抽屉轮廓 */
+  border-radius: 0 0 12px 12px;
+  font-size: var(--fs-sm);
+  line-height: 1.55;
+  color: #fff;
+  animation: flyout-drop 0.3s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+/* 离场：原路缩回头部后方（组件在动画结束 / 兜底定时器后卸载） */
+.notice-flyout.is-leaving {
+  animation: flyout-retract 0.26s cubic-bezier(0.55, 0.06, 0.68, 0.19) both;
+}
+
+/* ---- 成功：emerald 实心 ---- */
+.notice-flyout.is-ok {
+  background: linear-gradient(180deg, #0f7a57 0%, #0b6146 100%);
+  border: 1px solid #14b8a6;
+  border-top: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 10px 26px -10px rgba(16, 185, 129, 0.55);
+}
+
+/* ---- 失败：rose 实心 ---- */
+.notice-flyout.is-err {
+  background: linear-gradient(180deg, #9f1239 0%, #881337 100%);
+  border: 1px solid #f43f5e;
+  border-top: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 10px 26px -10px rgba(244, 63, 94, 0.5);
+}
+
+/* 图标：成功用浅 mint、失败用浅 rose，都比纯白更柔，且与底色同族 */
+.flyout-glyph {
+  flex: 0 0 auto;
+  display: inline-flex;
+  margin-top: 1px;
+}
+.notice-flyout.is-ok .flyout-glyph {
+  color: #a7f3d0;
+}
+.notice-flyout.is-err .flyout-glyph {
+  color: #fecdd3;
+}
+
+/* 正文：统一纯白（实心底上白字对比度最高），只靠字重区分层级 */
+.flyout-text {
+  min-width: 0;
+  word-break: break-word;
+  color: #fff;
+  font-weight: 500;
+}
+
+/* 关闭：白字半透明，悬停加一层白色薄底 —— 在实心底上依然可辨 */
+.flyout-close {
+  margin-left: auto;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.72);
+  transition: background-color 0.15s, color 0.15s;
+}
+.flyout-close:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* ---- 动画：垂落 / 缩回（translateY，不参与布局，故无抖动） ---- */
+@keyframes flyout-drop {
+  from {
+    transform: translateY(-100%);
+    opacity: 0.35;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+@keyframes flyout-retract {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-100%);
+    opacity: 0.35;
+  }
+}
+
+
+/* 尊重「减少动态效果」：不做抽拉，直接静态显示 / 隐藏（定时收起仍生效） */
+@media (prefers-reduced-motion: reduce) {
+  .notice-flyout,
+  .notice-flyout.is-leaving {
+    animation: none;
+  }
+}
+
+/* ------------------------------------------------------------------ 内容区 */
+.dlg-body {
+  /* 只有内容区滚动，标题与页脚固定 —— 长表单下按钮永远够得到 */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  /*
+   * 底部 22px（比其它边多 4px）：长表单滚到底时，最后一个字段与页脚
+   * 分隔线之间要留出一点空气，否则视觉上像是被切断了。
+   */
+  padding: 16px 18px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  /* 独立滚动容器，避免滚动链传导到外层页面 */
+  overscroll-behavior: contain;
+  /*
+   * 始终为滚动条留位：展开 SSH 后内容变长、出现滚动条时，若不留位
+   * 内容区会突然窄掉十几像素，端口字段的右边缘与上方字段对不齐。
+   */
+  scrollbar-gutter: stable;
+}
+
+.dlg-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dlg-section-title {
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  /* 分组标题用 muted：它是结构提示，不该和字段值抢注意力 */
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+/* ------------------------------------------------------------------ 字段 */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.field-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.field-row > .grow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.field-row > .port {
+  flex: 0 0 104px;
+}
+.field-row > .auth {
+  flex: 0 0 auto;
+}
+
+.field-label.field-label {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  /* Label 组件默认会带 leading-none，这里恢复行高便于和必填星号对齐 */
+  line-height: 1.4;
+}
+
+/* 必填星号：用 danger 色但去掉背景，避免每个字段都出现一个小色块 */
+.req {
+  color: var(--danger, #e5534b);
+  font-weight: 600;
+}
+
+/* 输入框：组件默认 h-9 / rounded-md，这里收紧到应用里其它表单的密度 */
+.dlg .field input,
+.dlg .field textarea {
+  font-size: var(--fs-md);
+  border-radius: 8px;
+  height: 32px;
+  padding: 0 10px;
+}
+.dlg .field textarea {
+  height: auto;
+  padding: 8px 10px;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.dlg .field .mono,
+.dlg .field .mono input,
+.dlg .field .mono textarea {
+  font-family: var(--font-mono);
+}
+
+/* 输入框内的动作按钮（清空/显隐密码）叠在右侧 */
+.input-with-action {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.input-with-action input {
+  flex: 1 1 auto;
+  min-width: 0;
+  /* 给右侧按钮留出位置，否则长密码会跑到按钮下面 */
+  padding-right: 34px;
+}
+.input-action.input-action {
+  position: absolute;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  /* 按钮统一双边圆角 */
+  border-radius: 999px;
+  color: var(--text-muted);
+}
+.input-action.input-action:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+/* ------------------------------------------------------------------ SSH 区块 */
+.ssh-block.ssh-block {
+  /* 与上方基础信息之间用一条分隔线切开，而不是再加一层卡片边框 */
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+  gap: 0;
+}
+
+.ssh-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.ssh-switch-text {
+  min-width: 0;
+}
+
+.ssh-switch-title.ssh-switch-title {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.ssh-switch-sub {
+  margin: 3px 0 0;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.ssh-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  /* 展开后与开关行之间留一点呼吸 */
+  margin-top: 14px;
+}
+
+/* 分段控件（密码 / 私钥）：比下拉少一次点击，且两个选项一眼可见 */
+.seg {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  /* 分段控件本身也是按钮组，与弹窗按钮保持同一种圆角 */
+  border-radius: 999px;
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  height: 32px;
+  box-sizing: border-box;
+}
+.seg-item {
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  transition: background-color 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.seg-item:hover {
+  color: var(--text-primary);
+}
+.seg-item.is-on {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+/* 私钥选择文件的链接按钮 */
+.link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-sm);
+  color: var(--accent);
+  margin-left: auto;
+  /* 它也是弹窗内的按钮，同样双边圆角（右侧两角贴住文字外缘） */
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+.link-btn:hover {
+  background: var(--accent-soft);
+}
+.key-label {
+  justify-content: flex-start;
+  width: 100%;
+}
+.hidden-file {
+  display: none;
+}
+
+.ssh-hint {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+.ssh-error {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+  color: var(--danger, #e5534b);
+}
+
+/* ------------------------------------------------------- 多级跳板 */
+.hops-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 4px;
+}
+.hops-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.hops-title {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.hop-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+}
+.hop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.hop-badge {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.hop-del.hop-del {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  color: var(--text-muted);
+}
+.hop-del.hop-del:hover {
+  color: var(--danger, #e5534b);
+  background: var(--bg-hover);
+}
+
+/* 测试结果已改为头部下方的通知条（.dlg-alert），不再在表单内容里渲染 */
+
+/* ------------------------------------------------------------------ 页脚 */
+.dlg-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-elevated);
+  flex: 0 0 auto;
+}
+.dlg-foot .spacer {
+  flex: 1 1 auto;
+}
+
+.dlg-foot .foot-btn.foot-btn {
+  height: 32px;
+  padding: 0 14px;
+  gap: 6px;
+  font-size: var(--fs-md);
+  /*
+   * 双边圆角（胶囊形）：所有皮肤/主题下弹窗按钮一律如此。
+   * 半径用 999px 而不是写死高度的一半 —— 按钮高度随字号与缩放变化，
+   * 999px 由浏览器按实际高度封顶，任何尺寸下都是纯半圆。
+   */
+  border-radius: 999px;
+  /* 组件默认带 has-[>svg]:px-3，这里统一按文字 + 图标算 */
+  box-shadow: none;
+}
+
+/*
+ * 次要按钮的文字统一用主文字色。
+ * 组件 secondary 变体的前景色是 --text-secondary，在浅色皮肤下放在浅底上
+ * 只有约 2.6:1，看着像被禁用；这里保留它的底色，只把文字提亮到主色。
+ */
+.dlg-foot .foot-btn.foot-btn:not(.foot-primary) {
+  color: var(--text-primary);
+  /*
+   * 非主按钮统一补一圈细边框。
+   * 原因：这些按钮的底色与页脚底色只差 1.1 左右（浅色下 secondary 是
+   * #f0f1f4 压在 #f0f1f4 上），胶囊圆角根本看不出来 —— 一排四个按钮里
+   * 会变成"一个胶囊 + 三个文字"。加边框后形状在所有皮肤下都可见，
+   * 同时不改变各档的填充层级。
+   */
+  border: 1px solid var(--border-strong);
+}
+
+/*
+ * 「取消」是 ghost 变体（无底色无边框），胶囊圆角就看不出来 —— 一排按钮里
+ * 会显得它和其它三个不同形。补一层极淡的底色让形状可见，但仍明显弱于
+ * 主按钮（不填强调色），层级依旧是：主 > 次要 > 取消。
+ *
+ * 只对 ghost（.foot-quiet）生效：outline / secondary 本来就有底色，
+ * 再加一层会和它们撞成同一个灰块，把三档层级压平。
+ */
+.dlg-foot .foot-btn.foot-quiet.foot-quiet {
+  background: color-mix(in srgb, var(--bg-hover) 55%, transparent);
+}
+.dlg-foot .foot-btn.foot-quiet.foot-quiet:hover {
+  background: var(--bg-hover);
+}
+
+/*
+ * 主按钮用应用自己的强调色，而不是 shadcn 的 primary token。
+ * 两者在本项目里指向同一个 --accent，但直接取变量可以保证
+ * 与顶栏、侧栏里的 .btn-primary 完全一致（含 hover 色）。
+ */
+.dlg-foot .foot-primary.foot-primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+/*
+ * 主按钮文字对比度。
+ *
+ * 白色文字压在本项目几套偏亮的强调色上时达不到 4.5:1（白字分别只有
+ * ocean 3.05 / sakura 4.00 / mint 4.03 / mist 4.23 / solarized 4.29）。
+ * 这里不去改全局 --accent（那会牵动整个应用），而是只在这一颗按钮上
+ * 把底色压深 20%：色相不变，对比度抬到 4.5 以上。
+ */
+:root[data-theme='ocean'] .dlg-foot .foot-primary.foot-primary,
+:root[data-theme='sakura'] .dlg-foot .foot-primary.foot-primary,
+:root[data-theme='mint'] .dlg-foot .foot-primary.foot-primary,
+:root[data-theme='mist'] .dlg-foot .foot-primary.foot-primary,
+:root[data-theme='solarized'] .dlg-foot .foot-primary.foot-primary {
+  background: color-mix(in srgb, var(--accent) 80%, #000000 20%);
+}
+:root[data-theme='solarized'] .dlg-foot .foot-primary.foot-primary {
+  color: #ffffff;
+}
+:root[data-theme='ocean'] .dlg-foot .foot-primary.foot-primary:hover,
+:root[data-theme='sakura'] .dlg-foot .foot-primary.foot-primary:hover,
+:root[data-theme='mint'] .dlg-foot .foot-primary.foot-primary:hover,
+:root[data-theme='mist'] .dlg-foot .foot-primary.foot-primary:hover,
+:root[data-theme='solarized'] .dlg-foot .foot-primary.foot-primary:hover {
+  background: color-mix(in srgb, var(--accent-hover) 80%, #000000 20%);
+}
+.dlg-foot .foot-primary.foot-primary:hover {
+  background: var(--accent-hover);
+}
+.dlg-foot .foot-primary.foot-primary:disabled {
+  opacity: 0.5;
+}
+
+/* ------------------------------------------------------------------ 窄窗 */
+@media (max-width: 620px) {
+  .dlg.dlg {
+    width: calc(100vw - 32px);
+  }
+  .field-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .field-row > .port,
+  .field-row > .auth {
+    flex: 1 1 auto;
+  }
+}
+
+/* ------------------------------------------------------------------ 开关 */
+/*
+ * shadcn Switch 默认轨道 unchecked = bg-input（即 --border）、滑块 = bg-background。
+ * 两个问题：滑块在浅色皮肤下与轨道几乎同色（实测 1.26:1，看成一个点）；
+ * 轨道本身又几乎与面板同色（1.2:1），关闭态完全看不出控件形状。
+ *
+ * 这里不用语义 token，直接按明暗给两级灰阶 —— 滑块是"可动的实体"，
+ * 需要与轨道稳定拉开；轨道需要与面板稳定拉开。两条都比语义 token 可控。
+ */
+.dlg [data-slot='switch'] {
+  background: #8b93a1;
+  border: none;
+  /* 组件用 h-[1.15rem] w-8，偏小；放大到 34×20 与 32px 输入框同一档 */
+  width: 34px;
+  height: 20px;
+  /*
+   * 清零浏览器给 <button> 的默认内边距。
+   *
+   * 这是"关闭态左侧空一块"的真正原因：本项目没有引入 Tailwind 的 preflight，
+   * UA 样式 `button { padding: 1px 6px }` 一直生效，滑块因此从轨道左缘
+   * 内缩了 6px（实测 leftGap=6、rightGap=12，看着就是偏在中间）。
+   * 归零后滑块紧贴 2px 安全边距，左右对称。
+   */
+  padding: 2px;
+  box-sizing: border-box;
+  /* 内容居中，滑块垂直方向也跟随 */
+  display: inline-flex;
+  align-items: center;
+}
+.dlg [data-slot='switch'][data-state='checked'] {
+  background: var(--accent);
+}
+
+/*
+ * 滑块尺寸与行程。
+ * 轨道 34 宽、内边距 2，可用区 30；滑块 16 → 行程 30 - 16 = 14px。
+ * 关闭态 translate 0（紧贴左侧 2px），打开态 14px（紧贴右侧 2px）。
+ */
+.dlg [data-slot='switch'] [data-slot='switch-thumb'] {
+  width: 16px;
+  height: 16px;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+.dlg [data-slot='switch'][data-state='checked'] [data-slot='switch-thumb'] {
+  /* 轨道 34px、滑块 16px、两侧各留 2px：位移 = 34 - 16 - 4 = 14px */
+  translate: 14px 0;
+}
+
+/* ------------------------------------------------------------------ 默认库下拉 */
+/*
+ * Select 触发器沿用输入框的视觉：同高度、同圆角、同边框，
+ * 只多一个右侧箭头。这样"默认库"与上面的主机/端口看起来是一族控件，
+ * 不会因为换了控件类型就跳出来。
+ */
+.dlg .dlg-select.dlg-select {
+  width: 100%;
+  height: 32px;
+  border-radius: 8px;
+  border-color: var(--border);
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font-size: var(--fs-md);
+  /*
+   * 箭头改为绝对定位（见下方 svg 规则），所以这里只需给文字留出避让空间，
+   * 不再用 padding-right 去"推"箭头 —— 组件本身是
+   * justify-content: space-between，padding 与 space-between 叠加会把箭头
+   * 挤到离右边缘 29px 的位置（实测）。
+   */
+  padding: 0 26px 0 10px;
+  box-shadow: none;
+  position: relative;
+  justify-content: flex-start;
+}
+.dlg .dlg-select.dlg-select:hover {
+  border-color: var(--border-strong);
+}
+.dlg .dlg-select.dlg-select:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.dlg .dlg-select.dlg-select > span {
+  /* Radix 的 Value 会被包一层 span，保证文字垂直居中 */
+  display: flex;
+  align-items: center;
+  line-height: 1;
+}
+/*
+ * 下拉箭头：钉在右侧 9px、垂直居中。
+ * 组件默认把箭头当普通 flex 子项参与 space-between 布局，位置会随内容
+ * 宽度漂移；绝对定位后无论 db0 还是 db15 都固定在同一处。
+ */
+.dlg .dlg-select.dlg-select > svg {
+  position: absolute;
+  /*
+   * right 取 6px 而不是 9px：lucide 的 chevron 在 24×24 viewBox 里
+   * 只占中间 12 单位，图标盒左右各有约 25% 空白。设 6px 后墨迹右缘
+   * 距边框约 10px，正好与左侧文字的 10px 内边距对称（实测采样确认）。
+   */
+  right: 6px;
+  top: 50%;
+  translate: 0 -50%;
+  width: 14px;
+  height: 14px;
+  color: var(--text-muted);
+  /* 组件自带 opacity-50，太淡；提到 1 与前后的边框/文字同一视觉重量 */
+  opacity: 1;
+  pointer-events: none;
+}
+
+/* 下拉面板：与弹窗同一套配色，避免落到 shadcn 默认的 popover 白底 */
+.dlg-select-menu.dlg-select-menu {
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.45);
+  padding: 4px;
+  min-width: var(--radix-select-trigger-width);
+  max-height: 260px;
+}
+.dlg-select-menu .dlg-select-item,
+.dlg-select-menu [data-slot='select-item'] {
+  border-radius: 6px;
+  font-size: var(--fs-md);
+  padding: 6px 26px 6px 10px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.dlg-select-menu [data-slot='select-item'][data-highlighted] {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  outline: none;
+}
+.dlg-select-menu [data-slot='select-item'][data-state='checked'] {
+  color: var(--accent);
+  font-weight: 600;
+}

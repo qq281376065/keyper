@@ -16,6 +16,10 @@
  */
 /* Pixel faces + their CSS variables must land before @theme inline reads them. */
 @import './geist-pixel.css';
+/* 主页卡片样式（Cult UI Expandable 外壳）单独成文件，便于维护 */
+@import './tailwind-cards.css';
+/* 新建/编辑连接弹窗（shadcn Dialog + 应用主题） */
+@import './connection-dialog.css';
 
 @layer theme, base, components, utilities;
 
@@ -30,6 +34,26 @@
  * shadcn's semantic names (background / foreground / ring / …) because Cult UI
  * components are written against those names.
  */
+/*
+ * Tailwind v4 的 dark 变体默认基于 prefers-color-scheme，而本应用的主题
+ * 由 [data-theme] 属性驱动（还带 9 套皮肤）。不对接的话，组件里的
+ * `dark:bg-muted` 永远不命中，深色主题下卡片会落到 bg-white 分支，
+ * 一片纯白（实测 rgb(255,255,255)）。
+ *
+ * 这条把 dark 变体重绑定到属性选择器上，并且必须把三套「暗色系皮肤」
+ * 一并列出：ocean（深海）与 forest（森林）的 --bg-app 分别是 #0d1420 /
+ * #0e1512，同样是深底 + 浅字，漏掉它们时卡片内层会是纯白、标题却是
+ * 浅色（#e2ece5），几乎看不见。
+ */
+@custom-variant dark (&:where(
+  [data-theme='dark'],
+  [data-theme='ocean'],
+  [data-theme='forest'],
+  [data-theme='dark'] *,
+  [data-theme='ocean'] *,
+  [data-theme='forest'] *
+));
+
 @theme inline {
   --color-background: var(--bg-app);
   --color-foreground: var(--text-primary);
@@ -194,147 +218,5 @@
 @media (prefers-reduced-motion: reduce) {
   .px-grad-ember {
     animation: none;
-  }
-}
-/* ===========================================================================
- * Home feature grid — Cult UI Expandable（按组件原样呈现）
- * ===========================================================================
- *
- * 兼容性前提：组件内部用 `dark:bg-muted` 这类 Tailwind 的 dark 变体。
- * Tailwind v4 默认的 dark 变体基于 `prefers-color-scheme`，而本应用的主题
- * 是 `[data-theme="light|dark"]` 属性（还有 9 套皮肤）—— 两者不对接的话，
- * 深色主题下组件会落到 `bg-white` 分支，卡片一片惨白。
- *
- * 所以先把 dark 变体重绑定到属性上（见下方 @custom-variant）。
- * 这比在每个类上写 !important 覆盖干净得多，也让组件里其它 dark: 类
- * （阴影、边框）自动跟随主题。
- */
-@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
-
-/* 皮肤映射：shadcn 语义 token → 本应用的设计令牌。
-   组件用 bg-muted / ring-border / bg-white，需要它们落在现有配色体系里。 */
-@theme inline {
-  --color-muted: var(--bg-elevated);
-}
-
-@layer components {
-  /* 卡片在网格里铺满单元格；高度仍由 motion 的 spring 驱动，不能碰 */
-  .feat-card {
-    width: 100% !important;
-    cursor: pointer;
-  }
-
-  /*
-   * 圆角按网格尺度收敛。
-   *
-   * 组件默认 md:rounded-[2rem] = 32px，那是给"一张独立展示的大卡片"设计的；
-   * 放进 271px 宽的密集网格会显得过度圆润（像按钮不像卡片）。
-   * 保留组件"外层大圆角包住内层小圆角"的双层结构，只把尺度按比例缩小：
-   *   外层 32 → 14，内层 24 → 10（比值一致 1.33:1）。
-   * 阴影环（shadow-md / shadow-xl）与 ring 边框原样保留 —— 那才是这套
-   * 组件最可辨识的特征。
-   */
-  .feat-card > div {
-    border-radius: 14px !important;
-  }
-  .feat-card > div > div {
-    border-radius: 12px !important;
-  }
-  .feat-card > div > div > div {
-    border-radius: 10px !important;
-  }
-
-  /* 组件内层用的是 `dark:bg-muted ... bg-white`。
-     深色主题下 --color-muted 已映射到 --bg-elevated，
-     这里只把「浅色也白得刺眼」的纯白换成面板色，保持整套配色一致。 */
-  .feat-card .bg-white {
-    background-color: var(--bg-panel);
-  }
-
-  /* 头部：组件默认 flex-col + p-6，对"图标+标题+箭头"一行太松。
-     改成横排并收紧内边距 —— 这是唯一改布局的地方，视觉其余部分保持原样。 */
-  /*
-   * 头部宽度必须逐层拉满。
-   *
-   * 实测过一个问题：卡片 271px 宽，但 .feat-head 只有 159px ——
-   * 因为组件内部是 `grid grid-cols-1` 嵌套，子项按**内容宽度**收缩，
-   * 而不是撑满。结果 h3 只分到 79px，"六类型可视化""SSH 多级跳板"
-   * "Pub/Sub 订阅"三个标题被省略号截断。
-   * 从卡片根一路 width:100% 传下来，同时清掉组件的 p-6 内边距
-   * （由 .feat-head 自己的 padding 接管）。
-   */
-  .feat-card,
-  .feat-card > div,
-  .feat-card > div > div,
-  .feat-card > div > div > div {
-    width: 100% !important;
-    box-sizing: border-box;
-  }
-  .feat-card > div > div > div {
-    padding: 0 !important;
-  }
-
-  .feat-head {
-    flex-direction: row !important;
-    align-items: center !important;
-    justify-content: flex-start !important;
-    gap: 9px;
-    padding: 14px 16px !important;
-    min-height: 52px;
-    width: 100% !important;
-    box-sizing: border-box;
-  }
-  .feat-head > div {
-    display: flex !important;
-    flex: 1 1 auto !important;
-    width: 100% !important;
-    flex-direction: row !important;
-    align-items: center !important;
-    justify-content: flex-start !important;
-    gap: 9px;
-    margin: 0 !important;
-  }
-  .feat-head > div > * + *,
-  .feat-head > * + * {
-    margin-top: 0 !important;
-  }
-
-  .feat-head h3 {
-    margin: 0;
-    font-size: var(--fs-lg);
-    font-weight: 600;
-    color: var(--text-primary);
-    flex: 1 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .feat-chevron {
-    flex: 0 0 auto;
-    display: inline-flex;
-    color: var(--text-muted);
-    transition: transform 0.28s ease, color 0.15s ease;
-  }
-  .feat-chevron.is-open {
-    transform: rotate(180deg);
-    color: var(--accent);
-  }
-
-  /* 展开内容：组件默认 p-6 px-4 pt-0，按头部内边距对齐即可 */
-  .feat-desc {
-    margin: 0 !important;
-    padding: 0 16px 14px !important;
-    font-size: var(--fs-md);
-    line-height: 1.6;
-    color: var(--text-muted);
-  }
-
-  /* 键盘可达性：ExpandableTrigger 已处理 Enter/Space */
-  .feat-card:focus-within {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-    border-radius: var(--radius-xl);
   }
 }
