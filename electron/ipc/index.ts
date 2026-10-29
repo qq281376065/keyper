@@ -13,6 +13,7 @@ import {
 } from '../services/search-history-store'
 import { loadSettings, saveSettings } from '../services/settings-store'
 import { configInfo } from '../services/config-path'
+import { CLOSE_CONFIRM, CLOSE_HANDLED, closeSignal } from '../services/close-signal'
 import { checkForUpdate, openUpdatePage } from '../services/update-service'
 import type {
   ApiResponse,
@@ -273,6 +274,20 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(IPC.windowClose, (event) => {
     BrowserWindow.fromWebContents(event.sender)?.close()
     return ok(null)
+  })
+  /*
+   * 自绘退出确认框点了「退出」。
+   *
+   * 这里用 on 而非 handle：退出是一个"动作"，不需要返回值。
+   * 具体关闭逻辑由 main.ts 注册的监听器接管（它持有 quitConfirmed
+   * 与窗口引用），本模块只负责把信号转过去，不重复维护状态。
+   */
+  ipcMain.on(IPC.appConfirmClose, () => {
+    closeSignal.emit(CLOSE_CONFIRM)
+  })
+  /* 渲染层已弹出确认框：主进程取消兜底，等用户决定 */
+  ipcMain.on(IPC.appCloseHandled, () => {
+    closeSignal.emit(CLOSE_HANDLED)
   })
   ipcMain.handle(IPC.windowState, (event) =>
     ok({ maximized: BrowserWindow.fromWebContents(event.sender)?.isMaximized() ?? false }),

@@ -37,6 +37,12 @@ export interface ConfirmRequest {
   title: string
   /** 简要说明（面向人的一句话）；与 details / preview 可并存 */
   message: string
+  /**
+   * 副标题（标题下方那行小字）。
+   * 缺省是「请确认以下内容，操作不可撤销」—— 那适用于删除类操作；
+   * 退出程序这类"可撤销、只是待会儿再开"的动作应自传文案，避免吓人。
+   */
+  description?: string
   confirmText?: string
   /**
    * 结构化明细：键名、位置、大小等。

@@ -242,6 +242,18 @@ const api: RedisDesktopApi = {
         ipcRenderer.removeListener(IPC.windowStateChanged, raw)
       }
     },
+    /* 主进程拦下关闭后通知渲染层弹自绘确认框 */
+    onBeforeClose: (listener) => {
+      const raw = (): void => listener()
+      ipcRenderer.on(IPC.appBeforeClose, raw)
+      return () => {
+        ipcRenderer.removeListener(IPC.appBeforeClose, raw)
+      }
+    },
+    /* 确认框已弹出：让主进程取消兜底强制关闭 */
+    closeHandled: () => ipcRenderer.send(IPC.appCloseHandled),
+    /* 用户在确认框里点了「退出」：单向下发，不关心回包 */
+    confirmClose: () => ipcRenderer.send(IPC.appConfirmClose),
   },
 }
 

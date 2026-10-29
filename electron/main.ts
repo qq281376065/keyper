@@ -1,12 +1,13 @@
 import path from 'node:path'
 import fs from 'node:fs'
 import util from 'node:util'
-import { BrowserWindow, Menu, app, dialog, nativeTheme, shell } from 'electron'
+import { BrowserWindow, Menu, app, nativeTheme, shell } from 'electron'
 import { IPC } from '../shared/api'
 import { registerIpcHandlers } from './ipc'
 import { connectionManager } from './services/connection-manager'
 import { appendErrorLog, pruneOldLogs } from './services/log-service'
 import { configDir } from './services/config-path'
+import { CLOSE_CONFIRM, CLOSE_HANDLED, closeSignal } from './services/close-signal'
 
 /**
  * 启动诊断日志（仅在设置了 REDISDOCTER_DEBUG_LOG 时写入）。
@@ -165,6 +166,19 @@ let mainWindow: BrowserWindow | null = null
  */
 let quitConfirmed = false
 
+/**
+ * 等渲染层弹出自绘确认框的最长时间。
+ *
+ * 800ms 太短：用户点 × 之后窗口会立刻被强制关掉，看起来就像"确认框从来没出现"。
+ * 这个值实际衡量的是"渲染层是否还能响应"，不是"用户多久能做完决定" ——
+ * 用户决定的时间不计入其中（确认框弹出后计时器就该被取消）。
+ * 取 5s：既给慢机器留出渲染时间，又不至于让崩溃的页面把窗口永久卡住。
+ */
+const CLOSE_FALLBACK_MS = 5000
+
+/** 兜底关闭计时器（只允许存在一个） */
+let closeFallbackTimer: NodeJS.Timeout | null = null
+
 function createMainWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1440,
@@ -236,12 +250,18 @@ function createMainWindow(): void {
   }
 
   /*
-   * 关闭前确认：用系统原生对话框而不是渲染层弹窗 ——
-   * 窗口正在关闭，渲染层的弹窗会随窗口一起消失或闪烁；
-   * 且此时用户可能已经切到别的应用，系统级模态才能确保被看到。
+   * 关闭前确认：交给渲染层的自绘弹窗（DialogShell），
+   * 不用 dialog.showMessageBoxSync —— 原生弹窗与应用视觉是两个体系，
+   * 深色主题下尤其突兀。
    *
-   * event.preventDefault() 之后窗口保持原样；用户点「退出」时
-   * 先置 quitConfirmed 再 destroy，避免 close 再次被自己拦下。
+   * 流程：
+   *   ① 拦下 close，向渲染层发 IPC.appBeforeClose；
+   *   ② 渲染层弹 ConfirmDialog，用户点「退出」后调 IPC.appConfirmClose；
+   *   ③ 主进程置 quitConfirmed 并 destroy。
+   *
+   * 兜底：渲染层若没响应（页面崩了 / 还在加载），CLOSE_FALLBACK_MS 后
+   * 直接放行关闭 —— 否则用户会被一个永远关不掉的窗口卡住。
+   * 计时器只启动一次，避免反复点 × 累积多个定时器。
    */
   mainWindow.on('close', (event) => {
     if (quitConfirmed) return
@@ -249,28 +269,24 @@ function createMainWindow(): void {
     if (!win || win.isDestroyed()) return
 
     event.preventDefault()
+    trace('close intercepted, asking renderer to confirm')
 
-    const choice = dialog.showMessageBoxSync(win, {
-      type: 'question',
-      buttons: ['退出', '取消'],
-      defaultId: 1,
-      cancelId: 1,
-      title: '退出 RedisDocter',
-      message: '确定要退出 RedisDocter 吗？',
-      detail: '未保存的编辑内容会丢失。',
-      noLink: true,
-    })
+    win.webContents.send(IPC.appBeforeClose)
 
-    if (choice !== 0) return
-
-    quitConfirmed = true
-    win.destroy()
+    if (closeFallbackTimer) return
+    closeFallbackTimer = setTimeout(() => {
+      closeFallbackTimer = null
+      if (quitConfirmed) return
+      const w = mainWindow
+      if (!w || w.isDestroyed()) return
+      quitConfirmed = true
+      w.destroy()
+    }, CLOSE_FALLBACK_MS)
   })
 
   mainWindow.on('closed', () => {
     mainWindow = null
-  })
-}
+  })}
 
 // 单实例：重复启动时聚焦已有窗口
 trace('before requestSingleInstanceLock')
@@ -328,4 +344,45 @@ app.on('before-quit', () => {
    */
   quitConfirmed = true
   connectionManager.disconnectAll()
+})
+
+/*
+ * 渲染层自绘确认框点了「退出」。
+ *
+ * 不用 app.emit 承载自定义事件：Electron 的 app.on 类型只接受内置事件名，
+ * 'rd:confirm-close' 会直接编译失败。这里用一个独立的 EventEmitter
+ * 做进程内信号总线，IPC 模块把信号打到它上面。
+ */
+closeSignal.on(CLOSE_CONFIRM, () => {
+  if (closeFallbackTimer) {
+    clearTimeout(closeFallbackTimer)
+    closeFallbackTimer = null
+  }
+  const w = mainWindow
+  if (!w || w.isDestroyed()) return
+  quitConfirmed = true
+  /*
+   * 再断一次连接，作为最终保障。
+   *
+   * 渲染层在点「断开并退出」后已经逐个断开过，这里是双保险：
+   * destroy 不触发 before-quit，那条 disconnectAll 兜底跑不到 ——
+   * 若渲染层因异常漏断了某条，客户端会在 Redis 侧挂到 TCP 超时才回收。
+   * 已断开的连接走 disconnect() 是幂等的，重复调用无副作用。
+   */
+  connectionManager.disconnectAll()
+  w.destroy()
+})
+
+/*
+ * 渲染层确认框已经弹出来了 —— 取消兜底。
+ *
+ * 兜底的存在意义只是"渲染层没响应时别把窗口卡死"。
+ * 一旦收到回执，说明渲染层活得好好的，剩下的时间属于用户思考，
+ * 不能再拿 5s 计时器替用户做决定（这正是之前"点 × 直接关掉"的原因）。
+ */
+closeSignal.on(CLOSE_HANDLED, () => {
+  if (closeFallbackTimer) {
+    clearTimeout(closeFallbackTimer)
+    closeFallbackTimer = null
+  }
 })

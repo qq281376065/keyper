@@ -925,7 +925,12 @@
   bottom: 0;
   height: 24px;
   margin: auto 0;
-  z-index: 1;
+  /*
+   * 不写 z-index。
+   * 之前为了"保险"加过 z-index: 1，反而让它建立了层叠上下文，
+   * 菜单（fixed，z-index: 71）被困在这个上下文里，被卡片内容盖住。
+   * 去掉后 ⋮ 与卡片内容同处一个层级，靠 DOM 顺序自然压在最后。
+   */
   flex: 0 0 auto;
 }
 /*

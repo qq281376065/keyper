@@ -468,6 +468,32 @@ async function disconnect(id: string): Promise<void> {
 }
 
 /**
+ * 退出前断开全部连接。
+ *
+ * 与 disconnect 的区别：只做"通知主进程断开"这一件事，不关标签、不改
+ * 选中项、不弹 toast —— 窗口马上就没了，这些副作用既看不见也无意义，
+ * 反而可能因为中途改 state 触发渲染，在退出路径上白白引入不确定性。
+ *
+ * 并行发起而不是串行：每个断开都是一次 IPC 往返，10 个连接串行
+ * 会有肉眼可见的等待；并行时总耗时取决于最慢的那一个。
+ * 全部失败也照常放行 —— 退出的目的是让本地窗口消失，
+ * 不能因为某个实例连不上就把用户锁在应用里。
+ */
+async function disconnectAllForQuit(): Promise<void> {
+  const online = globalState.connections.filter((item) => item.status === 'connected')
+  if (!online.length) return
+  await Promise.all(
+    online.map(async (item) => {
+      try {
+        await api.connection.disconnect(item.id)
+      } catch {
+        /* 单个失败不影响整体退出，主进程的 before-quit 还会再兜一次 */
+      }
+    }),
+  )
+}
+
+/**
  * 点击侧栏连接项：
  * - 已连接：打开 / 激活它的标签（标签被关过则按快照重建）；
  * - 未连接：不动。发起连接由菜单里的 connect 负责 ——
@@ -672,6 +698,7 @@ export const globalActions = {
   cloneConnection,
   pinConnection,
   moveConnection,
+  disconnectAllForQuit,
   activateAndRefresh,
   resolveConfirm,
   activateTab,

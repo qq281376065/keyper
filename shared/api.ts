@@ -306,6 +306,15 @@ export interface RedisDesktopApi {
      * 这是唯一带回调的 api：listener 由渲染层传入，preload 桥接后注册。
      */
     onStateChange: (listener: (state: { maximized: boolean }) => void) => () => void
+    /**
+     * 订阅「用户点了关闭按钮」——主进程已拦下 close，等渲染层弹自绘确认框。
+     * 返回取消订阅函数。
+     */
+    onBeforeClose: (listener: () => void) => () => void
+    /** 确认框已弹出：让主进程取消兜底强制关闭 */
+    closeHandled: () => void
+    /** 确认退出：主进程真正销毁窗口 */
+    confirmClose: () => void
   }
 }
 
@@ -391,6 +400,12 @@ export const IPC = {
   windowMaxToggle: 'window:maxToggle',
   windowClose: 'window:close',
   windowState: 'window:state',
+  /** 主 → 渲染：用户点了关闭按钮，请弹自绘确认框 */
+  appBeforeClose: 'app:beforeClose',
+  /** 渲染 → 主：确认框已弹出，取消兜底强制关闭 */
+  appCloseHandled: 'app:closeHandled',
+  /** 渲染 → 主：确认退出（invoke 型，主进程 destroy 窗口） */
+  appConfirmClose: 'app:confirmClose',
   /** 主 → 渲染：最大化状态变化（非 invoke 型，由 preload 直接监听） */
   windowStateChanged: 'window:stateChanged',
   /** 主 → 渲染：连接被动断开 / 重连 / 断死（非 invoke 型） */

@@ -17,7 +17,7 @@ import { Workspace } from '@/components/Workspace'
 import { APP_VERSION } from '@/services/errorReport'
 import { migrateThemeFromStorage } from '@/services/theme'
 import { useSettings } from '@/services/settings'
-import { globalHolder, type ConnectionItem } from '@/store/global'
+import { globalActions, globalHolder, globalState, type ConnectionItem } from '@/store/global'
 import { useActiveApi } from '@/store/useRedis'
 import { useObservable } from '@/store/subscription'
 import { tipProps } from '@/components/tip'
@@ -78,6 +78,71 @@ export function App() {
 
   useEffect(() => {
     let unlistenWindowState: (() => void) | null = null
+    /*
+     * 退出确认：主进程拦下窗口 close，通知这里弹自绘弹窗。
+     *
+     * 用 askConfirm(force) 而不是新写一个弹窗 —— 它就是全局的
+     * ConfirmDialog，与删除键、删除连接同一套外观，深浅主题自动跟随。
+     * force: true 让它不受「删除键前确认」那个设置影响：
+     * 退出程序永远该问一次，与删键偏好无关。
+     *
+     * 用户确认 → api.window.confirmClose() → 主进程 destroy。
+     * 点取消就什么都不做，窗口保持原样。
+     */
+    let unlistenBeforeClose: (() => void) | null = null
+    if (isElectron) {
+      unlistenBeforeClose = api.window.onBeforeClose(() => {
+        /*
+         * 先回执，主进程据此取消兜底强制关闭。
+         * 必须放在弹窗之前、同步执行：哪怕后面取数据抛错，
+         * 也不能让窗口因为"渲染层没回应"而被强杀。
+         */
+        api.window.closeHandled()
+
+        /*
+         * 列出正在连接的实例，让用户在退出前看清会中断哪些会话。
+         * 这些是"当前活着的东西"，是退出决策真正需要的信息；
+         * 连接配置本身退出后仍在，不必列。
+         */
+        const online = globalState.connections.filter((c) => c.status === 'connected')
+        const details = online.map((c) => ({
+          label: '连接中',
+          value: `${c.name} · ${c.host}:${c.port} · db${c.db}`,
+          mono: false,
+        }))
+
+        /*
+         * 文案区分单复数：只有 1 个连接时说「这些会话」很别扭，
+         * 而"1 个连接"恰恰是最常见的情况。
+         */
+        const many = online.length > 1
+        void globalActions
+          .askConfirm({
+            force: true,
+            danger: true,
+            title: '退出 RedisDocter',
+            description: online.length ? '退出前会先断开连接' : '退出后可以再次打开，连接配置不会丢失',
+            message: online.length
+              ? `当前有 ${online.length} 个连接处于连接状态，退出会连同${many ? '这些' : '该'}会话一起断开。`
+              : '当前没有处于连接状态的实例。未保存的编辑内容会丢失。',
+            details,
+            warning: online.length ? `退出时将自动断开${many ? '以上连接' : '该连接'}。` : undefined,
+            confirmText: online.length ? '断开并退出' : '退出',
+          })
+          .then(async (ok) => {
+            if (!ok) return
+            /*
+             * 先断开全部连接再关窗口。
+             *
+             * 顺序不能反：destroy 之后渲染进程没了，disconnect 的 IPC 发不出去，
+             * 服务端的连接要等 TCP 超时才回收，在 Redis 侧会留下
+             * 「客户端列表里挂着一堆僵尸连接」的观感。
+             */
+            await globalActions.disconnectAllForQuit()
+            api.window.confirmClose()
+          })
+      })
+    }
     void (async () => {
       await loadSettings()
       // 设置就绪后迁移旧版主题偏好（localStorage → settings.json）
@@ -103,6 +168,8 @@ export function App() {
     return () => {
       unlistenWindowState?.()
       unlistenWindowState = null
+      unlistenBeforeClose?.()
+      unlistenBeforeClose = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

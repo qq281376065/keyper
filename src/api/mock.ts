@@ -594,6 +594,10 @@ export const mockApi: RedisDesktopApi = {
     close: async () => ok(null),
     state: async () => ok({ maximized: false }),
     onStateChange: () => () => {},
+    /* 浏览器里没有"窗口关闭"这回事，订阅一个永不触发的空监听 */
+    onBeforeClose: () => () => {},
+    closeHandled: () => {},
+    confirmClose: () => {},
   },
 
   settings: {

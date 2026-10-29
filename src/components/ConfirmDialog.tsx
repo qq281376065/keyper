@@ -42,7 +42,12 @@ export function ConfirmDialog() {
       /* 危险操作用 warning 图标，普通确认用 check —— 图标先于文字传达性质 */
       icon={danger ? 'warning' : 'check'}
       title={request.title}
-      description="请确认以下内容，操作不可撤销"
+      /*
+        副标题允许请求自带：删除类操作说「不可撤销」合适，
+        但退出程序不是撤销问题 —— 它可能只是"待会儿再打开"。
+        默认文案保持原样，退出这类请求自己传 description。
+      */
+      description={request.description ?? '请确认以下内容，操作不可撤销'}
       className="confirm-dialog"
       /* 确认框允许点遮罩取消：它没有"填到一半"的状态，取消成本极低 */
       closeOnOverlay
