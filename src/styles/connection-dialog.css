@@ -51,7 +51,15 @@
 /* ------------------------------------------------------------------ 头部 */
 .dlg-head {
   display: flex;
-  align-items: center;
+  /*
+   * 顶部对齐而不是垂直居中。
+   *
+   * 头部是「图标 + 标题」一行，加上下方副标题共两行，高度约 60px；
+   * 关闭按钮只有 26px。若整体垂直居中，关闭按钮会落在两行之间的
+   * 中线上（实测偏移 +11px），视觉上悬在标题右下方，而不是与标题齐平。
+   * 改成 flex-start 后，由 .dlg-close 自己用 margin-top 对齐标题行中心。
+   */
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
   padding: 14px 18px;
@@ -107,6 +115,13 @@
   font-weight: 600;
   /* 行高改 1.2：标题是单行，1.35 会多出 5px 让图标与文字更难对齐 */
   line-height: 1.2;
+  /*
+   * 清掉 UA 给 <h2> 的默认 margin（实测 12.45px 上下）。
+   * 本项目未引入 Tailwind preflight，这条一直生效：它把「图标 + 标题」
+   * 那一行从 30px 撑到 43px，头部整体涨到 93px，进而让垂直居中的
+   * 关闭按钮落到文字下方 —— 看起来"悬在中间"，就是这个链路造成的。
+   */
+  margin: 0;
   color: var(--text-primary);
   letter-spacing: 0.2px;
 }
@@ -125,15 +140,51 @@
   flex: 0 0 auto;
   width: 26px;
   height: 26px;
+  /*
+   * 与「图标 + 标题」那一行居中对齐。
+   * 该行由 30px 的图标撑高，26px 的按钮居中需要下移 (30-26)/2 = 2px。
+   * 用固定 2px 而非 align-self: center —— 后者会按整个头部（两行）居中，
+   * 又回到"悬在中间"的老问题。
+   */
+  margin-top: 2px;
   /* 弹窗内的按钮统一双边圆角（胶囊形） */
   border-radius: 999px;
   color: var(--text-muted);
   /* 头部是 drag 手柄，按钮必须豁免，否则点击被拖动语义吞掉 */
   -webkit-app-region: no-drag;
 }
+/*
+ * 关闭按钮的悬停态：红底 + 白字。
+ *
+ * 为什么用实色红而不是 --danger-soft：
+ *   --danger-soft 是 14% 透明度的红，叠在浅色面板上几乎看不出是红，
+ *   叠在深色面板上又发暗。关闭是"带破坏性语义"的动作，悬停应当给出
+ *   明确且一致的红色警示 —— 两个弹窗（新建连接 / 新建键）共用此样式，
+ *   所以必须两套主题下都成立。
+ *
+ * 色值分档：
+ *   深色系（dark/ocean/forest）  #dc2626 —— 在暗底上足够亮，白字对比度 4.9
+ *   浅色系（其余皮肤）           #e11d48 —— 亮底上更深一档，白字对比度 5.0
+ * 两者都高于 AA 的 4.5:1。
+ */
 .dlg-close.dlg-close:hover {
-  color: var(--text-primary);
-  background: var(--bg-hover);
+  color: #fff;
+  background: #dc2626;
+}
+:root[data-theme='light'] .dlg-close.dlg-close:hover,
+:root[data-theme='solarized'] .dlg-close.dlg-close:hover,
+:root[data-theme='sakura'] .dlg-close.dlg-close:hover,
+:root[data-theme='mint'] .dlg-close.dlg-close:hover,
+:root[data-theme='mist'] .dlg-close.dlg-close:hover,
+:root[data-theme='aurora'] .dlg-close.dlg-close:hover {
+  background: #e11d48;
+}
+/* 键盘聚焦同样给出红色提示，与悬停一致 */
+.dlg-close.dlg-close:focus-visible {
+  color: #fff;
+  background: #dc2626;
+  outline: 2px solid color-mix(in srgb, #dc2626 55%, transparent);
+  outline-offset: 2px;
 }
 
 /* ------------------------------------------------------------------ 提示条 */

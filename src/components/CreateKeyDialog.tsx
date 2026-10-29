@@ -290,7 +290,6 @@ export function CreateKeyDialog({ prefix, separator, onClose, onCreated }: Creat
           </div>
 
           <footer className="dlg-foot">
-            <span className="foot-hint">创建后会自动选中该键，可在右侧继续编辑</span>
             <span className="spacer" />
             <Button type="button" variant="ghost" className="foot-btn foot-quiet" onClick={onClose}>
               <DialogIcon name="cancel" size={13} />
