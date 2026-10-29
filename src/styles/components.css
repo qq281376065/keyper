@@ -5063,7 +5063,7 @@
  *   · 内部：每个选项各自胶囊，选中项用 elevated 底 + 轻投影浮起；
  *   · 不再画分隔线 —— 选项之间的 2px 间隙已经完成了分组。
  */
-.s-settings-dialog .segmented{
+.settings-dialog .segmented, .s-settings-dialog .segmented{
   display: inline-flex;
   align-items: center;
   gap: 2px;
@@ -5073,7 +5073,7 @@
   background: var(--bg-app);
   flex: 0 0 auto;
 }
-.s-settings-dialog .segmented button{
+.settings-dialog .segmented button, .s-settings-dialog .segmented button{
   padding: 2px 10px;
   border-radius: 999px;
   font-size: var(--fs-md);
@@ -5084,11 +5084,11 @@
   transition: background-color 0.15s, color 0.15s;
   white-space: nowrap;
 }
-.s-settings-dialog .segmented button:hover{
+.settings-dialog .segmented button:hover, .s-settings-dialog .segmented button:hover{
   background: var(--bg-hover);
   color: var(--text-primary);
 }
-.s-settings-dialog .segmented button.on{
+.settings-dialog .segmented button.on, .s-settings-dialog .segmented button.on{
   background: var(--bg-elevated);
   color: var(--text-primary);
   font-weight: 600;

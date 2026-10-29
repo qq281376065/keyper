@@ -67,9 +67,23 @@ export function useDialogDrag(): DialogDrag {
      *      若也写成 calc(-50% + Npx)，会额外再左移上移半个弹窗，
      *      实测设置弹窗直接飞出屏幕（期望 480,116 → 实际 140,-291）。
      */
+    /*
+     * 居中态用 CSS 变量承接位移，而不是把数值拼进 calc。
+     *
+     * 踩过的坑：直接拼 `calc(-50% + ${y}px)`，当 y=0 时浏览器把
+     * `calc(-50% + 0px)` 规范化成裸 `-50%`，整条 translate 变成
+     *   `calc(-50% + 20px) -50%`
+     * 两个分量类型不一致（calc 值 vs 百分比），声明被判无效，
+     * y 方向完全不动 —— 实测拖三次只横移了 20px。
+     *
+     * 现在把位移放进 `--dx/--dy` 变量，calc 里始终是变量引用，
+     * 0 也写作 `var(--dy)`，不会触发常量折叠。
+     */
+    el.style.setProperty('--dx', `${x}px`)
+    el.style.setProperty('--dy', `${y}px`)
     el.style.translate = centeredRef.current
-      ? `calc(-50% + ${x}px) calc(-50% + ${y}px)`
-      : `${x}px ${y}px`
+      ? 'calc(-50% + var(--dx)) calc(-50% + var(--dy))'
+      : 'var(--dx) var(--dy)' 
   }, [])
 
   const onMove = useCallback(
@@ -178,8 +192,10 @@ export function useDialogDrag(): DialogDrag {
     const el = dialogEl.current
     if (el) {
       el.style.transition = ''
-      /* 清空内联值，回落到 Tailwind 的 translate-x/y(-50%) 居中 */
+      /* 清空内联值与位移变量，回落到 Tailwind 的 translate-x/y(-50%) 居中 */
       el.style.translate = ''
+      el.style.removeProperty('--dx')
+      el.style.removeProperty('--dy')
     }
   }, [])
 
@@ -204,9 +220,12 @@ export function useDialogDrag(): DialogDrag {
     offset.x === 0 && offset.y === 0
       ? {}
       : {
+          /* 与 apply() 同一套变量写法，避免常量折叠导致声明失效 */
+          '--dx': `${offset.x}px`,
+          '--dy': `${offset.y}px`,
           translate: centeredRef.current
-            ? `calc(-50% + ${offset.x}px) calc(-50% + ${offset.y}px)`
-            : `${offset.x}px ${offset.y}px`,
+            ? 'calc(-50% + var(--dx)) calc(-50% + var(--dy))'
+            : 'var(--dx) var(--dy)',
         }
 
   return { style, onDragStart, resetDrag, dragging }

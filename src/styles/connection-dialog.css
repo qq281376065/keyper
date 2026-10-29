@@ -1543,3 +1543,113 @@
   cursor: pointer;
   user-select: none;
 }
+
+/* ===========================================================================
+ * 全局设置弹窗
+ * ===========================================================================
+ * 设置项是「标签 + 控件 + 说明」的重复结构，用 grid 统一三者的对齐：
+ *   · 标签固定 92px，所有控件的左边缘因此在同一条竖线上；
+ *   · 控件列 min-width: 0，路径等长文本才能省略而不是撑破布局；
+ *   · 说明文字在同一行右侧，短屏时自然换行到控件下方。
+ * =========================================================================== */
+
+.dlg.settings-dialog {
+  /* 设置项较多，给一个更宽的上限，避免说明文字被挤成多行 */
+  max-width: 720px !important;
+}
+
+.dlg .set-row {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 4px 14px;
+  align-items: center;
+  padding: 7px 0;
+}
+/* 路径行：控件占满整行，不走两列 */
+.dlg .set-row.is-block {
+  grid-template-columns: 92px minmax(0, 1fr);
+  align-items: start;
+}
+
+.dlg .set-label {
+  font-size: var(--fs-md);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.dlg .set-control {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  min-width: 0;
+}
+.dlg .set-control.is-block {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.dlg .set-hint {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.dlg .set-note {
+  margin: 6px 0 0;
+  font-size: var(--fs-sm);
+  line-height: 1.65;
+  color: var(--text-muted);
+}
+.dlg .set-note code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--bg-app);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+}
+
+/* 分隔符分段：每个选项是一个字符，给等宽 + 固定最小宽，避免胖瘦不一 */
+.dlg .sep-segmented button {
+  min-width: 30px;
+  padding-left: 0;
+  padding-right: 0;
+  text-align: center;
+  font-family: var(--font-mono);
+}
+
+/* 下拉：设置页的 Select 比弹窗表单稍窄，避免撞到说明文字 */
+.dlg .set-select.dlg-select {
+  width: 200px;
+}
+
+/* 路径行：等宽省略 + 右侧固定按钮 */
+.dlg .path-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+}
+.dlg .path-box .path {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+  /* 长路径省略，hover 由 title 提供完整值 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dlg .path-open.path-open {
+  flex: 0 0 auto;
+  height: 30px;
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+}
