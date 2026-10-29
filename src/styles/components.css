@@ -910,7 +910,22 @@
 
 /* ConnectionActions.vue —— 作用域 .s-connection-actions */
 .s-connection-actions.conn-actions, .s-connection-actions .conn-actions{
-  align-self: center;
+  /*
+   * 单列一行一个：操作按钮回到右侧、垂直居中。
+   *
+   * ⚠️ 这里绝对定位，但绝不能用 transform: translateY(-50%) 居中 ——
+   * transform 会让本元素成为 fixed 定位子元素的 containing block，
+   * 图省事写一句居中，代价是菜单的 position: fixed 全都相对这个
+   * 24px 小方块计算（实测菜单跑到 (392,263)，且被 24px 的盒子裁掉）。
+   * 用 inset 的 top/bottom + margin: auto 做垂直居中，不产生 transform。
+   */
+  position: absolute;
+  right: 6px;
+  top: 0;
+  bottom: 0;
+  height: 24px;
+  margin: auto 0;
+  z-index: 1;
   flex: 0 0 auto;
 }
 /*
@@ -1430,7 +1445,27 @@
 }
 .s-connection-sidebar.conn-list, .s-connection-sidebar .conn-list{
   flex: 1;
+  /*
+   * 横向也要能滚。
+   * 原来只写 overflow-y: auto，横向默认 visible ——
+   * 卡片内容（超长名字 / 超长地址）比容器宽时会被直接裁掉，
+   * 且没有横向滚动条，用户不知道右边还有内容。
+   */
+  overflow-x: auto;
   overflow-y: auto;
+  /*
+   * 单列：一行一个连接。
+   *
+   * 曾试过两列磁贴（一屏能放双倍），但连接名普遍较长（HALLOWEEN:ANCHOR_TASKS、
+   * SIYECAO:siyecao_user），一对一列只剩约 100px 可用宽，名字几乎全被截断，
+   * 反而分不清是哪个连接。保持一行一个，才能让名字、地址、延迟同时可读。
+   *
+   * 磁贴的其余形式（卡片底色、顶部状态短线、右下角操作按钮）保留 ——
+   * 它们与列数无关，只影响单个连接的外观。
+   */
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   padding: 8px;
   min-height: 0;
 }
@@ -1456,6 +1491,37 @@
   color: #fff;
   pointer-events: none;
   transition: background 0.15s, border-color 0.15s;
+}
+/*
+ * 磁贴里的勾选框：圆形 + 垂直居中。
+ *
+ * 用户要求连接栏的多选态用圆形（其它地方的方形 checkbox 保持不变），
+ * 且必须在整张卡片里居中 —— 卡片有两行内容，勾选框贴顶会显得悬在半空。
+ *
+ * 垂直居中不用 transform（那会给其中的 fixed 子元素建 containing block，
+ * 之前菜单错位就是这个坑）；改用 top: 50% + margin-top: -8px，
+ * 8px 正好是 16px 的一半。
+ */
+.s-connection-sidebar .conn-item > .conn-check{
+  position: absolute;
+  left: 6px;
+  top: 50%;
+  margin-top: -8px;
+  z-index: 2;
+  border-radius: 50%;
+  background: var(--bg-panel);
+}
+/* 多选态下第一行要给勾选框让位，名字不要贴到它底下 */
+.s-connection-sidebar .conn-item > .conn-check ~ .conn-body{
+  padding-left: 20px;
+}
+/*
+ * 全选按钮里的勾选框同样是圆形。
+ * 它与卡片上的勾选框并排出现（同一条批量操作流），
+ * 一圆一方会像两种不同的选择模型。
+ */
+.s-connection-sidebar .bulk-all .conn-check{
+  border-radius: 50%;
 }
 .s-connection-sidebar.conn-check.on, .s-connection-sidebar .conn-check.on{
   background: var(--accent);
@@ -1505,41 +1571,84 @@
 }
 .s-connection-sidebar.conn-item, .s-connection-sidebar .conn-item{
   position: relative;
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 8px 10px 8px 12px;
-  margin-bottom: 4px;
-  border-radius: var(--radius-md);
-  border: 1px solid transparent;
+  /*
+   * 磁贴形态：block 布局而非 flex 行。
+   * 名字与延迟在第一行（.conn-line），地址与徽标在第二行（.conn-line.sub），
+   * 用 flex 反而要为两行各建一个 flex 容器，block + 行内 flex 更直接。
+   */
+  display: block;
+  /*
+   * 纵向内边距比横向大一档：磁贴要"立"起来。
+   * 9px 时两行文字贴着上下边框，看着像被压扁的行；
+   * 12px 后卡片有了上下留白，名字与地址的层级也更清楚。
+   */
+  padding: 12px 10px 11px;
+  margin-bottom: 0;
+  border-radius: 10px;
+  /* 常态有极淡的底色区分磁贴边界，否则两列并排时看不出是"卡" */
+  background: color-mix(in srgb, var(--bg-hover) 55%, var(--bg-panel));
+  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+  min-width: 0;
+  /*
+   * 最小高度 56px：两行文字 + 上下 12px 内边距约 51px，
+   * 取 56 让每张卡都留一点余量，连接多时也不会挤成一条条细带；
+   * 有错误信息的卡片比这个高，属于例外，不强行拉齐。
+   */
+  min-height: 56px;
+  /*
+   * 禁止被 flex 容器压缩。
+   * .conn-list 是 column 方向的 flex，子项默认 flex-shrink: 1，
+   * 内容比容器宽时宁可把卡片压窄也不溢出 —— 那样永远不会出现横向滚动条。
+   */
+  flex: 0 0 auto;
+  /*
+   * 最小宽度：容器被拖到很窄时（连接栏宽度固定 236px，
+   * 但横向滚动条本身会吃掉 10px、再叠加缩放），卡片才有下限，
+   * 低于它就横向滚动，而不是把名字压成一两个字。
+   * 160px ≈ 名字显示 8~10 个字符，是仍能辨认连接的下限。
+   */
+  min-width: 160px;
 }
 .s-connection-sidebar .conn-item:hover{
   background: var(--bg-hover);
 }
 .s-connection-sidebar.conn-item.active, .s-connection-sidebar .conn-item.active{
   background: var(--accent-soft);
-  border-color: rgba(220, 56, 45, 0.4);
+  border-color: var(--accent);
+  /* inset 描边让选中态在深色主题下也够"实"，不依赖背景色差 */
+  box-shadow: 0 0 0 1px var(--accent) inset;
 }
 /* 拖拽视觉：拖动项半透明；落点用 inset 高亮线 —— 不占布局空间，无跳动 */
 .s-connection-sidebar.conn-item.dragging, .s-connection-sidebar .conn-item.dragging{
   opacity: 0.45;
 }
+/*
+ * 磁贴的落点指示：网格里"前后"不再是一条横线。
+ * 左列 → 竖线画在右缘，右列 → 竖线画在左缘，
+ * 这样无论拖到哪一列，指示线都贴在"即将插入的那一侧"，不会误导。
+ */
 .s-connection-sidebar.conn-item.drop-before, .s-connection-sidebar .conn-item.drop-before{
-  box-shadow: inset 0 2px 0 var(--accent);
+  box-shadow: inset 2px 0 0 var(--accent), 0 0 0 1px var(--accent);
 }
 .s-connection-sidebar.conn-item.drop-after, .s-connection-sidebar .conn-item.drop-after{
-  box-shadow: inset 0 -2px 0 var(--accent);
+  box-shadow: inset -2px 0 0 var(--accent), 0 0 0 1px var(--accent);
 }
+/*
+ * 状态条：磁贴顶部一段短线。
+ * 单列表时它是左缘的竖条（配合左侧 40px 留白），磁贴没有那个留白，
+ * 竖条会压住名字；改成顶部居中的短横，位置固定又不占横向空间。
+ */
 .s-connection-sidebar.rail, .s-connection-sidebar .rail{
   position: absolute;
-  left: 4px;
-  top: 10px;
-  bottom: 10px;
-  width: 3px;
-  border-radius: 2px;
-  background: #3a4256;
+  left: 8px;
+  top: 0;
+  width: 16px;
+  height: 2px;
+  bottom: auto;
+  border-radius: 0 0 2px 2px;
+  background: var(--border-strong);
 }
 .s-connection-sidebar .conn-item.is-connected .rail{
   background: var(--green);
@@ -1554,15 +1663,31 @@
 .s-connection-sidebar.conn-body, .s-connection-sidebar .conn-body{
   flex: 1;
   min-width: 0;
+  /* 右侧 ⋮ 是绝对定位的，这里留出它的宽度，避免地址被压在按钮下面 */
+  padding-right: 26px;
 }
 .s-connection-sidebar.conn-line, .s-connection-sidebar .conn-line{
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
+  min-width: 0;
 }
+/*
+ * 磁贴里的名字：可收缩但不伸展（flex 0 1 auto）。
+ *
+ * 若用 1 1 auto，名字会吃掉整行剩余宽度，把紧随其后的置顶图标
+ * 一路推到最右边、紧贴延迟数字 —— 看上去像"置顶"是延迟的一部分。
+ * 改成不伸展后，置顶图标紧跟在名字后面（语义正确：it belongs to the name），
+ * 延迟数字由 .conn-tag 的 margin-left: auto 顶到最右。
+ */
 .s-connection-sidebar.conn-name, .s-connection-sidebar .conn-name{
   font-weight: 600;
   font-size: var(--fs-base);
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 /* 置顶标记：跟随名字、弱化显示 —— 只提示"顺序为什么是这样"，不抢状态点的戏 */
 .s-connection-sidebar.pin-mark, .s-connection-sidebar .pin-mark{
@@ -1570,9 +1695,29 @@
   color: var(--text-muted);
 }
 .s-connection-sidebar.conn-line.sub, .s-connection-sidebar .conn-line.sub{
-  margin-top: 3px;
+  margin-top: 4px;
   color: var(--text-muted);
   font-size: var(--fs-sm);
+  /* 不换行：单列宽度足够让地址与两个徽标同排，换行会把行高做高 */
+  flex-wrap: nowrap;
+  /* 右侧留白由 .conn-body 统一给（26px），这里不再重复 */
+  padding-right: 0;
+}
+/*
+ * 地址可压缩，徽标不可压缩。
+ * 地址很长（172.16.30.11:6379）时优先截断地址，
+ * SSH / db 这两个短标签必须完整显示 —— 它们才是判断"连的是哪儿"的关键。
+ */
+.s-connection-sidebar .conn-line.sub .mono{
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.s-connection-sidebar .conn-line.sub .ssh-chip,
+.s-connection-sidebar .conn-line.sub .db-chip{
+  flex: 0 0 auto;
 }
 .s-connection-sidebar.db-chip, .s-connection-sidebar .db-chip{
   padding: 0 5px;
@@ -1599,6 +1744,9 @@
   font-size: var(--fs-xs);
   color: var(--amber);
   font-family: var(--font-mono);
+  /* 名字不伸展后，靠它自己把延迟顶到行尾 */
+  margin-left: auto;
+  flex: 0 0 auto;
 }
 .s-connection-sidebar.conn-tag.ok, .s-connection-sidebar .conn-tag.ok{
   color: var(--green);
@@ -1607,6 +1755,11 @@
   margin-top: 3px;
   font-size: var(--fs-sm);
   color: var(--accent);
+  /* 磁贴高度要齐平：错误行只占一行，超出部分省略，不把卡片撑高 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: 14px;
 }
 .s-connection-sidebar.empty-tip, .s-connection-sidebar .empty-tip{
   margin: 28px 8px;
@@ -2855,8 +3008,22 @@
 .s-key-browser .hp-clear:hover{
   color: var(--cli-error);
 }
+/*
+ * 工具条图标按钮统一正方形。
+ *
+ * 原先只有 padding: 0 8px、宽度由内容撑开 —— 刷新图标（15px 描边弧）
+ * 与加号图标（14px）字形宽度不同，两枚按钮的 hover 底色一个方一个窄，
+ * 并列时看着像"尺寸不一致"。改成定宽定高后，无论里面放什么图标，
+ * 命中区与 hover 背景都是同一个 26px 方形。
+ */
 .s-key-browser.icon, .s-key-browser .icon{
-  padding: 0 8px;
+  padding: 0;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
   font-size: var(--fs-lg);
   border-radius: var(--radius-sm);
 }

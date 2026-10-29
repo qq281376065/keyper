@@ -1,7 +1,7 @@
 import path from 'node:path'
 import fs from 'node:fs'
 import util from 'node:util'
-import { BrowserWindow, Menu, app, nativeTheme, shell } from 'electron'
+import { BrowserWindow, Menu, app, dialog, nativeTheme, shell } from 'electron'
 import { IPC } from '../shared/api'
 import { registerIpcHandlers } from './ipc'
 import { connectionManager } from './services/connection-manager'
@@ -154,6 +154,17 @@ const BACKGROUND = { dark: '#15171c', light: '#f4f5f7' }
 
 let mainWindow: BrowserWindow | null = null
 
+/**
+ * 是否已经确认过退出。
+ *
+ * 关闭主窗口默认要二次确认（避免误触把正在编辑的内容带走）。
+ * 但以下两种情况不能再弹：
+ *   ① 用户已点过「退出」→ 置真，后续 close 直接放行；
+ *   ② 系统注销 / 关机（before-quit 由 OS 触发）→ 同样不该拦。
+ * 否则会出现"点确定 → 又弹一次"的循环。
+ */
+let quitConfirmed = false
+
 function createMainWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1440,
@@ -224,6 +235,38 @@ function createMainWindow(): void {
     }
   }
 
+  /*
+   * 关闭前确认：用系统原生对话框而不是渲染层弹窗 ——
+   * 窗口正在关闭，渲染层的弹窗会随窗口一起消失或闪烁；
+   * 且此时用户可能已经切到别的应用，系统级模态才能确保被看到。
+   *
+   * event.preventDefault() 之后窗口保持原样；用户点「退出」时
+   * 先置 quitConfirmed 再 destroy，避免 close 再次被自己拦下。
+   */
+  mainWindow.on('close', (event) => {
+    if (quitConfirmed) return
+    const win = mainWindow
+    if (!win || win.isDestroyed()) return
+
+    event.preventDefault()
+
+    const choice = dialog.showMessageBoxSync(win, {
+      type: 'question',
+      buttons: ['退出', '取消'],
+      defaultId: 1,
+      cancelId: 1,
+      title: '退出 RedisDocter',
+      message: '确定要退出 RedisDocter 吗？',
+      detail: '未保存的编辑内容会丢失。',
+      noLink: true,
+    })
+
+    if (choice !== 0) return
+
+    quitConfirmed = true
+    win.destroy()
+  })
+
   mainWindow.on('closed', () => {
     mainWindow = null
   })
@@ -279,5 +322,10 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  /*
+   * 走到这里说明是「程序级退出」（Cmd+Q、系统注销、更新后重启），
+   * 而不是用户点窗口的关闭按钮 —— 此时不该再拦一次确认。
+   */
+  quitConfirmed = true
   connectionManager.disconnectAll()
 })

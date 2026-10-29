@@ -240,7 +240,8 @@ export function ConnectionActions({ connection, onEdit, onVersion }: ConnectionA
             <div className="menu-sep" />
 
             <button className="menu-item danger" onClick={handleDelete}>
-              <DialogIcon name="cancel" size={13} className="mi-icon" />
+              {/* 删除用垃圾桶而非 ×：「×」在菜单里读作"关闭菜单"，与删除语义相反 */}
+              <DialogIcon name="trash" size={13} className="mi-icon" />
               <span>删除连接</span>
             </button>
           </div>

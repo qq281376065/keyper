@@ -143,10 +143,18 @@ export function ConnectionSidebar({
     }
     event.preventDefault()
     if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+    /*
+     * 两列磁贴：落点按「左右半区」判断，而不是上下。
+     *
+     * 单列表时上下半区对应"插到前面/后面"，语义清楚；
+     * 磁贴是横向排列的，鼠标在卡片左半边却判成 before 会显得莫名其妙 ——
+     * 改成按 clientX 与卡片中线比较，左半 = 插到它之前，右半 = 插到它之后。
+     * 视觉上正好对应 drop-before/after 画在左缘还是右缘的竖线。
+     */
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
     setDropTarget({
       id: item.id,
-      pos: event.clientY < rect.top + rect.height / 2 ? 'before' : 'after',
+      pos: event.clientX < rect.left + rect.width / 2 ? 'before' : 'after',
     })
   }
 

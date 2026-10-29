@@ -49,6 +49,12 @@ export function ConfirmDialog() {
       onClose={() => resolveConfirm(false)}
       footer={
         <>
+          {/*
+            左推按钮组：.dlg-foot 是 flex 且默认靠左排布，
+            少了这个 spacer 时取消/确定会贴在弹窗左边，
+            与其余弹窗（取消在右、主按钮最右）不一致。
+          */}
+          <span className="spacer" />
           <Button
             type="button"
             variant="ghost"
