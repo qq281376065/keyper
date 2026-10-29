@@ -312,7 +312,7 @@ const STREAMS: Record<string, string[]> = {
     // 长字段：用于验证「单行截断 + 悬停看全文」
     '1760668803091-0 :: {"event":"notified","orderId":"8842","channel":"sms","payload":"{\\"template\\":\\"order_paid\\",\\"merchant\\":\\"长沙德思勤广场旗舰店\\",\\"items\\":[{\\"sku\\":\\"SKU-8842-01\\",\\"name\\":\\"无线降噪耳机 Pro\\",\\"qty\\":2},{\\"sku\\":\\"SKU-8842-02\\",\\"name\\":\\"便携充电底座\\",\\"qty\\":1}],\\"amount\\":\\"¥1,299.00\\",\\"remark\\":\\"用户备注：工作日 18 点后配送，请提前电话联系\\"}"}',
     // 扁平 key=value 形式：真实 XADD 的常见形态，无 JSON 结构可美化
-    '1760668804120-0 :: user_id=1001 page=/checkout/confirm ip=10.24.8.77 ua=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
+    '1760668804120-0 :: user_id=1001 page=/checkout/confirm ip=203.0.113.42 ua=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
     // 多字段 + 极长单值
     '1760668805333-0 :: trace_id=7f3a9b2c-4d51-4e88-9a10-6c2b8f7e1d40 level=error service=payment-gateway message=上游渠道返回超时，已触发重试（第 3 次），本批次共 128 笔订单受影响，请运维核查渠道健康状态与限流配置',
     // 纯短值：与长值对照，验证表格行高一致

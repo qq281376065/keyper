@@ -4681,7 +4681,13 @@
   padding: 3px 8px;
   border-radius: 999px;
   background: var(--accent-soft);
-  color: var(--accent);
+  /*
+   * 字号只有 10px，直接用 --accent 在深色主题下只有 3.30:1，
+   * 低于小字 4.5:1 的 AA 门限（浅色主题 4.30 也偏低）。
+   * 把 accent 往正文色方向混 30%：深色 4.63:1、浅色 6.46:1，
+   * 既保住"这是强调色"的语义，又能读清。
+   */
+  color: color-mix(in srgb, var(--accent) 70%, var(--text-primary));
   font-size: var(--fs-xs);
   line-height: 1.4;
 }
