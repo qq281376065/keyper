@@ -8513,3 +8513,169 @@ body.col-resizing .col-handle::after{
   margin-top: -1px;
   box-sizing: border-box;
 }
+
+/* ===========================================================================
+ * 值区头部 · 票根 + 水印（design/key-header-avant.html 方案 05）
+ * ===========================================================================
+ *
+ * 左侧 26px 存根承载竖排类型名，右侧票面压类型首字母大号水印。
+ * 撕口用径向渐变画出一排半圆缺口；虚线压痕与撕口平行。
+ *
+ * 配色全部走主题变量，不写死色值：
+ *   · 存根底色 / 竖排字：--accent-soft / --accent（随 9 套皮肤变化）
+ *   · 票面：--bg-panel，与工具栏、底栏同一层次
+ *   · 撕口镂空：用 --bg-app —— 缺口必须是"票面外的底色"，
+ *     用固定白色会在深色主题下露出白点
+ * =========================================================================== */
+
+.s-value-viewer .viewer-head.ticket-head {
+  position: relative;
+  /*
+   * 高度固定 75px：三个部件都要塞进这个高度 ——
+   * 存根竖排字（9px × 字符数）、两行文字（键名 + 元信息）、72px 水印。
+   * 用 min-height 而不是 height：极端窄窗下文字换行时允许撑高，
+   * 但正常情况下应严格 75px，保证与其他区块的节奏一致。
+   */
+  min-height: 75px;
+  box-sizing: border-box;
+  /* 左侧 40px：26px 存根 + 14px 呼吸；上下 12.5px 让两行文字垂直居中 */
+  padding: 12.5px 14px 12.5px 40px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+}
+
+/* ---- 左侧存根 ---- */
+.s-value-viewer .ticket-stub {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 26px;
+  background: var(--accent-soft);
+  border-right: 1px solid var(--border);
+  display: grid;
+  place-items: center;
+  z-index: 1;
+  /*
+   * 半圆撕口：直接在存根右缘"咬掉"一串半圆。
+   *
+   * 关键点：mask 打在存根本身，而不是叠一条底色伪元素。
+   * 之前用 ::after 铺 --bg-app 再挖孔，视觉上是一根灰色竖带，
+   * 因为孔的填色和票面底色不是同一个颜色 —— 撕口看起来像"贴上去的条"。
+   * 现在孔是真正的透明，露出下面的票面底色，边缘的 1px 边框也被咬断，
+   * 于是读起来就是"纸被打孔了"。
+   *
+   * 圆心落在 x=26（= 存根右边界），只有左半个圆落在元素内，
+   * 因此每个孔都是一个 4px 深、8px 高的半圆缺口，20px 一个周期。
+   */
+  -webkit-mask-image: radial-gradient(circle 4px at 26px 10px, transparent 3.6px, #000 4px);
+  mask-image: radial-gradient(circle 4px at 26px 10px, transparent 3.6px, #000 4px);
+  -webkit-mask-size: 26px 20px;
+  mask-size: 26px 20px;
+  -webkit-mask-repeat: repeat-y;
+  mask-repeat: repeat-y;
+}
+.s-value-viewer .ticket-stub > span {
+  /* 竖排：自上而下排字，字母不旋转 */
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 3.5px;
+  text-transform: uppercase;
+  /*
+   * 9px 是很小的字，直接铺 --accent 时对比度不足：
+   * 暗色 3.30:1、sakura 3.53:1、mint 3.54:1，都低于 4.5:1 的 AA 门限。
+   * 这里把 accent 往正文色方向混 65% —— 首页亮/暗六套主题实测
+   * 最低 4.95:1（dark），既保住品牌色相，又读得清。
+   */
+  color: color-mix(in srgb, var(--accent) 65%, var(--text-primary));
+  /* 竖排时上下留白交给 padding，避免贴到撕口 */
+  padding: 4px 0;
+}
+
+/* ---- 虚线压痕 ---- */
+.s-value-viewer .ticket-perf {
+  position: absolute;
+  left: 34px;
+  top: 6px;
+  bottom: 6px;
+  width: 1px;
+  /*
+   * 压痕用 repeating-linear-gradient 画，而不是 border-style: dashed。
+   *
+   * 1px 宽的 border dashed 在不同 DPI 下会被浏览器取整成 3px/1px 的不规则节拍，
+   * 深色主题里几乎糊成一条实线。显式指定 4px 实 / 4px 虚，粗细与节拍都可控，
+   * 任何缩放比例下都是一条干净的虚线。
+   */
+  background-image: repeating-linear-gradient(
+    to bottom,
+    var(--text-muted) 0 4px,
+    transparent 4px 8px
+  );
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+/* ---- 票面正文 ---- */
+.s-value-viewer .ticket-body {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+
+/*
+ * 水印：类型首字母，压在票面右侧。
+ * z-index: 0 且父级 .ticket-body 为 z-index: 1 —— 文字永远压在水印之上。
+ * 72px 字号在 75px 高度内几乎占满，视觉上是"印在纸上的大字"。
+ */
+.s-value-viewer .ticket-head::before {
+  content: attr(data-letter);
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 0;
+  font-family: var(--font-ui);
+  font-size: 72px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -2px;
+  color: var(--accent);
+  opacity: 0.075;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* 键名与元信息在票面内的排版 */
+.s-value-viewer .ticket-head .key-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.s-value-viewer .ticket-head .key-name {
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  min-width: 0;
+}
+.s-value-viewer .ticket-head .meta-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 7px;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+.s-value-viewer .ticket-head .meta-line b {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+.s-value-viewer .ticket-head .meta-line .sep {
+  color: var(--border-strong);
+}
