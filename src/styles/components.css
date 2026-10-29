@@ -4273,25 +4273,36 @@
 .s-memory-card.mem-icon, .s-memory-card .mem-icon{
   color: var(--text-muted);
 }
-/* 前缀粒度分段选择器：与设置对话框的 segmented 同一形态；
+/* 前缀粒度分段选择器：与值区工具条的 .seg-group 同一形态；
  * margin-left: auto 把「粒度 + 分析按钮」整组推到行尾 */
 .mem-depth{
   margin-left: auto;
   display: inline-flex;
+  align-items: stretch;
+  /*
+   * 胶囊凹槽 + 2px 内边距 + 2px 间隙 —— 与值区 .seg-group 完全一致。
+   *
+   * 原先是「方盒 + 竖线分隔」的老式分段控件：圆角 4px、内部靠 border-left
+   * 分隔。但整个应用的按钮已经统一成胶囊，这一处就成了唯一方角，很扎眼。
+   * 改成凹槽式之后，每个选项是独立胶囊，选中态靠底色浮起，与
+   * 「树形/平铺」「工具条六个操作」是同一套语言。
+   */
+  gap: 2px;
+  padding: 2px;
   flex: 0 0 auto;
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  border-radius: 999px;
+  background: var(--bg-app);
   overflow: hidden;
 }
 .s-memory-card.mem-depth-btn, .s-memory-card .mem-depth-btn{
-  padding: 2px 9px;
+  padding: 2px 10px;
   border: none;
-  background: var(--bg-elevated);
+  background: transparent;
   color: var(--text-muted);
-  font-size: var(--fs-xs);
-}
-.s-memory-card .mem-depth-btn + .mem-depth-btn{
-  border-left: 1px solid var(--border);
+  font-size: var(--fs-sm);
+  /* 内部分隔线已由 gap 取代，旧的 border-left 必须清掉 */
+  border-left: none;
 }
 .s-memory-card .mem-depth-btn:hover{
   background: var(--bg-hover);
@@ -4305,13 +4316,18 @@
 .s-memory-card.mem-run, .s-memory-card .mem-run{
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 9px;
-  border-radius: var(--radius-sm);
+  gap: 5px;
+  /*
+   * 度量对齐值区工具条的 .tool（padding 3px 10px / fs-sm）：
+   * 原先 2px 9px + fs-xs，同一行里比分段控件矮一截、字也小一号，
+   * 看上去像两个不同层级的控件并排。
+   */
+  padding: 3px 10px;
+  border-radius: 999px;
   border: 1px solid var(--border);
   background: var(--bg-elevated);
   color: var(--text-secondary);
-  font-size: var(--fs-xs);
+  font-size: var(--fs-sm);
   flex: 0 0 auto;
 }
 .s-memory-card .mem-run:hover:not(:disabled){
@@ -4571,13 +4587,14 @@
 .s-pubsub-card.ps-stop, .s-pubsub-card .ps-stop{
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 9px;
-  border-radius: var(--radius-sm);
+  gap: 5px;
+  /* 与 ps-btn 完全同规格：这两个按钮在同一个面板里，一大一小很扎眼 */
+  padding: 3px 10px;
+  border-radius: 999px;
   border: 1px solid var(--border);
   background: var(--bg-elevated);
   color: var(--text-secondary);
-  font-size: var(--fs-xs);
+  font-size: var(--fs-sm);
   flex: 0 0 auto;
 }
 .s-pubsub-card .ps-stop:hover{
@@ -4620,13 +4637,14 @@
 .s-pubsub-card.ps-btn, .s-pubsub-card .ps-btn{
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  border-radius: var(--radius-sm);
+  gap: 5px;
+  /* 度量对齐 .tool / .mem-run / .slow-reset：右侧面板内所有次按钮同一规格 */
+  padding: 3px 10px;
+  border-radius: 999px;
   border: 1px solid var(--border);
   background: var(--bg-elevated);
   color: var(--text-secondary);
-  font-size: var(--fs-xs);
+  font-size: var(--fs-sm);
   flex: 0 0 auto;
 }
 .s-pubsub-card .ps-btn:hover:not(:disabled){
@@ -4653,12 +4671,19 @@
 .s-pubsub-card.ps-chip, .s-pubsub-card .ps-chip{
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 6px 2px 8px;
-  border-radius: 10px;
+  gap: 6px;
+  /*
+   * 尺寸对齐应用内的 .chip / .db-chip（主导航、连接列表都在用）：
+   * 原先 padding 2px 6px + fs-2xs，实测高 18px、字 9px，
+   * 比同一面板里的 停止/订阅/发布 按钮矮一截，字号也小一号，
+   * 在浅色主题下几乎要凑近看。这里提到 fs-xs + padding 3px 8px。
+   */
+  padding: 3px 8px;
+  border-radius: 999px;
   background: var(--accent-soft);
   color: var(--accent);
-  font-size: var(--fs-2xs);
+  font-size: var(--fs-xs);
+  line-height: 1.4;
 }
 /* 模式订阅用描边与频道订阅区分 —— 两类 chip 混排时一眼可分 */
 .s-pubsub-card.ps-chip.pattern, .s-pubsub-card .ps-chip.pattern{
@@ -4668,15 +4693,29 @@
 .s-pubsub-card.ps-chip-x, .s-pubsub-card .ps-chip-x{
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  /*
+   * × 必须能给到可点的大小。
+   * 原来只包一个 9px 图标、padding 为 0，命中区实测 9×9 —— 
+   * 鼠标要精确压在图标上才点得中，而且视觉上挤着频道名。
+   * 14×14 的小圆做命中区，图标仍是 9px，周围留出可点空白。
+   */
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin-right: -2px;
   padding: 0;
   border: none;
+  border-radius: 50%;
   background: none;
   color: inherit;
   cursor: pointer;
-  opacity: 0.7;
+  opacity: 0.72;
+  transition: background 0.15s, opacity 0.15s;
 }
 .s-pubsub-card .ps-chip-x:hover{
   opacity: 1;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
 }
 /* ---------------------------------------------------------- 消息流 */
 
@@ -5382,13 +5421,14 @@
 .s-slowlog-card.slow-reset, .s-slowlog-card .slow-reset{
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 9px;
-  border-radius: var(--radius-sm);
+  gap: 5px;
+  /* 度量与 .tool / .mem-run 保持一致，详见 mem-run 处说明 */
+  padding: 3px 10px;
+  border-radius: 999px;
   border: 1px solid var(--border);
   background: var(--bg-elevated);
   color: var(--text-secondary);
-  font-size: var(--fs-xs);
+  font-size: var(--fs-sm);
   flex: 0 0 auto;
 }
 .s-slowlog-card .slow-reset:hover:not(:disabled){

@@ -92,6 +92,19 @@ export function SlowlogCard({ registerRefresh }: { registerRefresh?: (fn: () => 
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
   }
 
+  /**
+   * 相对时间：「3 分钟前」比「2026-10-29 21:03:11」更好扫。
+   * 慢查询的核心问题是"最近有没有慢"，相对时间直接回答这个问题；
+   * 精确时间戳保留在单元格的 title 里，需要核对时悬停即可。
+   */
+  function timeAgo(ts: number): string {
+    const diff = Math.max(0, Math.floor(Date.now() / 1000) - ts)
+    if (diff < 60) return '刚刚'
+    if (diff < 3600) return `${Math.floor(diff / 60)} 分钟前`
+    if (diff < 86_400) return `${Math.floor(diff / 3600)} 小时前`
+    return `${Math.floor(diff / 86_400)} 天前`
+  }
+
   return (
     <section className="slow-card s-slowlog-card">
       <header className="slow-head">
@@ -112,6 +125,15 @@ export function SlowlogCard({ registerRefresh }: { registerRefresh?: (fn: () => 
         </button>
       </header>
 
+      {/*
+        常驻解释「为什么是空的」。
+        慢查询为空有两种原因：确实是最近没有慢命令，或者服务端阈值设得很高
+        根本没记录 —— 不写清楚，用户会以为功能坏了。
+      */}
+      <p className="slow-hint">
+        记录耗时超过 slowlog-log-slower-than（默认 10ms）的命令，服务端最多保留 slowlog-max-len 条
+      </p>
+
       {error ? (
         <p className="slow-error">{error}</p>
       ) : loading && !overview ? (
@@ -120,24 +142,40 @@ export function SlowlogCard({ registerRefresh }: { registerRefresh?: (fn: () => 
         <table className="slow-table">
           <thead>
             <tr>
-              <th className="col-time">时间</th>
-              <th className="col-dur">耗时</th>
+              <th className="col-id">ID</th>
+              <th className="col-time">发生时间</th>
+              <th className="col-cost">耗时</th>
               <th className="col-cmd">命令</th>
-              <th className="col-addr">客户端</th>
+              <th className="col-client">客户端</th>
             </tr>
           </thead>
           <tbody>
-            {entries.map((entry) => (
+            {entries.map((entry, i) => (
               <tr key={entry.id}>
-                <td className="mono col-time">{formatTime(entry.timestamp)}</td>
-                <td className={`mono col-dur ${durationTone(entry.duration) ?? ''}`.trim()}>
+                {/*
+                  序号而非服务端 ID：ID 是 Redis 内部的递增整数，
+                  对"第几条"没有信息量；序号与阅读顺序一致。
+                  ID 保留在 title 里，需要跟服务端核对时能看到。
+                */}
+                <td className="mono col-id" title={`服务端 ID ${entry.id}`}>
+                  {i + 1}
+                </td>
+                <td className="col-time" title={formatTime(entry.timestamp)}>
+                  {timeAgo(entry.timestamp)}
+                </td>
+                <td className={`mono col-cost ${durationTone(entry.duration) ?? ''}`.trim()}>
                   {formatDuration(entry.duration)}
                 </td>
                 <td className="mono col-cmd" title={entry.command.join(' ')}>
                   {entry.command.join(' ')}
                 </td>
-                <td className="mono col-addr" title={entry.client}>
-                  {entry.client || '-'}
+                {/*
+                  优先连接名：多实例并存时 "redis-desktop" / "生产只读"
+                  比 "172.16.30.11:52344" 更回答"是我哪个程序干的"。
+                  没有名字时回退到地址。
+                */}
+                <td className="mono col-client" title={entry.client}>
+                  {entry.clientName || entry.client || '-'}
                 </td>
               </tr>
             ))}

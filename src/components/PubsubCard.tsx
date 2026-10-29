@@ -203,7 +203,45 @@ export function PubsubCard() {
         </button>
       </div>
 
-      {/* 已订阅清单：频道实底、模式描边，点 × 单个退订 */}
+      {/*
+        已订阅清单：频道实底、模式描边，点 × 单个退订。
+        没有这块时，"当前订阅了什么"只能靠 ps-state 上的数字猜 ——
+        而这个数字既不告诉你是哪个频道，也不给你退订入口，
+        只能整组 stopAll 再重新订阅一遍。
+      */}
+      {hasSubs ? (
+        <div className="ps-chips">
+          {channels.map((channel) => (
+            <span key={`c:${channel}`} className="ps-chip mono" {...tipProps(`频道订阅：${channel}`)}>
+              {channel}
+              <button
+                className="ps-chip-x"
+                {...tipProps(`退订 ${channel}`)}
+                onClick={() => void unsubscribe(channel, false)}
+              >
+                <DialogIcon name="close" size={9} />
+              </button>
+            </span>
+          ))}
+          {patterns.map((pattern) => (
+            <span
+              key={`p:${pattern}`}
+              className="ps-chip mono pattern"
+              {...tipProps(`模式订阅：${pattern}`)}
+            >
+              {pattern}
+              <button
+                className="ps-chip-x"
+                {...tipProps(`退订模式 ${pattern}`)}
+                onClick={() => void unsubscribe(pattern, true)}
+              >
+                <DialogIcon name="close" size={9} />
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : null}
+
       {/* 发布测试：发布者视角确认「有没有人在听」（返回接收者数） */}
       <div className="ps-row">
         <input

@@ -1085,6 +1085,8 @@ body.dialog-dragging * {
 .seg-item,
 .tool,
 .mem-more,
+.mem-run,
+.slow-reset,
 .get-more {
   border-radius: 999px !important;
 }
@@ -1092,6 +1094,16 @@ body.dialog-dragging * {
 /* 兜底：任何以 -btn 结尾的类（含各弹窗作用域内的自定义按钮） */
 [class$='-btn'],
 [class*='-btn '] {
+  border-radius: 999px !important;
+}
+
+/*
+ * 凹槽式分段控件里的选项：独立胶囊。
+ * 这类选项在「方盒 + 竖线」时代是矩形（靠外框裁圆角），
+ * 换成凹槽结构后必须自己圆起来，否则凹槽是胶囊、选项是方块。
+ */
+.mem-depth-btn,
+.segmented > button {
   border-radius: 999px !important;
 }
 
