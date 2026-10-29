@@ -161,9 +161,22 @@ export function CreateKeyDialog({ prefix, separator, onClose, onCreated }: Creat
             </span>
 
             {/*
-              前缀模式：前缀作为静态片断展示在输入框左侧，
-              视觉上与输入内容连成一个完整的键名，但它不可编辑。
+              前缀模式：前缀作为不可编辑的静态片断贴在输入框左侧，
+              与用户输入的后缀视觉上连成一个完整键名。
+              两段之间由分隔符衔接，输入框里只填后缀。
             */}
+            <span className="key-input-wrap">
+              {prefix ? <span className="prefix-fixed mono">{prefix}{sep}</span> : null}
+              <input
+                value={suffix}
+                onChange={(event) => setSuffix(event.target.value)}
+                className="mono"
+                placeholder={prefix ? '后半段键名' : '例如 user:1001:profile'}
+                autoFocus
+                spellCheck={false}
+                autoComplete="off"
+              />
+            </span>
             {/* 实时预览最终键名：前缀 + 后缀的组合结果比两段更直观 */}
             {prefix && keyName ? (
               <span className="hint full-name">
