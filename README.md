@@ -227,7 +227,7 @@ npm run icon   # 等价于 python scripts/make-icon.py
 
 | 方式 | 命令 | 看到什么 | 适用场景 |
 | --- | --- | --- | --- |
-| 浏览器跑真组件 | 双击 `preview.cmd`（或 `npm run dev:web`）→ 打开 `http://127.0.0.1:5173` | 真实 Vue 组件，支持热更新；数据走 `src/api/mock.ts` | 日常调界面，不必等 Electron 窗口 |
+| 浏览器跑真组件 | `npm run dev:web` → 打开 `http://127.0.0.1:5173` | 真实 React 组件，支持热更新；数据走 `src/api/mock.ts` | 日常调界面，不必等 Electron 窗口；下方截图即由此生成 |
 | 构建产物预览 | `npm run build && npm run preview` | 生产构建产物，静态服务在 `http://127.0.0.1:4173` | 验证打包结果 |
 | 完整应用 | `npm run dev` | Electron 真实窗口，IPC 与 ioredis 全链路生效 | 验证连接、命令、日志落盘、设置持久化等真实行为 |
 
@@ -243,6 +243,87 @@ npm run icon   # 等价于 python scripts/make-icon.py
 > 早期曾存在一个手写的静态原型页（`preview/index.html`，原生 HTML/JS），
 > 因需要同步维护两份实现、且已出现过不一致（弹窗无法关闭的缺陷仅存在于静态页，
 > 因其 `display:flex` 覆盖了 `hidden` 属性），已移除。
+
+### 截图
+
+> 以下截图取自 `npm run dev:web` 的浏览器预览，数据全部来自 `src/api/mock.ts`
+> 的演示配置 —— 不包含任何真实环境的地址、账号或业务键名。
+
+#### 主页
+
+<p>
+  <img src="docs/screenshots/home-dark.png" width="49%" alt="主页 · 暗色" />
+  <img src="docs/screenshots/home-light.png" width="49%" alt="主页 · 亮色" />
+</p>
+<p>
+  <img src="docs/screenshots/home-aurora.png" width="49%" alt="主页 · 极光" />
+  <img src="docs/screenshots/home-sakura.png" width="49%" alt="主页 · 樱花" />
+</p>
+
+#### 键浏览器 · 9 套皮肤
+
+同一份数据、同一套布局，只切换 `data-theme`。配色由 CSS 变量驱动，
+组件本身不感知主题，因此新增皮肤只需补一组变量。
+
+| 暗色 | 亮色 | 深海 |
+| :---: | :---: | :---: |
+| ![](docs/screenshots/key-browser-dark.png) | ![](docs/screenshots/key-browser-light.png) | ![](docs/screenshots/key-browser-ocean.png) |
+
+| 晒淡 | 森林 | 樱花 |
+| :---: | :---: | :---: |
+| ![](docs/screenshots/key-browser-solarized.png) | ![](docs/screenshots/key-browser-forest.png) | ![](docs/screenshots/key-browser-sakura.png) |
+
+| 薄荷 | 薄雾 | 极光 |
+| :---: | :---: | :---: |
+| ![](docs/screenshots/key-browser-mint.png) | ![](docs/screenshots/key-browser-mist.png) | ![](docs/screenshots/key-browser-aurora.png) |
+
+#### 树形视图与键值查看
+
+树形按分隔符逐段建层，目录节点显示子树内的键数量；右侧按类型渲染不同的
+查看器 —— hash 走字段表格（含字段级 TTL 列），zset 走「成员 + 分值」表格。
+
+<p>
+  <img src="docs/screenshots/key-browser-tree.png" width="49%" alt="树形视图 · 暗色" />
+  <img src="docs/screenshots/key-browser-tree-light.png" width="49%" alt="树形视图 · 亮色" />
+</p>
+
+<p>
+  <img src="docs/screenshots/key-value-string.png" width="49%" alt="string 值查看" />
+  <img src="docs/screenshots/key-value-hash.png" width="49%" alt="hash 值查看" />
+</p>
+
+<p>
+  <img src="docs/screenshots/key-value-zset.png" width="49%" alt="zset 值查看" />
+  <img src="docs/screenshots/key-value-hash-light.png" width="49%" alt="hash 值查看 · 亮色" />
+</p>
+<p>
+  <img src="docs/screenshots/key-value-string-light.png" width="49%" alt="string 值查看 · 亮色" />
+</p>
+
+#### 检索、CLI 与操作日志
+
+全库搜索把 `SCAN` 下沉到主进程，边扫边推送进度、可随时中止；CLI 按连接分标签，
+执行结果直接回显；操作日志只记录手动操作，支持按日期 / 连接筛选。
+
+<p>
+  <img src="docs/screenshots/search-result.png" width="49%" alt="全库搜索" />
+  <img src="docs/screenshots/cli-console.png" width="49%" alt="CLI 控制台" />
+</p>
+
+<p>
+  <img src="docs/screenshots/operation-log.png" width="49%" alt="操作日志" />
+  <img src="docs/screenshots/dialog-connection.png" width="49%" alt="新建连接" />
+</p>
+
+#### 新建连接
+
+基于 Cult UI 的 shadcn 原子组件（Dialog / Input / Label / Switch / Select / Button），
+配色走语义 token，9 套皮肤下自动跟随；支持 SSH 隧道与多级跳板。
+
+<p>
+  <img src="docs/screenshots/dialog-connection.png" width="49%" alt="新建连接 · 暗色" />
+  <img src="docs/screenshots/dialog-connection-light.png" width="49%" alt="新建连接 · 亮色" />
+</p>
 
 ---
 
