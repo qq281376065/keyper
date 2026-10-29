@@ -1,6 +1,9 @@
 import { useState } from 'react'
+import { DialogShell } from '@/components/DialogShell'
 import { DialogIcon } from '@/components/DialogIcon'
-import { useDialogDrag } from '@/hooks/useDialogDrag'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 /** 通用单值输入弹窗：用于重命名键、设置 TTL 等轻量输入场景 */
 export interface PromptDialogProps {
@@ -31,66 +34,71 @@ export function PromptDialog({
   onCancel,
 }: PromptDialogProps) {
   const [draft, setDraft] = useState(initialValue)
-  const { style, onDragStart } = useDialogDrag()
 
   return (
-    <div className="mask s-prompt-dialog">
-      <div className="dialog" style={style}>
-        <header className="dialog-head" onMouseDown={onDragStart}>
-          <span>{title}</span>
-          <span className="spacer" />
-          <button className="btn-ghost tiny" onClick={onCancel}>
-            <DialogIcon name="cancel" size={12} />
-          </button>
-        </header>
-
-        <div className="dialog-body">
-          <label className="field">
-            <span className="label">{label}</span>
-            <input
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              className="mono"
-              type={inputType}
-              min={inputType === 'number' ? 0 : undefined}
-              placeholder={placeholder}
-              onKeyUp={(event) => {
-                if (event.key === 'Enter') onConfirm(draft)
-              }}
-            />
-          </label>
-
-          {presets.length ? (
-            <div className="presets">
-              <span className="presets-label">常用值</span>
-              {presets.map((item) => (
-                <button
-                  key={item.value}
-                  className={`preset${draft === item.value ? ' on' : ''}`}
-                  onClick={() => setDraft(item.value)}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          ) : null}
-
-          {hint ? <p className="hint">{hint}</p> : null}
-        </div>
-
-        <footer className="dialog-foot">
-          <button className="btn" onClick={onCancel}>
-            <DialogIcon name="cancel" />
+    <DialogShell
+      icon="edit"
+      title={title}
+      description="填写后按 Enter 可直接确认"
+      className="prompt-dialog"
+      onClose={onCancel}
+      footer={
+        <>
+          <Button type="button" variant="ghost" className="foot-btn foot-quiet" onClick={onCancel}>
+            <DialogIcon name="cancel" size={13} />
             取消
-          </button>
-          <span className="spacer" />
-          <button className="btn-primary btn" onClick={() => onConfirm(draft)}>
-            <DialogIcon name="save" />
+          </Button>
+          <Button
+            type="button"
+            className="foot-btn foot-primary"
+            onClick={() => onConfirm(draft)}
+          >
+            <DialogIcon name="save" size={13} />
             {confirmText}
-          </button>
-        </footer>
+          </Button>
+        </>
+      }
+    >
+      <div className="field">
+        <Label htmlFor="prompt-input" className="field-label">
+          {label}
+        </Label>
+        <Input
+          id="prompt-input"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          className="mono"
+          type={inputType}
+          min={inputType === 'number' ? 0 : undefined}
+          placeholder={placeholder}
+          autoFocus
+          autoComplete="off"
+          spellCheck={false}
+          onKeyUp={(event) => {
+            if (event.key === 'Enter') onConfirm(draft)
+          }}
+        />
       </div>
-    </div>
+
+      {/* 常用值：一键填入，省掉手输。整组胶囊化，与按钮约定一致 */}
+      {presets.length ? (
+        <div className="presets">
+          <span className="presets-label">常用值</span>
+          {presets.map((item) => (
+            <button
+              key={item.value}
+              type="button"
+              className={`preset${draft === item.value ? ' on' : ''}`}
+              onClick={() => setDraft(item.value)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {hint ? <p className="hint">{hint}</p> : null}
+    </DialogShell>
   )
 }
 

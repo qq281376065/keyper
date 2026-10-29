@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
+import { DialogShell } from '@/components/DialogShell'
 import { DialogIcon } from '@/components/DialogIcon'
-import { useDialogDrag } from '@/hooks/useDialogDrag'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { globalHolder } from '@/store/global'
 import { useRedis } from '@/store/useRedis'
 import { useObservable } from '@/store/subscription'
@@ -17,22 +19,18 @@ export function ConfirmDialog() {
   useObservable(globalHolder)
   const request = state.confirm
 
-  /** 支持拖动：确认弹窗常与背景内容对照查看，固定居中会挡住被确认的对象 */
-  const { style, onDragStart, resetDrag } = useDialogDrag()
   const [phrase, setPhrase] = useState('')
 
   // 每次弹出新请求都清空输入，避免上一次的输入残留造成误放行
-  // 同时复位弹窗位置 —— 否则第二次打开会停在上一轮拖到的地方
-  const requestKey = request?.title ?? ''
   useEffect(() => {
     setPhrase('')
-    resetDrag()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [request])
 
   if (!request) return null
 
   const phraseMatched = !request.requirePhrase || phrase.trim() === request.requirePhrase
+  const danger = !!request.danger
 
   function confirm(): void {
     if (!phraseMatched) return
@@ -40,86 +38,88 @@ export function ConfirmDialog() {
   }
 
   return (
-    <div
-      className="mask s-confirm-dialog"
-      onClick={(event) => {
-        if (event.target === event.currentTarget) resolveConfirm(false)
-      }}
-    >
-      <div className="dialog" style={style}>
-        <header className="dialog-head" onMouseDown={onDragStart}>
-          <span className={`dot${request.danger ? ' danger' : ''}`} />
-          {request.title}
-        </header>
-
-        <div className="dialog-body">
-          <p className="message">{request.message}</p>
-
-          {/* 结构化明细：标签置灰、值加亮，数据类值用等宽 */}
-          {request.details?.length ? (
-            <dl className="details">
-              {request.details.map((item) => (
-                <DetailRow key={`${requestKey}-${item.label}`} item={item} />
-              ))}
-            </dl>
-          ) : null}
-
-          {/* 待操作内容预览：独立区块，等宽展示，便于逐字核对 */}
-          {request.preview ? (
-            <div className="preview">
-              <span className="preview-label">
-                {request.preview.label}
-                {request.preview.truncated ? <span className="truncated">已截断</span> : null}
-              </span>
-              <pre className="preview-text mono">{request.preview.text}</pre>
-            </div>
-          ) : null}
-
-          {/* 风险提示：醒目色，与正文拉开层次 */}
-          {request.warning ? (
-            <p className="warning">
-              <span className="warn-icon">!</span>
-              {request.warning}
-            </p>
-          ) : null}
-
-          {request.requirePhrase ? (
-            <div className="phrase-box">
-              <span className="phrase-hint">
-                请输入 <code className="mono">{request.requirePhrase}</code> 以确认执行
-              </span>
-              <input
-                value={phrase}
-                onChange={(event) => setPhrase(event.target.value)}
-                className={`mono phrase-input${phraseMatched ? ' matched' : ''}`}
-                placeholder={request.requirePhrase}
-                autoComplete="off"
-                spellCheck={false}
-                onKeyUp={(event) => {
-                  if (event.key === 'Enter') confirm()
-                }}
-              />
-            </div>
-          ) : null}
-        </div>
-
-        <footer className="dialog-foot">
-          <button className="btn cancel-btn" onClick={() => resolveConfirm(false)}>
-            <DialogIcon name="cancel" />
+    <DialogShell
+      /* 危险操作用 warning 图标，普通确认用 check —— 图标先于文字传达性质 */
+      icon={danger ? 'warning' : 'check'}
+      title={request.title}
+      description="请确认以下内容，操作不可撤销"
+      className="confirm-dialog"
+      /* 确认框允许点遮罩取消：它没有"填到一半"的状态，取消成本极低 */
+      closeOnOverlay
+      onClose={() => resolveConfirm(false)}
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="ghost"
+            className="foot-btn foot-quiet"
+            onClick={() => resolveConfirm(false)}
+          >
+            <DialogIcon name="cancel" size={13} />
             取消
-          </button>
-          <span className="spacer" />
-          <button
-            className={`confirm-btn${request.danger ? ' danger' : ''}`}
+          </Button>
+          <Button
+            type="button"
+            className={`foot-btn confirm-btn${danger ? ' is-danger' : ' foot-primary'}`}
             disabled={!phraseMatched}
             onClick={confirm}
           >
-            <DialogIcon name="check" />
+            <DialogIcon name="check" size={13} />
             {request.confirmText ?? '确定'}
-          </button>
-        </footer>
-      </div>
-    </div>
+          </Button>
+        </>
+      }
+    >
+      <p className="message">{request.message}</p>
+
+      {/* 结构化明细：标签置灰、值加亮，数据类值用等宽 */}
+      {request.details?.length ? (
+        <dl className="details">
+          {request.details.map((item) => (
+            <DetailRow key={`${request.title}-${item.label}`} item={item} />
+          ))}
+        </dl>
+      ) : null}
+
+      {/* 待操作内容预览：独立区块，等宽展示，便于逐字核对 */}
+      {request.preview ? (
+        <div className="preview">
+          <span className="preview-label">
+            {request.preview.label}
+            {request.preview.truncated ? <span className="truncated">已截断</span> : null}
+          </span>
+          <pre className="preview-text mono">{request.preview.text}</pre>
+        </div>
+      ) : null}
+
+      {/* 风险提示：用 .dlg-alert 的语义色，与其它弹窗的提示条同一套 */}
+      {request.warning ? (
+        <div className="dlg-alert is-err" role="status">
+          <DialogIcon name="warning" size={14} />
+          <span>{request.warning}</span>
+        </div>
+      ) : null}
+
+      {request.requirePhrase ? (
+        <div className="phrase-box">
+          <span className="phrase-hint">
+            请输入 <code className="mono">{request.requirePhrase}</code> 以确认执行
+          </span>
+          <Input
+            value={phrase}
+            onChange={(event) => setPhrase(event.target.value)}
+            className={`mono phrase-input${phraseMatched ? ' matched' : ''}`}
+            placeholder={request.requirePhrase}
+            autoComplete="off"
+            spellCheck={false}
+            autoFocus
+            onKeyUp={(event) => {
+              if (event.key === 'Enter') confirm()
+            }}
+          />
+        </div>
+      ) : null}
+    </DialogShell>
   )
 }
 

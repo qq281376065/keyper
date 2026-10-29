@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import { DialogIcon } from '@/components/DialogIcon'
-import { tipProps } from '@/components/tip'
-import { useDialogDrag } from '@/hooks/useDialogDrag'
+import { DialogShell } from '@/components/DialogShell'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { useRedis } from '@/store/useRedis'
 import type { KeyValue } from '@shared/types'
 
@@ -103,102 +106,122 @@ export function EditValueDialog({ initial, onClose }: { initial: KeyValue; onClo
     }
   }
 
-  const { style, onDragStart } = useDialogDrag()
 
   return (
-    <div className="mask s-edit-value-dialog">
-      <div className="dialog" style={style}>
-        <header className="dialog-head" onMouseDown={onDragStart}>
-          <span>编辑值</span>
+    <DialogShell
+      icon="edit"
+      title="编辑值"
+      description="保存会以表单内容整体覆盖该键"
+      badge={
+        <>
           <span className={`type-badge type-${type}`}>{type}</span>
-          <span className="key-name mono ellipsis" {...tipProps(key)}>
-            {key}
-          </span>
+          <span className="dlg-badge mono ellipsis">{key}</span>
+        </>
+      }
+      className="edit-value-dialog"
+      onClose={onClose}
+      footer={
+        <>
           <span className="spacer" />
-          <button className="btn-ghost tiny" onClick={onClose}>
-            <DialogIcon name="cancel" size={12} />
-          </button>
-        </header>
-
-        <div className="dialog-body">
-          <label className="field">
-            <span className="label">TTL（秒，留空表示永久）</span>
-            <input
-              value={ttlDraft}
-              onChange={(event) => setTtlDraft(event.target.value)}
-              className="mono ttl-input"
-              inputMode="numeric"
-              min="0"
-              placeholder="永久"
-            />
-          </label>
-
-          {/* string */}
-          {type === 'string' ? (
-            <textarea
-              value={stringDraft}
-              onChange={(event) => setStringDraft(event.target.value)}
-              className="content mono"
-              spellCheck={false}
-              placeholder={placeholder}
-            />
-          ) : type === 'hash' ? (
-            /* hash */
-            <div className="hash-table">
-              <div className="hash-head">
-                <span>field</span>
-                <span>value</span>
-                <span />
-              </div>
-              {hashRows.map((row, index) => (
-                <div key={index} className="hash-row">
-                  <input
-                    value={row.field}
-                    onChange={(event) => updateHashRow(index, { field: event.target.value })}
-                    className="mono"
-                  />
-                  <input
-                    value={row.value}
-                    onChange={(event) => updateHashRow(index, { value: event.target.value })}
-                    className="mono"
-                  />
-                  <button className="del-btn" {...tipProps('删除字段')} onClick={() => removeHashRow(index)}>
-                    <DialogIcon name="cancel" size={11} />
-                  </button>
-                </div>
-              ))}
-              <button className="btn-ghost add-row" onClick={addHashRow}>
-                <DialogIcon name="add" size={12} />
-                新增字段
-              </button>
-            </div>
-          ) : (
-            /* list / set / zset */
-            <textarea
-              value={linesDraft}
-              onChange={(event) => setLinesDraft(event.target.value)}
-              className="content mono"
-              spellCheck={false}
-              placeholder={placeholder}
-            />
-          )}
-
-          <p className="warn">保存会以当前表单内容整体覆盖该键，请确认内容完整。</p>
-        </div>
-
-        <footer className="dialog-foot">
-          <span className="spacer" />
-          <button className="btn" onClick={onClose}>
-            <DialogIcon name="cancel" />
+          <Button type="button" variant="ghost" className="foot-btn foot-quiet" onClick={onClose}>
+            <DialogIcon name="cancel" size={13} />
             取消
-          </button>
-          <button className="btn-primary btn" disabled={saving} onClick={() => void submit()}>
-            <DialogIcon name="save" />
+          </Button>
+          <Button
+            type="button"
+            className="foot-btn foot-primary"
+            disabled={saving}
+            onClick={() => void submit()}
+          >
+            <DialogIcon name="save" size={13} />
             {saving ? '保存中…' : '保存'}
-          </button>
-        </footer>
+          </Button>
+        </>
+      }
+    >
+      {/* TTL 放在最前：整键重建时必须记住过期时间，否则保存一次就变永久 */}
+      <div className="field">
+        <Label htmlFor="ev-ttl" className="field-label">
+          TTL（秒，留空表示永久）
+        </Label>
+        <Input
+          id="ev-ttl"
+          value={ttlDraft}
+          onChange={(event) => setTtlDraft(event.target.value)}
+          className="mono ttl-input"
+          inputMode="numeric"
+          min="0"
+          placeholder="永久"
+        />
       </div>
-    </div>
+
+      {/* 按类型切换编辑器 */}
+      {type === 'string' ? (
+        <div className="field">
+          <Textarea
+            value={stringDraft}
+            onChange={(event) => setStringDraft(event.target.value)}
+            className="mono dlg-content"
+            spellCheck={false}
+            placeholder={placeholder}
+          />
+        </div>
+      ) : type === 'hash' ? (
+        /* hash：字段表格。列头 + 行内输入 + 行末删除，结构保持不变 */
+        <div className="hash-table">
+          <div className="hash-head">
+            <span>field</span>
+            <span>value</span>
+            <span />
+          </div>
+          {hashRows.map((row, index) => (
+            <div key={index} className="hash-row">
+              <Input
+                value={row.field}
+                onChange={(event) => updateHashRow(index, { field: event.target.value })}
+                className="mono"
+              />
+              <Input
+                value={row.value}
+                onChange={(event) => updateHashRow(index, { value: event.target.value })}
+                className="mono"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="del-btn"
+                aria-label="删除字段"
+                onClick={() => removeHashRow(index)}
+              >
+                <DialogIcon name="cancel" size={11} />
+              </Button>
+            </div>
+          ))}
+          <button type="button" className="btn-ghost add-row" onClick={addHashRow}>
+            <DialogIcon name="add" size={12} />
+            新增字段
+          </button>
+        </div>
+      ) : (
+        /* list / set / zset：一行一项 */
+        <div className="field">
+          <Textarea
+            value={linesDraft}
+            onChange={(event) => setLinesDraft(event.target.value)}
+            className="mono dlg-content"
+            spellCheck={false}
+            placeholder={placeholder}
+          />
+        </div>
+      )}
+
+      {/* 覆盖式保存的风险提示：用 warning 色条，位置在内容之后、页脚之前 */}
+      <div className="dlg-alert" role="status">
+        <DialogIcon name="warning" size={14} />
+        <span>保存会以当前表单内容整体覆盖该键，请确认内容完整。</span>
+      </div>
+    </DialogShell>
   )
 }
 

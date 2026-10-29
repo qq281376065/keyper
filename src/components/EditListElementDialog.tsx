@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { DialogIcon } from '@/components/DialogIcon'
-import { tipProps } from '@/components/tip'
-import { useDialogDrag } from '@/hooks/useDialogDrag'
+import { DialogShell } from '@/components/DialogShell'
+import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
 import { formatBytes } from '@/utils/format'
 
 export interface EditListElementDialogProps {
@@ -56,7 +57,6 @@ export function EditListElementDialog({
   onCancel,
 }: EditListElementDialogProps) {
   const [draft, setDraft] = useState(initialValue)
-  const { style, onDragStart } = useDialogDrag()
 
   /** 状态栏统计：字符数、行数、字节数、是否修改 */
   const bytes = new Blob([draft]).size
@@ -109,42 +109,16 @@ export function EditListElementDialog({
   const canSubmit = draft.length ? (mode === 'insert' ? true : stats.changed) : false
 
   return (
-    <div className="mask s-edit-list-element-dialog">
-      <div className="dialog" style={style}>
-        <header className="dialog-head" onMouseDown={onDragStart}>
-          <span>{title}</span>
-          {subtitle ? <span className="subtitle">{subtitle}</span> : null}
-          <span className="spacer" />
-          <button className="btn-ghost tiny" onClick={onCancel}>
-            <DialogIcon name="cancel" size={12} />
-          </button>
-        </header>
-
-        {/* key 预览：类型徽标 + 完整键名 + 位置（无序集合不显示位置） */}
-        <div className="key-preview">
-          <span className="type-badge">{keyType}</span>
-          <span className="key-name mono ellipsis" {...tipProps(keyName)}>
-            {keyName}
-          </span>
-          {showPosition ? (
-            <span className="pos mono">
-              {mode === 'edit' ? `#${index + 1} / ${total}` : `插入点 #${index + 1}`}
-            </span>
-          ) : null}
-        </div>
-
-        <div className="dialog-body">
-          <textarea
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            className="mono content"
-            spellCheck={false}
-            placeholder={mode === 'edit' ? '元素内容，可多行' : '要插入的内容'}
-          />
-          {jsonHint ? <p className={`json-hint${jsonHint.includes('有误') ? ' bad' : ''}`}>{jsonHint}</p> : null}
-        </div>
-
-        <footer className="dialog-foot">
+    <DialogShell
+      icon={mode === 'edit' ? 'edit' : 'add'}
+      title={title}
+      description={subtitle || (mode === 'edit' ? '修改后立即生效' : '插入后立即生效')}
+      badge={<span className="dlg-badge mono">{keyType}</span>}
+      className="edit-list-element-dialog"
+      onClose={onCancel}
+      footer={
+        <>
+          {/* 统计条：字符 / 行 / 字节（+ 改动量），放在页脚左侧充当副信息 */}
           <span className="stat mono">{stats.chars} 字符</span>
           <span className="sep">·</span>
           <span className="stat mono">{stats.lines} 行</span>
@@ -160,25 +134,48 @@ export function EditListElementDialog({
               </span>
             </>
           ) : null}
-          {showPosition ? (
-            <>
-              <span className="sep">·</span>
-              <span className="stat mono">{mode === 'edit' ? `位置 ${index + 1} / ${total}` : subtitle}</span>
-            </>
-          ) : null}
-
           <span className="spacer" />
-          <button className="btn" onClick={onCancel}>
-            <DialogIcon name="cancel" />
+          <Button type="button" variant="ghost" className="foot-btn foot-quiet" onClick={onCancel}>
+            <DialogIcon name="cancel" size={13} />
             取消
-          </button>
-          <button className="btn-primary btn" disabled={!canSubmit} onClick={() => onConfirm(draft)}>
-            <DialogIcon name="save" />
+          </Button>
+          <Button
+            type="button"
+            className="foot-btn foot-primary"
+            disabled={!canSubmit}
+            onClick={() => onConfirm(draft)}
+          >
+            <DialogIcon name="save" size={13} />
             {mode === 'edit' ? '保存' : '插入'}
-          </button>
-        </footer>
+          </Button>
+        </>
+      }
+    >
+      {/* 目标键：徽标显示类型，完整键名等宽展示，便于核对 */}
+      <div className="key-preview">
+        <span className="type-badge">{keyType}</span>
+        <span className="key-name mono ellipsis" title={keyName}>
+          {keyName}
+        </span>
+        {showPosition ? (
+          <span className="pos mono">
+            {mode === 'edit' ? `#${index + 1} / ${total}` : `插入点 #${index + 1}`}
+          </span>
+        ) : null}
       </div>
-    </div>
+
+      <div className="field">
+        <Textarea
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          className="mono dlg-content"
+          spellCheck={false}
+          placeholder={mode === 'edit' ? '元素内容，可多行' : '要插入的内容'}
+          autoFocus
+        />
+        {jsonHint ? <p className={`json-hint${jsonHint.includes('有误') ? ' bad' : ''}`}>{jsonHint}</p> : null}
+      </div>
+    </DialogShell>
   )
 }
 

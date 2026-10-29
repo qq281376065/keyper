@@ -1,8 +1,11 @@
 import { useState } from 'react'
 import { api } from '@/api'
 import { DialogIcon } from '@/components/DialogIcon'
-import { tipProps } from '@/components/tip'
-import { useDialogDrag } from '@/hooks/useDialogDrag'
+import { DialogShell } from '@/components/DialogShell'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { useRedis } from '@/store/useRedis'
 
 export interface EditHashFieldDialogProps {
@@ -39,7 +42,6 @@ export function EditHashFieldDialog({
   const [fieldDraft, setFieldDraft] = useState(field)
   const [valueDraft, setValueDraft] = useState(value)
   const [saving, setSaving] = useState(false)
-  const { style, onDragStart } = useDialogDrag()
 
   const isAdd = mode === 'add'
   const title = isAdd ? '新增字段' : '修改字段'
@@ -104,68 +106,82 @@ export function EditHashFieldDialog({
   }
 
   return (
-    <div className="mask s-edit-hash-field-dialog">
-      <div className="dialog" style={style}>
-        <header className="dialog-head" onMouseDown={onDragStart}>
-          <span>{title}</span>
-          <span className="key-name mono ellipsis" {...tipProps(keyName)}>
-            {keyName}
-          </span>
-          <span className="spacer" />
-          <button className="btn-ghost tiny" onClick={onClose}>
-            <DialogIcon name="cancel" size={12} />
-          </button>
-        </header>
-
-        <div className="dialog-body">
-          <label className="field">
-            <span className="label">field</span>
-            <input
-              value={fieldDraft}
-              onChange={(event) => setFieldDraft(event.target.value)}
-              className="mono"
-              placeholder="字段名"
-              onKeyUp={(event) => {
-                if (event.key === 'Enter') void submit()
-              }}
-            />
-          </label>
-
-          <label className="field">
-            <span className="label">value</span>
-            <textarea
-              value={valueDraft}
-              onChange={(event) => setValueDraft(event.target.value)}
-              className="mono content"
-              spellCheck={false}
-              placeholder="字段值，可多行"
-            />
-          </label>
-
-          {isAdd ? (
-            <p className="warn">字段已存在时会覆盖其原有值（HSET 语义），不会影响同键下的其他字段。</p>
-          ) : renamed ? (
-            <p className="warn">
-              字段名已变更：将删除原字段 <code className="mono">{field}</code> 并写入{' '}
-              <code className="mono">{fieldDraft.trim()}</code>。 若目标字段已存在，其原有值会被覆盖。
-            </p>
-          ) : null}
-        </div>
-
-        <footer className="dialog-foot">
+    <DialogShell
+      icon={isAdd ? 'add' : 'edit'}
+      title={title}
+      description={isAdd ? '新增一个字段，已存在时会覆盖其值' : '修改字段名或字段值'}
+      badge={<span className="dlg-badge mono ellipsis">{keyName}</span>}
+      className="edit-hash-field-dialog"
+      onClose={onClose}
+      footer={
+        <>
           <span className="foot-hint">仅影响该字段，不会改动同键下的其他字段</span>
           <span className="spacer" />
-          <button className="btn" onClick={onClose}>
-            <DialogIcon name="cancel" />
+          <Button type="button" variant="ghost" className="foot-btn foot-quiet" onClick={onClose}>
+            <DialogIcon name="cancel" size={13} />
             取消
-          </button>
-          <button className="btn-primary btn" disabled={!canSubmit} onClick={() => void submit()}>
-            <DialogIcon name="save" />
+          </Button>
+          <Button
+            type="button"
+            className="foot-btn foot-primary"
+            disabled={!canSubmit}
+            onClick={() => void submit()}
+          >
+            <DialogIcon name="save" size={13} />
             {saving ? '保存中…' : isAdd ? '添加' : '保存'}
-          </button>
-        </footer>
+          </Button>
+        </>
+      }
+    >
+      <div className="field">
+        <Label htmlFor="ehf-field" className="field-label">
+          field
+        </Label>
+        <Input
+          id="ehf-field"
+          value={fieldDraft}
+          onChange={(event) => setFieldDraft(event.target.value)}
+          className="mono"
+          placeholder="字段名"
+          autoFocus
+          autoComplete="off"
+          spellCheck={false}
+          onKeyUp={(event) => {
+            if (event.key === 'Enter') void submit()
+          }}
+        />
       </div>
-    </div>
+
+      <div className="field">
+        <Label htmlFor="ehf-value" className="field-label">
+          value
+        </Label>
+        <Textarea
+          id="ehf-value"
+          value={valueDraft}
+          onChange={(event) => setValueDraft(event.target.value)}
+          className="mono dlg-content"
+          spellCheck={false}
+          placeholder="字段值，可多行"
+        />
+      </div>
+
+      {/* 覆盖 / 重命名的影响提示：属于"提交前必须知道"的风险，用 warning 色条 */}
+      {isAdd ? (
+        <div className="dlg-alert" role="status">
+          <DialogIcon name="info" size={14} />
+          <span>字段已存在时会覆盖其原有值（HSET 语义），不会影响同键下的其他字段。</span>
+        </div>
+      ) : renamed ? (
+        <div className="dlg-alert" role="status">
+          <DialogIcon name="warning" size={14} />
+          <span>
+            字段名已变更：将删除原字段 <code className="mono">{field}</code> 并写入{' '}
+            <code className="mono">{fieldDraft.trim()}</code>。若目标字段已存在，其原有值会被覆盖。
+          </span>
+        </div>
+      ) : null}
+    </DialogShell>
   )
 }
 

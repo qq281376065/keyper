@@ -5047,31 +5047,53 @@
   border-radius: var(--radius-sm);
   background: var(--bg-app);
 }
-.s-settings-dialog.segmented, .s-settings-dialog .segmented{
-  display: flex;
+/*
+ * 分段控件（主题档位 / 配色皮肤 / 字号 / 密度 ……）
+ *
+ * 旧写法有两个互斥语义叠在一起，正是"看着别扭"的来源：
+ *   ① 容器 border-radius: --radius-sm(4px) + overflow: hidden，
+ *      把内部按钮裁成小圆角；
+ *   ② 按钮靠 border-right 连成一排，表达"整体一条、彼此相连"；
+ *   ③ 但按钮被全局按钮约定改成了 999px 胶囊。
+ * 胶囊本意是"每个选项独立成形"，与"相连 + 被裁切"直接冲突 ——
+ * 结果是圆角被剪成直角、胶囊感又没消失，边缘出现毛刺状的不齐。
+ *
+ * 改为与连接弹窗 .seg 一致的「胶囊槽 + 独立胶囊选项」：
+ *   · 外层：胶囊形凹槽，2px 内边距，靠背景色区分于卡片面；
+ *   · 内部：每个选项各自胶囊，选中项用 elevated 底 + 轻投影浮起；
+ *   · 不再画分隔线 —— 选项之间的 2px 间隙已经完成了分组。
+ */
+.s-settings-dialog .segmented{
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
+  border-radius: 999px;
+  background: var(--bg-app);
   flex: 0 0 auto;
 }
 .s-settings-dialog .segmented button{
-  padding: 3px 10px;
+  padding: 2px 10px;
+  border-radius: 999px;
   font-size: var(--fs-md);
-  color: var(--text-secondary);
-  background: var(--bg-app);
-  border-right: 1px solid var(--border);
-}
-.s-settings-dialog .segmented button:last-child{
-  border-right: none;
+  color: var(--text-muted);
+  background: transparent;
+  /* 去掉旧的分隔线 —— 间隙已经表达分组 */
+  border: none;
+  transition: background-color 0.15s, color 0.15s;
+  white-space: nowrap;
 }
 .s-settings-dialog .segmented button:hover{
   background: var(--bg-hover);
   color: var(--text-primary);
 }
 .s-settings-dialog .segmented button.on{
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
   font-weight: 600;
+  /* 轻投影让选中项"浮"出凹槽，比整块填强调色更克制，也不刺眼 */
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.14);
 }
 .s-settings-dialog select{
   font-size: var(--fs-md);

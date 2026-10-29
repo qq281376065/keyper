@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { api } from '@/api'
 import { DialogIcon } from '@/components/DialogIcon'
-import { tipProps } from '@/components/tip'
-import { useDialogDrag } from '@/hooks/useDialogDrag'
+import { DialogShell } from '@/components/DialogShell'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { useRedis } from '@/store/useRedis'
 import { formatTtl } from '@/utils/format'
 
@@ -39,7 +41,6 @@ export function EditHashFieldTtlDialog({
   const { state, notify } = useRedis()
   const [draft, setDraft] = useState(currentTtl > 0 ? String(currentTtl) : '')
   const [saving, setSaving] = useState(false)
-  const { style, onDragStart } = useDialogDrag()
 
   /* String() 归一：数字输入框可能给出数字，数字值上 .trim() 会炸渲染 */
   const draftText = String(draft ?? '')
@@ -77,88 +78,100 @@ export function EditHashFieldTtlDialog({
   }
 
   return (
-    <div className="mask s-edit-hash-field-ttl-dialog">
-      <div className="dialog" style={style}>
-        <header className="dialog-head" onMouseDown={onDragStart}>
-          <span>设置字段 TTL</span>
+    <DialogShell
+      icon="clock"
+      title="设置字段 TTL"
+      description="字段级过期需要 Redis 7.4 及以上版本"
+      badge={<span className="dlg-badge mono">hash</span>}
+      className="edit-hash-field-ttl-dialog"
+      onClose={onClose}
+      footer={
+        <>
           <span className="spacer" />
-          <button className="btn-ghost tiny" onClick={onClose}>
-            <DialogIcon name="cancel" size={12} />
-          </button>
-        </header>
-
-        <div className="dialog-body">
-          <div className="target">
-            <div className="target-row">
-              <span className="k">键</span>
-              <span className="v mono ellipsis" {...tipProps(keyName)}>
-                {keyName}
-              </span>
-            </div>
-            <div className="target-row">
-              <span className="k">字段</span>
-              <span className="v mono ellipsis" {...tipProps(field)}>
-                {field}
-              </span>
-            </div>
-            <div className="target-row">
-              <span className="k">当前</span>
-              <span className={`v mono${currentTtl > 0 && currentTtl <= 60 ? ' urgent' : ''}`}>{currentLabel}</span>
-            </div>
-          </div>
-
-          <label className="field">
-            <span className="label">新的 TTL（秒）</span>
-            <input
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              className="mono"
-              inputMode="numeric"
-              min="0"
-              placeholder="留空 = 永久"
-            />
-          </label>
-
-          <div className="presets">
-            <span className="presets-label">常用值</span>
-            {PRESETS.map((item) => (
-              <button
-                key={item.value}
-                className={`preset${Number(draft) === item.value ? ' on' : ''}`}
-                onClick={() => setDraft(String(item.value))}
-              >
-                {item.label}
-              </button>
-            ))}
-            <button className={`preset${willPersist ? ' on' : ''}`} onClick={() => setDraft('')}>
-              永久
-            </button>
-          </div>
-
-          <p className={`note${willPersist ? ' persist' : ''}`}>
-            {willPersist ? (
-              <>将清除该字段的过期时间，使其成为永久字段（HPERSIST）。</>
-            ) : (
-              <>
-                到期后 Redis 会自动从 hash 中移除该字段。<b>注意</b>：字段级 TTL 需要 Redis 7.4 及以上版本。
-              </>
-            )}
-          </p>
-        </div>
-
-        <footer className="dialog-foot">
-          <span className="spacer" />
-          <button className="btn" onClick={onClose}>
-            <DialogIcon name="cancel" />
+          <Button type="button" variant="ghost" className="foot-btn foot-quiet" onClick={onClose}>
+            <DialogIcon name="cancel" size={13} />
             取消
-          </button>
-          <button className="btn-primary btn" disabled={saving} onClick={() => void submit()}>
-            <DialogIcon name="save" />
+          </Button>
+          <Button
+            type="button"
+            className="foot-btn foot-primary"
+            disabled={saving}
+            onClick={() => void submit()}
+          >
+            <DialogIcon name="save" size={13} />
             {saving ? '保存中…' : willPersist ? '设为永久' : '保存'}
-          </button>
-        </footer>
+          </Button>
+        </>
+      }
+    >
+      {/* 目标信息：键 / 字段 / 当前 TTL。三行只读，让用户在改之前核对对象 */}
+      <div className="target">
+        <div className="target-row">
+          <span className="k">键</span>
+          <span className="v mono ellipsis" title={keyName}>
+            {keyName}
+          </span>
+        </div>
+        <div className="target-row">
+          <span className="k">字段</span>
+          <span className="v mono ellipsis" title={field}>
+            {field}
+          </span>
+        </div>
+        <div className="target-row">
+          <span className="k">当前</span>
+          <span className={`v mono${currentTtl > 0 && currentTtl <= 60 ? ' urgent' : ''}`}>{currentLabel}</span>
+        </div>
       </div>
-    </div>
+
+      <div className="field">
+        <Label htmlFor="ehfttl-input" className="field-label">
+          新的 TTL（秒）
+        </Label>
+        <Input
+          id="ehfttl-input"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          className="mono"
+          inputMode="numeric"
+          min="0"
+          placeholder="留空 = 永久"
+          autoFocus
+        />
+      </div>
+
+      {/* 常用值：胶囊按钮组，一键填入 */}
+      <div className="presets">
+        <span className="presets-label">常用值</span>
+        {PRESETS.map((item) => (
+          <button
+            key={item.value}
+            type="button"
+            className={`preset${Number(draft) === item.value ? ' on' : ''}`}
+            onClick={() => setDraft(String(item.value))}
+          >
+            {item.label}
+          </button>
+        ))}
+        <button type="button" className={`preset${willPersist ? ' on' : ''}`} onClick={() => setDraft('')}>
+          永久
+        </button>
+      </div>
+
+      {/* 结果说明：设为永久 vs 到期自动移除，用同一套提示条表达 */}
+      <div className={`dlg-alert${willPersist ? ' is-ok' : ''}`} role="status">
+        <DialogIcon name={willPersist ? 'check' : 'info'} size={14} />
+        <span>
+          {willPersist ? (
+            <>将清除该字段的过期时间，使其成为永久字段（HPERSIST）。</>
+          ) : (
+            <>
+              到期后 Redis 会自动从 hash 中移除该字段。<b>注意</b>：字段级 TTL 需要 Redis 7.4 及以上版本。
+            </>
+          )}
+        </span>
+      </div>
+    </DialogShell>
   )
 }
 

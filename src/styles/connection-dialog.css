@@ -1005,3 +1005,295 @@
   color: var(--accent);
   font-weight: 600;
 }
+
+/* ===========================================================================
+ * 迁移后的通用弹窗细节（PromptDialog / ConfirmDialog / Edit* 系列）
+ * ===========================================================================
+ * 这些弹窗共用 .dlg 外壳，只补它们各自的局部结构。
+ * =========================================================================== */
+
+/* ---- PromptDialog / EditHashFieldTtlDialog 的常用值胶囊组 ---- */
+.dlg .presets {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.dlg .presets-label {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  margin-right: 2px;
+}
+.dlg .preset {
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-app);
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+.dlg .preset:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+.dlg .preset.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+/* ---- 通用提示文字 ---- */
+.dlg .hint {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+.dlg .hint-inline {
+  font-size: var(--fs-xs);
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+/* ---- ConfirmDialog：正文 / 明细 / 预览 / 短语确认 ---- */
+.dlg .message {
+  margin: 0;
+  font-size: var(--fs-md);
+  line-height: 1.65;
+  color: var(--text-primary);
+}
+.dlg .details {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px 14px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+}
+.dlg .details dt {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.dlg .details dd {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+  word-break: break-all;
+}
+.dlg .details dd.danger { color: var(--danger, #e5534b); font-weight: 600; }
+.dlg .details dd.muted { color: var(--text-muted); }
+
+/* 待操作内容预览：等宽 + 限高滚动，避免超长值把弹窗撑爆 */
+.dlg .preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dlg .preview-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+.dlg .preview-label .truncated {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--amber-soft);
+  color: var(--amber);
+  font-size: var(--fs-xs);
+}
+.dlg .preview-text {
+  margin: 0;
+  max-height: 140px;
+  overflow: auto;
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* 危险确认按钮：红底白字，与主按钮同一尺寸但语义不同 */
+.dlg .foot-btn.confirm-btn.is-danger {
+  background: var(--danger, #e5534b);
+  color: #fff;
+  font-weight: 600;
+}
+.dlg .foot-btn.confirm-btn.is-danger:hover {
+  background: color-mix(in srgb, var(--danger, #e5534b) 85%, #000);
+}
+
+/* ---- 短语确认：不可逆操作的硬门槛 ---- */
+.dlg .phrase-box {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  background: var(--bg-app);
+  border: 1px dashed var(--border-strong);
+}
+.dlg .phrase-hint {
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+.dlg .phrase-hint code {
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--bg-elevated);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+.dlg .phrase-input.matched {
+  border-color: var(--green) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--green) 18%, transparent) !important;
+}
+
+/* ---- EditHashFieldTtlDialog：目标信息三行 ---- */
+.dlg .target {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+}
+.dlg .target-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+.dlg .target-row .k {
+  flex: 0 0 44px;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+.dlg .target-row .v {
+  min-width: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+}
+.dlg .target-row .v.urgent {
+  color: var(--amber);
+  font-weight: 600;
+}
+
+/* ---- EditListElementDialog / EditZsetMemberDialog：键预览条 ---- */
+.dlg .key-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  min-width: 0;
+}
+.dlg .key-preview .key-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+}
+.dlg .key-preview .pos {
+  flex: 0 0 auto;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* JSON 校验提示 */
+.dlg .json-hint {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--green);
+}
+.dlg .json-hint.bad {
+  color: var(--danger, #e5534b);
+}
+
+/* ---- 页脚统计（字符 / 行 / 字节 / 改动量）---- */
+.dlg .dlg-foot .stat {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.dlg .dlg-foot .stat.bad {
+  color: var(--danger, #e5534b);
+}
+.dlg .dlg-foot .stat.delta.up {
+  color: var(--amber);
+}
+.dlg .dlg-foot .stat.delta.down {
+  color: var(--green);
+}
+.dlg .dlg-foot .sep {
+  color: var(--border-strong);
+  font-size: var(--fs-xs);
+}
+.dlg .dlg-foot .foot-hint {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* ---- 内容区文本域：统一最小高度 ---- */
+.dlg .dlg-content {
+  min-height: 110px;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+/* ---- EditValueDialog：hash 字段表格 ---- */
+.dlg .hash-table {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dlg .hash-head,
+.dlg .hash-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) 32px;
+  gap: 8px;
+  align-items: center;
+}
+.dlg .hash-head span {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  letter-spacing: 0.3px;
+}
+.dlg .hash-row Input,
+.dlg .hash-row input {
+  height: 30px;
+}
+.dlg .add-row {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  border: 1px dashed var(--border-strong);
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  transition: border-color 0.15s, color 0.15s;
+}
+.dlg .add-row:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
