@@ -13,9 +13,19 @@
 
   /* 阴影墨色（rgb 三元组，配 rgb(var(--shadow-ink) / 透明度) 用）：0 0 0 —— 浅底带色相更自然，暗底只有纯黑压得出层次 */
   --shadow-ink: 0 0 0;
-  /* 页签阴影两层的不透明度：浅底取低值保持轻盈；暗底黑压黑，同一档只剩 5 个通道差，须拉到 .40 */
-  --tab-shadow-a1: .40;
-  --tab-shadow-a2: .44;
+  /*
+   * 浮起阴影：页签与 DB 工具条小按钮（L1 / L2 / 展开 / 折叠 / 批量）共用。
+   * 语言来自连接磁贴的「分层双影」（1px 近影定轮廓 + 偏移模糊远影造景深），
+   * 但几何压缩到 4px 余量内 —— 这些控件只有 20–25px 高，
+   * 照搬磁贴的 9px / 20px 会被裁得只剩一条边。
+   */
+  --lift-shadow:
+    0 1px 1px rgb(var(--shadow-ink) / var(--lift-a1)),
+    0 2px 3px -1px rgb(var(--shadow-ink) / var(--lift-a2));
+  /* 浮起阴影的两层不透明度：与连接磁贴（--conn-tile-shadow*）同一档 ——
+     暗色纯黑 .30/.345，亮色冷灰蓝 .13/.19；页签与 DB 工具条小按钮共用 */
+  --lift-a1: .30;
+  --lift-a2: .345;
   --border: #2b3140;
   --border-strong: #3a4256;
 
@@ -52,6 +62,13 @@
 
   --mask: rgba(8, 10, 14, 0.62);
   --shadow-panel: 0 8px 24px rgba(0, 0, 0, 0.35);
+  /*
+   * 连接列表磁贴投影（方案 09「分层双影」）：
+   * 1px 近影定轮廓，大模糊 + 负 spread 的远影收在卡片正下方造景深。
+   * 亮色皮肤在白底上吃不住纯黑影，文件末尾按主题组统一换成冷灰蓝并降低透明度。
+   */
+  --conn-tile-shadow: 0 1px 1px rgba(0, 0, 0, 0.27), 0 6px 14px -4px rgba(0, 0, 0, 0.285);
+  --conn-tile-shadow-hover: 0 1px 2px rgba(0, 0, 0, 0.3), 0 9px 20px -5px rgba(0, 0, 0, 0.345);
   --cli-bg: #111318;
   --cli-output: #8fd6b1;
   --cli-error: #f08a80;
@@ -130,10 +147,11 @@
   --bg-active: #dfe2e9;
 
   /* 阴影墨色（rgb 三元组，配 rgb(var(--shadow-ink) / 透明度) 用）：27 36 48 —— 浅底带色相更自然，暗底只有纯黑压得出层次 */
-  --shadow-ink: 27 36 48;
-  /* 页签阴影两层的不透明度：浅底取低值保持轻盈；暗底黑压黑，同一档只剩 5 个通道差，须拉到 .40 */
-  --tab-shadow-a1: .13;
-  --tab-shadow-a2: .18;
+  --shadow-ink: 15 23 42;
+  /* 浮起阴影的两层不透明度：与连接磁贴（--conn-tile-shadow*）同一档 ——
+     暗色纯黑 .30/.345，亮色冷灰蓝 .13/.19；页签与 DB 工具条小按钮共用 */
+  --lift-a1: .13;
+  --lift-a2: .19;
   --border: #d9dce3;
   --border-strong: #c2c7d0;
 
@@ -203,9 +221,10 @@
 
   /* 阴影墨色（rgb 三元组，配 rgb(var(--shadow-ink) / 透明度) 用）：0 0 0 —— 浅底带色相更自然，暗底只有纯黑压得出层次 */
   --shadow-ink: 0 0 0;
-  /* 页签阴影两层的不透明度：浅底取低值保持轻盈；暗底黑压黑，同一档只剩 5 个通道差，须拉到 .40 */
-  --tab-shadow-a1: .40;
-  --tab-shadow-a2: .44;
+  /* 浮起阴影的两层不透明度：与连接磁贴（--conn-tile-shadow*）同一档 ——
+     暗色纯黑 .30/.345，亮色冷灰蓝 .13/.19；页签与 DB 工具条小按钮共用 */
+  --lift-a1: .30;
+  --lift-a2: .345;
   --border: #22304a;
   --border-strong: #31456a;
 
@@ -290,10 +309,11 @@
   --bg-active: #dcd4b9;
 
   /* 阴影墨色（rgb 三元组，配 rgb(var(--shadow-ink) / 透明度) 用）：60 45 20 —— 浅底带色相更自然，暗底只有纯黑压得出层次 */
-  --shadow-ink: 60 45 20;
-  /* 页签阴影两层的不透明度：浅底取低值保持轻盈；暗底黑压黑，同一档只剩 5 个通道差，须拉到 .40 */
-  --tab-shadow-a1: .13;
-  --tab-shadow-a2: .18;
+  --shadow-ink: 15 23 42;
+  /* 浮起阴影的两层不透明度：与连接磁贴（--conn-tile-shadow*）同一档 ——
+     暗色纯黑 .30/.345，亮色冷灰蓝 .13/.19；页签与 DB 工具条小按钮共用 */
+  --lift-a1: .13;
+  --lift-a2: .19;
   --border: #d9d1b6;
   --border-strong: #c2b995;
 
@@ -381,9 +401,10 @@
 
   /* 阴影墨色（rgb 三元组，配 rgb(var(--shadow-ink) / 透明度) 用）：0 0 0 —— 浅底带色相更自然，暗底只有纯黑压得出层次 */
   --shadow-ink: 0 0 0;
-  /* 页签阴影两层的不透明度：浅底取低值保持轻盈；暗底黑压黑，同一档只剩 5 个通道差，须拉到 .40 */
-  --tab-shadow-a1: .40;
-  --tab-shadow-a2: .44;
+  /* 浮起阴影的两层不透明度：与连接磁贴（--conn-tile-shadow*）同一档 ——
+     暗色纯黑 .30/.345，亮色冷灰蓝 .13/.19；页签与 DB 工具条小按钮共用 */
+  --lift-a1: .30;
+  --lift-a2: .345;
   --border: #243329;
   --border-strong: #354a3b;
 
@@ -452,10 +473,11 @@
   --bg-active: #efdee4;
 
   /* 阴影墨色（rgb 三元组，配 rgb(var(--shadow-ink) / 透明度) 用）：52 24 34 —— 浅底带色相更自然，暗底只有纯黑压得出层次 */
-  --shadow-ink: 52 24 34;
-  /* 页签阴影两层的不透明度：浅底取低值保持轻盈；暗底黑压黑，同一档只剩 5 个通道差，须拉到 .40 */
-  --tab-shadow-a1: .13;
-  --tab-shadow-a2: .18;
+  --shadow-ink: 15 23 42;
+  /* 浮起阴影的两层不透明度：与连接磁贴（--conn-tile-shadow*）同一档 ——
+     暗色纯黑 .30/.345，亮色冷灰蓝 .13/.19；页签与 DB 工具条小按钮共用 */
+  --lift-a1: .13;
+  --lift-a2: .19;
   --border: #ecdbe1;
   --border-strong: #d9bcc8;
 
@@ -524,10 +546,11 @@
   --bg-active: #d0e6d7;
 
   /* 阴影墨色（rgb 三元组，配 rgb(var(--shadow-ink) / 透明度) 用）：22 44 34 —— 浅底带色相更自然，暗底只有纯黑压得出层次 */
-  --shadow-ink: 22 44 34;
-  /* 页签阴影两层的不透明度：浅底取低值保持轻盈；暗底黑压黑，同一档只剩 5 个通道差，须拉到 .40 */
-  --tab-shadow-a1: .13;
-  --tab-shadow-a2: .18;
+  --shadow-ink: 15 23 42;
+  /* 浮起阴影的两层不透明度：与连接磁贴（--conn-tile-shadow*）同一档 ——
+     暗色纯黑 .30/.345，亮色冷灰蓝 .13/.19；页签与 DB 工具条小按钮共用 */
+  --lift-a1: .13;
+  --lift-a2: .19;
   --border: #d7e8dc;
   --border-strong: #b5d4bf;
 
@@ -596,10 +619,11 @@
   --bg-active: #cfdce8;
 
   /* 阴影墨色（rgb 三元组，配 rgb(var(--shadow-ink) / 透明度) 用）：28 42 58 —— 浅底带色相更自然，暗底只有纯黑压得出层次 */
-  --shadow-ink: 28 42 58;
-  /* 页签阴影两层的不透明度：浅底取低值保持轻盈；暗底黑压黑，同一档只剩 5 个通道差，须拉到 .40 */
-  --tab-shadow-a1: .13;
-  --tab-shadow-a2: .18;
+  --shadow-ink: 15 23 42;
+  /* 浮起阴影的两层不透明度：与连接磁贴（--conn-tile-shadow*）同一档 ——
+     暗色纯黑 .30/.345，亮色冷灰蓝 .13/.19；页签与 DB 工具条小按钮共用 */
+  --lift-a1: .13;
+  --lift-a2: .19;
   --border: #d2dde7;
   --border-strong: #a9bfd1;
 
@@ -673,10 +697,11 @@
   --bg-active: #dfe5f4;
 
   /* 阴影墨色（rgb 三元组，配 rgb(var(--shadow-ink) / 透明度) 用）：20 24 40 —— 浅底带色相更自然，暗底只有纯黑压得出层次 */
-  --shadow-ink: 20 24 40;
-  /* 页签阴影两层的不透明度：浅底取低值保持轻盈；暗底黑压黑，同一档只剩 5 个通道差，须拉到 .40 */
-  --tab-shadow-a1: .13;
-  --tab-shadow-a2: .18;
+  --shadow-ink: 15 23 42;
+  /* 浮起阴影的两层不透明度：与连接磁贴（--conn-tile-shadow*）同一档 ——
+     暗色纯黑 .30/.345，亮色冷灰蓝 .13/.19；页签与 DB 工具条小按钮共用 */
+  --lift-a1: .13;
+  --lift-a2: .19;
   --border: #e6e9f3;
   --border-strong: #cbd2e6;
 
@@ -741,6 +766,23 @@
   /* 渐变强调：仅本主题定义，其他主题不读这两个变量 */
   --accent-alt: #8b3fd0;
   --accent-gradient: linear-gradient(96deg, #4a63e0 0%, #6f4fe8 52%, #8b3fd0 100%);
+}
+
+/*
+ * 亮色皮肤的连接磁贴投影。
+ *
+ * 方案 09 的深色数值（纯黑 .27/.285）落在白底上会发灰发脏，
+ * 亮色组统一改用冷灰蓝并压到 .11/.15 一档；悬停再抬一级。
+ * 放在所有主题块之后，靠书写顺序覆盖 :root 的默认值。
+ */
+:root[data-theme="light"],
+:root[data-theme="solarized"],
+:root[data-theme="sakura"],
+:root[data-theme="mint"],
+:root[data-theme="mist"],
+:root[data-theme="aurora"] {
+  --conn-tile-shadow: 0 1px 2px rgba(15, 23, 42, 0.11), 0 6px 14px -5px rgba(15, 23, 42, 0.15);
+  --conn-tile-shadow-hover: 0 1px 2px rgba(15, 23, 42, 0.13), 0 9px 20px -5px rgba(15, 23, 42, 0.19);
 }
 
 /*

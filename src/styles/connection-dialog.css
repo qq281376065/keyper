@@ -316,7 +316,7 @@
   height: 20px;
   border-radius: 999px;
   color: rgba(255, 255, 255, 0.72);
-  transition: background-color 0.15s, color 0.15s;
+  transition: background-color 0.15s, color 0.15s, box-shadow .16s ease;
 }
 .flyout-close:hover {
   color: #fff;

@@ -482,7 +482,7 @@
   border-radius: var(--radius-sm);
   color: var(--text-muted);
   opacity: 0.5;
-  transition: opacity 0.15s, background 0.15s, color 0.15s;
+  transition: opacity 0.15s, background 0.15s, color 0.15s, box-shadow .16s ease;
 }
 .s-bulk-ops-panel .bulk-row:hover .row-act{
   opacity: 1;
@@ -1337,7 +1337,7 @@
   margin: 6px 6px 2px;
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s, color 0.15s, box-shadow .16s ease;
 }
 .s-connection-sidebar .rail-toggle:hover{
   background: var(--bg-hover);
@@ -1429,7 +1429,8 @@
   padding: 0;
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
-  transition: background 0.15s, color 0.15s;
+  /* 与页签/磁贴同节奏：阴影淡入，不改背景过渡时长 */
+  transition: background 0.15s, color 0.15s, box-shadow .16s ease;
 }
 .s-connection-sidebar .add-btn svg{
   width: 13px;
@@ -1594,6 +1595,14 @@
   background: color-mix(in srgb, var(--bg-hover) 55%, var(--bg-panel));
   border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
   cursor: pointer;
+  /*
+   * 投影取方案 09「分层双影」：1px 近影定轮廓，大模糊 + 负 spread 的
+   * 远影收在卡片正下方造景深；数值在 main.css 按深浅主题分组（--conn-tile-shadow*）。
+   * 不用 transform 做悬停位移 —— 磁贴内的操作菜单是 position: fixed，
+   * 祖先一旦有 transform 就会变成它的 containing block，菜单会错位到
+   * 24px 的按钮方块里（上方的 .conn-actions 注释记录过这个坑）。
+   */
+  box-shadow: var(--conn-tile-shadow);
   transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
   min-width: 0;
   /*
@@ -1618,12 +1627,13 @@
 }
 .s-connection-sidebar .conn-item:hover{
   background: var(--bg-hover);
+  box-shadow: var(--conn-tile-shadow-hover);
 }
 .s-connection-sidebar.conn-item.active, .s-connection-sidebar .conn-item.active{
   background: var(--accent-soft);
   border-color: var(--accent);
-  /* inset 描边让选中态在深色主题下也够"实"，不依赖背景色差 */
-  box-shadow: 0 0 0 1px var(--accent) inset;
+  /* inset 描边让选中态在深色主题下也够"实"，不依赖背景色差；外层投影与 hover 同级 */
+  box-shadow: 0 0 0 1px var(--accent) inset, var(--conn-tile-shadow-hover);
 }
 /* 拖拽视觉：拖动项半透明；落点用 inset 高亮线 —— 不占布局空间，无跳动 */
 .s-connection-sidebar.conn-item.dragging, .s-connection-sidebar .conn-item.dragging{
@@ -1635,10 +1645,10 @@
  * 这样无论拖到哪一列，指示线都贴在"即将插入的那一侧"，不会误导。
  */
 .s-connection-sidebar.conn-item.drop-before, .s-connection-sidebar .conn-item.drop-before{
-  box-shadow: inset 2px 0 0 var(--accent), 0 0 0 1px var(--accent);
+  box-shadow: inset 2px 0 0 var(--accent), 0 0 0 1px var(--accent), var(--conn-tile-shadow-hover);
 }
 .s-connection-sidebar.conn-item.drop-after, .s-connection-sidebar .conn-item.drop-after{
-  box-shadow: inset -2px 0 0 var(--accent), 0 0 0 1px var(--accent);
+  box-shadow: inset -2px 0 0 var(--accent), 0 0 0 1px var(--accent), var(--conn-tile-shadow-hover);
 }
 /*
  * 状态条：磁贴顶部一段短线。
@@ -3036,6 +3046,21 @@
   background: var(--accent);
   color: var(--on-accent);
 }
+/*
+ * 工具条两个图标按钮（重新扫描 / 新建键）的 hover 浮起阴影。
+ *
+ * 与页签、连接磁贴、DB 视图栏的 mini 按钮共用 --lift-shadow（分层双影：
+ * 近影 1px + 远影 2/3px，只纵向上浮不位移），切主题自动跟随。
+ * 只加阴影，不改背景与尺寸 —— 「新建键」原有的 accent 反白 hover 保持原样。
+ * 几何：按钮 26px 高、工具条上下 padding 各 8px，两层影子都露得出，不会被裁。
+ * 只在工具条范围内命中，避免波及密钥栏之外同样带 .icon 的地方。
+ */
+.s-key-browser .toolbar .icon{
+  transition: box-shadow .16s ease, background-color .14s ease, color .14s ease;
+}
+.s-key-browser .toolbar .icon:hover:not(:disabled){
+  box-shadow: var(--lift-shadow);
+}
 /* ---------------------------------------------------------- 视图切换栏 */
 .s-key-browser.viewbar, .s-key-browser .viewbar{
   display: flex;
@@ -3117,15 +3142,94 @@
   color: var(--text-muted);
   font-size: var(--fs-sm);
   line-height: 1;
+  /* 与页签同节奏：只在切换选中时让影子淡入，不做位移 */
+  transition: box-shadow .16s ease, background-color .14s ease, color .14s ease;
 }
-.s-key-browser .mini:hover{
+/*
+ * hover 态：背景反色 + 与选中态同源的浮起阴影（--lift-shadow）。
+ * 影子只加在 hover 上，未 hover 的按钮贴着工具条不浮起，五个按钮并排时不显脏。
+ * 选中态（.mini.on，特异性 0,3,0）高于 :hover（0,2,1），hover 覆盖不到它，
+ * 因此选中按钮 hover 时仍是「inset 品牌色描边 + 浮起阴影」，与原来一致。
+ */
+.s-key-browser .mini:hover,
+.s-mc-browser .mini:hover{
   background: var(--bg-hover);
   color: var(--text-primary);
+  box-shadow: var(--lift-shadow);
 }
+/*
+ * Memcached 键栏的同一组 mini 按钮（L1 / L2 / 全部展开 / 全部折叠 / 批量选择）
+ * 原先只有尺寸没有状态样式，选中后完全看不出来。这里补齐成与 Redis 键栏一致的
+ * 「inset 品牌色描边 + 浮起阴影」，避免出现「hover 有反馈、选中反而没反馈」的倒挂。
+ */
+.s-mc-browser .mini.on{
+  background: var(--accent-soft);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent), var(--lift-shadow);
+}
+/* ============================================================================
+ * 图标按钮：统一 hover 浮起阴影（产品级约定，2026-10-30）
+ *
+ * 覆盖全应用「只有图标、没有文字」的方形/圆形按钮：
+ *   工具条刷新 / 新建（.btn-ghost.icon）、弹窗关闭（.dlg-close）、
+ *   连接更多操作（.more-btn）、侧栏新建与收起（.add-btn）、侧栏展开（.rail-toggle）、
+ *   页签溢出（.tabbar-btn）、顶栏图标（.bar-btn）、窗口控件（.win-btn）、
+ *   键行删除（.del-btn）、批量面板行操作（.row-act）、值行操作（.op）、
+ *   搜索历史删除（.hp-del）。
+ *
+ * 语言与页签、连接磁贴、mini 按钮完全一致：共用 --lift-shadow（分层双影，
+ * 只纵向上浮、不位移），由 --shadow-ink / --lift-a1/a2 驱动，切主题自动跟随。
+ * 只加阴影，不改背景 —— 各按钮原有的 accent 反白 / 红色警示 hover 保持原样。
+ *
+ * 明确不含：
+ *   .ov-refresh  带文字的胶囊按钮，不属于图标按钮；
+ *   .hp-clear    纯文字链接；
+ *   .f-clear / .s-clear  嵌在输入框内部的 15/16px 圆形清除键，
+ *                影子会跨出输入框边框，破坏"清除键长在框里"的观感。
+ * ==========================================================================*/
+:is(
+  .btn-ghost.icon,
+  .dlg-close,
+  .more-btn,
+  .add-btn,
+  .rail-toggle,
+  .tabbar-btn,
+  .bar-btn,
+  .win-btn,
+  .del-btn,
+  .row-act,
+  .op,
+  .hp-del,
+  .s-theme-switch .trigger,
+  .flyout-close
+):hover:not(:disabled){
+  box-shadow: var(--lift-shadow);
+}
+/*
+ * 上面这批里原本没有 transition 的补一条（只含阴影）：
+ * 不会覆盖各自已有的颜色过渡 —— 后者已在原规则里追加 box-shadow。
+ */
+:is(.dlg-close, .more-btn, .tabbar-btn, .bar-btn, .win-btn, .del-btn, .hp-del, .s-theme-switch .trigger){
+  transition: box-shadow .16s ease;
+}
+/*
+ * .btn-ghost.icon 继承自 .btn，而 .btn 的过渡只有 background / border-color，
+ * 必须整体替换才能带上阴影（否则影子硬切、背景反而仍有过渡）。
+ * 特异性 0,2,0 高于 .btn 的 0,1,0；Redis 键栏那条 0,2,1 更具体，保留不变。
+ */
+.btn-ghost.icon{
+  transition: box-shadow .16s ease, background-color .14s ease, color .14s ease;
+}
+/*
+ * 选中态：inset 1px 品牌色描边（原有的选中标识）之外，再叠一层浮起阴影 ——
+ * 与页签、连接磁贴共用 --lift-shadow（连接磁贴那套「分层双影」压缩到 4px 余量）。
+ * 覆盖 L1 / L2 / 全部展开 / 全部折叠 / 批量选择这五个 mini 按钮。
+ * 几何：按钮 20px 高、工具条上下 padding 各 5px，近影 2px + 远影 4px 都露得出来。
+ */
 .s-key-browser.mini.on, .s-key-browser .mini.on{
   background: var(--accent-soft);
   color: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent), var(--lift-shadow);
 }
 /* 全库搜索提示条：吸附在 key-list 滚动区顶部 —— 不占外层布局流，
  * v-if 插拔不会推挤列表与 footer（点查询抖动的根因） */
@@ -5955,27 +6059,24 @@
  * border 保持 transparent 占位：胶囊无边框，但保留 1px 槽位
  * 防止将来 hover 加描边时文字跳动。
  *
- * 阴影（2026-10 定稿，方案「静浮」）：四级，只靠影子深浅表达层级，不做位移。
- *   默认     none
- *   hover    单层 1px               —— 最轻，只是「鼠标在这儿」
- *   激活     双层 1px 实 + 2px 虚   —— 「这个签立起来了」
- *   激活+hover 同双层、透明度各深一点
- *   按下     none                   —— 像指尖把纸按住
+ * 阴影：借用左侧连接磁贴（--conn-tile-shadow*）那套「分层双影」的观感 ——
+ * 1px 近影定轮廓，偏移 + 大模糊 + 负 spread 的远影收在下方造景深。
  *
- * 为什么参数都这么克制：.tab 高 28px、页签栏 36px，上下各只有 4px 余量，
+ *   默认     none（页签是胶囊，平时留干净）
+ *   hover    分层双影
+ *   选中     同一层阴影（只借阴影，不搬磁贴选中态的 inset 描边 / 描边色）
+ *   按下     none
+ *
+ * 几何按页签的可用高度压缩过，不能直接搬磁贴的数值：
+ * 磁贴高 56px、远影净可见 24px；页签只有 25px 高、上下各 4px 余量，
  * 而 .tab-strip 是 overflow-x: auto（按规范 overflow-y 随之变 auto），
- * 纵向溢出的阴影会被裁掉。两层阴影的净可见范围正好是 3px / 4px，卡在余量内。
- * 想加大必须先给 .tab-strip 腾出纵向空间，否则改了也看不见。
+ * 超出的影子会被裁得只剩一条。所以近影 1px、远影 2px 偏移 3px 模糊 -1px 收缩，
+ * 净可见 2px / 4px，正好卡进余量。
  *
- * 两层墨色与两级不透明度都走变量，九套皮肤各自配：
- *   --shadow-ink     墨色三元组。浅色皮肤用带色相的深色（如 27 36 48），
- *                    暗色皮肤用纯黑 —— 深底上带色相的墨几乎看不出来。
- *   --tab-shadow-a1  近层不透明度；--tab-shadow-a2 远层。
- *                    浅色 .13 / .18（轻盈）；暗色 .40 / .44。
- *
- * 暗色必须给到 .40 是实测算出来的：墨色 @18% 叠在 #131c17 上只差 5 个通道值，
- * 肉眼等于没有；拉到 .44 才有 12 个通道差。同一个 alpha 打不了两套底。
- * hover 与激活+hover 用 calc 从基准派生，改基准就整条链跟着走。
+ * 明暗两档不透明度沿用磁贴（变量在 main.css 各主题块）：
+ *   --shadow-ink     墨色三元组：暗色纯黑，亮色带色相的深蓝黑
+ *   --tab-shadow-a1  近影不透明度；--tab-shadow-a2 远影
+ *                    暗色 .27 / .29，亮色 .11 / .14 —— 与 --conn-tile-shadow* 对齐
  */
 .tab{
   display: flex;
@@ -6001,22 +6102,15 @@
 .s-tab-bar .tab:hover{
   background: var(--bg-hover);
   color: var(--text-primary);
-  box-shadow: 0 1px 2px rgb(var(--shadow-ink) / calc(var(--tab-shadow-a1) * .75));
+  box-shadow: var(--lift-shadow);
 }
 /* 写在 :hover 之后 —— 激活胶囊 hover 时保持红底，不被通用 hover 覆盖 */
 .s-tab-bar.tab.active, .s-tab-bar .tab.active{
   background: var(--accent-soft);
   color: var(--accent);
   font-weight: 600;
-  box-shadow:
-    0 1px 2px rgb(var(--shadow-ink) / var(--tab-shadow-a1)),
-    0 2px 4px -2px rgb(var(--shadow-ink) / var(--tab-shadow-a2));
-}
-/* 激活态再被悬停：保持双层结构，只把墨加深一档，不做额外位移 */
-.s-tab-bar .tab.active:hover{
-  box-shadow:
-    0 1px 2px rgb(var(--shadow-ink) / calc(var(--tab-shadow-a1) * 1.3)),
-    0 2px 4px -2px rgb(var(--shadow-ink) / calc(var(--tab-shadow-a2) * 1.33));
+  /* 只借磁贴的阴影语言，不搬它的选中态描边 */
+  box-shadow: var(--lift-shadow);
 }
 /* 按下（伪类 :active，与 .active 类不是一回事）：影子收干净 */
 .s-tab-bar .tab:active{
@@ -7578,7 +7672,7 @@ body.col-resizing .col-handle::after{
   border: 1px solid transparent;
   color: var(--text-muted);
   opacity: 0.5;
-  transition: opacity 0.12s, background 0.12s, color 0.12s, border-color 0.12s;
+  transition: opacity 0.12s, background 0.12s, color 0.12s, border-color 0.12s, box-shadow .16s ease;
 }
 .s-value-viewer.ico, .s-value-viewer .ico{
   width: 13px;

@@ -112,6 +112,9 @@ ok('存在激活页签', !!activeTab, activeTab?.text ?? 'none')
 ok('激活页签有双层阴影', layerCount(activeTab.shadow) === 2,
    activeTab.shadow.slice(0, 70))
 ok('默认页签无阴影', idleTab.shadow === 'none', idleTab.shadow)
+/* 用户明确要求「仅仅是阴影效果，不是连接项选中状态的特效」——磁贴选中带
+   inset 1px 品牌色描边，页签不该有 */
+ok('选中态只借阴影、不带 inset 描边', !activeTab.shadow.includes('inset'), activeTab.shadow.includes('inset') ? '有 inset' : '无 inset')
 
 /* ---------------- B. 几何：阴影不出滚动容器 ---------------- */
 const slack = Math.min(...t0.tabs.map((t) => t0.stripBottom - t.bottom))
@@ -125,18 +128,19 @@ const moveTo = async (x, y) => {
 
 await moveTo(idleTab.x, idleTab.y)
 const hovered = (await tabsInfo()).tabs.find((t) => t.text === idleTab.text)
-ok('hover 出单层阴影', layerCount(hovered.shadow) === 1,
-   hovered.shadow.slice(0, 60))
+ok('hover 出分层双影（与连接磁贴同档）', layerCount(hovered.shadow) === 2,
+   hovered.shadow.slice(0, 70))
 
 await moveTo(5, 5)
 const afterLeave = (await tabsInfo()).tabs.find((t) => t.text === idleTab.text)
 ok('移开后阴影消失', afterLeave.shadow === 'none', afterLeave.shadow)
 
-/* 激活态 hover：应变成更深的双层，而不是掉成单层 */
+/* 激活态 hover：与常态用同一层（磁贴也是 hover / 选中同一层），不该再加深 */
 await moveTo(activeTab.x, activeTab.y)
 const activeHover = (await tabsInfo()).tabs.find((t) => t.isActive)
 ok('激活态 hover 仍是双层', layerCount(activeHover.shadow) === 2, activeHover.shadow.slice(0, 70))
-ok('激活态 hover 比常态更深', activeHover.shadow !== activeTab.shadow, '有变化')
+ok('激活态 hover 与常态同层（不额外加深）', activeHover.shadow === activeTab.shadow,
+   activeHover.shadow === activeTab.shadow ? '一致' : activeTab.shadow.slice(0, 50) + ' → ' + activeHover.shadow.slice(0, 50))
 
 /* 按下：影子收干净 */
 await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: idleTab.x, y: idleTab.y, button: 'left', clickCount: 1, buttons: 1 })
@@ -189,7 +193,8 @@ if (!Array.isArray(skinProbe)) {
   const dark = skinProbe.find((r) => r.th === 'dark')
   const sol = skinProbe.find((r) => r.th === 'solarized')
   ok('浅色墨 ≠ 暗色墨', light.ink !== dark.ink, `${light.ink} vs ${dark.ink}`)
-  ok('暖纸用棕墨（带色相）', sol.ink === '60 45 20', sol.ink)
+  /* 页签要跟连接磁贴同色，所以亮色组不再各用各的带色相墨，统一成磁贴那支冷灰蓝 */
+  ok('亮色组统一冷灰蓝（与磁贴同色）', sol.ink === '15 23 42', sol.ink)
   ok('阴影随主题真的换色', light.shadow !== dark.shadow, light.shadow.slice(0, 40) + ' ≠ ' + dark.shadow.slice(0, 40))
 
   /*
