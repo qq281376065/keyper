@@ -8637,6 +8637,15 @@ body.col-resizing .col-handle::after{
  * hero 整块被顶高。绝对定位让它脱离文档流，span 的尺寸重新由
  * grid 拉伸 + aspect-ratio 决定，内容不再参与计算。
  */
+/*
+ * 投影钩子：浅色底（如暖纸 #fdf6e3）上，落日这类浅色渐变图标与背景明度太近，
+ * 光靠颜色分不开。由主题给 --brand-shadow 打一层淡投影，图标就浮起来了。
+ * 其余皮肤不设该变量，filter 为 none，无额外开销。
+ */
+.s-welcome-panel .logo{
+  filter: var(--brand-shadow, none);
+}
+
 .s-welcome-panel .logo svg{
   position: absolute;
   inset: 0;
@@ -8862,18 +8871,44 @@ body.col-resizing .col-handle::after{
   width: 22px;
   height: 22px;
   border-radius: 6px;
-  background: var(--accent);
-  color: #fff;
-  font-weight: 700;
-  font-size: var(--fs-base);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  /*
+   * 顶栏品牌图标与主页同源：BrandMark 内联 SVG（K 形钥匙 + 皮肤渐变），
+   * 不再是「accent 底 + 白字 R」。尺寸仍由这里定死 22px。
+   *
+   * position/overflow 是必需的：<svg> 无显式宽高时固有尺寸是 300×150，
+   * 会把 22px 方块撑开（主页 logo 已踩过这个坑）。绝对定位让它脱离文档流。
+   */
+  position: relative;
+  overflow: hidden;
+  display: block;
+  flex: 0 0 auto;
+}
+
+.s-app .brand .logo{
+  filter: var(--brand-shadow, none);
+}
+
+.s-app .brand .logo svg{
+  position: absolute;
+  inset: 0;
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
 }
 .s-app.brand-name, .s-app .brand-name{
   font-weight: 600;
   font-size: var(--fs-lg);
   letter-spacing: 0.3px;
+}
+/*
+ * 字标「per」的那半截：颜色取 --brand-text。
+ *
+ * 不能直接用 --brand-from：那是图标底板的渐变起色，暗色皮肤里偏暗（如 #CE3F33），
+ * 压在 --bg-panel 上对比只有 2.8，字会糊掉。每个主题单独给一个同色相、
+ * 对背景 ≥5:1 的值，深海则故意取玻璃灰 #C7D2DA 跟图标呼应。
+ */
+.s-app .brand-accent{
+  color: var(--brand-text, var(--accent));
 }
 .s-app.version, .s-app .version{
   font-size: var(--fs-xs);
@@ -9031,18 +9066,44 @@ body.col-resizing .col-handle::after{
   width: 22px;
   height: 22px;
   border-radius: 6px;
-  background: var(--accent);
-  color: #fff;
-  font-weight: 700;
-  font-size: var(--fs-base);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  /*
+   * 顶栏品牌图标与主页同源：BrandMark 内联 SVG（K 形钥匙 + 皮肤渐变），
+   * 不再是「accent 底 + 白字 R」。尺寸仍由这里定死 22px。
+   *
+   * position/overflow 是必需的：<svg> 无显式宽高时固有尺寸是 300×150，
+   * 会把 22px 方块撑开（主页 logo 已踩过这个坑）。绝对定位让它脱离文档流。
+   */
+  position: relative;
+  overflow: hidden;
+  display: block;
+  flex: 0 0 auto;
+}
+
+.s-app .brand .logo{
+  filter: var(--brand-shadow, none);
+}
+
+.s-app .brand .logo svg{
+  position: absolute;
+  inset: 0;
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
 }
 .s-app.brand-name, .s-app .brand-name{
   font-weight: 600;
   font-size: var(--fs-lg);
   letter-spacing: 0.3px;
+}
+/*
+ * 字标「per」的那半截：颜色取 --brand-text。
+ *
+ * 不能直接用 --brand-from：那是图标底板的渐变起色，暗色皮肤里偏暗（如 #CE3F33），
+ * 压在 --bg-panel 上对比只有 2.8，字会糊掉。每个主题单独给一个同色相、
+ * 对背景 ≥5:1 的值，深海则故意取玻璃灰 #C7D2DA 跟图标呼应。
+ */
+.s-app .brand-accent{
+  color: var(--brand-text, var(--accent));
 }
 .s-app.version, .s-app .version{
   font-size: var(--fs-xs);

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, isElectron } from '@/api'
 import { AppTooltip } from '@/components/AppTooltip'
+import { BrandMark } from '@/components/BrandMark'
 import { CliConsole } from '@/components/CliConsole'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { ConnectionDialog } from '@/components/ConnectionDialog'
@@ -253,8 +254,17 @@ export function App() {
     <div className="shell s-app">
       <header className="topbar">
         <div className="brand">
-          <span className="logo">R</span>
-          <span className="brand-name">Keyper</span>
+          {/*
+            顶栏品牌 = 横版组合「方案三」：渐变图标 + Key·per 双色字标。
+            图标与主页共用 BrandMark，渐变随皮肤；字标后半段的颜色取
+            --brand-text（各主题单独给，保证在 --bg-panel 上可读）。
+          */}
+          <span className="logo">
+            <BrandMark />
+          </span>
+          <span className="brand-name">
+            Key<span className="brand-accent">per</span>
+          </span>
           <span className="version mono">v{version}</span>
         </div>
 

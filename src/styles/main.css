@@ -23,6 +23,8 @@
   --brand-from: #CE3F33;
   --brand-to: #8A1A11;
   --brand-fg: #ffffff;
+  /* 顶栏字标「per」的颜色：与品牌渐变同色相，对 --bg-panel 对比 ≥5（:root 暗色底） */
+  --brand-text: #E4665D;
   --accent-hover: #ef4a3e;
   --accent-soft: rgba(220, 56, 45, 0.14);
   --on-accent: #ffffff;
@@ -130,6 +132,8 @@
   --brand-from: #CF3B2E;
   --brand-to: #8A1C12;
   --brand-fg: #ffffff;
+  /* 顶栏字标「per」的颜色：与品牌渐变同色相，对 --bg-panel 对比 ≥5（白底） */
+  --brand-text: #CE332C;
   --accent-hover: #b62b24;
   --accent-soft: rgba(208, 52, 44, 0.1);
   --on-accent: #ffffff;
@@ -195,6 +199,8 @@
   --brand-from: #EDF0F3;
   --brand-to: #C7D2DA;
   --brand-fg: #111827;
+  /* 顶栏字标「per」的颜色：与品牌渐变同色相，对 --bg-panel 对比 ≥5（深海：配套玻璃灰） */
+  --brand-text: #C7D2DA;
   --brand-edge: 0.85;
   --brand-glow: 0.85;
   --accent-hover: #ff7566;
@@ -254,10 +260,19 @@
   --text-muted: #93a1a1;
 
   --accent: #dc322f;
-  /* 品牌图标渐变（K 形钥匙底）：#C93B2B → #8A2015，符号色白，两端对白字均 ≥ 4.5:1 */
-  --brand-from: #C93B2B;
-  --brand-to: #8A2015;
-  --brand-fg: #ffffff;
+  /*
+   * 暖纸皮肤用「落日」渐变：杏橙 → 玫瑰，符号取深栗。
+   *
+   * 这套在暖纸底（#fdf6e3）上有个麻烦——亮端 #FDBA74 与底色明度太近，
+   * 对比只有 1.56，图标会糊进背景。靠加深渐变解决不了（会丢掉落日的通透感），
+   * 所以改用 --brand-shadow 在容器上打一层很淡的深栗投影，让图标浮起来。
+   */
+  --brand-from: #FDBA74;
+  --brand-to: #FB7185;
+  --brand-fg: #3B0A1E;
+  --brand-shadow: drop-shadow(0 1px 2px rgba(59, 10, 30, 0.24));
+  /* 顶栏字标「per」：玫瑰系深色，对暖纸底 5.46:1 */
+  --brand-text: #B03A50;
   --accent-hover: #b93a2b;
   --accent-soft: rgba(220, 50, 47, 0.12);
   --on-accent: #fdf6e3;
@@ -319,6 +334,8 @@
   --brand-from: #1A8259;
   --brand-to: #0A5138;
   --brand-fg: #ffffff;
+  /* 顶栏字标「per」的颜色：与品牌渐变同色相，对 --bg-panel 对比 ≥5（暗绿底） */
+  --brand-text: #5ACA8E;
   --accent-hover: #6fdca1;
   --accent-soft: rgba(88, 201, 141, 0.14);
   --on-accent: #06251a;
@@ -380,6 +397,8 @@
   --brand-from: #C43F6C;
   --brand-to: #7E1F42;
   --brand-fg: #ffffff;
+  /* 顶栏字标「per」的颜色：与品牌渐变同色相，对 --bg-panel 对比 ≥5（白底） */
+  --brand-text: #CA3267;
   --accent-hover: #e2688f;
   --accent-soft: rgba(212, 80, 126, 0.1);
   --on-accent: #ffffff;
@@ -441,6 +460,8 @@
   --brand-from: #0C7A63;
   --brand-to: #044A3A;
   --brand-fg: #ffffff;
+  /* 顶栏字标「per」的颜色：与品牌渐变同色相，对 --bg-panel 对比 ≥5（近白底） */
+  --brand-text: #0C7C67;
   --accent-hover: #1a9f83;
   --accent-soft: rgba(14, 143, 118, 0.1);
   --on-accent: #ffffff;
@@ -502,6 +523,8 @@
   --brand-from: #3D77BE;
   --brand-to: #1B3F73;
   --brand-fg: #ffffff;
+  /* 顶栏字标「per」的颜色：与品牌渐变同色相，对 --bg-panel 对比 ≥5（近白底） */
+  --brand-text: #376FAA;
   --accent-hover: #4f8fd0;
   --accent-soft: rgba(63, 126, 193, 0.1);
   --on-accent: #ffffff;
@@ -568,6 +591,8 @@
   --brand-from: #4A63E0;
   --brand-to: #6E2FB8;
   --brand-fg: #ffffff;
+  /* 顶栏字标「per」的颜色：与品牌渐变同色相，对 --bg-panel 对比 ≥5（白底） */
+  --brand-text: #4761E0;
   --accent-hover: #3a50c9;
   --accent-soft: rgba(74, 99, 224, 0.1);
   --on-accent: #ffffff;
