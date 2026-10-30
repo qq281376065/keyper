@@ -25,6 +25,10 @@
   --brand-fg: #ffffff;
   /* 顶栏字标「per」的颜色：与品牌渐变同色相，对 --bg-panel 对比 ≥5（:root 暗色底） */
   --brand-text: #E4665D;
+  /* CTA 主按钮（新建连接）锥形渐变：#FFC2B8 → #FF7A6B，文字 #3A0A05（暗色底） */
+  --cta-a: #FFC2B8;
+  --cta-b: #FF7A6B;
+  --cta-fg: #3A0A05;
   --accent-hover: #ef4a3e;
   --accent-soft: rgba(220, 56, 45, 0.14);
   --on-accent: #ffffff;
@@ -134,6 +138,10 @@
   --brand-fg: #ffffff;
   /* 顶栏字标「per」的颜色：与品牌渐变同色相，对 --bg-panel 对比 ≥5（白底） */
   --brand-text: #CE332C;
+  /* CTA 主按钮（新建连接）锥形渐变：#FFC2B8 → #FF7A6B，文字 #3A0A05（白底） */
+  --cta-a: #FFC2B8;
+  --cta-b: #FF7A6B;
+  --cta-fg: #3A0A05;
   --accent-hover: #b62b24;
   --accent-soft: rgba(208, 52, 44, 0.1);
   --on-accent: #ffffff;
@@ -201,6 +209,10 @@
   --brand-fg: #111827;
   /* 顶栏字标「per」的颜色：与品牌渐变同色相，对 --bg-panel 对比 ≥5（深海：配套玻璃灰） */
   --brand-text: #C7D2DA;
+  /* CTA 主按钮（新建连接）锥形渐变：#FFC9BF → #FF8066，文字 #3B0A05（深海） */
+  --cta-a: #FFC9BF;
+  --cta-b: #FF8066;
+  --cta-fg: #3B0A05;
   --brand-edge: 0.85;
   --brand-glow: 0.85;
   --accent-hover: #ff7566;
@@ -273,6 +285,10 @@
   --brand-shadow: drop-shadow(0 1px 2px rgba(59, 10, 30, 0.24));
   /* 顶栏字标「per」：玫瑰系深色，对暖纸底 5.46:1 */
   --brand-text: #B03A50;
+  /* CTA 主按钮（新建连接）锥形渐变：#FFDDB8 → #F5A15C，文字 #3B2405（暖纸） */
+  --cta-a: #FFDDB8;
+  --cta-b: #F5A15C;
+  --cta-fg: #3B2405;
   --accent-hover: #b93a2b;
   --accent-soft: rgba(220, 50, 47, 0.12);
   --on-accent: #fdf6e3;
@@ -336,6 +352,10 @@
   --brand-fg: #ffffff;
   /* 顶栏字标「per」的颜色：与品牌渐变同色相，对 --bg-panel 对比 ≥5（暗绿底） */
   --brand-text: #5ACA8E;
+  /* CTA 主按钮（新建连接）锥形渐变：#B6F2CF → #5BD9A4，文字 #04241A（墨林） */
+  --cta-a: #B6F2CF;
+  --cta-b: #5BD9A4;
+  --cta-fg: #04241A;
   --accent-hover: #6fdca1;
   --accent-soft: rgba(88, 201, 141, 0.14);
   --on-accent: #06251a;
@@ -399,6 +419,10 @@
   --brand-fg: #ffffff;
   /* 顶栏字标「per」的颜色：与品牌渐变同色相，对 --bg-panel 对比 ≥5（白底） */
   --brand-text: #CA3267;
+  /* CTA 主按钮（新建连接）锥形渐变：#FFC9DA → #F27FA5，文字 #3A0A1C（樱花） */
+  --cta-a: #FFC9DA;
+  --cta-b: #F27FA5;
+  --cta-fg: #3A0A1C;
   --accent-hover: #e2688f;
   --accent-soft: rgba(212, 80, 126, 0.1);
   --on-accent: #ffffff;
@@ -462,6 +486,10 @@
   --brand-fg: #ffffff;
   /* 顶栏字标「per」的颜色：与品牌渐变同色相，对 --bg-panel 对比 ≥5（近白底） */
   --brand-text: #0C7C67;
+  /* CTA 主按钮（新建连接）锥形渐变：#B8F0E2 → #4FD3B4，文字 #04241A（薄荷） */
+  --cta-a: #B8F0E2;
+  --cta-b: #4FD3B4;
+  --cta-fg: #04241A;
   --accent-hover: #1a9f83;
   --accent-soft: rgba(14, 143, 118, 0.1);
   --on-accent: #ffffff;
@@ -525,6 +553,10 @@
   --brand-fg: #ffffff;
   /* 顶栏字标「per」的颜色：与品牌渐变同色相，对 --bg-panel 对比 ≥5（近白底） */
   --brand-text: #376FAA;
+  /* CTA 主按钮（新建连接）锥形渐变：#C2DCF5 → #6FA8E0，文字 #0A2036（雾蓝） */
+  --cta-a: #C2DCF5;
+  --cta-b: #6FA8E0;
+  --cta-fg: #0A2036;
   --accent-hover: #4f8fd0;
   --accent-soft: rgba(63, 126, 193, 0.1);
   --on-accent: #ffffff;
@@ -593,6 +625,10 @@
   --brand-fg: #ffffff;
   /* 顶栏字标「per」的颜色：与品牌渐变同色相，对 --bg-panel 对比 ≥5（白底） */
   --brand-text: #4761E0;
+  /* CTA 主按钮（新建连接）锥形渐变：#C9D2FA → #7E8FF2，文字 #14163A（极光） */
+  --cta-a: #C9D2FA;
+  --cta-b: #7E8FF2;
+  --cta-fg: #14163A;
   --accent-hover: #3a50c9;
   --accent-soft: rgba(74, 99, 224, 0.1);
   --on-accent: #ffffff;
@@ -1154,7 +1190,17 @@ body.dialog-dragging * {
 .mem-more,
 .mem-run,
 .slow-reset,
-.get-more {
+.get-more,
+/* 概览刷新、键栏工具、页签溢出、侧栏收起 / 连接项、行内操作、搜索历史删除、日志筛选 */
+.ov-refresh,
+.mini,
+.tabbar-btn,
+.rail-toggle,
+.rail-dot,
+.row-act,
+.op,
+.hp-del,
+.toggle {
   border-radius: 999px !important;
 }
 

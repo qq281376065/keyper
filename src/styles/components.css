@@ -4858,17 +4858,22 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  /* 与工具条 .tool 同规格，且必须是胶囊 —— 全局按钮约定 */
   padding: 3px 10px;
-  border-radius: var(--radius-sm);
+  border-radius: 999px;
   border: 1px solid var(--border);
   background: var(--bg-elevated);
   color: var(--text-secondary);
   font-size: var(--fs-sm);
   flex: 0 0 auto;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
-.s-server-overview .ov-refresh:hover{
+.s-server-overview .ov-refresh:hover:not(:disabled){
   background: var(--bg-hover);
   color: var(--text-primary);
+  border-color: var(--border-strong);
 }
 /* 刷新期间禁用，避免连点造成重复请求；视觉上降透明度给出反馈 */
 .ov-refresh:disabled{
@@ -8644,6 +8649,7 @@ body.col-resizing .col-handle::after{
  */
 .s-welcome-panel .logo{
   filter: var(--brand-shadow, none);
+  transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .s-welcome-panel .logo svg{
@@ -8652,6 +8658,36 @@ body.col-resizing .col-handle::after{
   display: block;
   inline-size: 100%;
   block-size: 100%;
+  /*
+   * 静态投影让图标脱离平面；悬停时投影加深、范围变大，配合上浮与轻微前倾，
+   * 像一块被抬起的玻璃片。
+   * 必须用 drop-shadow 而不是 box-shadow：图标是 128×128 的圆角矩形 SVG，
+   * span 本身是直角方框，box-shadow 会投出一个方角影子。
+   */
+  filter:
+    drop-shadow(0 2px 4px rgba(0, 0, 0, 0.22))
+    drop-shadow(0 12px 22px rgba(0, 0, 0, 0.18));
+  transition: filter 0.24s ease;
+}
+
+.s-welcome-panel .logo:hover{
+  transform: perspective(800px) translateY(-4px) rotateX(4deg) rotateY(-3deg);
+}
+
+.s-welcome-panel .logo:hover svg{
+  filter:
+    drop-shadow(0 4px 8px rgba(0, 0, 0, 0.26))
+    drop-shadow(0 20px 34px rgba(0, 0, 0, 0.24));
+}
+
+@media (prefers-reduced-motion: reduce){
+  .s-welcome-panel .logo,
+  .s-welcome-panel .logo svg{
+    transition: none;
+  }
+  .s-welcome-panel .logo:hover{
+    transform: none;
+  }
 }
 
 /* 品牌图标渐变的两个色标：跟随皮肤（变量定义见 main.css 各主题块）*/
@@ -9111,6 +9147,37 @@ body.col-resizing .col-handle::after{
   padding: 1px 6px;
   border: 1px solid var(--border);
   border-radius: 8px;
+}
+/*
+ * 顶栏品牌图标的立体效果：与主页同源的悬浮逻辑，但图标只有 22px，
+ * 位移和倾角按比例收敛。
+ *
+ * 投影必须挂在 .logo（span）上，不能挂在内部 SVG 上：span 的 overflow:hidden
+ * 负责把 SVG 裁成圆角，子元素的投影会被一起裁掉；元素自身的 filter 不受该裁剪影响。
+ * --brand-shadow 是部分主题的补充投影，默认无 —— 用透明阴影占位，
+ * 保证 filter 链在未定义该变量时仍然合法。
+ */
+.s-app .brand .logo{
+  filter:
+    var(--brand-shadow, drop-shadow(0 0 0 transparent))
+    drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3))
+    drop-shadow(0 4px 9px rgba(0, 0, 0, 0.24));
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), filter 0.2s ease;
+}
+.s-app .brand .logo:hover{
+  transform: perspective(500px) translateY(-1px) rotateX(5deg) rotateY(-4deg);
+  filter:
+    var(--brand-shadow, drop-shadow(0 0 0 transparent))
+    drop-shadow(0 2px 4px rgba(0, 0, 0, 0.32))
+    drop-shadow(0 7px 14px rgba(0, 0, 0, 0.3));
+}
+@media (prefers-reduced-motion: reduce){
+  .s-app .brand .logo{
+    transition: none;
+  }
+  .s-app .brand .logo:hover{
+    transform: none;
+  }
 }
 .s-app.topbar-actions, .s-app .topbar-actions{
   display: flex;
@@ -9614,6 +9681,7 @@ body.col-resizing .col-handle::after{
 }
 .engine-opt{
   display: flex;
+  /* 图标与右侧两行文字等高：顶部对齐大标题、底部对齐小标题 */
   align-items: flex-start;
   gap: 9px;
   padding: 10px 11px;
@@ -9643,15 +9711,17 @@ body.col-resizing .col-handle::after{
 }
 .engine-opt .engine-mark{
   flex: 0 0 auto;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
+  /* 高度 = 名称行(1.3) + 行距(2) + 说明行(1.45)，与右侧文字块严格同高 */
+  inline-size: calc(var(--fs-base) * 1.3 + var(--fs-xs) * 1.45 + 2px);
+  block-size: calc(var(--fs-base) * 1.3 + var(--fs-xs) * 1.45 + 2px);
+  border-radius: 8px;
   display: grid;
   place-items: center;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1;
+}
+.engine-opt .engine-mark svg{
+  display: block;
+  inline-size: calc(var(--fs-base) + 5px);
+  block-size: calc(var(--fs-base) + 5px);
 }
 .engine-opt .engine-mark.engine-redis{
   background: var(--accent-soft);

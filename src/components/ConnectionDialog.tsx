@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { api } from '@/api'
 import { DialogIcon } from '@/components/DialogIcon'
+import { EngineGlyph } from '@/components/EngineGlyph'
 import { useDialogDrag } from '@/hooks/useDialogDrag'
 import { NoticeDrawer } from '@/components/NoticeDrawer'
 import {
@@ -477,7 +478,9 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                       disabled={engineLocked && !on}
                       onClick={() => switchEngine(item.key)}
                     >
-                      <span className={`engine-mark engine-${item.key}`}>{item.short}</span>
+                      <span className={`engine-mark engine-${item.key}`}>
+                        <EngineGlyph engine={item.key} />
+                      </span>
                       <span className="engine-text">
                         <span className="engine-name">{item.label}</span>
                         <span className="engine-hint">{item.hint}</span>

@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<title>新建连接 · Cult UI BgAnimateButton 10 套参数组合</title>
+<style>
+* { box-sizing: border-box; }
+
+/* ============================================================
+   九套皮肤变量
+   --cta-a / --cta-b / --cta-fg : Cult UI 风格「浅渐变 + 深字」
+   --brand-a / --brand-b        : 品牌图标那套深渐变（09 号方案用）
+   --cta-hi                     : 高光色（10 号方案用）
+   ============================================================ */
+:root[data-theme="light"]{
+  --bg-app:#F6F7F9; --bg-panel:#FFFFFF; --tx:#1C2129; --tx2:#4E5866; --border:#E3E8EE;
+  --cta-a:#FFC2B8; --cta-b:#FF7A6B; --cta-fg:#3A0A05; --cta-hi:#FFF1EE;
+  --brand-a:#CF3B2E; --brand-b:#8A1C12; --brand-fg:#FFFFFF;
+}
+:root[data-theme="dark"]{
+  --bg-app:#15181E; --bg-panel:#1B1E25; --tx:#E8ECF2; --tx2:#9AA5B4; --border:#2A2F38;
+  --cta-a:#FFC2B8; --cta-b:#FF7A6B; --cta-fg:#3A0A05; --cta-hi:#FFF1EE;
+  --brand-a:#CE3F33; --brand-b:#8A1A11; --brand-fg:#FFFFFF;
+}
+:root[data-theme="ocean"]{
+  --bg-app:#0D1420; --bg-panel:#121B2B; --tx:#E6EDF8; --tx2:#95A6BE; --border:#22304A;
+  --cta-a:#FFC9BF; --cta-b:#FF8066; --cta-fg:#3B0A05; --cta-hi:#FFF2EE;
+  --brand-a:#EDF0F3; --brand-b:#C7D2DA; --brand-fg:#111827;
+}
+:root[data-theme="solarized"]{
+  --bg-app:#F5EEDC; --bg-panel:#FDF6E3; --tx:#3B3221; --tx2:#6B5F45; --border:#E2D8BE;
+  --cta-a:#FFDDB8; --cta-b:#F5A15C; --cta-fg:#3B2405; --cta-hi:#FFF6EA;
+  --brand-a:#FDBA74; --brand-b:#FB7185; --brand-fg:#3B0A1E;
+}
+:root[data-theme="forest"]{
+  --bg-app:#0F1611; --bg-panel:#131C17; --tx:#E4F2E8; --tx2:#93AC9B; --border:#1F2E24;
+  --cta-a:#B6F2CF; --cta-b:#5BD9A4; --cta-fg:#04241A; --cta-hi:#E8FFF2;
+  --brand-a:#1A8259; --brand-b:#0A5138; --brand-fg:#FFFFFF;
+}
+:root[data-theme="sakura"]{
+  --bg-app:#FDF7F9; --bg-panel:#FFFFFF; --tx:#2B1F24; --tx2:#6E5560; --border:#F0E2E8;
+  --cta-a:#FFC9DA; --cta-b:#F27FA5; --cta-fg:#3A0A1C; --cta-hi:#FFF0F5;
+  --brand-a:#C43F6C; --brand-b:#7E1F42; --brand-fg:#FFFFFF;
+}
+:root[data-theme="mint"]{
+  --bg-app:#F4FAF6; --bg-panel:#FCFFFC; --tx:#17251F; --tx2:#4E6B5E; --border:#DDEAE1;
+  --cta-a:#B8F0E2; --cta-b:#4FD3B4; --cta-fg:#04241A; --cta-hi:#EAFFF9;
+  --brand-a:#0C7A63; --brand-b:#044A3A; --brand-fg:#FFFFFF;
+}
+:root[data-theme="mist"]{
+  --bg-app:#F2F6FA; --bg-panel:#FAFCFD; --tx:#1A2531; --tx2:#52657A; --border:#DDE6EF;
+  --cta-a:#C2DCF5; --cta-b:#6FA8E0; --cta-fg:#0A2036; --cta-hi:#F0F7FF;
+  --brand-a:#3D77BE; --brand-b:#1B3F73; --brand-fg:#FFFFFF;
+}
+:root[data-theme="aurora"]{
+  --bg-app:#F4F6FC; --bg-panel:#FFFFFF; --tx:#181C2A; --tx2:#525C74; --border:#E1E5F1;
+  --cta-a:#C9D2FA; --cta-b:#7E8FF2; --cta-fg:#14163A; --cta-hi:#F2F4FF;
+  --brand-a:#4A63E0; --brand-b:#6E2FB8; --brand-fg:#FFFFFF;
+}
+
+body{
+  margin:0; background:var(--bg-app); color:var(--tx);
+  font:13px/1.6 "Segoe UI Variable Text","Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+  padding:0 24px 70px; -webkit-font-smoothing:antialiased; transition:background .18s;
+}
+.wrap{ max-width:1040px; margin:0 auto; }
+
+.switch{
+  position:sticky; top:0; z-index:20; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  padding:12px 0; margin-bottom:6px; background:var(--bg-app);
+  border-bottom:1px solid var(--border);
+}
+.switch .lbl{ font-size:11px; color:var(--tx2); margin-right:4px; }
+.sw{
+  display:inline-flex; align-items:center; gap:6px; padding:5px 10px 5px 7px;
+  border-radius:999px; cursor:pointer; background:var(--bg-panel);
+  border:1px solid var(--border); color:var(--tx2); font-size:11px; transition:all .15s;
+}
+.sw i{ width:12px; height:12px; border-radius:50%; display:block; }
+.sw.on{ border-color:var(--cta-b); color:var(--tx); box-shadow:0 0 0 1px var(--cta-b) inset; }
+
+.head{ padding:22px 0 4px; }
+.head h1{ font-size:21px; font-weight:600; letter-spacing:-.2px; margin:0; }
+.head p{ margin:8px 0 0; font-size:12.5px; color:var(--tx2); max-width:800px; }
+.head p b{ color:var(--tx); }
+.head code{ font:11px/1 "JetBrains Mono",Consolas,monospace; background:var(--bg-panel);
+  border:1px solid var(--border); padding:2px 5px; border-radius:4px; }
+
+.plan{ margin-top:20px; background:var(--bg-panel); border:1px solid var(--border); border-radius:14px; overflow:hidden; }
+.phead{ display:flex; align-items:center; gap:10px; padding:14px 16px 0; }
+.pno{ width:26px; height:26px; border-radius:7px; display:grid; place-items:center;
+  background:var(--tx); color:var(--bg-panel); font:700 11px/1 "JetBrains Mono",Consolas,monospace; }
+.ptitle{ font-size:14.5px; font-weight:600; }
+.ptitle small{ font-size:10.5px; font-weight:400; color:var(--tx2); margin-left:6px; }
+.pdesc{ padding:6px 16px 0; font-size:11.5px; color:var(--tx2); }
+.pdesc b{ color:var(--tx); }
+.pdesc code{ font:10.5px/1 "JetBrains Mono",Consolas,monospace; color:var(--tx); }
+
+.stage{
+  margin:14px 16px 14px; padding:26px 20px; border-radius:10px;
+  background:var(--bg-app); border:1px solid var(--border);
+  display:flex; align-items:center; gap:26px; flex-wrap:wrap;
+}
+.cap{ font-size:9.5px; color:var(--tx2); letter-spacing:.4px; text-transform:uppercase; }
+.col{ display:grid; gap:8px; justify-items:start; }
+
+.pfoot{ padding:0 16px 14px; display:flex; gap:14px; flex-wrap:wrap; font-size:10.5px; color:var(--tx2); }
+.pfoot .kv{ display:flex; gap:5px; }
+.pfoot .kv i{ font-style:normal; opacity:.6; }
+
+/* ============================================================
+   Cult UI BgAnimateButton 结构复刻
+   outer(overflow hidden + rounded)
+     └ span.glow  inset:-1000% + conic-gradient + spin
+     └ div.face  内层，只有 padding / 文字 / shadow，没有背景
+   官方内层不设背景，整块颜色都来自底部旋转的巨型锥形渐变。
+   ============================================================ */
+.abtn{
+  position:relative; display:inline-block; overflow:hidden;
+  padding:0; border:0; background:none; cursor:pointer;
+  border-radius:999px;
+  transition: filter .15s, transform .15s;
+}
+.abtn:hover{ transform:translateY(-1px); }
+.abtn .glow{
+  position:absolute; inset:-1000%; margin:auto; display:block;
+  background: conic-gradient(from 90deg at 50% 50%,
+    var(--a) 0%, var(--b) 50%, var(--a) 100%);
+  animation: spin var(--dur, 4s) linear infinite;
+}
+.abtn .face{
+  position:relative; display:flex; align-items:center; justify-content:center; gap:8px;
+  padding:12px 30px; font:700 15px/1 inherit; color:var(--fg);
+  box-shadow: var(--sh);
+}
+.abtn .face svg{ width:15px; height:15px; flex:0 0 auto; }
+
+@keyframes spin{ to{ transform: rotate(360deg); } }
+@keyframes pulseAnim{ 0%,100%{ opacity:1; } 50%{ opacity:.55; } }
+
+/* 05 官方 pulse：渐变层整体呼吸（官方 animate-pulse 的等价实现）*/
+.pulse .glow{ animation: spin 4s linear infinite, pulseAnim 2s ease-in-out infinite; }
+
+/* 06 三色环：多一段色标 */
+.three .glow{
+  background: conic-gradient(from 90deg at 50% 50%,
+    var(--a) 0%, var(--b) 35%, var(--c) 65%, var(--a) 100%);
+}
+/* 10 扫光：浅 → 深 → 近白高光 */
+.sweep .glow{
+  background: conic-gradient(from 90deg at 50% 50%,
+    var(--a) 0%, var(--b) 40%, var(--hi) 52%, var(--b) 64%, var(--a) 100%);
+}
+
+/* 次级按钮（参照主次关系）*/
+.btn2{
+  display:inline-flex; align-items:center; gap:6px; height:44px; padding:0 16px;
+  border-radius:999px; border:1px solid var(--border); background:transparent;
+  color:var(--tx2); font:500 12.5px/1 inherit;
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="switch" id="switch"><span class="lbl">皮肤</span></div>
+
+  <div class="head">
+    <h1>新建连接 · Cult UI <code>BgAnimateButton</code> 10 套参数组合</h1>
+    <p>
+      全部按官方结构复刻：外层 <code>overflow:hidden</code> + <code>rounded</code>，
+      里层 <code>span</code> 用 <code>inset:-1000%</code> 铺一块巨型 <b>conic-gradient</b> 并旋转，
+      最上层 <code>div</code> 只负责内边距、文字和 <code>shadow</code>（<b>不带背景</b>），
+      所以整块颜色都来自那道扫过的渐变。10 套只在官方参数里换：
+      <code>gradient</code> / <code>animation</code> / <code>shadow</code> / <code>rounded</code>。
+    </p>
+  </div>
+
+  <div id="plans"></div>
+
+</div>
+
+<script>
+const THEMES = [
+  ['light','浅色','#FF7A6B'], ['dark','暗色','#FF7A6B'], ['ocean','深海','#FF8066'],
+  ['solarized','暖纸','#F5A15C'], ['forest','墨林','#5BD9A4'], ['sakura','樱花','#F27FA5'],
+  ['mint','薄荷','#4FD3B4'], ['mist','雾蓝','#6FA8E0'], ['aurora','极光','#7E8FF2'],
+]
+const bar = document.getElementById('switch')
+bar.insertAdjacentHTML('beforeend', THEMES.map(function (t) {
+  return '<button class="sw' + (t[0]==='light'?' on':'') + '" data-t="' + t[0] + '">' +
+    '<i style="background:' + t[2] + '"></i>' + t[1] + '</button>'
+}).join(''))
+bar.addEventListener('click', function (e) {
+  const b = e.target.closest('.sw'); if (!b) return
+  document.documentElement.dataset.theme = b.dataset.t
+  ;[...bar.querySelectorAll('.sw')].forEach(function (x) { x.classList.toggle('on', x === b) })
+})
+
+const PLUS = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>'
+
+const SHADOWS = {
+  flat: 'none',
+  soft: '0 2px 4px rgba(0,0,0,.15), inset 0 1px 1px rgba(255,255,255,.15), inset 0 -1px 2px rgba(0,0,0,.3)',
+  base: '0 3px 5px rgba(0,0,0,.2), inset 0 .5px 1px rgba(255,255,255,.1), inset 0 -2px 3px rgba(0,0,0,.4)',
+  deeper: '0 6px 8px rgba(0,0,0,.3), inset 0 2px 3px rgba(255,255,255,.25), inset 0 -3px 6px rgba(0,0,0,.6)',
+}
+
+const PLANS = [
+  {
+    no:'01', name:'官方 candy 原样', sub:'Baseline',
+    gradient:'candy', animation:'spin', shadow:'soft', rounded:'full',
+    desc:'现在的样子：<b>固定粉色</b>锥形渐变，4s 旋转。放在这里当对照组——不管切到哪套皮肤，它都还是那块粉。',
+    fixed:{ a:'#ff9a9e', b:'#fad0c4', fg:'#000000' },
+    kv:[['gradient','candy'],['animation','spin 4s'],['shadow','soft'],['rounded','full']],
+  },
+  {
+    no:'02', name:'皮肤双色 · 标准速', sub:'Skin × Spin 4s', kind:'',
+    gradient:'皮肤色', animation:'spin', shadow:'soft', rounded:'full',
+    desc:'把 candy 换成<b>皮肤色</b>的锥形渐变（浅 → 深 → 浅），其余参数全部照官方。这是「换个配色」的最小改动版。',
+    kv:[['gradient','皮肤色'],['animation','spin 4s'],['shadow','soft'],['rounded','full']],
+  },
+  {
+    no:'03', name:'慢转', sub:'spin-slow 8s',
+    gradient:'皮肤色', animation:'spin-slow', shadow:'soft', rounded:'full',
+    desc:'官方现成的 <code>spin-slow</code>（8s）。转得慢，颜色扫过时的推移更明显，不容易看烦，也不会像加载中。',
+    kv:[['gradient','皮肤色'],['animation','spin-slow'],['shadow','soft'],['rounded','full']],
+    dur:'8s',
+  },
+  {
+    no:'04', name:'快转', sub:'spin-fast 2s',
+    gradient:'皮肤色', animation:'spin-fast', shadow:'soft', rounded:'full',
+    desc:'官方 <code>spin-fast</code>（2s）。节奏快、存在感强，适合当页面上唯一的主动作；缺点是长时间停留会略吵。',
+    kv:[['gradient','皮肤色'],['animation','spin-fast'],['shadow','soft'],['rounded','full']],
+    dur:'2s',
+  },
+  {
+    no:'05', name:'脉冲', sub:'pulse',
+    gradient:'皮肤色', animation:'pulse', shadow:'base', rounded:'full',
+    desc:'官方 <code>pulse</code>：渐变层整体做透明度呼吸（这里与旋转叠加）。最像「在召唤你点它」的一套。',
+    kv:[['gradient','皮肤色'],['animation','pulse'],['shadow','base'],['rounded','full']],
+    cls:'pulse',
+  },
+  {
+    no:'06', name:'三色环', sub:'Tri-color Conic',
+    gradient:'皮肤三色', animation:'spin', shadow:'base', rounded:'full',
+    desc:'比官方多一段色标：浅 → 深 → 中间调，旋转时颜色层次更丰富。仍然是同一套 conic 结构，只是色标从 2 个变 3 个。',
+    kv:[['gradient','三色'],['animation','spin 4s'],['shadow','base'],['rounded','full']],
+    cls:'three',
+  },
+  {
+    no:'07', name:'厚阴影', sub:'shadow="deeper"',
+    gradient:'皮肤色', animation:'spin', shadow:'deeper', rounded:'full',
+    desc:'官方最高一档 <code>shadow="deeper"</code>：外阴影加深 + 内高光加强 + 内底阴影加深，按钮像一块有厚度的实体。',
+    kv:[['gradient','皮肤色'],['animation','spin 4s'],['shadow','deeper'],['rounded','full']],
+    sh:'deeper',
+  },
+  {
+    no:'08', name:'方角', sub:'rounded="2xl"',
+    gradient:'皮肤色', animation:'spin', shadow:'base', rounded:'2xl',
+    desc:'官方 <code>rounded="2xl"</code>。胶囊变方角后与主页其它圆角卡片更协调，也更像「工具」而不是「营销按钮」。',
+    kv:[['gradient','皮肤色'],['animation','spin 4s'],['shadow','base'],['rounded','2xl']],
+    rad:'16px',
+  },
+  {
+    no:'09', name:'品牌双色', sub:'Brand Gradient',
+    gradient:'品牌渐变', animation:'spin-slow', shadow:'base', rounded:'full',
+    desc:'渐变取<b>品牌图标那套色</b>，文字用品牌符号色（多数皮肤白字，深海/暖纸自动换深字）。按钮和左上角 logo 同色，品牌一致性最强；代价是比浅渐变显得重。',
+    kv:[['gradient','--brand-a/b'],['文字','--brand-fg'],['animation','spin-slow'],['shadow','base']],
+    brand:true, dur:'8s',
+  },
+  {
+    no:'10', name:'扫光', sub:'Sweep Highlight',
+    gradient:'皮肤色 + 高光', animation:'spin-slow', shadow:'deeper', rounded:'full',
+    desc:'在皮肤色中间插一段<b>近白高光</b>，旋转时像一道光周期性地扫过按钮。最显眼的一套，适合节日版或强调态。',
+    kv:[['gradient','三色 + 高光'],['animation','spin-slow'],['shadow','deeper'],['rounded','full']],
+    cls:'sweep', sh:'deeper', dur:'8s',
+  },
+]
+
+function buildBtn(p) {
+  const style = []
+  if (p.fixed) {
+    style.push('--a:' + p.fixed.a, '--b:' + p.fixed.b, '--fg:' + p.fixed.fg)
+  } else if (p.brand) {
+    // 文字色跟随品牌符号色：多数皮肤品牌色偏深用白字，
+    // 深海/暖纸的品牌色本身是浅色（玻璃灰、落日），必须换深字
+    style.push('--a:var(--brand-a)', '--b:var(--brand-b)', '--fg:var(--brand-fg)',
+               '--c:var(--brand-b)', '--hi:var(--brand-a)')
+  } else {
+    style.push('--a:var(--cta-a)', '--b:var(--cta-b)', '--c:var(--cta-b)',
+               '--fg:var(--cta-fg)', '--hi:var(--cta-hi)')
+  }
+  style.push('--sh:' + SHADOWS[p.sh || 'soft'])
+  if (p.dur) style.push('--dur:' + p.dur)
+  if (p.rad) style.push('border-radius:' + p.rad)
+
+  return '<button class="abtn ' + (p.cls || '') + '" style="' + style.join(';') + '">' +
+    '<span class="glow"></span>' +
+    '<span class="face">' + PLUS + '新建连接</span>' +
+  '</button>'
+}
+
+document.getElementById('plans').innerHTML = PLANS.map(function (p) {
+  const btn = buildBtn(p)
+  const btn2 = '<span class="btn2">粘贴连接串</span>'
+  return '<section class="plan">' +
+    '<div class="phead"><div class="pno">' + p.no + '</div>' +
+      '<div class="ptitle">' + p.name + ' <small>' + p.sub + '</small></div></div>' +
+    '<p class="pdesc">' + p.desc + '</p>' +
+    '<div class="stage">' +
+      '<div class="col"><span class="cap">单独</span>' + btn + '</div>' +
+      '<div class="col"><span class="cap">与次级按钮并排</span>' +
+        '<div style="display:flex;gap:10px;align-items:center">' + btn + btn2 + '</div></div>' +
+    '</div>' +
+    '<div class="pfoot">' + p.kv.map(function (k) {
+      return '<span class="kv"><i>' + k[0] + '</i>' + k[1] + '</span>'
+    }).join('') + '</div>' +
+  '</section>'
+}).join('')
+</script>
+</body>
+</html>

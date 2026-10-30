@@ -173,18 +173,25 @@ export function WelcomePanel({ onNewConnection, onImportUri, onOpenLog }: Welcom
 
         <div className="cta">
           {/*
-            新建连接：Cult UI Background Animate Button，官方 demo 原样。
-            gradient="candy"（#ff9a9e→#fad0c4 锥形渐变、黑字）+
-            rounded="full"（胶囊）+ animation="spin"（4s 匀速旋转）。
-            不做任何样式覆盖 —— tailwind-cards.css 里只补 cursor
-            与键盘焦点环两条非视觉规则。
+            新建连接：Cult UI Background Animate Button，官方结构与参数不动，
+            只把渐变从写死的 candy 换成 theme。
+
+            原来是 candy（#ff9a9e→#fad0c4 固定粉），九套皮肤下永远是同一个颜色，
+            放在墨绿/深蓝界面上很突兀。theme 走 --cta-a/--cta-b 两个变量，
+            由各主题在 main.css 里配「同色相的浅渐变」，文字色取 --cta-fg。
+
+            参数全部取官方示例的值：rounded="full"（胶囊）+ shadow="soft"
+            + animation="spin"（4s 匀速）。只把渐变从写死的 candy 换成 theme，
+            让颜色跟着皮肤走；除此之外不加任何额外样式（描边、内阴影、自定义阴影
+            都试过并已撤掉），tailwind-cards.css 里只留 cursor 与键盘焦点环两条
+            非视觉规则。
           */}
           <BgAnimateButton
             className="cta-animate"
             size="lg"
             rounded="full"
             shadow="soft"
-            gradient="candy"
+            gradient="theme"
             animation="spin"
             onClick={onNewConnection}
           >

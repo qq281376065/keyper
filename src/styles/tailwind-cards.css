@@ -313,6 +313,7 @@
   outline-offset: 3px;
 }
 
+
 /* 尊重系统「减少动态效果」：停止旋转，保留静态渐变 */
 @media (prefers-reduced-motion: reduce) {
   .cta-animate > span {

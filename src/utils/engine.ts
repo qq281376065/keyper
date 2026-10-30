@@ -28,14 +28,14 @@ export const ENGINES: readonly EngineMeta[] = [
     label: 'Redis',
     short: 'R',
     defaultPort: 6379,
-    hint: '支持多库、六种数据结构、Pub/Sub、SSH 跳板',
+    hint: '多库 · 六种结构 · Pub/Sub · SSH',
   },
   {
     key: 'memcached',
     label: 'Memcached',
     short: 'M',
     defaultPort: 11211,
-    hint: '纯键值缓存，按 slab 分组浏览键，支持 SSH 跳板',
+    hint: '纯键值缓存 · slab 分组 · SSH 跳板',
   },
 ] as const
 

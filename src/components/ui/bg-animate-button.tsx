@@ -41,6 +41,15 @@ const innerSpanVariants = cva(
       },
       gradient: {
         sunrise: "font-bold text-black",
+        /*
+         * theme：锥形渐变交给 CSS 变量（--cta-a / --cta-b），由 inline style
+         * 落到 span 上 —— 不走 Tailwind arbitrary value。
+         *
+         * 原因：arbitrary value 里嵌 var() 与多层括号，JIT 扫描的 class 名要写成
+         * 一长串下划线形式，可读性差且改动色值必须重编译。变量方案让九套皮肤
+         * 直接在 main.css 里配颜色，与品牌图标 --brand-* 同一套路。
+         */
+        theme: "",
         ocean:
           "bg-[conic-gradient(from_90deg_at_50%_50%,#a1c4fd_0%,#c2e9fb_50%,#a1c4fd_100%)]",
         candy:
@@ -88,6 +97,7 @@ const buttonVariants = cva(
       },
       gradient: {
         sunrise: "font-bold text-black",
+        theme: "font-bold",
         ocean: "font-bold text-black",
         candy: "font-bold text-black",
         forest: "font-bold text-black",
@@ -130,7 +140,15 @@ export interface UnifiedButtonProps
     | "forest"
     | "sunset"
     | "nebula"
+    | "theme"
 }
+
+/*
+ * theme 渐变的实际画面：与官方 candy 完全同构（起色 0% → 主色 50% → 起色 100%），
+ * 只是两端的色值来自皮肤变量。锥形从右侧（90deg）起算，旋转时颜色自左向右推移。
+ */
+const THEME_CONIC =
+  "conic-gradient(from 90deg at 50% 50%, var(--cta-a) 0%, var(--cta-b) 50%, var(--cta-a) 100%)"
 
 const BgAnimateButton = React.forwardRef<HTMLButtonElement, UnifiedButtonProps>(
   (
@@ -149,6 +167,7 @@ const BgAnimateButton = React.forwardRef<HTMLButtonElement, UnifiedButtonProps>(
     ref
   ) => {
     const Comp = asChild ? Slot : "button"
+    const isTheme = gradient === "theme"
 
     return (
       <Comp
@@ -157,11 +176,15 @@ const BgAnimateButton = React.forwardRef<HTMLButtonElement, UnifiedButtonProps>(
         {...props}
       >
         {gradient && (
-          <span className={cn(innerSpanVariants({ gradient, animation }))} />
+          <span
+            className={cn(innerSpanVariants({ gradient, animation }))}
+            style={isTheme ? { backgroundImage: THEME_CONIC } : undefined}
+          />
         )}
 
         <div
           className={cn(buttonVariants({ shadow, rounded, size, gradient }))}
+          style={isTheme ? { color: "var(--cta-fg)" } : undefined}
         >
           {props.children || "Button"}
         </div>
