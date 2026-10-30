@@ -205,7 +205,7 @@ export function ConnectionSidebar({
       {collapsed ? (
         <>
           {/* 收起态：竖排窄条，只保留展开按钮、连接状态条与数量 */}
-          <button className="rail-toggle" {...tipProps('连接')} onClick={toggleCollapsed}>
+          <button className="rail-toggle" {...tipProps('展开')} onClick={toggleCollapsed}>
             <DialogIcon name="sidebar-expand" size={14} />
           </button>
 

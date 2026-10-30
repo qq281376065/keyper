@@ -295,9 +295,16 @@ export function WelcomePanel({ onNewConnection, onImportUri, onOpenLog }: Welcom
                   </span>
                 </li>
                 <li>
+                  <DialogIcon name="memory" size={13} className="compat-item-icon" />
+                  <span>
+                    同时支持 <strong>Memcached</strong>：命中率 / slab / 内存统计与单键查看编辑
+                  </span>
+                </li>
+                <li>
                   <DialogIcon name="bolt" size={13} className="compat-item-icon" />
                   <span>
-                    键浏览采用 <strong>SCAN 渐进式遍历</strong>，不会阻塞服务端
+                    Redis 键浏览采用 <strong>SCAN 渐进式遍历</strong>，不会阻塞服务端；
+                    Memcached 按 slab 限量取样，避免一次拉回整库
                   </span>
                 </li>
                 <li>

@@ -1191,12 +1191,11 @@ body.dialog-dragging * {
 .mem-run,
 .slow-reset,
 .get-more,
-/* 概览刷新、键栏工具、页签溢出、侧栏收起 / 连接项、行内操作、搜索历史删除、日志筛选 */
+/* 概览刷新、键栏工具、页签溢出、侧栏收起、行内操作、搜索历史删除、日志筛选 */
 .ov-refresh,
 .mini,
 .tabbar-btn,
 .rail-toggle,
-.rail-dot,
 .row-act,
 .op,
 .hp-del,

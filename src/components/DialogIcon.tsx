@@ -563,10 +563,12 @@ function renderGlyph(name: DialogIconName): React.ReactElement | null {
       </g>
     )
   }
-  /** 连接栏展开：同上，箭头指向右侧 */
+  /** 连接栏展开：同上，箭头指向右侧。
+      图形墨迹只占 2.6~10.8，在 16 视图框里偏左 1.3，
+      补一次平移让按钮内的视觉重心落在正中。 */
   if (name === 'sidebar-expand') {
     return (
-      <g>
+      <g transform="translate(1.3 0)">
         <path d="M2.6 2.8v10.4" />
         <path d="M3 8h7.4" />
         <path d="M7.6 4.8 10.8 8l-3.2 3.2" />
