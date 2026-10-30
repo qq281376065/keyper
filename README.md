@@ -1,6 +1,6 @@
 # Keyper
 
-基于 **TypeScript + Electron + React 18 + electron-builder** 的跨平台键值缓存管理工具。
+基于 **TypeScript + Electron + React 19 + electron-builder** 的跨平台键值缓存管理工具。
 
 **同时支持 Redis 与 Memcached**：两者作为彼此隔离的引擎模块接入 ——
 配置、连接池、日志、搜索历史均按引擎分开存放，一个模块的异常不会影响另一个。
@@ -14,9 +14,22 @@
 > 本项目起源于 RedisDesktop（Vue 3 版）的 React 移植；主进程、preload、IPC、
 > shared 类型契约、打包配置沿用其结构，渲染层已按多引擎架构重构。
 
-当前版本：`1.0.2`
+当前版本：`1.0.4`
 
-本轮变更（未发布，待验收）：
+本轮变更（1.0.3 → 1.0.4）：
+
+- **升级 React 19 并接入 React Compiler 1.0**：构建期自动记忆化，`target: 19`
+  直接使用 React 自带的 compiler-runtime，不引入额外运行依赖（构建体积 +54.7 kB，
+  gzip +23.7 kB）
+- **值区多标签保活（`<Activity>`）**：切走的标签只隐藏、不卸载 —— 筛选 / 排序 /
+  编辑草稿 / 列宽 / 滚动位置全部保留；切回已缓存的标签立即渲染并静默刷新，不再闪骨架屏
+- **操作日志列表**：连接列前置；表头吸顶、操作列固定在右侧，横向滚动时列不漂移；
+  时间 / 操作 / 详情 / 连接 / 结果五列支持升降序（时间默认新→旧，文本按中文排序，
+  结果列先按 OK / FAIL 分组）；行高下限 30px，紧凑密度下复制按钮不再溢出
+- **PixelHeading 动画优化**：逐字字体切换改为直接写 DOM，不再每 50ms 触发整组件重渲染
+- **细节修复**：侧栏展开按钮提示文案与图标视觉重心、首页兼容性说明补充 Memcached
+
+上一版（1.0.2 → 1.0.3）：
 
 - **集成 Memcached 引擎模块**：与 Redis 完全隔离（独立连接池 / 管理器 / IPC 通道 /
   日志字段），连接列表带引擎角标、新建弹窗可选引擎、日志可按模块筛选
@@ -24,6 +37,8 @@
   按 slab 分组的键浏览 + 设置页签（含 flush_all）
 - **项目更名为 Keyper**：产品名、appId、安装器配置目录、主题存储键全部更新，
   并保留对旧名（RedisDocter / RedisDesktop）配置与偏好的迁移
+- **引擎标识与品牌**：连接列表名称行改用引擎图形标识，新建弹窗引擎卡片同款图形；
+  顶栏横版品牌、主页 Logo 立体悬停、CTA 渐变随皮肤切换
 
 上一版（1.0.1 → 1.0.2）：
 
@@ -41,6 +56,7 @@
 累积能力：
 
 多标签工作区（每个连接一个标签、关标签即断开、右键菜单/溢出滚动/更多页签下拉）；
+值区多标签保活（`<Activity>` 隐藏而非卸载，状态原样保留）；操作日志表头排序与固定操作列；
 SSH 多级跳板与连接保活；值区四页签（Redis 信息详情/慢查询日志/键内存分析/Pub/Sub 订阅）；
 批量 TTL/重命名；全库搜索下沉主进程 + 平铺虚拟滚动；键搜索历史自动补全（按连接与库隔离、
 LRU 30 条、配置文件持久化）；树形深层目录右键批量删除；string 双击编辑；
@@ -53,7 +69,7 @@ string 值实底行号槽；安装器开始菜单快捷方式勾选页；
 
 ---
 
-## 目录结构（渲染层）
+## 渲染层状态与组件
 
 | 路径 | 作用 |
 | --- | --- |
@@ -61,8 +77,8 @@ string 值实底行号槽；安装器开始菜单快捷方式勾选页；
 | `src/store/session.ts` | 单标签会话：扫描/选中/值更新的竞态令牌、本地增删改、批量任务 |
 | `src/store/global.ts` | 连接管理、多标签、快照恢复 |
 | `src/store/useRedis.ts` | 语境包装：标签树内用 Context，标签外用激活会话代理 |
-| `src/hooks/` | 设置、主题、搜索历史、弹窗拖拽、六个值类型编辑器 |
-| `src/components/` | 35 个界面组件（`.tsx`）+ `components.css`（原 scoped 样式平移） |
+| `src/hooks/` | 设置、主题、搜索历史、弹窗拖拽、六个值类型编辑器（`valueEditor/`） |
+| `src/components/` | 48 个界面组件（`.tsx`）+ `ui/` 原子组件 + `components.css` |
 
 ---
 
@@ -70,8 +86,9 @@ string 值实底行号槽；安装器开始菜单快捷方式勾选页；
 
 | 层 | 选型 | 说明 |
 | --- | --- | --- |
-| 主进程 | Electron 33 + TypeScript | 窗口管理、IPC、Redis 连接池 |
-| 渲染进程 | **React 18 + Vite 6** | 界面与交互；状态层见 `src/store/` |
+| 主进程 | Electron 33 + TypeScript 5.7 | 窗口管理、IPC、连接池、引擎注册表 |
+| 渲染进程 | **React 19 + Vite 6** | 界面与交互；状态层见 `src/store/` |
+| 编译优化 | **React Compiler 1.0** | 构建期自动记忆化，`target: 19` 直接用 React 自带 runtime |
 | 通信 | contextBridge + ipcRenderer.invoke | 上下文隔离，渲染进程不接触 Node |
 | Redis 客户端 | ioredis 5 | 支持 TLS / ACL / 分页 SCAN |
 | 打包 | electron-builder 25 | Windows NSIS / macOS DMG / Linux AppImage+deb |
@@ -82,63 +99,46 @@ string 值实底行号槽；安装器开始菜单快捷方式勾选页；
 
 ```
 Keyper/
-├── electron/                 # 主进程
-│   ├── main.ts               # 应用入口：窗口、单实例、生命周期
-│   ├── preload.ts            # 预加载：contextBridge 暴露 window.redisApi
-│   ├── ipc/index.ts          # IPC 通道注册与统一错误包裹
+├── electron/                        # 主进程
+│   ├── main.ts                      # 应用入口：窗口、单实例、生命周期
+│   ├── preload.ts                   # 预加载：contextBridge 暴露 window.redisApi
+│   ├── ipc/index.ts                 # IPC 通道注册与统一错误包裹
 │   └── services/
-│       ├── connection-manager.ts   # 连接池 + 全部 Redis 命令
-│       ├── ssh-tunnel.ts           # SSH 隧道（本地端口转发）
-│       ├── connection-store.ts     # 连接配置持久化（safeStorage 加密密码）
-│       ├── settings-store.ts       # 应用设置持久化（settings.json）
-│       └── log-service.ts          # 手动操作日志（按天分片、超期清理）
-├── shared/                   # 主进程与渲染进程共享的类型契约
-│   ├── types.ts              # 数据模型
-│   └── api.ts                # RedisDesktopApi 接口 + IPC 通道常量
-├── src/                      # 渲染进程
-│   ├── App.vue               # 整体布局（顶栏 / 三栏 / CLI）
-│   ├── api/index.ts          # 数据入口：Electron 走 IPC，浏览器降级 Mock
-│   ├── api/mock.ts           # 浏览器预览用模拟数据
-│   ├── composables/
-│   │   ├── useRedis.ts       # 轻量状态层（不引入 Pinia）
-│   │   ├── useTheme.ts       # 主题状态、系统跟随与持久化
-│   │   ├── useSettings.ts    # 全局设置：加载、保存并落到 CSS 变量
-│   │   ├── useDialogDrag.ts  # 弹窗拖动（12 个弹窗共用）
-│   │   └── useTooltip.ts     # 全局 tooltip 状态（配合 v-tip 指令）
-│   ├── directives/
-│   │   └── tip.ts            # v-tip：统一提示指令，替代原生 title
-│   ├── utils/
-│   │   ├── keyTree.ts        # 键名 → 树结构（折叠用）
-│   │   ├── redisCapability.ts # 服务端版本解析与能力探测（如 7.4+ 字段级 TTL）
-│   │   ├── log.ts            # 操作日志分级（danger / change / normal）
-│   │   ├── format.ts         # TTL / 字节 / JSON 格式化
-│   │   └── clipboard.ts      # 剪贴板写入（含降级方案）
-│   ├── components/
-│   │   ├── ConnectionSidebar.vue   # 左侧连接列表
-│   │   ├── ConnectionActions.vue   # 连接项操作菜单
-│   │   ├── KeyBrowser.vue          # 中间键浏览（SCAN + 筛选 + 树形/平铺 + 分页）
-│   │   ├── KeyTreeNode.vue         # 键树递归节点（可折叠）
-│   │   ├── ValueViewer.vue         # 右侧值查看（只读 + JSON 美化 + 容器搜索）
-│   │   ├── ValueActions.vue        # 值操作菜单（编辑 / 重命名 / TTL / 复制 / 删除）
-│   │   ├── EditValueDialog.vue     # 编辑值弹窗（按类型呈现表单）
-│   │   ├── EditHashFieldDialog.vue  # 修改 hash 单字段（field / value）
-│   │   ├── EditHashFieldTtlDialog.vue # 设置 hash 字段级 TTL（7.4+）
-│   │   ├── VersionInfoDialog.vue    # 版本信息与能力探测
-│   │   ├── PromptDialog.vue        # 通用单值输入弹窗（重命名 / TTL 等）
-│   │   ├── CliConsole.vue          # 底部命令控制台
-│   │   ├── ConnectionDialog.vue    # 新建 / 编辑连接弹窗
-│   │   ├── CreateKeyDialog.vue     # 新建键弹窗
-│   │   ├── SettingsDialog.vue      # 全局设置
-│   │   ├── LogPanel.vue            # 操作日志抽屉（日期 / 连接 / 关键字筛选）
-│   │   ├── ConfirmDialog.vue       # 通用二次确认弹窗
-│   │   ├── ThemeSwitch.vue         # 主题切换（跟随系统 / 亮 / 暗）
-│   │   ├── AppTooltip.vue          # 全局提示渲染层（所有 v-tip 共用）
-│   │   └── WelcomePanel.vue        # 无任何连接时的欢迎页
-│   └── styles/main.css       # 双主题设计令牌、字号体系与全局样式
-├── scripts/                  # 开发期校验脚本（键树 / tooltip / 右键菜单断言）
-├── preview.cmd               # 双击启动浏览器预览（Windows）
-├── vite.config.ts            # 渲染进程 + 主进程构建
-└── electron-builder.yml      # 打包配置
+│       ├── engines/                 # 引擎模块（彼此隔离）
+│       │   ├── registry.ts          # 引擎注册表：适配器登记与查询
+│       │   └── memcached/           # Memcached：client / manager / pool
+│       ├── connection-manager.ts    # Redis 连接池 + 全部 Redis 命令
+│       ├── ssh-tunnel.ts            # SSH 隧道（本地端口转发）
+│       ├── connection-store.ts      # 连接配置持久化
+│       ├── credential-crypto.ts     # 凭据加密（safeStorage + 回退）
+│       ├── settings-store.ts        # 应用设置持久化（settings.json）
+│       ├── search-history-store.ts  # 键搜索历史（LRU 30，按连接与库隔离）
+│       ├── log-service.ts           # 手动操作日志（按天分片、超期清理）
+│       ├── update-service.ts        # 更新检查
+│       ├── config-path.ts           # 便携目录解析与回退
+│       └── close-signal.ts          # 退出前先断开的信号
+├── shared/                          # 主进程与渲染进程共享的类型契约
+│   ├── types.ts                     # 数据模型
+│   ├── api.ts                       # 接口 + IPC 通道常量
+│   ├── keyspace.ts                  # 键名空间解析（分隔符 / 前缀）
+│   └── version.ts                   # 版本解析与比较
+├── src/                             # 渲染进程
+│   ├── main.tsx                     # 挂载入口
+│   ├── App.tsx                      # 整体布局（顶栏 / 三栏 / CLI）
+│   ├── api/                         # 数据入口：Electron 走 IPC，浏览器降级 Mock
+│   ├── store/                       # defineStore + 会话 / 全局 / 订阅
+│   ├── hooks/                       # 设置、主题、搜索历史、弹窗拖拽、值编辑器
+│   ├── components/                  # 48 个界面组件 + ui/ 原子组件
+│   ├── services/                    # 设置、主题、错误上报
+│   ├── utils/                       # 键树、能力探测、格式化、剪贴板等
+│   ├── styles/                      # main.css（设计令牌）+ components.css
+│   └── preview/                     # 纯浏览器预览页
+├── tests/unit/                      # vitest 单元测试（15 个 spec）
+├── build/                           # 图标与 NSIS 定制脚本
+├── scripts/                         # 开发期探针与截图脚本
+├── vite.config.ts                   # 渲染进程 + 主进程构建
+├── vitest.config.ts                 # 单元测试配置
+└── electron-builder.yml             # 打包配置
 ```
 
 ---
@@ -150,21 +150,16 @@ npm install          # 安装依赖（国内网络建议配镜像，见下）
 npm run dev          # 开发模式：启动 Vite + Electron，支持热更新
 npm run dev:web      # 纯浏览器调试渲染层：只起 Vite，不编译/不拉起 Electron
 npm run preview      # 预览已构建产物（http://127.0.0.1:4173）
+npm run preview:title # 浏览器预览标题动画页
 npm run typecheck    # 类型检查（主进程 + 渲染进程）
+npm run test         # vitest 单元测试（tests/unit，15 个 spec）
 npm run build        # 类型检查 + 构建产物到 dist/ 与 dist-electron/
-npm run check:keytree # 键树构建算法断言（7 个场景）
-npm run check:tip    # 全局 tooltip 定位算法断言（8 个场景）
-npm run check:keymenu # 右键菜单链路、删除确认结构、子树收集断言
-npm run check:table  # 表格粘性布局（表头吸顶 / 底栏吸底）断言
-npm run check:collapse # 树形折叠态生命周期（删除不重置）断言
-npm run check:bulk   # 批量删除表格排序 + 按钮图标居中断言
-npm run check:icons  # 按钮图标全覆盖断言（所有文字按钮都带图标）
-npm run check:disconnect # 断开连接后的状态清理断言
-npm run check:config # 配置持久化（便携目录 / 回退 / 字段完备）断言
+npm run dist         # 当前平台打包
 npm run dist:win     # 打包 Windows 安装包
-npm run dist:mac     # 打包 macOS 镜像
-npm run dist:linux   # 打包 Linux 包
+npm run dist:win:alt # 打包 Windows 到 release/<版本>-final（保留上一版产物时用）
 ```
+
+构建产物落在 `release/<版本>/`，文件名形如 `Keyper-1.0.4-win-x64.exe`。
 
 国内网络安装 Electron 二进制较慢，建议先执行：
 
@@ -213,13 +208,16 @@ KEYPER_DEBUG_LOG=/tmp/rd.log ./Keyper.exe
 
 ## 安装器（NSIS 定制）
 
-安装包由 `build/installer.nsh` 与 `build/installer-env.nsh` 定制，两者分工明确：
+安装包由 `build/` 下的 NSIS 脚本定制。`installer.nsh` 是唯一入口
+（`electron-builder.yml` 的 `nsis.include`），其余三个由它 `!include`：
 
 | 文件 | 职责 |
 | --- | --- |
+| `installer.nsh` | 汇总入口：挂载钩子、写入/清理 PATH，并 include 下面三个 |
 | `installer-env.nsh` | 环境检查页：检测逻辑、nsDialogs 界面 |
-| `installer.nsh` | 挂载钩子、写入/清理 PATH |
-| `make-icon.py` | 生成 `build/icon.ico`（16/24/32/48/64/128/256 七个尺寸） |
+| `installer-upgrade.nsh` | 已安装检测：升级模式沿用原目录、保留用户数据 |
+| `installer-config.nsh` | 用户配置的保留与清理（升级不会删掉 `config/`） |
+| `icon.ico` / `icon.png` | 应用图标与安装器图标（已入库） |
 
 ### 环境检查做了什么
 
@@ -256,11 +254,11 @@ KEYPER_DEBUG_LOG=/tmp/rd.log ./Keyper.exe
 3. 在 `-D` 之外自行 `!include "StrContains.nsh"` 会触发未引用警告，PATH 判重改用
    分号边界拼接即可。
 
-### 重新生成图标
+### 图标
 
-```bash
-npm run icon   # 等价于 python scripts/make-icon.py
-```
+窗口图标与安装器图标都读取 `build/icon.ico`（`electron-builder.yml` 的
+`win.icon` / `installerIcon` / `uninstallerIcon` / `installerHeaderIcon`），
+文件已入库，没有生成脚本；替换时提供 256×256 PNG → 多尺寸 ICO 即可。
 
 图标为「红立方体 + 白色 R」，R 用矢量笔画手绘而非字体 —— 字体字形墨迹只有字号的 66%，
 缩到 16×16 时白色像素会归零，任务栏上只剩一个纯红方块。
@@ -395,7 +393,7 @@ npm run icon   # 等价于 python scripts/make-icon.py
 
 ---
 
-## 已实现的骨架能力
+## 已实现能力
 
 **核心链路**
 
@@ -438,7 +436,7 @@ npm run icon   # 等价于 python scripts/make-icon.py
 - **list 行操作**：右键菜单仅两组 —— 「复制」（**复制字段值** / LSET 命令 / JSON）、
   「位置」（在此项前插入、在此项后插入）；
   修改与删除改由**行内图标按钮**承担（复制 / 修改 / 删除），双击行也可直接修改。
-  修改与插入**共用弹窗** `EditListElementDialog.vue`（`mode` 区分），二者形态一致：
+  修改与插入**共用弹窗** `EditListElementDialog.tsx`（`mode` 区分），二者形态一致：
   顶部 key 预览条（list 类型徽标 + 完整键名 + `#位置/总数` 或 `插入点 #N`），
   底部**状态栏**（字符数 / 行数 / 字节数；**编辑模式**额外显示改动量增减，无改动时禁用保存；
   **插入模式**显示 `插入后共 N 项`，追加时显示 `将追加为第 N 项`），
@@ -474,7 +472,7 @@ npm run icon   # 等价于 python scripts/make-icon.py
   **改 score** 走 ZADD 更新语义（对已存在 member 即更新）；
   **改 member 名**走 ZREM + ZADD（pipeline 同往返），新名若已存在会如实提示「score 已更新」。
   score 必须是有限数字（Redis 原生错误信息不友好，故先校验）。
-  专用弹窗 `EditZsetMemberDialog.vue`：member + score 双字段输入，
+  专用弹窗 `EditZsetMemberDialog.tsx`：member + score 双字段输入，
   底部状态栏实时显示 score 解析结果与成员字节数，非法 score 时禁用提交并标红
 - **stream 值界面**：表格形态（序号 / entry ID / 字段 / 操作 四列），**只读**。
   stream 是追加写的消息日志 —— 改历史 entry 会破坏消费位点语义、删 entry 会造成消费缺口，
@@ -495,7 +493,7 @@ npm run icon   # 等价于 python scripts/make-icon.py
   改为 `nowrap` + `ellipsis` 保持行高一致，完整内容看悬停提示或右键复制
 - **stream entry ID 排序**：按「毫秒时间戳 + 序号」**分段数值比较**。
   直接字符串比较会让 `…-10` 排在 `…-9` 之前，而 Redis 的序号是按数值递增的
-- **弹窗按钮图标**：底部操作栏的按钮统一在文字前加图标，由 `src/components/DialogIcon.vue` 提供。
+- **弹窗按钮图标**：底部操作栏的按钮统一在文字前加图标，由 `src/components/DialogIcon.tsx` 提供。
   图标按**语义**命名（`cancel` / `save` / `close` / `check` / `test` / `copy` / `add` / `edit` / `trash`）——
   调用方关心的是"这个按钮在做什么"，形状调整时不必回头改所有调用点。
   规格 16×16 viewBox、`stroke: currentColor`（跟随按钮文字色，主/次按钮上都能自动适配）、
@@ -504,22 +502,21 @@ npm run icon   # 等价于 python scripts/make-icon.py
   内联会把上百行重复路径散落到各文件
 - **弹窗按钮圆角**：底部操作栏按钮使用胶囊形（`border-radius: 999px`）。
   12 个弹窗统一使用 `.dialog-foot`，规则集中定义在 `src/styles/main.css`。
-  **选择器必须含两个类**（`.dialog-foot button.btn`）：组件内的 `.btn` 经 Vue 编译后
-  带 scoped 属性（`.btn[data-v-x]`），特异性为 `[0,2,0]`，而 `body .dialog-foot button`
-  只有 `[0,1,2]` —— **类选择器的权重高于元素**，加再多的 `body`/`button`
-  也换不来一个类权重，规则会被静默压过（页面无报错，只是圆角没变）。
+  **选择器必须写足两个类**（`.dialog-foot button.btn`）：单靠 `body .dialog-foot button`
+  与组件内的 `.btn` 规则同级比较时落败 —— **类选择器的权重高于元素**，
+  加再多的 `body`/`button` 也换不来一个类权重，规则会被静默压过
+  （页面无报错，只是圆角没变）。
   `ConfirmDialog` 的确认按钮用自定义类 `.confirm-btn`（不带 `.btn`），
   无法被上述规则覆盖，已在该组件内直接声明胶囊圆角。
   胶囊两端是弧线，同等的左右内边距视觉上更"紧"，故横向内边距略增补偿
 - **弹窗拖动**：全部 12 个弹窗支持拖动 —— 按住**标题栏**移动窗口。
-  由 `src/composables/useDialogDrag.ts` 统一提供（`dragStyle` 绑 `.dialog`、`onDragStart` 绑 `.dialog-head`）。
+  由 `src/hooks/useDialogDrag.ts` 统一提供（`dragStyle` 绑 `.dialog`、`onDragStart` 绑 `.dialog-head`）。
   设计要点：位移用 `transform` 而非 `top/left`（不触发重排，也不与 flex 居中的初始定位冲突）；
   只由标题栏触发（内容区输入框与文本选择需要正常的鼠标划过）；
   按弹窗尺寸把位移钳制在视口内（否则拖出屏幕后按钮点不到）；
   拖动时给 `body` 加 `.dialog-dragging` 锁定光标并禁用选中。
-  注意 `body` 类规则必须写在 `src/styles/main.css`，组件 `<style scoped>` 会被编译成
-  `body.xxx[data-v-yyy]` 而永不命中（原有 `col-resizing` 就有此缺陷，已一并修正）
-- **stream entry 查看弹窗**：右键菜单首项「查看完整内容」，打开 `ViewStreamEntryDialog.vue`。
+  注意 `body` 类规则必须写在 `src/styles/main.css`，组件级样式文件不要声明挂到 `body` 的规则
+- **stream entry 查看弹窗**：右键菜单首项「查看完整内容」，打开 `ViewStreamEntryDialog.tsx`。
   表格里的字段是单行截断的，查看弹窗的存在意义就是**看全**，因此：
   字段解析为**键值对表格**（支持 JSON 对象与 `key=value` 两种形态），
   值列**换行不截断**（长值限高 220px 后内部滚动）；
@@ -549,7 +546,7 @@ npm run icon   # 等价于 python scripts/make-icon.py
   范围限制 80–900px。拖拽期间给 `body` 加 `.col-resizing` 锁定全局光标并禁用文字选中
 - **表头样式**：字重 600 + 次要色（`--text-secondary`），与数据行（主色 + 常规字重）形成层次。
   只加粗不提亮在深色主题下会"越粗越糊"——粗体在小字号 + 低对比度时反而降低清晰度，两者需配合
-- **排序指示用 SVG 三角形**（`src/components/SortIcon.vue`），替代原来的 `⇅ / ↑ / ↓` 字符：
+- **排序指示用 SVG 三角形**（`src/components/SortIcon.tsx`），替代原来的 `⇅ / ↑ / ↓` 字符：
   字符箭头在不同字体下的粗细与基线位置不一致，`⇅` 在小字号下尤其容易糊成一团；
   三角形是纯几何形状，缩放与对齐都可控。三态为
   **未排序（上下双三角，透明度 0.28，悬停升至 0.55）** / **升序（实心上三角）** / **降序（实心下三角）**，
@@ -712,26 +709,27 @@ npm run icon   # 等价于 python scripts/make-icon.py
 - **删除确认**：删除键前弹出确认框，采用「一句话说明 + 结构化明细 + 预览 + 风险提示」四层结构 ——
   单键给出**键名 / 类型 / 过期时间**便于核对对象；批量给出**数量**与**待删键名列表**（超过 30 个标记「已截断」）。
   确认按钮为危险色，文案随数量变化（如「删除 12 个键」）。可在设置中关闭。
-- **全局提示（tooltip）**：项目**不使用原生 `title`**，统一走自绘的 `v-tip` 指令。
+- **全局提示（tooltip）**：项目**不使用原生 `title`**，统一走自绘的 tooltip。
   原生 tooltip 由系统绘制、延迟约 1 秒、样式不可控，暗色主题下会突兀地弹出一块亮色气泡。
-  自绘方案在 `App.vue` 挂载唯一实例（`AppTooltip.vue`），所有 `v-tip` 共用：
-  ```vue
-  <button v-tip="'复制全部内容'">…</button>            <!-- 纯文本 -->
-  <span v-tip="row.field">{{ row.field }}</span>       <!-- 动态文本 -->
-  <button v-tip="{ text: '重新读取该键', placement: 'bottom' }">…</button>
+  React 版把指令换成 `tipProps()` 展开到元素上（`src/components/tip.ts`），
+  不新增 DOM 节点，全局唯一气泡由 `AppTooltip.tsx` 在 `App` 挂载一次：
+  ```tsx
+  <button {...tipProps('复制全部内容')}>…</button>          {/* 纯文本 */}
+  <span {...tipProps(row.field)}>{row.field}</span>        {/* 动态文本 */}
+  <button {...tipProps({ text: '重新读取该键', placement: 'bottom' })}>…</button>
   ```
   规则：**默认上方显示，空间不足自动翻转**；超过 40 字自动换行（`maxWidth: 320px`），
   短标签保持单行；水平方向钳制在视口内；滚动 / 缩放 / 点击 / 元素卸载时自动收起。
-  定位算法由 `npm run check:tip` 做 8 个场景的断言覆盖。
-  ⚠️ **`v-tip` 与 `title` 不可共存** —— 同时存在时浏览器仍会弹出系统提示，两个气泡重叠。
+  定位算法由 `tests/unit` 与浏览器探针脚本覆盖。
+  ⚠️ **`tipProps` 与 `title` 不可共存** —— 同时存在时浏览器仍会弹出系统提示，两个气泡重叠。
   另注意：`PromptDialog` 等组件上的 `title` 是**组件 prop**（弹窗标题），不是提示，不要误改。
 
 ## 后续规划（建议按序推进）
 
-1. **连接能力补全**：哨兵 / 集群模式、SSH 隧道、连接导入导出
-2. **性能与体验**：大 key 分页加载、键树形分组（按 `:` 分隔）、虚拟滚动
-3. **功能增强**：慢日志、监控指标曲线、发布订阅、内存分析（`MEMORY USAGE`）
-4. **工程化**：单元测试（Vitest）、图标资源、自动更新（electron-updater）、CI 打包
+1. **连接能力补全**：哨兵 / 集群模式、连接导入导出
+2. **性能与体验**：大 key 分页加载、键列表增量刷新、更多类型的虚拟滚动
+3. **功能增强**：监控指标曲线、键空间通知、Memcached 批量操作
+4. **工程化**：CI 打包、增量更新（electron-updater）、安装包体积优化
 
 ---
 
