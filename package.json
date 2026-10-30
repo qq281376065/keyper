@@ -1,7 +1,7 @@
 {
   "name": "keyper",
   "productName": "Keyper",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "多引擎键值缓存管理工具 —— 基于 Electron + React + TypeScript 的跨平台 Redis / Memcached 客户端",
   "author": {
     "name": "Keyper"

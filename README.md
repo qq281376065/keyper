@@ -14,9 +14,9 @@
 > 本项目起源于 RedisDesktop（Vue 3 版）的 React 移植；主进程、preload、IPC、
 > shared 类型契约、打包配置沿用其结构，渲染层已按多引擎架构重构。
 
-当前版本：`1.0.5`
+当前版本：`1.0.6`
 
-本轮变更（1.0.4 → 1.0.5）：
+本轮变更（1.0.4 → 1.0.6）：
 
 - **三语言界面**：简体中文 / 繁體中文 / English，主页右上角语言菜单即时切换并持久化；
   首次启动按操作系统语言自动选择；字典改用语义 key（`namespace.camelCase`）并按语言
@@ -216,7 +216,7 @@ npm run dist:win     # 打包 Windows 安装包
 npm run dist:win:alt # 打包 Windows 到 release/<版本>-final（保留上一版产物时用）
 ```
 
-构建产物落在 `release/<版本>/`，文件名形如 `Keyper-1.0.5-win-x64.exe`。
+构建产物落在 `release/<版本>/`，文件名形如 `Keyper-1.0.6-win-x64.exe`。
 
 国内网络安装 Electron 二进制较慢，建议先执行：
 
