@@ -46,4 +46,14 @@ if (!container) throw new Error('#root 容器缺失')
  */
 void StrictMode
 
-createRoot(container).render(<App />)
+/*
+ * React 19 不再把根级渲染错误重新抛给 window.onerror —— 未接 onUncaughtError
+ * 时只打 console。这里落盘到与 ErrorBoundary / window.onerror 同一日志。
+ * 被边界接住的错误仍由 ErrorBoundary 上报，不接 onCaughtError，避免重复记录。
+ */
+createRoot(container, {
+  onUncaughtError: (error, errorInfo) => {
+    console.error('[根级渲染错误]', errorInfo.componentStack, error)
+    reportRendererError(error, 'root.onUncaughtError')
+  },
+}).render(<App />)
