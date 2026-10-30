@@ -9585,6 +9585,27 @@ body.col-resizing .col-handle::after{
   color: color-mix(in srgb, var(--purple) 78%, var(--text-primary));
 }
 
+/* 连接列表「名称行图标」：无底色，靠形状本身区分引擎 */
+.engine-glyph{
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  cursor: default;
+}
+.engine-glyph svg{
+  display: block;
+}
+.engine-glyph.engine-redis{
+  color: var(--accent);
+}
+.engine-glyph.engine-memcached{
+  color: color-mix(in srgb, var(--purple) 78%, var(--text-primary));
+}
+
 /* 新建连接弹窗里的引擎选择卡 */
 .engine-pick{
   display: grid;

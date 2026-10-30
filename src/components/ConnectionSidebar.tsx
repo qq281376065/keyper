@@ -16,6 +16,57 @@ export interface ConnectionSidebarProps {
   onViewVersion: (connection: ConnectionItem) => void
 }
 
+/**
+ * 引擎图形：Redis = 层叠盘，Memcached = 内存芯片。
+ * 放在名称行而非地址行，扫列表时不需要把视线下移。
+ */
+function EngineGlyph({ engine }: { engine: ConnectionItem['engine'] }) {
+  if (engine === 'memcached') {
+    return (
+      <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
+        <rect
+          x="2.2"
+          y="3.2"
+          width="11.6"
+          height="9.6"
+          rx="2.2"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.4"
+        />
+        <path
+          d="M5.2 6.4h5.6M5.2 9.6h5.6"
+          stroke="currentColor"
+          strokeWidth="1.3"
+          strokeLinecap="round"
+        />
+      </svg>
+    )
+  }
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M8 2 14 5 8 8 2 5z" fill="currentColor" />
+      <path
+        d="M2 8l6 3 6-3"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M2 11l6 3 6-3"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        opacity=".5"
+      />
+    </svg>
+  )
+}
+
 /** 批量删除入口的显隐门槛：连接数 ≥3 才有批量价值 */
 const BULK_CONN_MIN = 3
 
@@ -296,6 +347,18 @@ export function ConnectionSidebar({
                 <span className="rail" />
                 <div className="conn-body">
                   <div className="conn-line">
+                    {/*
+                      引擎图形放名称行：扫列表时视线不用下移到地址行，
+                      形状（层叠盘 / 内存芯片）比 14px 的字母角标更容易被余光捕捉。
+                    */}
+                    <span
+                      className={`engine-glyph engine-${item.engine}`}
+                      role="img"
+                      aria-label={engineMeta(item.engine).label}
+                      {...tipProps(engineMeta(item.engine).label)}
+                    >
+                      <EngineGlyph engine={item.engine} />
+                    </span>
                     <span className="conn-name ellipsis">{item.name}</span>
                     {/* 置顶标记：不加的话列表顺序变了却看不出谁被置顶 */}
                     {item.pinned ? <DialogIcon name="pin" size={12} className="pin-mark" /> : null}
@@ -308,18 +371,6 @@ export function ConnectionSidebar({
                     ) : null}
                   </div>
                   <div className="conn-line sub">
-                    {/*
-                      引擎角标：Redis 与 Memcached 的卡片长得很像，
-                      而"这条连的是哪个模块"是打开列表第一个要回答的问题。
-                      用字母 R / M 而非整词 —— 236px 宽的卡片里，
-                      整词会把地址挤掉，而地址才是第二重要的信息。
-                    */}
-                    <span
-                      className={`engine-chip engine-${item.engine}`}
-                      {...tipProps(engineMeta(item.engine).label)}
-                    >
-                      {engineMeta(item.engine).short}
-                    </span>
                     <span className="mono ellipsis">
                       {item.host}:{item.port}
                     </span>

@@ -14,7 +14,7 @@ export interface EngineMeta {
   key: CacheConnectionConfig['engine']
   /** 界面上显示的名字 */
   label: string
-  /** 单字母角标（连接列表的圆形徽标） */
+  /** 单字母角标（日志行、Memcached 概览等紧凑位置的圆形徽标） */
   short: string
   /** 默认端口 —— 新建时按引擎自动带出，省一次手动输入 */
   defaultPort: number
