@@ -31,7 +31,15 @@ export default defineConfig(({ command, mode }) => {
       },
     },
     plugins: [
-      react(),
+      react({
+        /*
+         * React Compiler 1.0：构建期自动记忆化。
+         * target 19 表示使用 React 19 自带的 compiler-runtime，无需额外运行时依赖。
+         */
+        babel: {
+          plugins: [['babel-plugin-react-compiler', { target: '19' }]],
+        },
+      }),
       /* Tailwind v4: only for shadcn / Cult UI components under components/ui.
          Existing UI keeps src/styles; preflight is disabled so legacy CSS is untouched. */
       tailwindcss(),
