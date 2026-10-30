@@ -1,6 +1,6 @@
-appId: com.redisdocter.app
-productName: RedisDocter
-copyright: Copyright © 2026 RedisDocter
+appId: com.keyper.app
+productName: Keyper
+copyright: Copyright © 2026 Keyper
 
 directories:
   output: release/${version}
@@ -44,7 +44,7 @@ nsis:
   # true = 静默总是创建。这里关闭默认创建，由 build/installer.nsh 的
   # 「附加选项」勾选页（ShortcutsPageCreate）接管创建与卸载清理。
   createStartMenuShortcut: false
-  shortcutName: RedisDocter
+  shortcutName: Keyper
   deleteAppDataOnUninstall: false
   # 安装器自身在「程序和功能」里显示的图标
   installerIcon: build/icon.ico
@@ -71,5 +71,5 @@ linux:
     - AppImage
     - deb
   category: Development
-  maintainer: RedisDocter
+  maintainer: Keyper
   artifactName: ${productName}-${version}-linux-${arch}.${ext}

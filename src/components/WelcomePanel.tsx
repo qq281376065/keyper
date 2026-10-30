@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api, isElectron } from '@/api'
+import { BrandMark } from '@/components/BrandMark'
 import { DialogIcon } from '@/components/DialogIcon'
 import { PixelHeading } from '@/components/ui/pixel-heading-character'
 import {
@@ -132,7 +133,14 @@ export function WelcomePanel({ onNewConnection, onImportUri, onOpenLog }: Welcom
           多一层包裹会让 logo 只能撑满"那一层"的高度，而不是两行之和。
         */}
         <header className="hero">
-          <span className="logo">R</span>
+          {/*
+            品牌图标是内联 SVG（BrandMark）：渐变取 --brand-from/--brand-to，
+            切皮肤时颜色跟着变；PNG 背景图做不到这一点。
+            外层 span 仍负责尺寸（网格两行 + aspect-ratio），组件只管画。
+          */}
+          <span className="logo">
+            <BrandMark />
+          </span>
           {/*
             主页标题用 Cult UI 的 PixelHeading（Char）。
             五个 Geist 像素字体按黄金比例铺开，hover / focus 时逐字错峰切换。
@@ -153,7 +161,7 @@ export function WelcomePanel({ onNewConnection, onImportUri, onOpenLog }: Welcom
             autoPlay
             className="px-title px-grad-ember welcome-title"
           >
-            RedisDocter
+            Keyper
           </PixelHeading>
           <p className="subtitle">
             Redis 桌面管理工具

@@ -13,7 +13,13 @@ import {
   type Toast,
   type ConnectionItem,
 } from './session'
-import type { ConnectionStatus, RedisConnectionConfig } from '@shared/types'
+import type {
+  CacheConnectionConfig,
+  ConnectionStatus,
+  MemcachedConnectionState,
+  RedisConnectionConfig,
+  RedisConnectionState,
+} from '@shared/types'
 
 export type {
   AppState,
@@ -374,7 +380,7 @@ async function bootstrap(): Promise<void> {
   }
 }
 
-async function connect(config: RedisConnectionConfig): Promise<boolean> {
+async function connect(config: CacheConnectionConfig): Promise<boolean> {
   const index = globalState.connections.findIndex((item) => item.id === config.id)
 
   /*
@@ -407,19 +413,37 @@ async function connect(config: RedisConnectionConfig): Promise<boolean> {
     const res = await api.connection.connect(config)
     if (!res.ok) throw new Error(res.error)
 
-    // 返回值不含 password/ssh/sshEnabled，这里全部补回配置里的原值。
-    // 曾只补 password：连接一次后 state.connections 里的这条就丢了
-    // ssh/sshEnabled → 打开编辑对话框 SSH 表单全空（用户以为没保存上）→
-    // 原样再保存一次，磁盘上的 SSH 配置就被抹成 undefined 了。
-    // pinned 是同族第 4 例：主进程 identity 挑字段构造返回值，pinned 不在其中，
-    // 不补回的话「连接成功」就把置顶悄悄取消（图钉消失、排序回落）。
-    const next: ConnectionItem = {
-      ...res.data,
-      password: config.password,
-      ssh: config.ssh,
-      sshEnabled: config.sshEnabled,
-      pinned: config.pinned,
-    }
+    /*
+     * 返回值不含凭据与部分配置字段，这里按引擎把配置里的原值补回。
+     *
+     * 曾只补 password：连接一次后 state.connections 里的这条就丢了
+     * ssh/sshEnabled → 打开编辑对话框 SSH 表单全空（用户以为没保存上）→
+     * 原样再保存一次，磁盘上的 SSH 配置就被抹成 undefined 了。
+     * pinned 是同族第 4 例：主进程 identity 挑字段构造返回值，pinned 不在其中，
+     * 不补回的话「连接成功」就把置顶悄悄取消（图钉消失、排序回落）。
+     *
+     * ⚠️ 必须按引擎分支补字段：db/password/tls 只有 Redis 有，
+     * 一旦 Memcached 条目被打上 db/password，数据就被污染，界面上还会冒出"db0"。
+     * ssh/sshEnabled 则是两种引擎共用的隧道配置，两边都要补回。
+     */
+    const next: ConnectionItem =
+      config.engine === 'memcached'
+        ? {
+            ...(res.data as MemcachedConnectionState),
+            engine: 'memcached',
+            poolSize: config.poolSize,
+            ssh: config.ssh,
+            sshEnabled: config.sshEnabled,
+            ...(config.pinned !== undefined ? { pinned: config.pinned } : {}),
+          }
+        : {
+            ...(res.data as RedisConnectionState),
+            engine: 'redis',
+            password: config.password,
+            ssh: config.ssh,
+            sshEnabled: config.sshEnabled,
+            ...(config.pinned !== undefined ? { pinned: config.pinned } : {}),
+          }
     if (index >= 0) globalState.connections[index] = next
     else globalState.connections.push(next)
 
@@ -435,7 +459,10 @@ async function connect(config: RedisConnectionConfig): Promise<boolean> {
      * 标签虽在，数据必须按新连接重新拉一遍。
      */
     activateOrOpenTab(next.id, { refresh: true })
-    notify('ok', `已连接 ${next.name} · Redis ${next.version ?? '-'}`)
+    notify(
+      'ok',
+      `已连接 ${next.name} · ${next.engine === 'memcached' ? 'Memcached' : 'Redis'} ${next.version ?? '-'}`,
+    )
     return true
   } catch (error) {
     if (index >= 0) {
@@ -505,7 +532,7 @@ function selectConnection(id: string): void {
 }
 
 /** 新增或更新一条连接配置，成功返回 true */
-async function saveConnection(config: RedisConnectionConfig): Promise<boolean> {
+async function saveConnection(config: CacheConnectionConfig): Promise<boolean> {
   try {
     const res = await api.connection.save(config)
     if (!res.ok) throw new Error(res.error)
@@ -583,21 +610,41 @@ async function removeConnections(ids: string[]): Promise<void> {
 
 /** 以现有连接为模板克隆一份（保留密码），便于快速改配置连另一套环境 */
 async function cloneConnection(source: ConnectionItem): Promise<void> {
-  const cloned: RedisConnectionConfig = {
+  const base = {
     id: `conn-${Date.now().toString(36)}`,
     name: `${source.name} - 副本`,
     host: source.host,
     port: source.port,
-    username: source.username,
-    password: source.password,
-    db: source.db,
-    tls: source.tls,
-    // 克隆必须完整：SSH 配置同样带过去。曾逐字段手写漏掉 ssh/sshEnabled，
-    // 克隆出的连接走不了隧道，用户还得手动重填整套跳板机信息。
-    // 深拷贝一层：ssh 是对象，直接引用会让两份配置共享同一实例。
-    ssh: source.ssh ? { ...source.ssh } : undefined,
-    sshEnabled: source.sshEnabled,
   }
+
+  /*
+   * 克隆必须按引擎挑字段。
+   * 早先逐字段手写漏掉 ssh/sshEnabled，克隆出的连接走不了隧道；
+   * 这里反过来做：每个引擎显式列出它该带的字段，避免
+   * "给 Memcached 克隆出一份带 db0 的配置"这种跨引擎污染。
+   */
+  const cloned: CacheConnectionConfig =
+    source.engine === 'memcached'
+      ? {
+          ...base,
+          engine: 'memcached',
+          poolSize: source.poolSize,
+          // 深拷贝一层：ssh 是对象，直接引用会让两份配置共享同一实例
+          ssh: source.ssh ? { ...source.ssh } : undefined,
+          sshEnabled: source.sshEnabled,
+        }
+      : {
+          ...base,
+          engine: 'redis',
+          username: source.username,
+          password: source.password,
+          db: source.db,
+          tls: source.tls,
+          // 深拷贝一层：ssh 是对象，直接引用会让两份配置共享同一实例
+          ssh: source.ssh ? { ...source.ssh } : undefined,
+          sshEnabled: source.sshEnabled,
+        }
+
   if (await saveConnection(cloned)) notify('ok', `已克隆为「${cloned.name}」`)
 }
 

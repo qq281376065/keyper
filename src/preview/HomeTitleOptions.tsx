@@ -78,7 +78,7 @@ export function HomeTitleOptions() {
                 staggerDelay={stagger}
                 className="px-title px-grad-ember text-[56px] leading-[1.14] font-medium tracking-[-0.012em]"
               >
-                RedisDocter
+                Keyper
               </PixelHeading>
               <p className="mt-1.5 text-[12.5px] text-muted-foreground">
                 Redis desktop client

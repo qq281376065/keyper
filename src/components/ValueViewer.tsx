@@ -9,8 +9,10 @@ import { EditHashFieldTtlDialog } from '@/components/EditHashFieldTtlDialog'
 import { EditListElementDialog } from '@/components/EditListElementDialog'
 import { EditValueDialog } from '@/components/EditValueDialog'
 import { EditZsetMemberDialog } from '@/components/EditZsetMemberDialog'
+import { FilterBox } from '@/components/FilterBox'
 import { PromptDialog } from '@/components/PromptDialog'
 import { ServerOverview } from '@/components/ServerOverview'
+import { MemcachedOverview } from '@/components/MemcachedOverview'
 import { SortIcon } from '@/components/SortIcon'
 import { StreamAddEntryDialog } from '@/components/StreamAddEntryDialog'
 import { ValueActions } from '@/components/ValueActions'
@@ -83,6 +85,24 @@ const ICON_EYE = (
 )
 
 /**
+ * 书签名渲染：中间省略（保留头尾），省略号单独包一层。
+ * Redis 键的唯一性通常落在尾部（租户 / endpoint / 版本号），只截尾部会切掉
+ * 区分度最高的那一段；截断标记单独用三个点并着色，一眼能看出名字没显示全。
+ */
+function tabLabel(text: string, head = 12, tail = 8): React.ReactNode {
+  if (text.length <= head + tail + 1) return text
+  return (
+    <>
+      {text.slice(0, head)}
+      <span className="vt-ell" aria-label="名称已截断">
+        ...
+      </span>
+      {text.slice(-tail)}
+    </>
+  )
+}
+
+/**
  * 值查看/编辑区（右侧主面板）。
  *
  * 结构：
@@ -95,7 +115,7 @@ const ICON_EYE = (
  * - 浮层菜单用 createPortal 挂到 body（与 Vue 的 Teleport 等价）。
  */
 export function ValueViewer() {
-  const { state, activeConnection, renameKey, setTtl, notify, refreshSelected } = useRedis()
+  const { state, activeConnection, renameKey, setTtl, notify, refreshSelected, selectKey, markSelected } = useRedis()
   /* 订阅：本标签的会话（或全局）任一写入都重渲染 —— 与 Vue 的响应式粒度一致 */
   useObservable(useSessionStore())
 
@@ -138,6 +158,295 @@ export function ValueViewer() {
   /** 表格容器的实际可用宽度，用于约束拖拽上限 */
   const [tableWidth, setTableWidth] = useState(0)
   const tableRef = useRef<HTMLDivElement | null>(null)
+
+  /* ---------------- 底部键书签（方案 05） ----------------
+   * 每个连接各自一套书签：切走时把集合存进 tabStoreRef，切回时恢复。
+   * 不同连接的键绝不混排 —— 连接之间互不污染。
+   */
+  const [openTabs, setOpenTabs] = useState<string[]>([])
+  const [activeTab, setActiveTab] = useState<'detail' | string>('detail')
+  const [tabMenuOpen, setTabMenuOpen] = useState(false)
+  const [tabQuery, setTabQuery] = useState('')
+  const [tabArrows, setTabArrows] = useState({ left: false, right: false })
+  const [tabHover, setTabHover] = useState<{
+    key: string
+    left: number
+    top: number
+    side: 'above' | 'below'
+    caret: number
+  } | null>(null)
+
+  const tabStripRef = useRef<HTMLDivElement | null>(null)
+  const tabMenuInputRef = useRef<HTMLInputElement | null>(null)
+  const tabHoverTimer = useRef<number | null>(null)
+  const tabConnRef = useRef<string | null>(state.activeId)
+  const tabDbRef = useRef(state.activeDb)
+  /** 渲染期快照：连接切换的 effect 里要读上一刻的集合 */
+  const tabStateRef = useRef({ open: openTabs, active: activeTab })
+  tabStateRef.current = { open: openTabs, active: activeTab }
+  const tabStoreRef = useRef<Record<string, { open: string[]; active: string }>>({})
+
+  /** 连接切换：保存旧连接的书签，恢复新连接的；没有记录则从选中键起步 */
+  useEffect(() => {
+    const prevId = tabConnRef.current
+    const nextId = state.activeId
+    if (prevId === nextId) return
+    if (prevId) tabStoreRef.current[prevId] = { ...tabStateRef.current }
+    tabConnRef.current = nextId
+    setTabMenuOpen(false)
+    setTabQuery('')
+    cancelTabHover()
+    if (!nextId) {
+      setOpenTabs([])
+      setActiveTab('detail')
+      return
+    }
+    const saved = tabStoreRef.current[nextId]
+    const nextOpen = saved ? saved.open : state.selectedKey ? [state.selectedKey] : []
+    const nextActive = saved ? saved.active : state.selectedKey ?? 'detail'
+    setOpenTabs(nextOpen)
+    setActiveTab(nextActive)
+    // 恢复到的键不是当前会话选中项时补一次读取（不同连接各自恢复自己的键）
+    if (nextActive !== 'detail' && nextActive !== state.selectedKey) void selectKey(nextActive)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.activeId])
+
+  /** 切库：同一连接内键集合已变，旧书签作废 */
+  useEffect(() => {
+    if (tabDbRef.current === state.activeDb) return
+    tabDbRef.current = state.activeDb
+    setOpenTabs([])
+    setActiveTab('detail')
+    setTabMenuOpen(false)
+    const id = state.activeId
+    if (id) tabStoreRef.current[id] = { open: [], active: 'detail' }
+  }, [state.activeDb, state.activeId])
+
+  /** 外部选键（键列表 / 搜索 / 新建）：打开并激活对应书签 */
+  useEffect(() => {
+    const key = state.selectedKey
+    if (!key) {
+      setActiveTab('detail')
+      return
+    }
+    setOpenTabs((prev) => (prev.includes(key) ? prev : [...prev, key]))
+    setActiveTab(key)
+  }, [state.selectedKey])
+
+  /*
+   * 详情页时再次点同一个键：selectedKey 没变，靠 loadingValue 转 true 判断。
+   * 静默刷新走 refreshingValue，不会把用户从详情页拽回去。
+   */
+  useEffect(() => {
+    if (!state.loadingValue || !state.selectedKey) return
+    const key = state.selectedKey
+    setOpenTabs((prev) => (prev.includes(key) ? prev : [...prev, key]))
+    setActiveTab(key)
+  }, [state.loadingValue, state.selectedKey])
+
+  /** 把当前书签集合写回所属连接，供切走再切回时恢复 */
+  useEffect(() => {
+    const id = tabConnRef.current
+    if (id) tabStoreRef.current[id] = { open: openTabs, active: activeTab }
+  }, [openTabs, activeTab])
+
+  useEffect(() => {
+    if (tabMenuOpen) tabMenuInputRef.current?.focus()
+  }, [tabMenuOpen])
+
+  useEffect(() => {
+    if (!tabMenuOpen) return
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        setTabMenuOpen(false)
+        setTabQuery('')
+        cancelTabHover()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [tabMenuOpen])
+
+  useEffect(
+    () => () => {
+      if (tabHoverTimer.current) window.clearTimeout(tabHoverTimer.current)
+    },
+    [],
+  )
+
+  /** 页面滚动 / 窗口变化时收起悬停卡，避免卡片悬在旧位置 */
+  useEffect(() => {
+    const cancel = (): void => cancelTabHover()
+    window.addEventListener('scroll', cancel, true)
+    window.addEventListener('resize', cancel)
+    return () => {
+      window.removeEventListener('scroll', cancel, true)
+      window.removeEventListener('resize', cancel)
+    }
+  }, [])
+
+  /** 滚轮 → 横向滚动 + 容器尺寸变化时刷新箭头可用态 */
+  useEffect(() => {
+    const strip = tabStripRef.current
+    if (!strip) return
+    const onWheel = (event: WheelEvent): void => {
+      if (Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return
+      event.preventDefault()
+      strip.scrollLeft += event.deltaY
+    }
+    strip.addEventListener('wheel', onWheel, { passive: false })
+    const observer = new ResizeObserver(() => syncTabArrows())
+    observer.observe(strip)
+    syncTabArrows()
+    return () => {
+      strip.removeEventListener('wheel', onWheel)
+      observer.disconnect()
+    }
+  }, [activeConnection, openTabs.length])
+
+  /** 激活标签滚进可视区：只动横向，不带动整页滚动 */
+  useEffect(() => {
+    const strip = tabStripRef.current
+    if (!strip) return
+    syncTabArrows()
+    if (activeTab === 'detail') return
+    const target = Array.from(strip.children).find(
+      (child) => (child as HTMLElement).dataset.vtab === activeTab,
+    ) as HTMLElement | undefined
+    if (!target) return
+    /*
+     * 用视口坐标换算滚动位置：offsetLeft 的参照物是最近的定位祖先
+     * （.viewer-tabs，包含「详情」和箭头），直接拿来滚会多滚一截，
+     * 把标签开头切掉。
+     */
+    const rect = target.getBoundingClientRect()
+    const stripRect = strip.getBoundingClientRect()
+    const left = rect.left - stripRect.left + strip.scrollLeft
+    const right = left + rect.width
+    if (left < strip.scrollLeft) {
+      strip.scrollTo({ left: left - 2, behavior: 'smooth' })
+    } else if (right > strip.scrollLeft + strip.clientWidth) {
+      strip.scrollTo({ left: right - strip.clientWidth + 2, behavior: 'smooth' })
+    }
+  }, [activeTab, openTabs])
+
+  function syncTabArrows(): void {
+    const strip = tabStripRef.current
+    if (!strip) {
+      setTabArrows({ left: false, right: false })
+      return
+    }
+    const left = strip.scrollLeft > 1
+    const right = strip.scrollLeft + strip.clientWidth < strip.scrollWidth - 1
+    setTabArrows((prev) => (prev.left === left && prev.right === right ? prev : { left, right }))
+  }
+
+  function scrollTabs(direction: -1 | 1): void {
+    const strip = tabStripRef.current
+    if (!strip) return
+    strip.scrollBy({ left: direction * Math.max(88, strip.clientWidth * 0.72), behavior: 'smooth' })
+  }
+
+  /** 书签的元信息（类型 / TTL / 内存）：取自键列表，缺省回退当前值 */
+  function tabMeta(key: string): { key: string; type: KeyValue['type']; ttl: number; size?: number } | null {
+    const current = state.selectedValue?.key === key ? state.selectedValue : null
+    const item = state.keys.find((entry) => entry.key === key)
+    if (item) {
+      /* 扫描结果通常不带 size，已打开的那个键可以用值里的真实占用补上 */
+      if (item.size == null && current?.size != null) {
+        return { key, type: item.type, ttl: item.ttl, size: current.size }
+      }
+      return item
+    }
+    if (current) return { key, type: current.type, ttl: current.ttl, size: current.size }
+    return null
+  }
+
+  function activateTab(key: string): void {
+    cancelTabHover()
+    setTabMenuOpen(false)
+    setTabQuery('')
+    setActiveTab(key)
+    if (state.selectedKey !== key) void selectKey(key)
+  }
+
+  function showDetailTab(): void {
+    cancelTabHover()
+    setTabMenuOpen(false)
+    setTabQuery('')
+    setActiveTab('detail')
+  }
+
+  /** 关闭书签：关的是当前项就切到邻近项，全关则回详情 */
+  function closeTab(key: string): void {
+    cancelTabHover()
+    const index = openTabs.indexOf(key)
+    const next = openTabs[index + 1] ?? openTabs[index - 1] ?? null
+    const rest = openTabs.filter((item) => item !== key)
+    setOpenTabs(rest)
+    if (!rest.length) {
+      setTabMenuOpen(false)
+      setTabQuery('')
+    }
+    if (activeTab !== key) return
+    if (next && rest.includes(next)) {
+      setActiveTab(next)
+      void selectKey(next)
+    } else {
+      setActiveTab('detail')
+      markSelected(null)
+    }
+  }
+
+  /** 更多菜单的批量关闭：详情页时视为“没有当前键”，关闭全部 */
+  function runTabBulk(action: 'others' | 'right' | 'all'): void {
+    cancelTabHover()
+    setTabMenuOpen(false)
+    setTabQuery('')
+    const index = activeTab === 'detail' ? -1 : openTabs.indexOf(activeTab)
+    if (action === 'all' || index < 0) {
+      setOpenTabs([])
+      setActiveTab('detail')
+      markSelected(null)
+      return
+    }
+    if (action === 'others') {
+      setOpenTabs([activeTab])
+      return
+    }
+    setOpenTabs(openTabs.slice(0, index + 1))
+  }
+
+  function cancelTabHover(): void {
+    if (tabHoverTimer.current) {
+      window.clearTimeout(tabHoverTimer.current)
+      tabHoverTimer.current = null
+    }
+    setTabHover(null)
+  }
+
+  /** 悬停 90ms 后展示统计卡：带卡片尺寸的视口内钳制 */
+  function queueTabHover(key: string, el: HTMLElement): void {
+    cancelTabHover()
+    if (tabMenuOpen) return
+    tabHoverTimer.current = window.setTimeout(() => {
+      const rect = el.getBoundingClientRect()
+      if (!rect.width) return
+      const width = 268
+      const left = Math.min(
+        Math.max(8, rect.left + rect.width / 2 - width / 2),
+        window.innerWidth - width - 8,
+      )
+      const side: 'above' | 'below' = rect.top > 180 ? 'above' : 'below'
+      setTabHover({
+        key,
+        left,
+        top: side === 'above' ? rect.top - 8 : rect.bottom + 8,
+        side,
+        caret: Math.min(Math.max(14, rect.left + rect.width / 2 - left), width - 14),
+      })
+    }, 90)
+  }
 
   /*
    * 拖拽上下文：记录起始位置与起始宽度。
@@ -456,7 +765,13 @@ export function ValueViewer() {
     setRenameVisible(false)
     const target = next.trim()
     if (!target || target === value?.key) return
-    await renameKey(value!.key, target)
+    const from = value!.key
+    await renameKey(from, target)
+    // 重命名不新增书签：原地改名（选中键的 effect 也会补一次，去重即可）
+    setOpenTabs((prev) => {
+      const renamed = prev.map((key) => (key === from ? target : key))
+      return Array.from(new Set(renamed))
+    })
   }
 
   async function handleTtl(next: string): Promise<void> {
@@ -469,6 +784,22 @@ export function ValueViewer() {
     await setTtl(value!.key, seconds)
   }
 
+  /*
+   * 书签渲染取当前连接的数据。
+   * 连接刚切换、effect 尚未跑完的这一帧里 tabConnRef 还是旧 id ——
+   * 此时宁可先不显示标签，也绝不把上一个连接的键画到新连接上。
+   */
+  const tabsReady = tabConnRef.current === state.activeId
+  const shownTabs = tabsReady ? openTabs : []
+  const shownActive = tabsReady ? activeTab : 'detail'
+  const tabKeyword = tabQuery.trim().toLowerCase()
+  const visibleTabs = tabKeyword
+    ? openTabs.filter((key) => key.toLowerCase().includes(tabKeyword))
+    : openTabs
+  const overviewActive = !!activeConnection && (shownActive === 'detail' || (!loading && !value))
+  const hoverMeta = tabHover ? tabMeta(tabHover.key) : null
+  const hoverValue = tabHover && state.selectedValue?.key === tabHover.key ? state.selectedValue : null
+
   return (
     <section className="viewer s-value-viewer">
       {/*
@@ -476,9 +807,18 @@ export function ValueViewer() {
         除了 store 在断开时会清理 bulkTask，这里再加一道渲染层的保险 ——
         面板里的「执行 / 取消」都依赖 activeId，无连接时露出来就是个死界面。
       */}
-      {state.bulkTask && state.activeId ? <BulkOpsPanel /> : loading ? (
-        <SkeletonValue />
-      ) : value ? (
+      {state.bulkTask && state.activeId ? <BulkOpsPanel /> : (
+        <>
+          {overviewActive ? (
+            /* 未选中键 / 「详情」标签：服务端概览。按引擎分流，与原分支一致 */
+            activeConnection!.engine === 'memcached' ? (
+              <MemcachedOverview />
+            ) : (
+              <ServerOverview />
+            )
+          ) : loading ? (
+            <SkeletonValue />
+          ) : value ? (
         <>
           {/*
             值区头部 —— 票根 + 水印（design/key-header-avant.html 方案 05）
@@ -1327,163 +1667,285 @@ export function ValueViewer() {
             ) : null}
           </div>
 
-          <footer className="viewer-foot">
-            <span className="mono">{value.type}</span>
-
-            {value.type === 'string' ? (
-              <>
-                <span className="sep">·</span>
-                <span className="mono stat-item">字符 {stringEditor.stringStats.chars}</span>
-                <span className="sep">·</span>
-                <span className="mono stat-item">{stringEditor.stringStats.lines} 行</span>
-                <span className="sep">·</span>
-                <span className="mono stat-item" {...tipProps('原始值的字节大小（同 Redis STRLEN 语义）')}>
-                  {formatBytes(stringEditor.stringStats.bytes)}
-                </span>
-                <span className="sep">·</span>
-                <span className="mono stat-item" {...tipProps('当前显示文本中最长的一行（含行号）')}>
-                  最长行 <b>{stringEditor.stringStats.longest}</b>
-                </span>
-                {stringEditor.stringView.jsonOk ? (
-                  <span className="stat-item version-note" {...tipProps('内容为合法 JSON，可用操作栏「JSON 美化」缩进重排')}>
-                    JSON 格式
-                  </span>
-                ) : null}
-              </>
-            ) : value.type === 'hash' ? (
-              <>
-                <span className="sep">·</span>
-                <span className="mono stat-item">字段 {hashEditor.hashStats.total}</span>
-                {keyword ? <span className="mono stat-item filtered">匹配 {hashEditor.hashView.rows.length}</span> : null}
-                <span className="sep">·</span>
-                <span className="mono stat-item">{formatBytes(hashEditor.hashStats.bytes)}</span>
-                <span className="sep">·</span>
-                <span className="mono stat-item">
-                  最大字段 <b>{hashEditor.hashStats.largest}</b>
-                </span>
-                {sortKey ? (
-                  <span className="mono stat-item">
-                    排序：{sortKey === 'field' ? 'field' : 'value'} {sortAsc ? '升序' : '降序'}
-                  </span>
-                ) : null}
-                {!capabilities.hashFieldTtl ? (
-                  <span className="stat-item version-note">
-                    字段级 TTL 需 Redis 7.4+（当前 {capabilities.version?.raw ?? '版本未知'}）
-                  </span>
-                ) : null}
-                {hashEditor.selectedField ? (
-                  <span className="mono stat-item selected-note">
-                    已选中 <b>{hashEditor.selectedField}</b>
-                  </span>
-                ) : null}
-              </>
-            ) : value.type === 'list' ? (
-              <>
-                <span className="sep">·</span>
-                <span className="mono stat-item">元素 {listStats.total}</span>
-                {keyword ? <span className="mono stat-item filtered">匹配 {lineView.rows.length}</span> : null}
-                <span className="sep">·</span>
-                <span className="mono stat-item">{formatBytes(listStats.bytes)}</span>
-                <span className="sep">·</span>
-                <span className="mono stat-item">
-                  最长 <b>{listStats.largest}</b>
-                </span>
-                {sortKey === 'value' ? (
-                  <span className="mono stat-item">排序：value {sortAsc ? '升序' : '降序'}</span>
-                ) : null}
-                {selectedListIndex !== null ? (
-                  <span className="mono stat-item selected-note">
-                    已选中 <b>#{selectedListIndex + 1}</b>
-                  </span>
-                ) : null}
-              </>
-            ) : value.type === 'set' ? (
-              <>
-                <span className="sep">·</span>
-                <span className="mono stat-item">成员 {setEditor.setStats.total}</span>
-                {keyword ? <span className="mono stat-item filtered">匹配 {lineView.rows.length}</span> : null}
-                <span className="sep">·</span>
-                <span className="mono stat-item">{formatBytes(setEditor.setStats.bytes)}</span>
-                <span className="sep">·</span>
-                <span className="mono stat-item">
-                  最长 <b>{setEditor.setStats.longest}</b>
-                </span>
-                <span className="stat-item version-note">无序集合，序号仅作计数</span>
-              </>
-            ) : value.type === 'zset' ? (
-              <>
-                <span className="sep">·</span>
-                <span className="mono stat-item">成员 {zsetEditor.zsetStats.total}</span>
-                {keyword ? <span className="mono stat-item filtered">匹配 {lineView.rows.length}</span> : null}
-                <span className="sep">·</span>
-                <span className="mono stat-item">{formatBytes(zsetEditor.zsetStats.bytes)}</span>
-                <span className="sep">·</span>
-                <span className="mono stat-item">
-                  score <b>{zsetEditor.zsetStats.min}</b> ~ <b>{zsetEditor.zsetStats.max}</b>
-                </span>
-                <span className="mono stat-item">
-                  排序：
-                  {sortKey === 'member'
-                    ? `member ${sortAsc ? '升序' : '降序'}`
-                    : `score ${sortKey === 'value' && sortAsc ? '升序' : '降序'}`}
-                </span>
-              </>
-            ) : (
-              <>
-                <span className="sep">·</span>
-                <span className="mono stat-item">entry {streamEditor.streamStats.total}</span>
-                {keyword ? <span className="mono stat-item filtered">匹配 {streamEditor.streamStats.matched}</span> : null}
-                <span className="sep">·</span>
-                <span className="mono stat-item">{formatBytes(streamEditor.streamStats.bytes)}</span>
-                {streamEditor.streamStats.firstId ? (
-                  <>
-                    <span className="sep">·</span>
-                    <span
-                      className="mono stat-item"
-                      {...tipProps(`首个 ${streamEditor.streamStats.firstId}，末个 ${streamEditor.streamStats.lastId}`)}
-                    >
-                      ID <b>{streamEditor.shortEntryId(streamEditor.streamStats.firstId)}</b> ~{' '}
-                      <b>{streamEditor.shortEntryId(streamEditor.streamStats.lastId)}</b>
-                    </span>
-                  </>
-                ) : null}
-                {sortKey === 'member' ? (
-                  <span className="mono stat-item">排序：entry ID {sortAsc ? '升序' : '降序'}</span>
-                ) : null}
-              </>
-            )}
-
-            <span className="spacer" />
-            {searchable ? (
-              <span className="mono">
-                {matchedCount} / {totalCount} 项
-              </span>
-            ) : value.type === 'string' && keyword ? (
-              <span className="mono stat-item filtered">
-                匹配 {stringEditor.stringFilteredLines.length} / {stringEditor.stringStats.lines} 行
-              </span>
-            ) : value.type === 'string' ? (
-              <span className="mono">STRLEN {value.length ?? 0} 字节</span>
-            ) : (
-              <span className="mono">{value.length ?? 0} 字符</span>
-            )}
-          </footer>
         </>
-      ) : activeConnection ? (
-        /*
-          未选中键时展示服务端概览：连接成功后这块区域最容易"空着"，
-          给出身份与负载信息比一句占位文案更有用。
-        */
-        <ServerOverview />
       ) : (
         <div className="blank">
           <div className="blank-inner">
-            <span className="blank-badge">RedisDocter</span>
+            <span className="blank-badge">Keyper</span>
             <p>从中间列表选择一个键，查看其内容</p>
             <p className="blank-hint">支持 string / hash / list / set / zset / stream 六种类型的浏览</p>
           </div>
         </div>
       )}
+
+      {/* ---------------- 底部键书签（方案 05）：固定详情 + 横向书签 + 更多 ---------------- */}
+      {activeConnection ? (
+        <div className="viewer-tabs" role="tablist" aria-label="已打开的键">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={shownActive === 'detail'}
+            className={`vt-home${shownActive === 'detail' ? ' active' : ''}`}
+            onClick={showDetailTab}
+            {...tipProps('当前连接详情')}
+          >
+            <DialogIcon name="home" size={13} />
+            <span>详情</span>
+          </button>
+
+          <button
+            type="button"
+            className="vt-arrow"
+            disabled={!tabArrows.left}
+            onClick={() => scrollTabs(-1)}
+            aria-label="向左滚动"
+            title="向左滚动"
+          >
+            ‹
+          </button>
+
+          <div
+            className="vt-strip"
+            ref={tabStripRef}
+            onScroll={syncTabArrows}
+            onMouseLeave={cancelTabHover}
+          >
+            {shownTabs.length === 0 ? (
+              <span className="vt-empty">还没有打开键 · 从左侧选择</span>
+            ) : (
+              shownTabs.map((key) => {
+                const meta = tabMeta(key)
+                const isActive = shownActive === key
+                return (
+                  <div
+                    key={key}
+                    role="tab"
+                    aria-selected={isActive}
+                    tabIndex={0}
+                    data-vtab={key}
+                    className={`vt-tab${isActive ? ' active' : ''}`}
+                    /* 类型色只在激活顶线与圆点上体现，不给整块标签上色 */
+                    style={
+                      meta
+                        ? ({ '--vt-tc': `var(--badge-${meta.type}-fg)` } as React.CSSProperties)
+                        : undefined
+                    }
+                    onMouseEnter={(event) => queueTabHover(key, event.currentTarget)}
+                    onClick={() => activateTab(key)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        activateTab(key)
+                      }
+                    }}
+                    onAuxClick={(event) => {
+                      if (event.button === 1) {
+                        event.preventDefault()
+                        closeTab(key)
+                      }
+                    }}
+                  >
+                    <span className={`vt-dot${meta ? '' : ' unknown'}`} />
+                    <span className="vt-name" title={key}>
+                      {tabLabel(key)}
+                    </span>
+                    <button
+                      type="button"
+                      className="vt-x"
+                      title="关闭"
+                      aria-label={`关闭 ${key}`}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        closeTab(key)
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                )
+              })
+            )}
+          </div>
+
+          <button
+            type="button"
+            className="vt-arrow"
+            disabled={!tabArrows.right}
+            onClick={() => scrollTabs(1)}
+            aria-label="向右滚动"
+            title="向右滚动"
+          >
+            ›
+          </button>
+
+          <button
+            type="button"
+            className={`vt-more${tabMenuOpen ? ' on' : ''}`}
+            disabled={!shownTabs.length}
+            onClick={() => {
+              cancelTabHover()
+              setTabMenuOpen((prev) => !prev)
+              setTabQuery('')
+            }}
+            {...tipProps('更多操作')}
+          >
+            ⋯
+          </button>
+
+          {tabMenuOpen && shownTabs.length ? (
+            <>
+              <div
+                className="popover-mask"
+                onClick={() => {
+                  setTabMenuOpen(false)
+                  setTabQuery('')
+                }}
+              />
+              <div className="vt-menu" role="menu">
+                <div className="vt-menu-hd">
+                  <b className="mono">
+                    {tabKeyword ? `${visibleTabs.length} / ${shownTabs.length}` : shownTabs.length}
+                  </b>
+                  <span>个已打开的键</span>
+                  <button
+                    type="button"
+                    className="vt-menu-x"
+                    title="关闭 (Esc)"
+                    aria-label="关闭"
+                    onClick={() => {
+                      setTabMenuOpen(false)
+                      setTabQuery('')
+                    }}
+                  >
+                    {/* 内联叉号：DialogIcon 的 close 是「退出」图标，语义不对 */}
+                    <svg viewBox="0 0 24 24" width={11} height={11} aria-hidden="true">
+                      <path
+                        d="m6 6 12 12M18 6 6 18"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2.2}
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  </button>
+                </div>
+
+                <label className="vt-menu-search">
+                  <DialogIcon name="search" size={12} />
+                  <input
+                    ref={tabMenuInputRef}
+                    className="mono"
+                    value={tabQuery}
+                    spellCheck={false}
+                    placeholder="搜索已打开的键"
+                    aria-label="搜索已打开的键"
+                    onChange={(event) => setTabQuery(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault()
+                        const first = visibleTabs[0]
+                        if (first) activateTab(first)
+                      } else if (event.key === 'ArrowDown') {
+                        event.preventDefault()
+                        const firstItem = document.querySelector<HTMLElement>('.vt-menu .vt-mi')
+                        firstItem?.focus()
+                      }
+                    }}
+                  />
+                </label>
+
+                <div className="vt-menu-list">
+                  {visibleTabs.length ? (
+                    visibleTabs.map((key) => {
+                      const meta = tabMeta(key)
+                      return (
+                        <div
+                          key={key}
+                          role="menuitem"
+                          tabIndex={0}
+                          className={`vt-mi${shownActive === key ? ' active' : ''}`}
+                          onMouseEnter={cancelTabHover}
+                          onClick={() => activateTab(key)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault()
+                              activateTab(key)
+                            } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                              event.preventDefault()
+                              const items = Array.from(
+                                document.querySelectorAll<HTMLElement>('.vt-menu .vt-mi'),
+                              )
+                              const current = items.indexOf(event.currentTarget)
+                              const next = items[current + (event.key === 'ArrowDown' ? 1 : -1)]
+                              if (next) next.focus()
+                              else if (event.key === 'ArrowUp') tabMenuInputRef.current?.focus()
+                            }
+                          }}
+                        >
+                          <span className={`vt-t${meta ? ` type-${meta.type}` : ''}`}>
+                            {meta ? meta.type.charAt(0).toUpperCase() : '?'}
+                          </span>
+                          <span className="vt-mi-k mono" title={key}>
+                            {tabLabel(key, 20, 10)}
+                          </span>
+                          <button
+                            type="button"
+                            className="vt-mi-x"
+                            title="关闭"
+                            aria-label={`关闭 ${key}`}
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              closeTab(key)
+                            }}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      )
+                    })
+                  ) : (
+                    <div className="vt-menu-empty">没有匹配的键</div>
+                  )}
+                </div>
+
+                <div className="vt-menu-acts">
+                  <button
+                    type="button"
+                    className="vt-act"
+                    disabled={openTabs.length < 2}
+                    onClick={() => runTabBulk('others')}
+                  >
+                    <DialogIcon name="clone" size={11} />
+                    <span>关闭其他</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="vt-act"
+                    disabled={
+                      shownActive === 'detail' ||
+                      openTabs.indexOf(shownActive) >= openTabs.length - 1
+                    }
+                    onClick={() => runTabBulk('right')}
+                  >
+                    <DialogIcon name="expand" size={11} />
+                    <span>关闭右侧</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="vt-act danger"
+                    onClick={() => runTabBulk('all')}
+                  >
+                    <DialogIcon name="trash" size={11} />
+                    <span>全部关闭</span>
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : null}
+        </div>
+      ) : null}
+    </>
+  )}
       {/* ---------------- 行右键菜单（Teleport 到 body，五套按类型共用 RowMenuMask） ---------------- */}
       {hashEditor.rowMenu ? (
         <RowMenuMask onClose={hashEditor.closeRowMenu}>
@@ -1659,6 +2121,65 @@ export function ValueViewer() {
           </div>
         </RowMenuMask>
       ) : null}
+
+      {/*
+        书签悬停统计卡：挂到 body，避免被 .value-area 的 overflow 裁掉。
+        只读展示，pointer-events: none —— 卡片本身不接事件，鼠标离开标签即消失。
+      */}
+      {tabHover && hoverMeta
+        ? createPortal(
+            <div
+              className="vt-pop"
+              data-side={tabHover.side}
+              role="tooltip"
+              style={{
+                left: `${tabHover.left}px`,
+                top: `${tabHover.top}px`,
+                ['--vt-caret' as string]: `${tabHover.caret}px`,
+              }}
+            >
+              <div className="vp-k">
+                <span className={`vt-t type-${hoverMeta.type}`}>
+                  {hoverMeta.type.charAt(0).toUpperCase()}
+                </span>
+                <span className="vp-name mono">{tabHover.key}</span>
+                <span className="vp-type">{hoverMeta.type}</span>
+              </div>
+
+              <div className="vp-row">
+                <i>TTL</i>
+                <b className={`mono ${ttlTone(hoverMeta.ttl)}`}>
+                  {formatTtl(hoverMeta.ttl)}
+                  {ttlTone(hoverMeta.ttl) === 'urgent' ? <span className="vp-chip">即将过期</span> : null}
+                </b>
+              </div>
+
+              <div className="vp-row">
+                <i>内存</i>
+                <b className="mono">{hoverMeta.size != null ? formatBytes(hoverMeta.size) : '—'}</b>
+              </div>
+
+              {hoverValue ? (
+                <>
+                  <div className="vp-row">
+                    <i>编码</i>
+                    <b className="mono">{hoverValue.encoding ?? '—'}</b>
+                  </div>
+                  <div className="vp-row">
+                    <i>长度</i>
+                    <b className="mono">
+                      {hoverValue.length != null ? hoverValue.length : '—'}
+                      {hoverValue.size != null ? ` · ${formatBytes(hoverValue.size)}` : ''}
+                    </b>
+                  </div>
+                </>
+              ) : null}
+
+              <div className="vp-hint">点击切换 · × 关闭 · 滚轮 / ‹ › 横向滚动</div>
+            </div>,
+            document.body,
+          )
+        : null}
 
       {/* ---------------- 弹窗 ---------------- */}
       {editVisible && value ? <EditValueDialog initial={value as KeyValue} onClose={() => setEditVisible(false)} /> : null}
@@ -1867,44 +2388,7 @@ function SkeletonValue() {
           ))}
         </div>
       </div>
-
-      <footer className="viewer-foot">
-        <span className="sk sk-foot" />
-      </footer>
     </>
-  )
-}
-
-/** 通用搜索框（带清除按钮） */
-function FilterBox({
-  value,
-  onChange,
-  placeholder,
-  className,
-}: {
-  value: string
-  onChange: (value: string) => void
-  placeholder: string
-  className?: string
-}) {
-  return (
-    <label className={`search-box${className ? ` ${className}` : ''}`}>
-      <svg viewBox="0 0 16 16" className="s-icon" aria-hidden="true">
-        <circle cx="7" cy="7" r="4.5" />
-        <path d="M10.5 10.5 14 14" />
-      </svg>
-      <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="filter mono"
-        placeholder={placeholder}
-      />
-      {value ? (
-        <button className="s-clear" {...tipProps('清除搜索')} onClick={() => onChange('')}>
-          <DialogIcon name="cancel" size={10} />
-        </button>
-      ) : null}
-    </label>
   )
 }
 

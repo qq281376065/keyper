@@ -4,6 +4,7 @@ import { DialogIcon } from '@/components/DialogIcon'
 import { tipProps } from '@/components/tip'
 import { ConnectionItem, useRedis } from '@/store/useRedis'
 import { copyText } from '@/utils/clipboard'
+import { toConfig } from '@/utils/engine'
 
 export interface ConnectionActionsProps {
   connection: ConnectionItem
@@ -33,8 +34,17 @@ export function ConnectionActions({ connection, onEdit, onVersion }: ConnectionA
 
   const isConnected = connection.status === 'connected'
 
-  /** 连接串：redis://[user][:password]@host:port/db */
+  /**
+   * 可复制的连接串。
+   *
+   * Redis 用标准 URI（redis://[user][:password]@host:port/db）；
+   * Memcached 没有公认的 URI 方案，硬套 redis:// 会误导用户，
+   * 因此退化为 `host:port`，这也是运维日常粘贴的形式。
+   */
   const connectionUrl = (() => {
+    if (connection.engine === 'memcached') {
+      return `${connection.host}:${connection.port}`
+    }
     const { host, port, db, username, password } = connection
     let auth = ''
     if (username) auth = `${encodeURIComponent(username)}${password ? `:${encodeURIComponent(password)}` : ''}@`
@@ -96,7 +106,7 @@ export function ConnectionActions({ connection, onEdit, onVersion }: ConnectionA
   function handleToggleStatus(): void {
     void run(async () => {
       if (isConnected) await disconnect(connection.id)
-      else await connect(connection)
+      else await connect(toConfig(connection))
     })
   }
 
@@ -146,7 +156,8 @@ export function ConnectionActions({ connection, onEdit, onVersion }: ConnectionA
         notify('err', '复制失败，请检查剪贴板权限')
         return
       }
-      notify('ok', connection.password ? '已复制连接地址（含密码）' : '已复制连接地址')
+      const withSecret = connection.engine === 'redis' && !!connection.password
+      notify('ok', withSecret ? '已复制连接地址（含密码）' : '已复制连接地址')
     })
   }
 
@@ -160,14 +171,31 @@ export function ConnectionActions({ connection, onEdit, onVersion }: ConnectionA
       const confirmed = await askConfirm({
         title: '删除连接',
         message: `即将删除连接「${connection.name}」：`,
-        details: [
-          { label: '地址', value: `${connection.host}:${connection.port}`, mono: true },
-          { label: '默认库', value: `db${connection.db}`, mono: true },
-          ...(connection.sshEnabled && connection.ssh
-            ? [{ label: 'SSH 隧道', value: `${connection.ssh.host}:${connection.ssh.port}`, mono: true }]
-            : []),
-        ],
-        warning: '删除后无法恢复，连接配置（含 SSH、密码）需要全部重新填写。',
+        /*
+         * 明细按引擎给字段：Memcached 没有 db，硬写 db0 会让用户
+         * 以为删的是某个库，而实际删的是整台实例的配置；SSH 两者共用。
+         */
+        details:
+          connection.engine === 'memcached'
+            ? [
+                { label: '地址', value: `${connection.host}:${connection.port}`, mono: true },
+                { label: '引擎', value: 'Memcached', mono: false },
+                { label: '连接池', value: `${connection.poolSize ?? 4} 个连接`, mono: true },
+                ...(connection.sshEnabled && connection.ssh
+                  ? [{ label: 'SSH 隧道', value: `${connection.ssh.host}:${connection.ssh.port}`, mono: true }]
+                  : []),
+              ]
+            : [
+                { label: '地址', value: `${connection.host}:${connection.port}`, mono: true },
+                { label: '默认库', value: `db${connection.db}`, mono: true },
+                ...(connection.sshEnabled && connection.ssh
+                  ? [{ label: 'SSH 隧道', value: `${connection.ssh.host}:${connection.ssh.port}`, mono: true }]
+                  : []),
+              ],
+        warning:
+          connection.engine === 'memcached'
+            ? '删除后无法恢复，连接配置（含 SSH 凭据）需要重新填写。'
+            : '删除后无法恢复，连接配置（含 SSH、密码）需要全部重新填写。',
         confirmText: '删除',
         danger: true,
         force: true,

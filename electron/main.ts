@@ -10,13 +10,13 @@ import { configDir } from './services/config-path'
 import { CLOSE_CONFIRM, CLOSE_HANDLED, closeSignal } from './services/close-signal'
 
 /**
- * 启动诊断日志（仅在设置了 REDISDOCTER_DEBUG_LOG 时写入）。
+ * 启动诊断日志（仅在设置了 KEYPER_DEBUG_LOG 时写入）。
  *
  * 打包后的应用若"启动即退出"，从控制台看不到任何输出 ——
  * Electron 主进程的异常不会冒泡到 stdout。提供一个环境变量开关，
  * 把关键节点的执行轨迹落到文件，便于现场排查而不必改代码重打包。
  */
-const DEBUG_LOG = process.env.REDISDOCTER_DEBUG_LOG
+const DEBUG_LOG = process.env.KEYPER_DEBUG_LOG || process.env.REDISDOCTER_DEBUG_LOG
 function trace(label: string, extra?: unknown): void {
   if (!DEBUG_LOG) return
   const line = `[${new Date().toISOString()}] ${label}${
@@ -80,7 +80,7 @@ const DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL
 const isDev = !!DEV_SERVER_URL
 
 /*
- * 生产调试模式：`RedisDocter.exe --rd-debug` 或环境变量 REDISDOCTER_DEBUG=1。
+ * 生产调试模式：`Keyper.exe --rd-debug` 或环境变量 KEYPER_DEBUG=1。
  *
  * 用途：打包前用生产构建测试连接（SSH 隧道、safeStorage 加密等只在
  * 打包环境复现）。开发模式天然带 DevTools，生产模式默认什么都没有 ——
@@ -99,7 +99,10 @@ const isDev = !!DEV_SERVER_URL
  * ⚠️ 参数名不能叫 --debug：那是 Chromium/node 的保留开关，
  * Electron 启动时直接报 DEP0062 退出，根本到不了应用代码。
  */
-const debugMode = process.argv.includes('--rd-debug') || !!process.env.REDISDOCTER_DEBUG
+const debugMode =
+  process.argv.includes('--rd-debug') ||
+  !!process.env.KEYPER_DEBUG ||
+  !!process.env.REDISDOCTER_DEBUG
 
 let debugConsoleHooked = false
 
@@ -123,7 +126,7 @@ function enableDebugConsole(): void {
   fs.mkdirSync(path.dirname(debugLogFile()), { recursive: true })
   fs.writeFileSync(
     debugLogFile(),
-    `# RedisDocter ${app.getVersion()} debug session ${new Date().toISOString()}\n` +
+    `# Keyper ${app.getVersion()} debug session ${new Date().toISOString()}\n` +
       `# platform=${process.platform} electron=${process.versions.electron} node=${process.versions.node}\n` +
       `# argv=${JSON.stringify(process.argv)}\n`,
     'utf-8',
@@ -186,7 +189,7 @@ function createMainWindow(): void {
     minWidth: 1080,
     minHeight: 660,
     show: false,
-    title: 'RedisDocter',
+    title: 'Keyper',
     backgroundColor: nativeTheme.shouldUseDarkColors ? BACKGROUND.dark : BACKGROUND.light,
     autoHideMenuBar: true,
     /*

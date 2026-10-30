@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>RedisDocter</title>
+    <title>Keyper</title>
     <script>
       /*
        * 在首帧渲染前确定主题，避免亮暗切换闪烁。
@@ -22,7 +22,10 @@
           aurora: 'light',
         }
         try {
-          var stored = localStorage.getItem('redisdocter:theme') || 'system'
+          // 先读新 key；老用户的历史偏好在旧 key 里，回退读一次
+          var stored = localStorage.getItem('keyper:theme')
+                    || localStorage.getItem('redisdocter:theme')
+                    || 'system'
           if (SCHEME[stored]) {
             document.documentElement.dataset.theme = stored
             document.documentElement.style.colorScheme = SCHEME[stored]

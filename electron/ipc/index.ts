@@ -1,7 +1,18 @@
 import { BrowserWindow, app, dialog, ipcMain } from 'electron'
 import fs from 'node:fs'
 import { IPC } from '../../shared/api'
+import type {
+  CacheConnectionConfig,
+  CacheEngine,
+  MemcachedConnectionConfig,
+  MemcachedKeyList,
+  MemcachedOverview,
+  MemcachedSlab,
+  MemcachedValue,
+} from '../../shared/types'
 import { connectionManager } from '../services/connection-manager'
+import { memcachedManager } from '../services/engines/memcached/manager'
+import { getEngine, registerEngine } from '../services/engines/registry'
 import { loadConnections, saveConnections } from '../services/connection-store'
 import { appendErrorLog, appendLog, listLogFiles, logDir, openLogDir, readLogs } from '../services/log-service'
 import {
@@ -97,6 +108,11 @@ const LOG_ACTIONS: Record<string, string> = {
   [IPC.redisAddZsetMember]: '新增成员',
   [IPC.redisXaddEntry]: '追加消息',
   [IPC.redisCli]: '命令',
+  /* Memcached：只记录写入类操作与清空，读操作不进日志（与 Redis 一致） */
+  [IPC.memcachedSet]: '写入键',
+  [IPC.memcachedRemove]: '删除键',
+  [IPC.memcachedRename]: '重命名键',
+  [IPC.memcachedFlush]: '清空数据',
 }
 
 function connectionLabel(id: string): string {
@@ -105,84 +121,119 @@ function connectionLabel(id: string): string {
 }
 
 /**
+ * 按连接 id 反查引擎。
+ * 日志要按引擎分列，而绝大多数通道只带 id 不带完整配置 ——
+ * 查一次内存中的配置列表即可（loadConnections 有缓存，不额外读盘）。
+ * 找不到时回退 redis：历史日志与历史连接都是 Redis。
+ */
+function engineOfId(id: string): CacheEngine {
+  const config = loadConnections().find((item) => item.id === id)
+  return config?.engine ?? 'redis'
+}
+
+/**
  * 从各通道的参数里提取「连接名 + 操作详情」。
  * 注意：必须在 handler 执行前调用 —— 删除连接后配置已不存在，就取不到名称了。
  */
-function describe(channel: string, args: unknown[]): { connectionName: string; detail: string } {
+function describe(
+  channel: string,
+  args: unknown[],
+): { connectionName: string; detail: string; engine: CacheEngine } {
   const first = args[0]
 
   if (typeof first === 'string') {
     const connectionName = connectionLabel(first)
+    const engine = engineOfId(first)
     switch (channel) {
       case IPC.redisCli:
-        return { connectionName, detail: String(args[1] ?? '') }
+        return { connectionName, engine, detail: String(args[1] ?? '') }
+      case IPC.memcachedSet:
+        return {
+          connectionName,
+          engine,
+          detail: `${args[1]}${args[3] && (args[3] as { exptime?: number }).exptime ? ` (expire ${(args[3] as { exptime: number }).exptime}s)` : ''}`,
+        }
+      case IPC.memcachedRemove:
+        return { connectionName, engine, detail: String(args[1] ?? '') }
+      case IPC.memcachedRename:
+        return { connectionName, engine, detail: `${args[1]} → ${args[2]}` }
+      case IPC.memcachedFlush:
+        return { connectionName, engine, detail: 'flush_all' }
       case IPC.redisCreateKey:
-        return { connectionName, detail: `${args[1]} (${args[2]})` }
+        return { connectionName, engine, detail: `${args[1]} (${args[2]})` }
       case IPC.redisSetValue:
-        return { connectionName, detail: `${args[1]} (${args[2]})` }
+        return { connectionName, engine, detail: `${args[1]} (${args[2]})` }
       case IPC.redisDelete:
-        return { connectionName, detail: ((args[1] as string[]) ?? []).join(', ') }
+        return { connectionName, engine, detail: ((args[1] as string[]) ?? []).join(', ') }
       case IPC.redisSetTtl:
-        return { connectionName, detail: `${args[1]} → ${args[2]}s` }
+        return { connectionName, engine, detail: `${args[1]} → ${args[2]}s` }
       case IPC.redisRename:
-        return { connectionName, detail: `${args[1]} → ${args[2]}` }
+        return { connectionName, engine, detail: `${args[1]} → ${args[2]}` }
       case IPC.redisDelHashField:
-        return { connectionName, detail: `${args[1]} · ${args[2]}` }
+        return { connectionName, engine, detail: `${args[1]} · ${args[2]}` }
       case IPC.redisSetHashField:
         return {
           connectionName,
+          engine,
           detail:
             args[4] && args[4] !== args[2]
               ? `${args[1]} · ${args[2]} → ${args[4]}`
               : `${args[1]} · ${args[2]}`,
         }
       case IPC.redisSetHashFieldTtl:
-        return { connectionName, detail: `${args[1]} · ${args[2]} → ${args[3]}s` }
+        return { connectionName, engine, detail: `${args[1]} · ${args[2]} → ${args[3]}s` }
       case IPC.redisSetListElement:
-        return { connectionName, detail: `${args[1]} · 第 ${(args[2] as number) + 1} 项` }
+        return { connectionName, engine, detail: `${args[1]} · 第 ${(args[2] as number) + 1} 项` }
       case IPC.redisDelListElement:
-        return { connectionName, detail: `${args[1]} · 第 ${(args[2] as number) + 1} 项` }
+        return { connectionName, engine, detail: `${args[1]} · 第 ${(args[2] as number) + 1} 项` }
       case IPC.redisInsertListElement:
         return {
           connectionName,
+          engine,
           detail: `${args[1]} · 第 ${(args[2] as number) + 1} 项${args[4] === 'before' ? '前' : '后'}`,
         }
       case IPC.redisAppendListElement:
-        return { connectionName, detail: args[1] as string }
+        return { connectionName, engine, detail: args[1] as string }
       case IPC.redisSetSetMember:
-        return { connectionName, detail: `${args[1]} · ${args[2]} → ${args[3]}` }
+        return { connectionName, engine, detail: `${args[1]} · ${args[2]} → ${args[3]}` }
       case IPC.redisDelSetMember:
-        return { connectionName, detail: `${args[1]} · ${args[2]}` }
+        return { connectionName, engine, detail: `${args[1]} · ${args[2]}` }
       case IPC.redisAddSetMember:
-        return { connectionName, detail: `${args[1]} · ${args[2]}` }
+        return { connectionName, engine, detail: `${args[1]} · ${args[2]}` }
       case IPC.redisSetZsetMember:
         return {
           connectionName,
+          engine,
           detail:
             args[2] === args[3]
               ? `${args[1]} · ${args[2]} → score ${args[4]}`
               : `${args[1]} · ${args[2]} → ${args[3]}`,
         }
       case IPC.redisDelZsetMember:
-        return { connectionName, detail: `${args[1]} · ${args[2]}` }
+        return { connectionName, engine, detail: `${args[1]} · ${args[2]}` }
       case IPC.redisAddZsetMember:
-        return { connectionName, detail: `${args[1]} · ${args[2]} (${args[3]})` }
+        return { connectionName, engine, detail: `${args[1]} · ${args[2]} (${args[3]})` }
       case IPC.redisXaddEntry:
-        return { connectionName, detail: `${args[1]} · ${args[2]} = ${String(args[3]).slice(0, 40)}` }
+        return { connectionName, engine, detail: `${args[1]} · ${args[2]} = ${String(args[3]).slice(0, 40)}` }
       default:
-        return { connectionName, detail: connectionName }
+        return { connectionName, engine, detail: connectionName }
     }
   }
 
   if (first && typeof first === 'object') {
-    const config = first as RedisConnectionConfig
+    const config = first as CacheConnectionConfig
     return {
       connectionName: config.name || config.host,
-      detail: `${config.host}:${config.port}/${config.db}`,
+      engine: config.engine ?? 'redis',
+      /* 详情按引擎给：Memcached 没有库，拼 /db 会写出不存在的信息 */
+      detail:
+        config.engine === 'memcached'
+          ? `${config.host}:${config.port}`
+          : `${config.host}:${config.port}/${(config as RedisConnectionConfig).db}`,
     }
   }
 
-  return { connectionName: '-', detail: '' }
+  return { connectionName: '-', engine: 'redis', detail: '' }
 }
 
 /**
@@ -209,6 +260,7 @@ function handle<T>(channel: string, handler: (...args: any[]) => T | Promise<T>)
       const data = response.ok ? (response.data as unknown as { message?: string }) : null
       appendLog({
         timestamp: Date.now(),
+        engine: meta.engine,
         connectionId: typeof args[0] === 'string' ? (args[0] as string) : '',
         connectionName: meta.connectionName,
         action,
@@ -386,9 +438,9 @@ export function registerIpcHandlers(): void {
   })
 
   // -------------------------------------------------------- 连接管理
-  handle<RedisConnectionConfig[]>(IPC.connectionList, () => loadConnections())
+  handle<CacheConnectionConfig[]>(IPC.connectionList, () => loadConnections())
 
-  handle<RedisConnectionConfig[]>(IPC.connectionSave, (config) => {
+  handle<CacheConnectionConfig[]>(IPC.connectionSave, (config) => {
     const target = config as RedisConnectionConfig
     const list = loadConnections()
     const index = list.findIndex((item) => item.id === target.id)
@@ -398,7 +450,7 @@ export function registerIpcHandlers(): void {
     return list
   })
 
-  handle<RedisConnectionConfig[]>(IPC.connectionRemove, (id) => {
+  handle<CacheConnectionConfig[]>(IPC.connectionRemove, (id) => {
     const list = loadConnections()
     const removedConn = list.find((item) => item.id === (id as string))
     const next = list.filter((item) => item.id !== (id as string))
@@ -412,6 +464,7 @@ export function registerIpcHandlers(): void {
     if (pruned > 0) {
       void appendLog({
         timestamp: Date.now(),
+        engine: removedConn?.engine ?? 'redis',
         connectionId: String(id),
         connectionName: removedConn?.name ?? '-',
         action: '删除配置',
@@ -429,7 +482,7 @@ export function registerIpcHandlers(): void {
    * credentialError 的连接（密码已解不开）也能安全置顶。
    * 取消置顶时写回 undefined，JSON 序列化时该键自然消失，磁盘不留 pinned: false。
    */
-  handle<RedisConnectionConfig[]>(IPC.connectionSetPinned, (id, pinned) => {
+  handle<CacheConnectionConfig[]>(IPC.connectionSetPinned, (id, pinned) => {
     const list = loadConnections()
     const target = list.find((item) => item.id === (id as string))
     if (target) target.pinned = (pinned as boolean) || undefined
@@ -443,11 +496,11 @@ export function registerIpcHandlers(): void {
    * 不重构条目，password 密文等原封不动。
    * 不在 ids 里的条目（保存瞬间并发新增）保持原相对顺序追加在末尾，不丢弃。
    */
-  handle<RedisConnectionConfig[]>(IPC.connectionReorder, (ids) => {
+  handle<CacheConnectionConfig[]>(IPC.connectionReorder, (ids) => {
     const list = loadConnections()
     const order = new Set(ids as string[])
     const byId = new Map(list.map((item) => [item.id, item]))
-    const next: RedisConnectionConfig[] = []
+    const next: CacheConnectionConfig[] = []
     for (const id of order) {
       const item = byId.get(id)
       if (item) next.push(item)
@@ -457,15 +510,43 @@ export function registerIpcHandlers(): void {
     return next
   })
 
-  handle<OperationResult>(IPC.connectionTest, (config) =>
-    connectionManager.test(config as RedisConnectionConfig),
-  )
+  /*
+   * 连接相关通道按引擎路由。
+   *
+   * 这一层是**唯一**知道"两种引擎各自在哪"的地方；
+   * 上层的 UI 与下层的管理器互不相识，因此新增引擎时
+   * 只需在 registry 里注册，不用改任何调用点。
+   */
+  registerEngine('redis', {
+    connect: (config) => connectionManager.connect(config as RedisConnectionConfig),
+    test: (config) => connectionManager.test(config as RedisConnectionConfig),
+    disconnect: (id) => connectionManager.disconnect(id as string),
+  })
+  registerEngine('memcached', {
+    connect: (config) => memcachedManager.connect(config as MemcachedConnectionConfig),
+    test: (config) => memcachedManager.test(config as MemcachedConnectionConfig),
+    disconnect: (id) => memcachedManager.disconnect(id as string),
+  })
 
-  handle<ConnectionState>(IPC.connectionConnect, (config) =>
-    connectionManager.connect(config as RedisConnectionConfig),
-  )
+  handle<OperationResult>(IPC.connectionTest, (config) => {
+    const typed = config as CacheConnectionConfig
+    return getEngine<ConnectionState, OperationResult>(typed.engine).test(typed)
+  })
 
-  handle<OperationResult>(IPC.connectionDisconnect, (id) => connectionManager.disconnect(id as string))
+  handle<ConnectionState>(IPC.connectionConnect, (config) => {
+    const typed = config as CacheConnectionConfig
+    return getEngine<ConnectionState, OperationResult>(typed.engine).connect(typed)
+  })
+
+  handle<OperationResult>(IPC.connectionDisconnect, (id) => {
+    /*
+     * 断开时按"这条连接实际属于哪个管理器"分发：
+     * 只看 id 无法判断引擎（配置文件可能已被删除），
+     * 因此先问两个管理器谁持有它；都不持有就视为已断开。
+     */
+    if (memcachedManager.owns(id as string)) return memcachedManager.disconnect(id as string)
+    return connectionManager.disconnect(id as string)
+  })
 
   handle<boolean>(IPC.connectionStatus, (id) => connectionManager.isConnected(id as string))
 
@@ -522,7 +603,7 @@ export function registerIpcHandlers(): void {
 
   handle<KeyValue>(IPC.redisValue, async (id, key) => {
     /*
-     * 取值耗时日志（REDISDOCTER_DEBUG=1 时打印）。
+     * 取值耗时日志（KEYPER_DEBUG=1 时打印）。
      * 只在这一条通道上加：它是"点键 → 看到值"的必经路径，
      * 也是经 SSH 隧道时用户最能感知的一段。日志给出的是
      * 主进程侧的真实耗时，可与渲染层计时对照，区分
@@ -530,7 +611,7 @@ export function registerIpcHandlers(): void {
      */
     const t0 = Date.now()
     const result = await connectionManager.getValue(id as string, key as string)
-    if (process.env.REDISDOCTER_DEBUG) {
+    if (process.env.KEYPER_DEBUG || process.env.REDISDOCTER_DEBUG) {
       console.log(`[ipc] getValue ${key} 用时 ${Date.now() - t0}ms（type=${result.type}）`)
     }
     return result
@@ -651,4 +732,37 @@ export function registerIpcHandlers(): void {
   handle<CliResult>(IPC.redisCli, (id, command) =>
     connectionManager.command(id as string, command as string),
   )
+
+  /* -------------------------------------------------------- Memcached 专属通道 */
+
+  handle<MemcachedOverview>(IPC.memcachedOverview, (id) =>
+    memcachedManager.overview(id as string),
+  )
+  handle<MemcachedSlab[]>(IPC.memcachedSlabs, (id) => memcachedManager.slabs(id as string))
+  handle<MemcachedKeyList>(IPC.memcachedKeys, (id, options) =>
+    memcachedManager.keys(id as string, (options ?? {}) as { perSlab?: number; maxSlabs?: number }),
+  )
+  handle<MemcachedValue>(IPC.memcachedGet, (id, key) =>
+    memcachedManager.get(id as string, key as string),
+  )
+  handle<OperationResult>(IPC.memcachedSet, (id, key, value, options) =>
+    memcachedManager.set(
+      id as string,
+      key as string,
+      value as string,
+      (options ?? {}) as {
+        exptime?: number
+        mode?: 'set' | 'add' | 'replace'
+        flags?: number
+        ttlSeconds?: number
+      },
+    ),
+  )
+  handle<OperationResult>(IPC.memcachedRemove, (id, key) =>
+    memcachedManager.remove(id as string, key as string),
+  )
+  handle<OperationResult>(IPC.memcachedRename, (id, key, newKey) =>
+    memcachedManager.rename(id as string, key as string, newKey as string),
+  )
+  handle<OperationResult>(IPC.memcachedFlush, (id) => memcachedManager.flush(id as string))
 }

@@ -1,6 +1,12 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import type { RedisConnectionConfig, SshConfig, SshHop } from '../../shared/types'
+import type {
+  CacheConnectionConfig,
+  MemcachedConnectionConfig,
+  RedisConnectionConfig,
+  SshConfig,
+  SshHop,
+} from '../../shared/types'
 import { configFile } from './config-path'
 import { isLegacyCipher, sealSecret, unsealSecret } from './credential-crypto'
 
@@ -64,7 +70,18 @@ export class SecureStringError extends Error {
   }
 }
 
-interface PersistedShape extends Omit<RedisConnectionConfig, 'password' | 'ssh'> {
+/**
+ * 落盘形态：两种引擎混在同一个数组里，靠 engine 字段区分。
+ *
+ * 为什么不分文件（connections.json / memcached.json）：
+ *   · 用户拖拽排序是跨引擎的（列表在同一个侧栏里），
+ *     分文件后"全局顺序"需要额外的索引文件，反而更脆；
+ *   · 单文件让"备份/迁移配置"仍然是一次拷贝；
+ *   · 隔离的关键在于**类型与代码路径**，不在于存储介质 ——
+ *     两条配置不会因为同处一个 JSON 而互相影响。
+ * 凭据字段只出现在 Redis 条目上，Memcached 条目天然不含密码。
+ */
+type PersistedShape = (Omit<RedisConnectionConfig, 'password' | 'ssh'> | MemcachedConnectionConfig) & {
   password?: string
   /**
    * SSH 配置也含凭据（登录密码 / 私钥口令），与 Redis 密码同等待遇。
@@ -154,7 +171,7 @@ function mergeSsh(item: SshConfig, prevSsh: SshConfig): SshConfig {
   }
 }
 
-export function loadConnections(): RedisConnectionConfig[] {
+export function loadConnections(): CacheConnectionConfig[] {
   const file = storeFile()
   if (!fs.existsSync(file)) return []
   try {
@@ -217,7 +234,24 @@ export function loadConnections(): RedisConnectionConfig[] {
         }
       }
 
-      return { ...item, password, ssh, credentialError }
+      /*
+       * 补齐 engine：本字段是后加的，升级前的配置文件里没有。
+       * 历史配置全部来自 Redis 时期，因此默认 redis 是**事实**而非猜测。
+       * 不补的话渲染层拿到 undefined，所有引擎分支都会走 else，
+       * 表现为"老用户的连接全变成 Memcached 或直接消失"。
+       */
+      const withEngine: CacheConnectionConfig =
+        (item as PersistedShape).engine === 'memcached'
+          ? ({
+              ...item,
+              engine: 'memcached',
+              /* SSH 对 Memcached 同样成立：解不开的密文一律置空并提示，规则与 Redis 一致 */
+              ssh,
+              credentialError,
+            } as MemcachedConnectionConfig)
+          : ({ ...item, engine: 'redis', password, ssh, credentialError } as RedisConnectionConfig)
+
+      return withEngine
     })
 
     /*
@@ -257,7 +291,7 @@ export function loadConnections(): RedisConnectionConfig[] {
         if (changed) {
           fs.writeFileSync(file, JSON.stringify(list, null, 2), 'utf-8')
         }
-        if (process.env.REDISDOCTER_DEBUG) {
+        if (process.env.KEYPER_DEBUG || process.env.REDISDOCTER_DEBUG) {
           console.error(`[connection-store] 迁移检查: changed=${changed} 条目=${list.length}`)
         }
       } catch (error) {
@@ -303,7 +337,7 @@ function migrateSshCiphers(ssh: SshConfig): boolean {
   return changed
 }
 
-export function saveConnections(list: RedisConnectionConfig[]): void {
+export function saveConnections(list: CacheConnectionConfig[]): void {
   const file = storeFile()
 
   /*
@@ -332,6 +366,18 @@ export function saveConnections(list: RedisConnectionConfig[]): void {
      * 用显式解构而不是 `...item`，避免以后再加运行时字段时又漏进来。
      */
     const { credentialError: _drop, ...rest } = item
+
+    /*
+     * Memcached 没有密码字段，但 SSH 凭据与 Redis 同规则：
+     * 明文按需加密；解不开时保留磁盘上的旧密文，避免"只改个名字"把密文抹掉。
+     */
+    if (item.engine === 'memcached') {
+      const prev = existing.get(item.id)
+      const prevSsh = prev?.ssh
+      const ssh = item.ssh && prevSsh ? mergeSsh(item.ssh, prevSsh) : sealSsh(item.ssh)
+      /* ssh 为 undefined 时 JSON.stringify 会直接省略该键，不会给配置塞空字段 */
+      return { ...rest, ssh } as PersistedShape
+    }
 
     const prev = existing.get(item.id)
     const password =

@@ -29,7 +29,15 @@ export const SKIN_SCHEME: Record<SkinId, ResolvedTheme> = {
  * 决定 `<html data-theme>`，那时还读不到主进程的 settings.json。
  * 两份值由 applyTheme 保持同步。
  */
-export const THEME_STORAGE_KEY = 'redisdocter:theme'
+export const THEME_STORAGE_KEY = 'keyper:theme'
+
+/**
+ * 旧存储键。
+ * 项目曾用名 RedisDocter，那时把主题偏好写在 redisdocter:theme 下。
+ * 改名后若不迁移，老用户重开应用会感觉"主题被重置成跟随系统" ——
+ * 偏好本身还在，只是没人去读它。
+ */
+export const LEGACY_THEME_STORAGE_KEY = 'redisdocter:theme'
 
 const { settings, save } = useSettings()
 
@@ -48,7 +56,18 @@ const systemHolder = defineStore<{ value: ResolvedTheme }>({
 export function migrateThemeFromStorage(): void {
   if (settings.theme !== 'system') return
   try {
-    const value = localStorage.getItem(THEME_STORAGE_KEY)
+    /*
+     * 先看新键，再看旧键。
+     * 旧键存在说明用户是改名之前就在用的 —— 把值搬到新键并清掉旧的，
+     * 否则每次启动都要走一遍回退读取，且新旧两份可能逐渐不一致。
+     */
+    const legacy = localStorage.getItem(LEGACY_THEME_STORAGE_KEY)
+    let value = localStorage.getItem(THEME_STORAGE_KEY)
+    if (!value && legacy) {
+      value = legacy
+      localStorage.setItem(THEME_STORAGE_KEY, legacy)
+      localStorage.removeItem(LEGACY_THEME_STORAGE_KEY)
+    }
     if (value === 'light' || value === 'dark') settings.theme = value
   } catch {
     /* 隐私模式等场景下读取失败，按默认处理 */

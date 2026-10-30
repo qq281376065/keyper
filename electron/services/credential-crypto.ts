@@ -16,14 +16,14 @@ import { configFile } from './config-path'
  * 生成并存放在 **userData 目录**的 `Local State → os_crypt.encrypted_key`
  * （DPAPI 保护）。于是密文与「userData 目录」强绑定，而该目录会随下列
  * 情况变化：
- *   · dev 模式（app 名 Electron）与打包版（RedisDocter）不同；
+ *   · dev 模式（app 名 Electron）与打包版（Keyper）不同；
  *   · 换安装位置 / 用 --user-data-dir 启动 / 便携 U 盘换盘符；
  *   · 同一 exe 换到另一台机器或另一个 Windows 账户。
  * 一旦变化，旧密文全部解不开 —— 用户看到的就是
  * 「保存的密码无法解密，请重新输入」，重存后下次又坏。
  *
  * 对照实测（同一密文，只换 userData 目录）：
- *   userData=...\RedisDocter → 解密成功
+ *   userData=...\Keyper → 解密成功
  *   userData=...\Electron    → Error while decrypting the ciphertext
  *
  * 二、本模块的方案

@@ -1,5 +1,5 @@
 /* ============================================================
-   RedisDocter 设计令牌
+   Keyper 设计令牌
    双主题：暗色（默认）/ 亮色，通过 <html data-theme="light|dark"> 切换
    强调色统一取 Redis 品牌红
    ============================================================ */
@@ -19,6 +19,10 @@
   --text-muted: #6b7488;
 
   --accent: #dc382d;
+  /* 品牌图标渐变（K 形钥匙底）：#CE3F33 → #8A1A11，符号色白，两端对白字均 ≥ 4.5:1 */
+  --brand-from: #CE3F33;
+  --brand-to: #8A1A11;
+  --brand-fg: #ffffff;
   --accent-hover: #ef4a3e;
   --accent-soft: rgba(220, 56, 45, 0.14);
   --on-accent: #ffffff;
@@ -122,6 +126,10 @@
   --text-muted: #868fa1;
 
   --accent: #d0342c;
+  /* 品牌图标渐变（K 形钥匙底）：#CF3B2E → #8A1C12，符号色白，两端对白字均 ≥ 4.5:1 */
+  --brand-from: #CF3B2E;
+  --brand-to: #8A1C12;
+  --brand-fg: #ffffff;
   --accent-hover: #b62b24;
   --accent-soft: rgba(208, 52, 44, 0.1);
   --on-accent: #ffffff;
@@ -179,6 +187,16 @@
   --text-muted: #5f7192;
 
   --accent: #ff5c49;
+  /*
+   * 深海皮肤的品牌图标走「磨砂玻璃」：浅灰渐变 + 白色内描边 + 强顶部高光，
+   * 符号改用近黑。深色界面里一块亮玻璃，是九套里唯一的反差点。
+   * --brand-edge / --brand-glow 只在玻璃皮肤里打开，其余皮肤不设（默认 0 / 0.26）。
+   */
+  --brand-from: #EDF0F3;
+  --brand-to: #C7D2DA;
+  --brand-fg: #111827;
+  --brand-edge: 0.85;
+  --brand-glow: 0.85;
   --accent-hover: #ff7566;
   --accent-soft: rgba(255, 92, 73, 0.15);
   --on-accent: #ffffff;
@@ -236,6 +254,10 @@
   --text-muted: #93a1a1;
 
   --accent: #dc322f;
+  /* 品牌图标渐变（K 形钥匙底）：#C93B2B → #8A2015，符号色白，两端对白字均 ≥ 4.5:1 */
+  --brand-from: #C93B2B;
+  --brand-to: #8A2015;
+  --brand-fg: #ffffff;
   --accent-hover: #b93a2b;
   --accent-soft: rgba(220, 50, 47, 0.12);
   --on-accent: #fdf6e3;
@@ -293,6 +315,10 @@
   --text-muted: #687f72;
 
   --accent: #58c98d;
+  /* 品牌图标渐变（K 形钥匙底）：#1A8259 → #0A5138，符号色白，两端对白字均 ≥ 4.5:1 */
+  --brand-from: #1A8259;
+  --brand-to: #0A5138;
+  --brand-fg: #ffffff;
   --accent-hover: #6fdca1;
   --accent-soft: rgba(88, 201, 141, 0.14);
   --on-accent: #06251a;
@@ -350,6 +376,10 @@
   --text-muted: #a68894;
 
   --accent: #d4507e;
+  /* 品牌图标渐变（K 形钥匙底）：#C43F6C → #7E1F42，符号色白，两端对白字均 ≥ 4.5:1 */
+  --brand-from: #C43F6C;
+  --brand-to: #7E1F42;
+  --brand-fg: #ffffff;
   --accent-hover: #e2688f;
   --accent-soft: rgba(212, 80, 126, 0.1);
   --on-accent: #ffffff;
@@ -407,6 +437,10 @@
   --text-muted: #7e9888;
 
   --accent: #0e8f76;
+  /* 品牌图标渐变（K 形钥匙底）：#0C7A63 → #044A3A，符号色白，两端对白字均 ≥ 4.5:1 */
+  --brand-from: #0C7A63;
+  --brand-to: #044A3A;
+  --brand-fg: #ffffff;
   --accent-hover: #1a9f83;
   --accent-soft: rgba(14, 143, 118, 0.1);
   --on-accent: #ffffff;
@@ -464,6 +498,10 @@
   --text-muted: #8295a9;
 
   --accent: #3f7ec1;
+  /* 品牌图标渐变（K 形钥匙底）：#3D77BE → #1B3F73，符号色白，两端对白字均 ≥ 4.5:1 */
+  --brand-from: #3D77BE;
+  --brand-to: #1B3F73;
+  --brand-fg: #ffffff;
   --accent-hover: #4f8fd0;
   --accent-soft: rgba(63, 126, 193, 0.1);
   --on-accent: #ffffff;
@@ -526,6 +564,10 @@
   --text-muted: #7d859a;
 
   --accent: #4a63e0;
+  /* 品牌图标渐变（K 形钥匙底）：#4A63E0 → #6E2FB8，符号色白，两端对白字均 ≥ 4.5:1 */
+  --brand-from: #4A63E0;
+  --brand-to: #6E2FB8;
+  --brand-fg: #ffffff;
   --accent-hover: #3a50c9;
   --accent-soft: rgba(74, 99, 224, 0.1);
   --on-accent: #ffffff;

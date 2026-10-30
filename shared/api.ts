@@ -13,6 +13,11 @@ import type {
   LogQuery,
   MemoryAnalysis,
   OperationResult,
+  CacheConnectionConfig,
+  MemcachedKeyList,
+  MemcachedOverview,
+  MemcachedSlab,
+  MemcachedValue,
   RedisConnectionConfig,
   RedisKeyItem,
   RedisValueType,
@@ -105,9 +110,15 @@ export interface RedisDesktopApi {
   }
 
   connection: {
-    list: () => Promise<ApiResponse<RedisConnectionConfig[]>>
-    save: (config: RedisConnectionConfig) => Promise<ApiResponse<RedisConnectionConfig[]>>
-    remove: (id: string) => Promise<ApiResponse<RedisConnectionConfig[]>>
+    /*
+     * 连接配置通道对所有引擎通用 —— 它们是"配置实体"，不是引擎命令。
+     * 具体连接行为由引擎适配器实现（见 electron/services/engines）。
+     * 返回全量列表而不是单条：连接数量有限（几十条量级），
+     * 每次回全量让渲染层无需自己做合并，也天然避免两份状态不一致。
+     */
+    list: () => Promise<ApiResponse<CacheConnectionConfig[]>>
+    save: (config: CacheConnectionConfig) => Promise<ApiResponse<CacheConnectionConfig[]>>
+    remove: (id: string) => Promise<ApiResponse<CacheConnectionConfig[]>>
     /**
      * 置顶 / 取消置顶。
      *
@@ -116,15 +127,17 @@ export interface RedisDesktopApi {
      * 拿现有条目组一个全量对象再存会把密文抹掉；
      * 这里只改 pinned 一个字段，主进程在磁盘条目上原位修改，完全不碰凭据。
      */
-    setPinned: (id: string, pinned: boolean) => Promise<ApiResponse<RedisConnectionConfig[]>>
+    setPinned: (id: string, pinned: boolean) => Promise<ApiResponse<CacheConnectionConfig[]>>
     /**
      * 拖拽排序：把全量连接 id 按新的显示顺序写回磁盘数组。
      * 磁盘数组顺序即列表排序 —— 加载时渲染端做置顶优先的稳定排序，
      * 组内先后完全由这里落盘的顺序决定。
      */
-    reorder: (ids: string[]) => Promise<ApiResponse<RedisConnectionConfig[]>>
-    test: (config: RedisConnectionConfig) => Promise<ApiResponse<OperationResult>>
-    connect: (config: RedisConnectionConfig) => Promise<ApiResponse<ConnectionState>>
+    reorder: (ids: string[]) => Promise<ApiResponse<CacheConnectionConfig[]>>
+    /** 测试连接：按 config.engine 路由到对应引擎的适配器 */
+    test: (config: CacheConnectionConfig) => Promise<ApiResponse<OperationResult>>
+    /** 建立连接：同上，返回该引擎特有的状态对象 */
+    connect: (config: CacheConnectionConfig) => Promise<ApiResponse<ConnectionState>>
     disconnect: (id: string) => Promise<ApiResponse<OperationResult>>
     status: (id: string) => Promise<ApiResponse<boolean>>
     /**
@@ -291,6 +304,52 @@ export interface RedisDesktopApi {
   }
 
   /**
+   * Memcached 专属能力。
+   *
+   * 与 redis 命名空间并列，互不引用 —— 渲染层按连接的 engine
+   * 决定调哪一个。这样两个模块在类型层面就是隔开的：
+   * Memcached 面板不可能"顺手"调到 redis.info。
+   */
+  memcached: {
+    /** 全局 stats + items + settings 一趟取回 */
+    overview: (id: string) => Promise<ApiResponse<MemcachedOverview>>
+    /** 按 slab class 的条目分布 */
+    slabs: (id: string) => Promise<ApiResponse<MemcachedSlab[]>>
+    /**
+     * 列出键（cachedump）。
+     * perSlab 控制每个 slab 的取样上限；结果可能不完整，
+     * 界面必须把 truncated / deniedSlabs 如实告知用户。
+     */
+    keys: (
+      id: string,
+      options?: { perSlab?: number; maxSlabs?: number },
+    ) => Promise<ApiResponse<MemcachedKeyList>>
+    get: (id: string, key: string) => Promise<ApiResponse<MemcachedValue>>
+    set: (
+      id: string,
+      key: string,
+      value: string,
+      options?: {
+        exptime?: number
+        mode?: 'set' | 'add' | 'replace'
+        /** 保留原值的协议 flags（编辑已有键时传入） */
+        flags?: number
+        /** 目标剩余秒数（-1 = 永久）。传入时优先于 exptime，并自动处理 >30 天的绝对时间语义 */
+        ttlSeconds?: number
+      },
+    ) => Promise<ApiResponse<OperationResult>>
+    remove: (id: string, key: string) => Promise<ApiResponse<OperationResult>>
+    /**
+     * 重命名键。
+     * Memcached 没有 RENAME 命令，主进程按「读取 → 写入新键 → 删除旧键」组合执行：
+     * 保留 flags，服务端支持 meta 时同时保留剩余 TTL；目标键已存在则拒绝。
+     */
+    rename: (id: string, key: string, newKey: string) => Promise<ApiResponse<OperationResult>>
+    /** 清空全部数据（flush_all），破坏性 */
+    flush: (id: string) => Promise<ApiResponse<OperationResult>>
+  }
+
+  /**
    * 窗口控制（无边框窗口的自绘标题栏按钮）。
    * 浏览器预览模式下由 mock 实现为 no-op。
    */
@@ -395,6 +454,23 @@ export const IPC = {
   redisXaddEntry: 'redis:xaddEntry',
   redisCreateKey: 'redis:createKey',
   redisCli: 'redis:cli',
+
+  /*
+   * Memcached 通道独立命名空间。
+   * 与 redis:* 分开而不是复用 redis:* 加引擎参数：
+   *   · 两者参数与返回结构完全不同（stats vs info、slab vs db）；
+   *   · 复用会让 IPC 层堆积 if (engine === ...) 分支，
+   *     正是要避免的耦合；
+   *   · 新增引擎时只加自己的前缀，不动已有通道。
+   */
+  memcachedOverview: 'memcached:overview',
+  memcachedSlabs: 'memcached:slabs',
+  memcachedKeys: 'memcached:keys',
+  memcachedGet: 'memcached:get',
+  memcachedSet: 'memcached:set',
+  memcachedRemove: 'memcached:remove',
+  memcachedRename: 'memcached:rename',
+  memcachedFlush: 'memcached:flush',
 
   windowMinimize: 'window:minimize',
   windowMaxToggle: 'window:maxToggle',

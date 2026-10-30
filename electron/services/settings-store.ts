@@ -24,7 +24,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   viewMode: 'tree',
   cliCollapsed: true,
   sidebarCollapsed: false,
-  keyBrowserWidth: 450,
+  keyBrowserWidth: 420,
   lastConnectionId: null,
   lastDb: 0,
   expandedPaths: {},

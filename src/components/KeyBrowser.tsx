@@ -9,7 +9,7 @@ import { tipProps } from '@/components/tip'
 import { useSearchHistory, SEARCH_HISTORY_LIMIT, formatHistoryTime } from '@/hooks/useSearchHistory'
 import { useSessionStore } from '@/hooks/useSessionStore'
 import { useTabBlur } from '@/hooks/useTabBlur'
-import { useSettings, settingsHolder } from '@/services/settings'
+import { useSettings, settingsHolder, KEY_BROWSER_MIN_WIDTH } from '@/services/settings'
 import { useRedis } from '@/store/useRedis'
 import { useObservable } from '@/store/subscription'
 import { copyText } from '@/utils/clipboard'
@@ -94,10 +94,11 @@ export function KeyBrowser() {
    *
    * 用 CSS min() 夹到 52%：百分比作用于父级 flex 容器（.body），
    * 所以侧栏收起/展开、窗口缩放时基准都会自动跟着变，不需要任何 JS 重算。
+   * clamp 的下限保证：窄窗口下 52% 也不会把工具条压到换行（默认同为 420）。
    */
   const browserStyle: React.CSSProperties = {
-    width: `min(${settings.keyBrowserWidth}px, 52%)`,
-    flexBasis: `min(${settings.keyBrowserWidth}px, 52%)`,
+    width: `clamp(${KEY_BROWSER_MIN_WIDTH}px, ${settings.keyBrowserWidth}px, 52%)`,
+    flexBasis: `clamp(${KEY_BROWSER_MIN_WIDTH}px, ${settings.keyBrowserWidth}px, 52%)`,
   }
 
   /* ---------------------------------------------------------------- 批量勾选 */
@@ -1079,7 +1080,7 @@ export function KeyBrowser() {
         />
 
         <button className="btn-ghost icon" {...tipProps('重新扫描')} disabled={!connected} onClick={applyPattern}>
-          <DialogIcon name="refresh" size={13} />
+          <DialogIcon name="refresh" size={13} className={state.loadingKeys ? 'spin' : undefined} />
         </button>
         <button className="btn-ghost icon add" {...tipProps('新建键')} disabled={!connected} onClick={openCreateRoot}>
           <DialogIcon name="add" size={14} />

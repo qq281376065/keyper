@@ -57,7 +57,7 @@ async function getJson<T>(url: string): Promise<{ ok: true; data: T } | { ok: fa
     }
 
     request.setHeader('Accept', 'application/json')
-    request.setHeader('User-Agent', `RedisDocter/${app.getVersion()}`)
+    request.setHeader('User-Agent', `Keyper/${app.getVersion()}`)
 
     request.on('response', (response) => {
       // 3xx 交给 net 自动跟随；这里只处理 2xx 与明确的失败状态

@@ -9,8 +9,12 @@ import { configDir } from './config-path'
  * 手动操作日志。
  *
  * 存储：<配置目录>/logs/yyyymmdd.log（便携模式下即 程序目录/config/logs）（每天一个文件，UTF-8，单行一条，便于 grep）
- * 行格式：时间 | 连接 | 操作 | 详情 | 结果 (耗时)
+ * 行格式：时间 | 引擎 | 连接 | 操作 | 详情 | 结果 (耗时)
  * 保留：按设置中的 logRetentionDays（默认 30 天）自动清理
+ *
+ * ⚠️ 引擎列是后加的。为保证「升级后还能读旧日志」，parseLine 会先判断
+ * 第 2 列是不是已知引擎名：不是就说明这行是旧格式（第 2 列是连接名），
+ * 整体右移一列并按 redis 补齐。历史上只有 Redis，因此这个默认值是准确的。
  *
  * 只记录用户显式触发的操作（写命令、CLI、连接与配置变更），
  * 后台自动刷新等操作不经过 IPC，因此不会进入日志。
@@ -55,6 +59,7 @@ function formatLine(entry: LogEntry): string {
   const cost = entry.costMs != null ? ` (${entry.costMs}ms)` : ''
   return [
     timeText(entry.timestamp),
+    entry.engine,
     sanitize(entry.connectionName || '-'),
     sanitize(entry.action),
     sanitize(entry.detail),
@@ -62,17 +67,49 @@ function formatLine(entry: LogEntry): string {
   ].join(' | ')
 }
 
+const KNOWN_ENGINES = new Set(['redis', 'memcached'])
+
 function parseLine(line: string): LogEntry | null {
   const parts = line.split(' | ')
   if (parts.length < 5) return null
 
-  const [time, connectionName, action, detail] = parts
-  const tail = parts.slice(4).join(' | ')
+  let time: string
+  let engine: LogEntry['engine']
+  let connectionName: string
+  let action: string
+  let detail: string
+  let tailParts: string[]
+
+  /*
+   * 兼容两种行：
+   *   新：时间 | 引擎 | 连接 | 操作 | 详情 | 结果
+   *   旧：时间 | 连接 | 操作 | 详情 | 结果
+   * 靠"第 2 列是否为已知引擎名"区分。连接名恰好叫 redis 的概率极低，
+   * 且即便撞名，最坏结果只是该条日志的引擎标错，不影响其余字段解析。
+   */
+  if (KNOWN_ENGINES.has(parts[1] ?? '')) {
+    time = parts[0]
+    engine = parts[1] as LogEntry['engine']
+    connectionName = parts[2]
+    action = parts[3]
+    detail = parts[4]
+    tailParts = parts.slice(5)
+  } else {
+    time = parts[0]
+    engine = 'redis'
+    connectionName = parts[1]
+    action = parts[2]
+    detail = parts[3]
+    tailParts = parts.slice(4)
+  }
+
+  const tail = tailParts.join(' | ')
   const stamp = Date.parse(time.replace(' ', 'T'))
   const costMatched = /\((\d+)ms\)\s*$/.exec(tail)
 
   return {
     timestamp: Number.isNaN(stamp) ? 0 : stamp,
+    engine,
     connectionId: '',
     connectionName,
     action,
@@ -159,6 +196,8 @@ export function readLogs(query: LogQuery): LogEntry[] {
     if (!line) continue
     const entry = parseLine(line)
     if (!entry) continue
+    /* 按引擎筛选：同一份日志文件里两种引擎交叉记录，界面默认只显示全部 */
+    if (query.engine && entry.engine !== query.engine) continue
     if (query.connection && entry.connectionName !== query.connection) continue
     if (keyword) {
       const haystack = `${entry.action} ${entry.detail} ${entry.result}`.toLowerCase()

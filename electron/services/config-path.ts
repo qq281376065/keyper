@@ -54,12 +54,14 @@ export function configDir(): string {
   /*
    * 环境变量优先：便于测试与"指定配置目录"的高级用法。
    *
-   * 主名是 REDISDOCTER_CONFIG_DIR（与 REDISDOCTER_DEBUG / REDISDOCTER_DEBUG_LOG
-   * 保持一致）。仍接受旧的 REDISDESKTOP_CONFIG_DIR —— 项目早期叫 RedisDesktop，
+   * 主名是 KEYPER_CONFIG_DIR。仍接受旧名 REDISDOCTER_CONFIG_DIR / REDISDESKTOP_CONFIG_DIR —— 项目早期叫 RedisDesktop，
    * 已有用户的启动脚本 / 部署文档里写的可能是旧名；静默失效会让人以为
    * "指定了目录却没生效"，所以保留一个版本再移除。
    */
-  const override = process.env.REDISDOCTER_CONFIG_DIR || process.env.REDISDESKTOP_CONFIG_DIR
+  const override =
+    process.env.KEYPER_CONFIG_DIR ||
+    process.env.REDISDOCTER_CONFIG_DIR ||
+    process.env.REDISDESKTOP_CONFIG_DIR
   if (override) {
     if (canWrite(override)) {
       cachedDir = override

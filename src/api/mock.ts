@@ -13,10 +13,15 @@ import type {
   LogEntry,
   LogFileInfo,
   LogQuery,
+  MemcachedKeyList,
+  MemcachedOverview,
+  MemcachedSlab,
+  MemcachedValue,
   MemoryAnalysis,
   MemoryBucket,
   OperationResult,
   UpdateCheckResult,
+  CacheConnectionConfig,
   RedisConnectionConfig,
   RedisKeyItem,
   RedisValueType,
@@ -40,13 +45,31 @@ import type {
  */
 
 const delay = (ms = 120): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
+
+/**
+ * UTF-8 字节数。
+ *
+ * ⚠️ 不能用 Buffer.byteLength：mock 同时运行在浏览器（dev:web 预览）
+ * 与 Electron 渲染进程里，而浏览器没有 Node 的 Buffer 全局 ——
+ * 直接调用会抛 "Buffer is not defined"，整个面板变成错误态。
+ * TextEncoder 是两边都有的标准 API，且在 UTF-8 下与 Buffer 结果一致。
+ */
+const utf8Bytes = (text: string): number => new TextEncoder().encode(text).length
 const ok = <T>(data: T): ApiResponse<T> => ({ ok: true, data })
 
-const CONNECTIONS: RedisConnectionConfig[] = [
-  { id: 'local', name: '本地开发', host: '127.0.0.1', port: 6379, db: 0 },
-  { id: 'staging', name: '测试环境', host: '192.168.1.45', port: 6379, db: 2, username: 'default' },
-  { id: 'prod', name: '生产（只读）', host: 'redis-prod.internal', port: 6380, db: 0, tls: true },
-  { id: 'modern', name: '新版演示 (7.4+)', host: '127.0.0.1', port: 6381, db: 0 },
+/*
+ * 演示连接：两种引擎混排，用于验证
+ *   ① 连接列表的引擎角标能一眼区分；
+ *   ② 两个引擎的配置、状态、面板互不干扰。
+ * Memcached 的端口用 11211（默认端口），不写 db —— 它没有库的概念。
+ */
+const CONNECTIONS: CacheConnectionConfig[] = [
+  { id: 'local', engine: 'redis', name: '本地开发', host: '127.0.0.1', port: 6379, db: 0 },
+  { id: 'staging', engine: 'redis', name: '测试环境', host: '192.168.1.45', port: 6379, db: 2, username: 'default' },
+  { id: 'prod', engine: 'redis', name: '生产（只读）', host: 'redis-prod.internal', port: 6380, db: 0, tls: true },
+  { id: 'modern', engine: 'redis', name: '新版演示 (7.4+)', host: '127.0.0.1', port: 6381, db: 0 },
+  { id: 'mc-local', engine: 'memcached', name: '本地缓存', host: '127.0.0.1', port: 11211, poolSize: 4 },
+  { id: 'mc-session', engine: 'memcached', name: '会话缓存（生产）', host: 'mc-session.internal', port: 11211, poolSize: 8 },
 ]
 
 /*
@@ -456,7 +479,7 @@ const DEFAULT_MOCK_SETTINGS: AppSettings = {
   viewMode: 'tree',
   cliCollapsed: true,
   sidebarCollapsed: false,
-  keyBrowserWidth: 450,
+  keyBrowserWidth: 420,
   lastConnectionId: null,
   lastDb: 0,
   expandedPaths: {},
@@ -484,15 +507,15 @@ function dayKey(offsetDays = 0): string {
 }
 
 const MOCK_LOG_PRESETS: Array<Omit<LogEntry, 'timestamp' | 'connectionId'>> = [
-  { connectionName: '本地开发', action: '命令', detail: 'SET cache:home:feed {...}', ok: true, result: 'OK', costMs: 2 },
-  { connectionName: '本地开发', action: '新建键', detail: 'order:20261016:8842 (hash)', ok: true, result: '已创建 order:20261016:8842', costMs: 6 },
-  { connectionName: '本地开发', action: '写入键', detail: 'config:feature:flags (hash)', ok: true, result: '已保存', costMs: 4 },
-  { connectionName: '测试环境', action: '命令', detail: 'FLUSHDB ASYNC', ok: true, result: 'OK', costMs: 8 },
-  { connectionName: '测试环境', action: '命令', detail: 'DEL queue:sms:retry', ok: true, result: '1', costMs: 3 },
-  { connectionName: '测试环境', action: '删除键', detail: 'session:3b8d0f51', ok: true, result: '已删除 1 个键', costMs: 5 },
-  { connectionName: '本地开发', action: '设置 TTL', detail: 'lock:order:20261016-8842 → 30s', ok: true, result: 'TTL 已设置为 30s', costMs: 2 },
-  { connectionName: '生产（只读）', action: '建立连接', detail: 'redis-prod.internal:6380/0', ok: false, result: '连接超时', costMs: 8001 },
-  { connectionName: '本地开发', action: '命令', detail: 'HGETALL user:1001:profile', ok: true, result: '6 个字段', costMs: 1 },
+  { engine: 'redis', connectionName: '本地开发', action: '命令', detail: 'SET cache:home:feed {...}', ok: true, result: 'OK', costMs: 2 },
+  { engine: 'redis', connectionName: '本地开发', action: '新建键', detail: 'order:20261016:8842 (hash)', ok: true, result: '已创建 order:20261016:8842', costMs: 6 },
+  { engine: 'memcached', connectionName: '本地缓存', action: '写入键', detail: 'session:3b8d0f51 (expire 1800s)', ok: true, result: 'STORED', costMs: 3 },
+  { engine: 'redis', connectionName: '测试环境', action: '命令', detail: 'FLUSHDB ASYNC', ok: true, result: 'OK', costMs: 8 },
+  { engine: 'memcached', connectionName: '本地缓存', action: '命令', detail: 'get user:1001:profile', ok: true, result: '1 个键命中', costMs: 1 },
+  { engine: 'redis', connectionName: '测试环境', action: '删除键', detail: 'session:3b8d0f51', ok: true, result: '已删除 1 个键', costMs: 5 },
+  { engine: 'memcached', connectionName: '会话缓存（生产）', action: '删除键', detail: 'session:expired:88f1', ok: true, result: 'DELETED', costMs: 2 },
+  { engine: 'redis', connectionName: '生产（只读）', action: '建立连接', detail: 'redis-prod.internal:6380/0', ok: false, result: '连接超时', costMs: 8001 },
+  { engine: 'memcached', connectionName: '本地缓存', action: '命令', detail: 'flush_all', ok: true, result: 'OK', costMs: 12 },
 ]
 
 function mockLogsFor(date: string): LogEntry[] {
@@ -504,7 +527,15 @@ function mockLogsFor(date: string): LogEntry[] {
   return MOCK_LOG_PRESETS.map((preset, index) => ({
     ...preset,
     timestamp: base - index * 137_000,
-    connectionId: preset.connectionName === '本地开发' ? 'local' : 'staging',
+    /* 连接 id 按名称映射到演示配置，保证日志筛选能对上列表 */
+    connectionId:
+      preset.connectionName === '本地开发'
+        ? 'local'
+        : preset.connectionName === '本地缓存'
+          ? 'mc-local'
+          : preset.connectionName === '会话缓存（生产）'
+            ? 'mc-session'
+            : 'staging',
   }))
 }
 
@@ -641,6 +672,12 @@ export const mockApi: RedisDesktopApi = {
       const date = query?.date && /^\d{8}$/.test(query.date) ? query.date : dayKey(0)
       const keyword = query?.keyword?.trim().toLowerCase() ?? ''
       const list = mockLogsFor(date)
+        /*
+         * 引擎筛选必须与主进程 log-service 的行为一致。
+         * mock 漏掉这一条时，浏览器预览里切"模块"下拉毫无反应 ——
+         * 而预览正是日常调界面用的环境，很容易被当成"功能没做"。
+         */
+        .filter((entry) => !query?.engine || entry.engine === query.engine)
         .filter((entry) => !query?.connection || entry.connectionName === query.connection)
         .filter(
           (entry) =>
@@ -706,7 +743,7 @@ export const mockApi: RedisDesktopApi = {
      * 界面表现为"点了仅保存，弹窗关了但连接没出现"。
      * 与 remove 的教训同源：演示性返回会让闭环验证形同虚设。
      */
-    save: async (config: RedisConnectionConfig) => {
+    save: async (config: CacheConnectionConfig) => {
       const index = CONNECTIONS.findIndex((item) => item.id === config.id)
       if (index >= 0) CONNECTIONS[index] = { ...CONNECTIONS[index], ...config }
       else CONNECTIONS.push({ ...config })
@@ -748,7 +785,7 @@ export const mockApi: RedisDesktopApi = {
     // 拖拽排序：真实重排数组 + localStorage 落盘，刷新页面（模拟重启）后顺序保留
     reorder: async (ids: string[]) => {
       const byId = new Map(CONNECTIONS.map((item) => [item.id, item]))
-      const ordered = ids.map((id) => byId.get(id)).filter((item): item is RedisConnectionConfig => !!item)
+      const ordered = ids.map((id) => byId.get(id)).filter((item): item is CacheConnectionConfig => !!item)
       for (const item of CONNECTIONS) if (!ids.includes(item.id)) ordered.push(item)
       CONNECTIONS.splice(0, CONNECTIONS.length, ...ordered)
       try {
@@ -764,8 +801,29 @@ export const mockApi: RedisDesktopApi = {
     },
     // 浏览器预览没有主进程推送，订阅为 no-op（返回取消函数）
     onStatusChange: () => () => {},
-    connect: async (config: RedisConnectionConfig): Promise<ApiResponse<ConnectionState>> => {
+    connect: async (config: CacheConnectionConfig): Promise<ApiResponse<ConnectionState>> => {
       await delay(360)
+      /*
+       * 按引擎分流：返回的状态形状必须与该引擎的子类型一致。
+       * 两个分支各自挑字段，不做 {...config} 展开 ——
+       * 否则 Redis 的 db / Memcached 的 poolSize 会互相串到对方状态里，
+       * 界面上就会出现"Memcached 连上后还显示 db0"这类脏数据。
+       */
+      if (config.engine === 'memcached') {
+        return ok({
+          id: config.id,
+          name: config.name,
+          engine: 'memcached',
+          host: config.host,
+          port: config.port,
+          poolSize: config.poolSize ?? 4,
+          sshEnabled: !!(config.sshEnabled && config.ssh),
+          sshHost: config.sshEnabled && config.ssh ? config.ssh.host : undefined,
+          status: 'connected',
+          latency: 1,
+          version: '1.6.21',
+        })
+      }
       // 记录当前版本，后续 info / TTL 相关接口按此返回
       activeVersion = versionOf(config.id)
       /*
@@ -777,6 +835,7 @@ export const mockApi: RedisDesktopApi = {
       return ok({
         id: config.id,
         name: config.name,
+        engine: 'redis',
         host: config.host,
         port: config.port,
         username: config.username,
@@ -1404,4 +1463,224 @@ export const mockApi: RedisDesktopApi = {
       return ok({ output: '(error) ERR 预览模式仅支持 PING / INFO / DBSIZE / GET', costMs: 1 })
     },
   },
+
+  /*
+   * Memcached 预览数据。
+   *
+   * 刻意不与上面 redis 的演示数据共用任何变量 ——
+   * 浏览器预览里也要能验证"两个模块互不干扰"：
+   * 在 Memcached 面板里写入一个键，Redis 的键列表不应出现它。
+   */
+  memcached: {
+    overview: async (id: string): Promise<ApiResponse<MemcachedOverview>> => {
+      await delay(180)
+      if (!MOCK_MC_KEYS[id]) MOCK_MC_KEYS[id] = seedMemcached()
+      const store = MOCK_MC_KEYS[id]!
+      const totalBytes = [...store.values()].reduce((sum, item) => sum + utf8Bytes(item.data), 0)
+      const hits = 48_213
+      const misses = 1_642
+      return ok({
+        version: '1.6.21',
+        items: aggregateSlabs(store),
+        settings: {
+          maxbytes: '268435456',
+          maxconns: '1024',
+          tcpport: '11211',
+          num_threads: '4',
+          evictions: 'on',
+          growth_factor: '1.25',
+        },
+        stats: {
+          pid: '2841',
+          uptime: String(60 * 60 * 26 + 812),
+          time: String(Math.floor(Date.now() / 1000)),
+          version: '1.6.21',
+          threads: '4',
+          curr_connections: '37',
+          total_connections: '1284',
+          cmd_get: String(hits + misses),
+          cmd_set: '9214',
+          get_hits: String(hits),
+          get_misses: String(misses),
+          curr_items: String(store.size),
+          total_items: '18422',
+          bytes: String(totalBytes),
+          limit_maxbytes: '268435456',
+          evictions: '0',
+          reclaimed: '412',
+        },
+      })
+    },
+
+    slabs: async (id: string): Promise<ApiResponse<MemcachedSlab[]>> => {
+      await delay(120)
+      if (!MOCK_MC_KEYS[id]) MOCK_MC_KEYS[id] = seedMemcached()
+      /*
+       * aggregateSlabs 为每个 slab 输出三个键（:number / :age / :evicted）。
+       * 直接 map 会把同一个 slab 产出三次 —— React 报"重复 key"，
+       * 表格里也会出现三行一样的 slab。必须按 slab 编号去重合并。
+       * 真实主进程实现（memcachedManager.slabs）用的是 Map 聚合，
+       * 天然不会重复；mock 这里要与它对齐。
+       */
+      const groups = aggregateSlabs(MOCK_MC_KEYS[id]!)
+      const bySlab = new Map<number, MemcachedSlab>()
+      for (const [key, value] of Object.entries(groups)) {
+        const match = /^items:(\d+):(\w+)$/.exec(key)
+        if (!match) continue
+        const slab = Number(match[1])
+        const field = match[2]
+        if (!Number.isFinite(slab)) continue
+        const entry = bySlab.get(slab) ?? { slab, count: 0, age: 240, evicted: 0 }
+        if (field === 'number') entry.count = Number(value) || 0
+        else if (field === 'age') entry.age = Number(value) || 240
+        else if (field === 'evicted') entry.evicted = Number(value) || 0
+        bySlab.set(slab, entry)
+      }
+      return ok([...bySlab.values()].filter((item) => item.count > 0).sort((a, b) => a.slab - b.slab))
+    },
+
+    keys: async (id: string, options?: { perSlab?: number }): Promise<ApiResponse<MemcachedKeyList>> => {
+      await delay(320)
+      if (!MOCK_MC_KEYS[id]) MOCK_MC_KEYS[id] = seedMemcached()
+      const store = MOCK_MC_KEYS[id]!
+      const perSlab = options?.perSlab ?? 500
+      const items = [...store.entries()].map(([key, item]) => ({
+        key,
+        bytes: utf8Bytes(item.data),
+        expiresAt: item.expiresAt,
+        slab: 1,
+      }))
+      return ok({
+        items: items.slice(0, perSlab),
+        truncated: items.length > perSlab,
+        deniedSlabs: [],
+      })
+    },
+
+    get: async (id: string, key: string): Promise<ApiResponse<MemcachedValue>> => {
+      await delay(90)
+      const store = MOCK_MC_KEYS[id] ?? (MOCK_MC_KEYS[id] = seedMemcached())
+      const found = store.get(key)
+      if (!found) return ok({ found: false, data: '', bytes: 0, flags: 0 })
+      const now = Math.floor(Date.now() / 1000)
+      return ok({
+        found: true,
+        data: found.data,
+        bytes: utf8Bytes(found.data),
+        flags: found.flags,
+        ttl: found.expiresAt ? Math.max(0, found.expiresAt - now) : -1,
+      })
+    },
+
+    set: async (
+      id: string,
+      key: string,
+      value: string,
+      options?: {
+        exptime?: number
+        mode?: 'set' | 'add' | 'replace'
+        flags?: number
+        ttlSeconds?: number
+      },
+    ): Promise<ApiResponse<OperationResult>> => {
+      await delay(80)
+      const store = MOCK_MC_KEYS[id] ?? (MOCK_MC_KEYS[id] = seedMemcached())
+      const mode = options?.mode ?? 'set'
+      if (mode === 'add' && store.has(key)) {
+        return ok({ ok: false, message: '键已存在，未写入（add 语义）' })
+      }
+      if (mode === 'replace' && !store.has(key)) {
+        return ok({ ok: false, message: '键不存在，未写入（replace 语义）' })
+      }
+      const ttl = options?.ttlSeconds
+      const exptime = ttl !== undefined ? (ttl < 0 ? 0 : Math.max(1, ttl)) : options?.exptime ?? 0
+      store.set(key, {
+        data: value,
+        flags: options?.flags ?? 0,
+        expiresAt: exptime > 0 ? Math.floor(Date.now() / 1000) + exptime : 0,
+      })
+      return ok({ ok: true, message: '已保存' })
+    },
+
+    remove: async (id: string, key: string): Promise<ApiResponse<OperationResult>> => {
+      await delay(70)
+      const store = MOCK_MC_KEYS[id]
+      if (!store || !store.delete(key)) return ok({ ok: false, message: '键不存在' })
+      return ok({ ok: true, message: '已删除' })
+    },
+
+    rename: async (id: string, key: string, newKey: string): Promise<ApiResponse<OperationResult>> => {
+      await delay(90)
+      const store = MOCK_MC_KEYS[id] ?? (MOCK_MC_KEYS[id] = seedMemcached())
+      const source = store.get(key)
+      if (!source) return ok({ ok: false, message: '键已过期或被删除' })
+      const target = newKey.trim()
+      if (!target) return ok({ ok: false, message: '新的键名不能为空' })
+      if (target === key) return ok({ ok: true, message: '键名未变化' })
+      if (store.has(target)) {
+        return ok({ ok: false, message: `目标键 ${target} 已存在，重命名会覆盖它，已拒绝执行` })
+      }
+      store.set(target, { ...source })
+      store.delete(key)
+      return ok({ ok: true, message: '已重命名' })
+    },
+
+    flush: async (id: string): Promise<ApiResponse<OperationResult>> => {
+      await delay(200)
+      MOCK_MC_KEYS[id] = new Map()
+      return ok({ ok: true, message: '已清空全部数据' })
+    },
+  },
+}
+
+/* ---------------------------------------------------------------- Memcached 演示数据 */
+
+interface MockMcItem {
+  data: string
+  flags: number
+  /** 绝对过期时间（秒）；0 表示永不过期 */
+  expiresAt: number
+}
+
+const MOCK_MC_KEYS: Record<string, Map<string, MockMcItem>> = {}
+
+function seedMemcached(): Map<string, MockMcItem> {
+  const now = Math.floor(Date.now() / 1000)
+  const seed: Array<[string, string, number]> = [
+    ['session:8f2a1c', '{"uid":1001,"role":"admin","loginAt":"2026-10-29T09:12:00Z"}', 1800],
+    ['session:3b8d0f', '{"uid":2048,"role":"user","loginAt":"2026-10-29T10:03:11Z"}', 1800],
+    ['cache:home:feed:zh', '[{"id":"a1","title":"今日推荐"},{"id":"a2","title":"热门榜单"}]', 600],
+    ['cache:home:feed:en', '[{"id":"b1","title":"Recommended"},{"id":"b2","title":"Trending"}]', 600],
+    ['user:1001:profile', '{"name":"林工","level":12,"avatar":"/a/1001.png"}', 3600],
+    ['user:2048:profile', '{"name":"测试账号","level":3,"avatar":"/a/2048.png"}', 3600],
+    ['rate:api:1001', '37', 60],
+    ['rate:api:2048', '412', 60],
+    ['lock:order:8842', '1', 30],
+    ['feature:flags', '{"newCheckout":true,"darkMode":false,"betaSearch":true}', 0],
+    ['config:site', '{"locale":"zh-CN","currency":"CNY","pageSize":20}', 0],
+    ['hot:keywords', '缓存,Redis,Memcached,连接池,运维', 300],
+  ]
+  const map = new Map<string, MockMcItem>()
+  for (const [key, data, ttl] of seed) {
+    map.set(key, { data, flags: 0, expiresAt: ttl > 0 ? now + ttl : 0 })
+  }
+  return map
+}
+
+/** 把键集合聚合成 `items:<slab>:number` 形态，与真实 stats items 对齐 */
+function aggregateSlabs(store: Map<string, MockMcItem>): Record<string, string> {
+  const out: Record<string, string> = {}
+  /* 演示用：按值长度粗略分到 3 个 slab，模拟真实的分档 */
+  const buckets = new Map<number, number>()
+  for (const [, item] of store) {
+    const size = utf8Bytes(item.data)
+    const slab = size <= 64 ? 1 : size <= 256 ? 2 : 3
+    buckets.set(slab, (buckets.get(slab) ?? 0) + 1)
+  }
+  for (const [slab, count] of buckets) {
+    out[`items:${slab}:number`] = String(count)
+    out[`items:${slab}:age`] = '240'
+    out[`items:${slab}:evicted`] = '0'
+  }
+  return out
 }

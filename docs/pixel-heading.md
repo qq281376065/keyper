@@ -77,7 +77,7 @@ and `body` metrics are byte-identical.
 
 ```tsx
 <PixelHeading as="h2" mode="random" className="px-title px-grad-ember welcome-title">
-  RedisDocter
+  Keyper
 </PixelHeading>
 ```
 

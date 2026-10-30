@@ -1,6 +1,6 @@
 import { createServer, type Server, type Socket } from 'node:net'
 import { Client, type ConnectConfig, type ClientChannel } from 'ssh2'
-import type { RedisConnectionConfig, SshConfig, SshHop } from '../../shared/types'
+import type { MemcachedConnectionConfig, RedisConnectionConfig, SshConfig, SshHop } from '../../shared/types'
 
 /**
  * SSH 隧道（本地端口转发）。
@@ -183,7 +183,7 @@ function connectOne(
     client.once('ready', () => {
       if (settled) return
       settled = true
-      if (process.env.REDISDOCTER_DEBUG) {
+      if (process.env.KEYPER_DEBUG || process.env.REDISDOCTER_DEBUG) {
         console.log(`[ssh] ${hop.host.trim()}:${hop.port} 握手+认证 ${Date.now() - t0}ms`)
       }
       resolve(client)
@@ -225,13 +225,19 @@ function hopStream(
 }
 
 /**
+ * 隧道只关心"连到哪、经哪台跳板"，与上层是 Redis 还是 Memcached 无关。
+ * 两种连接配置在 host/port/id/ssh 上结构一致，因此共用一个入参类型。
+ */
+export type TunnelTarget = RedisConnectionConfig | MemcachedConnectionConfig
+
+/**
  * 打开一条隧道。
  *
  * @param config   完整的连接配置（含 ssh 字段）
  * @returns 本地监听端口
  * @throws  配置无效 / SSH 登录失败 / 端口转发失败
  */
-export async function openTunnel(config: RedisConnectionConfig): Promise<Tunnel> {
+export async function openTunnel(config: TunnelTarget): Promise<Tunnel> {
   const ssh = config.ssh
   if (!ssh) throw new Error('缺少 SSH 配置')
   const tOpen = Date.now()
@@ -401,7 +407,7 @@ export async function openTunnel(config: RedisConnectionConfig): Promise<Tunnel>
     }
   })
 
-  if (process.env.REDISDOCTER_DEBUG) {
+  if (process.env.KEYPER_DEBUG || process.env.REDISDOCTER_DEBUG) {
     console.log(
       `[ssh] 隧道就绪 总耗时 ${Date.now() - tOpen}ms` +
         `（跳板 ${hopClients.length} 级 · 本地端口 ${localPort}）`,
@@ -463,7 +469,7 @@ export class TunnelManager {
    *      connect 刚建好的隧道之后，把它拆掉。
    * 配置变化或隧道已死（keepalive 失败等）则重建。
    */
-  async ensure(config: RedisConnectionConfig): Promise<{ host: string; port: number }> {
+  async ensure(config: TunnelTarget): Promise<{ host: string; port: number }> {
     const ssh = config.ssh
     if (!ssh) throw new Error('缺少 SSH 配置')
 

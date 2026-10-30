@@ -42,6 +42,13 @@ export const MONO_FONTS: Array<{ value: string; label: string; stack: string }> 
   { value: 'courier', label: 'Courier New', stack: '"Courier New", Courier, monospace' },
 ]
 
+/**
+ * 键列表栏的最小宽度，同时也是默认宽度。
+ * 420px 是「树形 / 平铺」等工具条按钮不被压成两行的下限，
+ * 拖动只能在此之上调整。
+ */
+export const KEY_BROWSER_MIN_WIDTH = 420
+
 export const DEFAULT_SETTINGS: AppSettings = {
   fontSize: 13,
   uiFont: 'system',
@@ -56,7 +63,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   viewMode: 'tree',
   cliCollapsed: true,
   sidebarCollapsed: false,
-  keyBrowserWidth: 450,
+  keyBrowserWidth: KEY_BROWSER_MIN_WIDTH,
   lastConnectionId: null,
   lastDb: 0,
   expandedPaths: {},
@@ -89,20 +96,30 @@ function applyToDom(): void {
   root.style.setProperty('--font-mono', monoFont.stack)
 }
 
+/** 归一化键栏宽度：旧配置可能更窄甚至缺失，统一抬回下限 */
+function clampKeyWidth(width: number): number {
+  return Number.isFinite(width)
+    ? Math.max(KEY_BROWSER_MIN_WIDTH, Math.round(width))
+    : KEY_BROWSER_MIN_WIDTH
+}
+
 /** 从主进程加载设置；浏览器预览下由 mock 提供默认值 */
 async function load(): Promise<void> {
   const res = await api.settings.get()
   if (res.ok) Object.assign(settings, res.data)
+  settings.keyBrowserWidth = clampKeyWidth(settings.keyBrowserWidth)
   applyToDom()
 }
 
 /** 保存：先本地生效保证交互即时，再用主进程返回值校正 */
 async function save(patch: Partial<AppSettings>): Promise<void> {
   Object.assign(settings, patch)
+  settings.keyBrowserWidth = clampKeyWidth(settings.keyBrowserWidth)
   applyToDom()
   const res = await api.settings.save(patch)
   if (res.ok) {
     Object.assign(settings, res.data)
+    settings.keyBrowserWidth = clampKeyWidth(settings.keyBrowserWidth)
     applyToDom()
   }
 }

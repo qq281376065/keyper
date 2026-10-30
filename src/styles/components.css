@@ -3338,6 +3338,10 @@
     transform: rotate(360deg);
   }
 }
+/* 工具栏「重新扫描」进行中：图标旋转，与 Memcached 取样按钮同一动效 */
+.s-key-browser .icon svg.spin{
+  animation: kb-spin 0.7s linear infinite;
+}
 .s-key-browser.loading-text, .s-key-browser .loading-text{
   font-size: var(--fs-sm);
   color: var(--text-secondary);
@@ -3345,6 +3349,9 @@
 /* 尊重系统的"减少动态效果"偏好：放慢而非停掉，仍能看出在加载 */
 @media (prefers-reduced-motion: reduce){
   .spinner {
+    animation-duration: 2s;
+  }
+  .s-key-browser .icon svg.spin {
     animation-duration: 2s;
   }
 }
@@ -7507,6 +7514,558 @@ body.col-resizing .col-handle::after{
   color: var(--text-muted);
 }
 
+/* ---------------------------------------------------------- 底部键书签（方案 05）
+ * 固定「详情」+ 左右箭头 + 横向书签区 + ⋯ 更多。
+ * 书签集合由组件按连接隔离维护，样式只管排布。
+ */
+.s-value-viewer.viewer-tabs, .s-value-viewer .viewer-tabs{
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: stretch;
+  height: 30px;
+  min-width: 0;
+  border-top: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+/* 固定详情：永远第一位，不参与滚动，不可关闭 */
+.s-value-viewer .vt-home{
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px 0 9px;
+  border: 0;
+  border-right: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font: 11px var(--font-ui);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.s-value-viewer .vt-home:hover{
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+.s-value-viewer .vt-home.active{
+  background: var(--bg-app);
+  color: var(--text-primary);
+}
+.s-value-viewer .vt-home.active::before{
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  background: var(--accent);
+}
+.s-value-viewer .vt-home.active svg{
+  color: var(--accent);
+}
+.s-value-viewer .vt-home:focus-visible{
+  outline: 1px solid var(--accent);
+  outline-offset: -2px;
+}
+/* 左右滚动箭头 */
+.s-value-viewer .vt-arrow{
+  flex: 0 0 20px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font: 13px/1 var(--font-ui);
+  cursor: pointer;
+}
+.s-value-viewer .vt-home + .vt-arrow{
+  border-right: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+.s-value-viewer .vt-strip + .vt-arrow{
+  border-left: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+.s-value-viewer .vt-arrow:hover:not(:disabled){
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.s-value-viewer .vt-arrow:disabled{
+  opacity: 0.28;
+  cursor: default;
+}
+/* 书签滚动区：滚动条隐藏，滚轮由组件转成横向滚动 */
+.s-value-viewer .vt-strip{
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.s-value-viewer .vt-strip::-webkit-scrollbar{
+  width: 0;
+  height: 0;
+}
+.s-value-viewer .vt-empty{
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+.s-value-viewer .vt-tab{
+  position: relative;
+  flex: 0 0 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px 0 10px;
+  border-right: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  user-select: none;
+}
+.s-value-viewer .vt-tab::before{
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  background: transparent;
+}
+.s-value-viewer .vt-tab:hover{
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+.s-value-viewer .vt-tab.active{
+  background: var(--bg-app);
+  color: var(--text-primary);
+}
+/* 类型色顶线：--vt-tc 由组件按 meta.type 注入，缺省用强调色 */
+.s-value-viewer .vt-tab.active::before{
+  background: var(--vt-tc, var(--accent));
+}
+.s-value-viewer .vt-tab:focus-visible{
+  outline: 1px solid var(--accent);
+  outline-offset: -2px;
+}
+.s-value-viewer .vt-dot{
+  width: 5px;
+  height: 5px;
+  flex: 0 0 auto;
+  border-radius: 2px;
+  background: var(--vt-tc, var(--text-muted));
+  opacity: 0.65;
+}
+.s-value-viewer .vt-tab.active .vt-dot{
+  opacity: 1;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--vt-tc, var(--accent)) 14%, transparent);
+}
+/*
+ * 键名：中间省略在 JS 里完成（保留头尾），这里只做兜底截断。
+ * max-width 按「头 12 + … + 尾 8」的最宽情形（全角字符）取值，
+ * 正常不会被 CSS 二次截断，省略号一定看得见。
+ */
+.s-value-viewer .vt-name{
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+}
+/* 截断标记：三个点跟类型色走，比键名更醒目，明确提示「没显示全」 */
+.s-value-viewer .vt-ell{
+  padding: 0 1px;
+  color: var(--vt-tc, var(--text-muted));
+  font-weight: 700;
+  letter-spacing: 0;
+}
+/* 关闭：红色圆形 hover，与更多面板、值操作菜单同一套 */
+.s-value-viewer .vt-x{
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  font: 12px/1 var(--font-ui);
+  cursor: pointer;
+  opacity: 0;
+  transition: color 0.12s, background 0.12s, opacity 0.12s;
+}
+.s-value-viewer .vt-tab:hover .vt-x,
+.s-value-viewer .vt-tab.active .vt-x,
+.s-value-viewer .vt-tab:focus-within .vt-x{
+  opacity: 1;
+}
+.s-value-viewer .vt-x:hover{
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.s-value-viewer .vt-x:focus-visible{
+  opacity: 1;
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
+}
+/* 更多按钮 */
+.s-value-viewer .vt-more{
+  position: relative;
+  flex: 0 0 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  font: 15px/1 var(--font-ui);
+  cursor: pointer;
+}
+.s-value-viewer .vt-more:hover,
+.s-value-viewer .vt-more.on{
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.s-value-viewer .vt-more.on::before{
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  background: var(--accent);
+}
+.s-value-viewer .vt-more:disabled{
+  opacity: 0.3;
+  cursor: default;
+}
+/* 更多面板：向上展开，高度按 8 行整行取值，不露半行 */
+.s-value-viewer .vt-menu{
+  position: absolute;
+  right: 6px;
+  bottom: calc(100% + 6px);
+  z-index: 71;
+  width: 312px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg-panel);
+  box-shadow: var(--shadow-panel);
+}
+.s-value-viewer .vt-menu-hd{
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 9px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+}
+.s-value-viewer .vt-menu-hd b{
+  font: 600 10px var(--font-mono);
+  color: var(--text-primary);
+}
+.s-value-viewer .vt-menu-x{
+  margin-left: auto;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s;
+}
+.s-value-viewer .vt-menu-x:hover{
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.s-value-viewer .vt-menu-x:focus-visible{
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
+}
+.s-value-viewer .vt-menu-search{
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  margin: 6px 6px 2px;
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  transition: border-color 0.12s;
+}
+.s-value-viewer .vt-menu-search:focus-within{
+  border-color: var(--accent);
+}
+.s-value-viewer .vt-menu-search input{
+  flex: 1;
+  min-width: 0;
+  /*
+   * 内层输入框完全透明：边框 / 背景 / 聚焦环都由外层 .vt-menu-search 表现。
+   * 全局 base 里的 input:focus 会加 2px accent-soft 阴影，
+   * 不覆盖的话会和外层聚焦边框叠成「双层红边」，看起来像没对齐。
+   */
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-primary);
+  font: 10.5px var(--font-mono);
+}
+.s-value-viewer .vt-menu-search input:focus{
+  border-color: transparent;
+  box-shadow: none;
+}
+.s-value-viewer .vt-menu-search input::placeholder{
+  color: var(--text-muted);
+}
+.s-value-viewer .vt-menu-list{
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 220px;
+  overflow: auto;
+  padding: 4px 4px 0;
+}
+.s-value-viewer .vt-mi{
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  height: 27px;
+  padding: 0 4px 0 6px;
+  border-radius: 5px;
+  color: var(--text-secondary);
+  font: 10.5px var(--font-mono);
+  cursor: pointer;
+}
+.s-value-viewer .vt-mi:hover{
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.s-value-viewer .vt-mi.active{
+  background: var(--accent-soft);
+  color: var(--text-primary);
+}
+.s-value-viewer .vt-mi:focus-visible{
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+.s-value-viewer .vt-mi-k{
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 面板行内关闭：默认半透明，hover / 激活 / 聚焦时全亮并转红 */
+.s-value-viewer .vt-mi-x{
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  font: 12px/1 var(--font-ui);
+  cursor: pointer;
+  opacity: 0.38;
+  transition: color 0.12s, background 0.12s, opacity 0.12s;
+}
+.s-value-viewer .vt-mi:hover .vt-mi-x,
+.s-value-viewer .vt-mi.active .vt-mi-x,
+.s-value-viewer .vt-mi:focus-within .vt-mi-x{
+  opacity: 1;
+}
+.s-value-viewer .vt-mi-x:hover{
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.s-value-viewer .vt-menu-empty{
+  padding: 16px 10px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 10.5px;
+}
+.s-value-viewer .vt-menu-acts{
+  flex: 0 0 auto;
+  display: flex;
+  gap: 4px;
+  padding: 6px;
+  border-top: 1px solid var(--border);
+}
+.s-value-viewer .vt-act{
+  flex: 1 1 0;
+  height: 24px;
+  padding: 0 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font: 10.5px var(--font-ui);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.s-value-viewer .vt-act:hover:not(:disabled){
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+.s-value-viewer .vt-act.danger:hover:not(:disabled){
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.s-value-viewer .vt-act:disabled{
+  opacity: 0.35;
+  cursor: default;
+}
+/* 小类型徽章（书签面板行 / 悬停卡）：尺寸独立于值区头部的全称胶囊 */
+:where(.s-value-viewer) .vt-t,
+.vt-pop .vt-t{
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  font: 700 8px/1 var(--font-mono);
+}
+/*
+ * 悬停统计卡：createPortal 挂 body，position: fixed 由组件算好坐标。
+ * pointer-events: none —— 卡片不吃事件，鼠标离开标签立刻消失。
+ */
+.vt-pop{
+  position: fixed;
+  z-index: 80;
+  width: 268px;
+  padding: 9px 11px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-panel);
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  pointer-events: none;
+}
+.vt-pop[data-side='above']{
+  transform: translateY(-100%);
+}
+.vt-pop::after{
+  content: '';
+  position: absolute;
+  left: var(--vt-caret, 24px);
+  width: 8px;
+  height: 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  transform: rotate(45deg);
+}
+.vt-pop[data-side='above']::after{
+  bottom: -5px;
+  border-top: 0;
+  border-left: 0;
+}
+.vt-pop[data-side='below']::after{
+  top: -5px;
+  border-bottom: 0;
+  border-right: 0;
+}
+.vt-pop .vp-k{
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.vt-pop .vp-name{
+  flex: 1;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.vt-pop .vp-type{
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font: 9.5px var(--font-mono);
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+.vt-pop .vp-row{
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 4px;
+}
+.vt-pop .vp-row i{
+  flex: 0 0 30px;
+  font-style: normal;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.vt-pop .vp-row b{
+  flex: 1;
+  min-width: 0;
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  word-break: break-word;
+}
+.vt-pop .vp-row b.urgent{
+  color: var(--accent);
+}
+.vt-pop .vp-chip{
+  margin-left: 5px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font: 600 8.5px/14px var(--font-mono);
+  letter-spacing: 0.2px;
+}
+.vt-pop .vp-hint{
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border);
+  color: var(--text-muted);
+  font-size: 9.5px;
+}
+
 
 /* VersionInfoDialog.vue —— 作用域 .s-version-info-dialog */
 .s-version-info-dialog.mask, .s-version-info-dialog .mask{
@@ -8057,22 +8616,38 @@ body.col-resizing .col-handle::after{
   block-size: 100%;
 
   /*
-   * 圆角与字号都按边长等比，而不是写死 12px / 24px：
-   * 边长 ≈ 1.59 × --title-size（56px 标题 → 88.8px 图标），
-   * 因此 字号 0.72 × --title-size ≈ 0.45 × 边长，
-   *      圆角 0.32 × --title-size ≈ 0.20 × 边长。
+   * 品牌图标是内联 SVG（BrandMark 组件），不是背景图。
+   *
+   * 换掉 PNG 背景图的原因：图里颜色是烤死的，切皮肤时图标永远一块金铜。
+   * SVG 的渐变两端取自 --brand-from / --brand-to，9 套皮肤各配一组，
+   * 切主题时图标跟着走，不用换图也不用重渲染。
+   *
+   * 尺寸仍由网格与 aspect-ratio 决定：span 拉伸到两行之高，SVG 填满 span。
+   * 早先用背景图是因为 <img> 的固有尺寸会把 hero 撑高；SVG 用 width/height 100%
+   * 时同样不产生固有尺寸（父级已定死尺寸），所以结论不变。
    */
-  font-size: calc(var(--title-size) * 0.72);
-  border-radius: calc(var(--title-size) * 0.32);
-
-  background: var(--accent);
-  color: var(--on-accent);
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
+  position: relative;   /* 供内部 SVG 绝对定位 */
+  display: block;
 }
+
+/*
+ * SVG 必须绝对定位，不能用普通的 width/height 100%：
+ * <svg> 没有显式宽高时按 CSS 规范取固有尺寸 300×150，作为 span 的内容
+ * 会把「inline-size: auto」的 span 撑到 300px —— 实测 logo 变成 300×300，
+ * hero 整块被顶高。绝对定位让它脱离文档流，span 的尺寸重新由
+ * grid 拉伸 + aspect-ratio 决定，内容不再参与计算。
+ */
+.s-welcome-panel .logo svg{
+  position: absolute;
+  inset: 0;
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+}
+
+/* 品牌图标渐变的两个色标：跟随皮肤（变量定义见 main.css 各主题块）*/
+.bm-from{ stop-color: var(--brand-from, var(--accent)); }
+.bm-to{ stop-color: var(--brand-to, var(--accent-hover)); }
 
 .s-welcome-panel .hero .welcome-title{
   grid-column: 2;
@@ -8896,4 +9471,1019 @@ body.col-resizing .col-handle::after{
 }
 .s-value-viewer .ticket-head .meta-line .sep {
   color: var(--border-strong);
+}
+
+/* ===========================================================================
+ * 缓存引擎标识（Redis / Memcached）
+ *
+ * 配色策略：Redis 用主题强调色（各皮肤自己的品牌红/绿/蓝），
+ * Memcached 固定用 --purple 这类冷色。
+ * 不把 Memcached 也做成"强调色"的原因：一旦两者都用 accent，
+ * 在某些皮肤下（如 forest 绿、ocean 蓝）两个角标会长得一模一样，
+ * 而"区分引擎"正是这些角标的唯一职责。
+ * =========================================================================== */
+
+/* 连接列表卡片上的小角标：单字母，圆形 */
+/*
+ * 引擎角标：全局可用，不绑定某个面板。
+ *
+ * 早先这些规则写在 .s-connection-sidebar 作用域下，只有连接列表能用；
+ * 后来日志行、Memcached 概览头部、值查看器头部也用了同一个类名，
+ * 结果那三处只渲染出一个裸字母、没有圆形底色 —— 看起来像"样式丢了"。
+ * 引擎标识是全应用通用的语义（这条数据属于哪个模块），
+ * 因此把作用域提到全局，靠类名本身表达意图。
+ */
+.engine-chip{
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  /* 比 fs-2xs 再小一档：14px 圆里塞一个字母，大了会顶到边框 */
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0;
+  user-select: none;
+  cursor: default;
+  vertical-align: middle;
+}
+.engine-chip.engine-redis{
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.engine-chip.engine-memcached{
+  /*
+   * 用 color-mix 而不是写死 rgba：9 套皮肤的 --purple 亮度差异很大，
+   * 固定透明度在暗色下会糊成一团、在亮色下又太淡。
+   */
+  background: color-mix(in srgb, var(--purple) 18%, transparent);
+  color: color-mix(in srgb, var(--purple) 78%, var(--text-primary));
+}
+
+/* 新建连接弹窗里的引擎选择卡 */
+.engine-pick{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.engine-opt{
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 10px 11px;
+  text-align: left;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.engine-opt:hover:not(:disabled){
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+}
+/* 选中态：描边 + 淡底，不用整块实色 —— 实色会让里面的说明文字看不清 */
+.engine-opt.on{
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text-primary);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+/* 编辑时不可切换的那一项：压暗但不隐藏，让用户知道"还能选，但要新建" */
+.engine-opt.muted{
+  opacity: 0.45;
+  cursor: default;
+}
+.engine-opt .engine-mark{
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+.engine-opt .engine-mark.engine-redis{
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.engine-opt .engine-mark.engine-memcached{
+  background: color-mix(in srgb, var(--purple) 20%, transparent);
+  color: color-mix(in srgb, var(--purple) 80%, var(--text-primary));
+}
+.engine-opt .engine-text{
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.engine-opt .engine-name{
+  font-size: var(--fs-base);
+  font-weight: 600;
+  line-height: 1.3;
+}
+.engine-opt .engine-hint{
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+/* 编辑锁定时标题右侧的小字说明 */
+.dlg-section-note{
+  margin-left: 8px;
+  font-size: var(--fs-2xs);
+  font-weight: 400;
+  color: var(--text-muted);
+}
+/* 表单内的说明文案（连接池大小这类需要解释的字段） */
+.ml-field-hint{
+  margin: 6px 0 0;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* 弹窗标题后的引擎名小标：弱化处理，作为"上下文"而非标题的一部分 */
+.dlg-title .dlg-title-engine{
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  font-size: var(--fs-2xs);
+  font-weight: 500;
+  color: var(--text-muted);
+  vertical-align: middle;
+}
+
+/* ===========================================================================
+ * Memcached 信息面板
+ *
+ * 复用 ov-head / ov-tabs / ov-tab 这套外壳，保证与 Redis 面板同一视觉语言；
+ * 内部自有 mc-* 系列只负责 Memcached 特有的内容（概览卡 / 键列表 / 统计网格）。
+ * 所有颜色走语义变量，9 套皮肤自动跟随。
+ * =========================================================================== */
+
+.s-mc-overview{
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  /*
+   * flex: 1 1 auto 必须显式写。
+   *
+   * 工作区是横向 flex（左栏 + 分隔条 + 右栏），右栏若不声明 flex:1，
+   * 会按内容宽度收缩 —— 实测只占 264px，右边留下一大片空白。
+   * min-width: 0 同样是必需的：默认 auto 会被内部 grid 的最小内容宽度撑住，
+   * 窄窗下反而不收缩，导致横向溢出。
+   */
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* 概览卡：四列自适应，窄窗自动折成两列 */
+.mc-cards{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  padding: 10px 12px 4px;
+  flex: 0 0 auto;
+}
+.mc-card{
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-elevated);
+  padding: 9px 10px 8px;
+  min-width: 0;
+}
+.mc-card-title{
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 0 6px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  /*
+   * 用 --text-secondary 而不是 --text-muted：
+   * 实测 9 套皮肤里 muted 在 7 套上与卡片底的对比度只有 2.2~3.3，
+   * 低于小字 4.5:1 的 AA 门限（浅色皮肤最差，2.27）。
+   * secondary 最低 3.64（solarized）、多数在 5~7，是这一档字号的下限选择。
+   */
+  color: var(--text-secondary);
+  letter-spacing: 0.3px;
+}
+.mc-card-title .mc-card-icon{
+  color: var(--text-secondary);
+  flex: 0 0 auto;
+}
+.mc-rows{
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+}
+.mc-row{
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+.mc-row dt{
+  font-size: var(--fs-xs);
+  /* 同上：小字标签必须过 4.5:1，muted 在多数皮肤下达不到 */
+  color: var(--text-secondary);
+  flex: 0 0 auto;
+}
+.mc-row dd{
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 需要提醒的数值：内存将满、命中率偏低、有淘汰 */
+.mc-row dd.warn{ color: var(--amber); }
+.mc-row dd.bad{ color: var(--accent); }
+
+.mc-tabs{ padding: 0 12px; }
+
+/* 页签内容区：可滚动，内部卡片之间留白 */
+.s-mc-overview .ov-tab-pane{
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overscroll-behavior: contain;
+}
+.mc-pane-card{
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-panel);
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+.mc-pane-head{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elevated);
+}
+.mc-pane-title{
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+/*
+ * 键浏览卡承载的搜索框带历史浮层（.hist-pop，绝对定位）。
+ * 卡片默认 overflow: hidden 会把浮层裁掉，所以这一张卡必须放开裁剪；
+ * 卡头与列表各自补上内圆角，避免方角戳出卡片的圆角轮廓。
+ */
+.s-mc-overview .mc-keys-card{
+  overflow: visible;
+}
+.s-mc-overview .mc-keys-card > .mc-pane-head{
+  border-radius: 9px 9px 0 0;
+}
+.s-mc-overview .mc-keys-card .filter-row{
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.s-mc-overview .mc-keys-card .mc-key-list{
+  border-radius: 0 0 9px 9px;
+}
+.mc-pane-count{
+  font-size: var(--fs-2xs);
+  color: var(--text-secondary);
+}
+
+/* 统计网格：键值成对，长值自动省略（hover 由 title 兜底） */
+.mc-stat-grid{
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1px;
+  background: var(--border);
+}
+.mc-stat{
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 10px;
+  background: var(--bg-panel);
+  min-width: 0;
+}
+.mc-stat-key{
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mc-stat-val{
+  font-size: var(--fs-xs);
+  color: var(--text-primary);
+  flex: 0 0 auto;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* slab 表 */
+.mc-table{
+  width: 100%;
+  border-collapse: collapse;
+}
+.mc-table th{
+  text-align: left;
+  padding: 6px 10px;
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.mc-table td{
+  padding: 6px 10px;
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border);
+}
+.mc-table tbody tr:last-child td{ border-bottom: none; }
+.mc-table tbody tr:hover td{ background: var(--bg-hover); }
+.mc-table td.bad{ color: var(--accent); }
+
+/* 键筛选输入 */
+.mc-key-filter{
+  width: 130px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  font-size: var(--fs-xs);
+  outline: none;
+}
+.mc-key-filter:focus{
+  border-color: var(--accent);
+}
+
+/* 面板内的动作按钮：与工具条 .tool 同一规格与胶囊语言 */
+.mc-run{
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  flex: 0 0 auto;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.mc-run:hover:not(:disabled){
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+.mc-run:disabled{
+  opacity: 0.5;
+  cursor: default;
+}
+/* 破坏性动作（清空）：hover 才露出警示色，常态不与普通按钮抢注意力 */
+.mc-run.danger:hover:not(:disabled){
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.mc-run .ti{ display: inline-block; }
+
+/* 限制说明：常驻而非 tooltip —— 用户可能不会去悬停 */
+.mc-warn-line{
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  padding: 7px 10px;
+  font-size: var(--fs-xs);
+  line-height: 1.55;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--amber) 8%, transparent);
+  border-bottom: 1px solid var(--border);
+}
+.mc-warn-line .ti{
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: var(--amber);
+}
+.mc-warn-line code{
+  font-family: var(--font-mono);
+  font-size: 0.95em;
+  color: var(--text-secondary);
+}
+.mc-note-line{
+  margin: 0;
+  padding: 6px 10px;
+  font-size: var(--fs-xs);
+  color: var(--amber);
+  border-bottom: 1px solid var(--border);
+}
+.mc-error-line{
+  margin: 0;
+  padding: 8px 10px;
+  font-size: var(--fs-sm);
+  color: var(--accent);
+}
+.mc-empty{
+  margin: 0;
+  padding: 16px 12px;
+  text-align: center;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  line-height: 1.7;
+}
+
+/* 键列表：一行一条，列宽固定，名字占剩余空间 */
+.mc-key-list{
+  display: flex;
+  flex-direction: column;
+  max-height: 340px;
+  overflow-y: auto;
+}
+.mc-key-row{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  min-width: 0;
+}
+.mc-key-row:last-child{ border-bottom: none; }
+.mc-key-row:hover{ background: var(--bg-hover); }
+.mc-key-row.active{
+  background: var(--accent-soft);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.mc-key-slab{
+  flex: 0 0 26px;
+  font-size: var(--fs-2xs);
+  color: var(--text-secondary);
+  text-align: center;
+  border-radius: 4px;
+  background: var(--bg-elevated);
+  padding: 1px 0;
+}
+.mc-key-name{
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+}
+.mc-key-bytes{
+  flex: 0 0 auto;
+  width: 62px;
+  text-align: right;
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+}
+.mc-key-exp{
+  flex: 0 0 auto;
+  width: 64px;
+  text-align: right;
+  font-size: var(--fs-2xs);
+  color: var(--text-secondary);
+}
+.mc-key-del{
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  /* 常态隐藏：键行本身是"点开看值"的主操作，删除是次要且危险的 */
+  opacity: 0;
+  transition: opacity 0.12s, background 0.12s, color 0.12s;
+}
+.mc-key-row:hover .mc-key-del{ opacity: 1; }
+.mc-key-del:hover{
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* 值预览 */
+.mc-value{
+  margin: 0;
+  padding: 10px;
+  max-height: 260px;
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* 面板级错误条 */
+.mc-error{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 12px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--danger-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--accent);
+  font-size: var(--fs-sm);
+}
+.mc-error .mc-retry{
+  margin-left: auto;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+/* ===========================================================================
+ * Memcached 键浏览器（左栏）
+ *
+ * 结构与 Redis 版 KeyBrowser 对齐（toolbar → filter-row → key-list → list-foot），
+ * 因此工具栏高度、筛选框、底栏位置都天然一致，切换引擎时左栏不会"跳一下"。
+ * =========================================================================== */
+
+.s-mc-browser .mc-browser-title{
+  font-size: var(--fs-sm);
+  font-weight: 650;
+  color: var(--text-primary);
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/*
+ * 工具条上的实例地址：窄宽度下截断，完整值走 tooltip。
+ * 绿点表示"当前连接就绪"，与侧栏连接卡的绿点语义一致。
+ */
+.s-mc-browser .mc-endpoint{
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  /* 不占剩余空间：地址、分隔线、计数要彼此紧挨；剩余空间交给 spacer */
+  flex: 0 1 auto;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}
+.s-mc-browser .mc-endpoint .ellipsis{
+  min-width: 0;
+}
+.s-mc-browser .mc-endpoint-dot{
+  width: 5px;
+  height: 5px;
+  flex: 0 0 5px;
+  border-radius: 50%;
+  background: var(--green);
+}
+/* 标题是纯文本，需要显式垂直居中；输入框/按钮原本各自带高度 */
+.s-mc-browser .toolbar{
+  align-items: center;
+}
+
+.mc-browser-error{
+  margin: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--danger-soft);
+  color: var(--accent);
+  font-size: var(--fs-sm);
+}
+
+.mc-browser-empty{
+  margin: 28px 12px;
+}
+
+.mc-browser-sub{
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+}
+
+/* slab 分组标题：小而稳，不抢键名的注意力 */
+.mc-slab-group{
+  display: flex;
+  flex-direction: column;
+}
+.mc-slab-head{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 10px 3px;
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--bg-elevated) 60%, transparent);
+  border-bottom: 1px solid var(--border);
+  /* 分组标题随滚动吸顶：长列表翻到中段时仍知道自己在哪个 slab */
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.mc-slab-count{
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+.mc-key-groups{
+  flex: 1 1 auto;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.mc-browser-foot{
+  flex: 0 0 auto;
+  font-size: var(--fs-2xs);
+  color: var(--text-secondary);
+}
+
+/* ===========================================================================
+ * Memcached 面板复用 ov-* 外壳的样式接续
+ *
+ * 背景：.ov-head / .ov-refresh / .ov-tabs 这批样式原本只挂在
+ * .s-server-overview 作用域下。Memcached 面板用了同一套类名，
+ * 但根类是 .s-mc-overview —— 于是这些样式一个都没生效：
+ * 头部退化成裸文本、刷新按钮没有边框和内边距、"刷新"二字被裁掉。
+ *
+ * 解法不是去改那 39 处选择器（容易漏、也容易影响 Redis 面板），
+ * 而是在这里为 .s-mc-overview 补齐同一组规则。
+ * 两条面板的视觉语言由此保持一致，且互不影响。
+ * =========================================================================== */
+
+.s-mc-overview .ov-head{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 12px 0;
+  flex: 0 0 auto;
+}
+.s-mc-overview .ov-ident{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.s-mc-overview .ov-name{
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+.s-mc-overview .ov-endpoint{
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.s-mc-overview .ov-refresh{
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  /* 与工具条 .tool 同规格，且必须是胶囊 —— 全局按钮约定 */
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  flex: 0 0 auto;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.s-mc-overview .ov-refresh:hover:not(:disabled){
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+.s-mc-overview .ov-refresh:disabled{
+  opacity: 0.6;
+  cursor: default;
+}
+.s-mc-overview .ov-refresh .ti{
+  display: inline-block;
+  flex: 0 0 auto;
+}
+
+/*
+ * 页签：与 Redis 面板完全同一套视觉（下划线式二级页签）。
+ *
+ * 之前只写了 .ov-tabs 容器，漏了 .ov-tab 按钮本身 ——
+ * 而按钮样式挂在 .s-server-overview 作用域下，Memcached 这边
+ * 三个页签退化成没有间距、没有激活线的裸文字，看起来"样式没做"。
+ */
+.s-mc-overview .ov-tabs{
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 10px 12px 0;
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.s-mc-overview .ov-tabs::-webkit-scrollbar{
+  display: none;
+}
+.s-mc-overview .ov-tab{
+  padding: 5px 12px 7px;
+  border: none;
+  background: none;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-md);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s, background 0.15s;
+}
+.s-mc-overview .ov-tab:hover{
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+.s-mc-overview .ov-tab.active{
+  color: var(--text-primary);
+  font-weight: 600;
+  /* 激活线画在底缘、与页签栏分隔线重合，与 Redis 面板一致 */
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+/* 空态与加载态（共用 ov-loading / ov-badge / ov-hint） */
+.s-mc-overview .ov-loading{
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+}
+.s-mc-overview .ov-badge{
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.4px;
+}
+.s-mc-overview .ov-hint{
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+}
+
+/* 主按钮态：新建键是左栏唯一的"创建"动作，值得比次按钮更显眼 */
+.mc-run.primary{
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--accent);
+}
+.mc-run.primary:hover:not(:disabled){
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+/* 键名非法时的输入框提示色 */
+.field .is-invalid,
+.field .is-invalid:focus-visible{
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.ml-field-hint.is-error{
+  color: var(--accent);
+}
+
+/* ===========================================================================
+ * Memcached 值查看器（右栏）
+ * 外壳、票根头部、工具条、正文与底部提示全部复用 Redis ValueViewer 的类，
+ * 这里只保留外壳背景这一处 Memcached 侧调整。
+ * =========================================================================== */
+
+.mc-viewer{
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg-app);
+}
+
+/* 工具栏「刷新」读取中：图标旋转，与左栏刷新按钮同一动效 */
+.mc-viewer .dlg-ico.spin{
+  animation: mc-spin 1s linear infinite;
+}
+
+/* 图标旋转（读取中）：.s-key-browser 工具栏内的 svg 也要能转 */
+.s-mc-browser .icon svg.spin{
+  animation: mc-spin 1s linear infinite;
+}
+@keyframes mc-spin{
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ===========================================================================
+ * Memcached 面板内的胶囊搜索框（统计项筛选用）
+ *
+ * 与左栏的 .filter-box 区分开：
+ *   那个属于键名搜索（带幽灵补全、历史浮层，体量大）；
+ *   这里只是"在已有表格里找一行"，不需要那些能力，
+ *   因此做成一个紧凑的胶囊，含图标 / 清除 / 精确开关三段。
+ * =========================================================================== */
+
+.mc-search{
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 8px 0 9px;
+  /* 胶囊：全局按钮/输入一律双边圆角 */
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  flex: 0 0 auto;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.mc-search:focus-within{
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+/* 精确模式：边框换成强调色，让"我现在是严格匹配"这个状态可见 */
+.mc-search.exact{
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: var(--accent-soft);
+}
+.mc-search-icon{
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+}
+.mc-search-input{
+  width: 118px;
+  border: none;
+  background: transparent;
+  outline: none;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: 1;
+  padding: 0;
+}
+.mc-search-input::placeholder{
+  color: var(--text-secondary);
+}
+.mc-search-clear{
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.mc-search-clear:hover{
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+/* 精确开关：用 "Aa" 这个约定俗成的图形，比一个复选框更省空间 */
+.mc-search-exact{
+  flex: 0 0 auto;
+  padding: 0 5px;
+  height: 16px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.mc-search-exact:hover{
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.mc-search-exact.on{
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+
+/* ===========================================================================
+ * Memcached 视图栏的防压缩保底
+ *
+ * 问题：键栏宽 450px 时，view-switch + 分隔符 + L1/L2 + 展开/折叠 + 批量
+ * 加起来超过可用宽度，flex 默认 flex-shrink:1 于是均匀压缩每个子项。
+ * 结果"树形""平铺"两个按钮被压到 64px 一个，文字折成两行（树/形、平/铺），
+ * 行高从 20px 涨到 27px，整条 viewbar 变形。
+ *
+ * 解法：给不可压缩的元素声明 flex: 0 0 auto + 显式 min-width，
+ * 把压缩压力全部留给中间的 spacer（它本来就是弹性占位）。
+ * 同时禁止文字换行 —— 即便将来再加按钮导致真的放不下，
+ * 也应该出现横向滚动或换行布局，而不是把按钮压扁。
+ * =========================================================================== */
+
+.s-mc-browser .viewbar{
+  /* 内容放不下时横向滚动，而不是压扁子项 */
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.s-mc-browser .viewbar::-webkit-scrollbar{
+  display: none;
+}
+
+/* 视图切换：整体不收缩，内部按钮不换行 */
+.s-mc-browser .view-switch{
+  flex: 0 0 auto;
+  min-width: 128px;
+}
+.s-mc-browser .view-switch button{
+  flex: 0 0 auto;
+  white-space: nowrap;
+  /* 与 Redis 版同一度量；写死避免被 flex 压缩后行高变化 */
+  height: 20px;
+  line-height: 1;
+}
+
+/* 分隔符输入：固定宽度，不参与压缩 */
+.s-mc-browser .sep-input{
+  flex: 0 0 30px;
+  width: 30px;
+  min-width: 30px;
+  text-align: center;
+}
+
+/* L1/L2 与图标按钮：全部禁止收缩 */
+.s-mc-browser .viewbar .mini{
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+/* L1/L2 是两字符，给一个保底宽度，避免被挤成竖排 */
+.s-mc-browser .viewbar .mini:not(:has(svg)){
+  min-width: 24px;
+}
+
+/* 分隔线同样不参与压缩 */
+.s-mc-browser .viewbar-sep{
+  flex: 0 0 auto;
+}
+
+/* spacer 是唯一的可压缩项，把压力都给它 */
+.s-mc-browser .viewbar .spacer{
+  min-width: 4px;
 }

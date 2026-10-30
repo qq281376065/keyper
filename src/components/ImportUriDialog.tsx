@@ -61,6 +61,11 @@ export function ImportUriDialog({ onSubmit, onClose, initialText = '' }: ImportU
     if (!value) return
     onSubmit({
       id: `conn-${Date.now().toString(36)}`,
+      /*
+       * 连接串解析只产出 Redis 配置 —— URI 形态本就是 Redis 的约定，
+       * Memcached 没有等价物（见 utils/engine 里对连接串的说明）。
+       */
+      engine: 'redis',
       name: name.trim() || suggestedName,
       host: value.host,
       port: value.port,

@@ -11,12 +11,15 @@
  */
 import { useEffect, useState } from 'react'
 import { KeyBrowser } from '@/components/KeyBrowser'
+import { MemcachedKeyBrowser } from '@/components/MemcachedKeyBrowser'
+import { MemcachedValueViewer } from '@/components/MemcachedValueViewer'
+import { globalState } from '@/store/global'
 import { BlurTickContext } from '@/hooks/useTabBlur'
 import { ValueViewer } from '@/components/ValueViewer'
 import { SplitPane } from '@/components/SplitPane'
 import { getSession } from '@/store/global'
 import { RedisSessionContext, makeSessionApi } from '@/store/useRedis'
-import { useSettings } from '@/services/settings'
+import { KEY_BROWSER_MIN_WIDTH, useSettings } from '@/services/settings'
 
 export function Workspace({ connId, hidden }: { connId: string; hidden?: boolean }) {
   /**
@@ -78,7 +81,17 @@ export function Workspace({ connId, hidden }: { connId: string; hidden?: boolean
         style={hidden ? { display: 'none' } : undefined}
         data-blur-tick={blurTick}
       >
-        <KeyBrowser />
+        {/*
+          左栏按引擎分流。
+          Memcached 的键栏不能复用 KeyBrowser —— 那套骨架建立在
+          db 选择、SCAN 游标、类型徽标、分隔符建树上，Memcached 一个都没有。
+          复用会让界面出现大量"点了没反应"的控件。
+        */}
+        {globalState.connections.find((item) => item.id === connId)?.engine === 'memcached' ? (
+          <MemcachedKeyBrowser />
+        ) : (
+          <KeyBrowser />
+        )}
         {/*
           分隔条是两栏之间的**独立 flex 子元素**，不属于任何一栏。
           这样它天然占据两栏之间的缝隙，不需要越界定位，
@@ -86,15 +99,24 @@ export function Workspace({ connId, hidden }: { connId: string; hidden?: boolean
         */}
         <SplitPane
           value={settings.keyBrowserWidth}
-          min={280}
+          min={KEY_BROWSER_MIN_WIDTH}
           max={720}
-          defaultValue={450}
+          defaultValue={KEY_BROWSER_MIN_WIDTH}
           onChange={(width) => {
             settings.keyBrowserWidth = width
           }}
           onCommit={persistKeyWidth}
         />
-        <ValueViewer />
+        {/*
+          右栏同样按引擎分流。
+          Memcached 只需要"看一个字符串值"，而 Redis 的 ValueViewer 带着
+          六种类型的编辑器、TTL、虚拟滚动、行号槽 —— 全是 Memcached 没有的概念。
+        */}
+        {globalState.connections.find((item) => item.id === connId)?.engine === 'memcached' ? (
+          <MemcachedValueViewer connectionId={connId} />
+        ) : (
+          <ValueViewer />
+        )}
       </div>
       </RedisSessionContext.Provider>
     </BlurTickContext.Provider>

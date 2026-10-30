@@ -16,6 +16,10 @@ import type {
   LogQuery,
   UpdateCheckResult,
   MemoryAnalysis,
+  MemcachedKeyList,
+  MemcachedOverview,
+  MemcachedSlab,
+  MemcachedValue,
   OperationResult,
   RedisConnectionConfig,
   RedisKeyItem,
@@ -221,6 +225,23 @@ const api: RedisDesktopApi = {
       ttlSeconds?: number,
     ) => invoke<OperationResult>(IPC.redisCreateKey, id, key, type, payload, ttlSeconds),
     cli: (id, command) => invoke<CliResult>(IPC.redisCli, id, command),
+  },
+
+  /*
+   * Memcached 通道：与上面的 redis 并列，互不引用。
+   * 渲染层按连接的 engine 选一组调用，不存在"两个引擎共用一条通道"。
+   */
+  memcached: {
+    overview: (id) => invoke<MemcachedOverview>(IPC.memcachedOverview, id),
+    slabs: (id) => invoke<MemcachedSlab[]>(IPC.memcachedSlabs, id),
+    keys: (id, options) => invoke<MemcachedKeyList>(IPC.memcachedKeys, id, options),
+    get: (id, key) => invoke<MemcachedValue>(IPC.memcachedGet, id, key),
+    set: (id, key, value, options) =>
+      invoke<OperationResult>(IPC.memcachedSet, id, key, value, options),
+    remove: (id, key) => invoke<OperationResult>(IPC.memcachedRemove, id, key),
+    rename: (id, key, newKey) =>
+      invoke<OperationResult>(IPC.memcachedRename, id, key, newKey),
+    flush: (id) => invoke<OperationResult>(IPC.memcachedFlush, id),
   },
 
   window: {

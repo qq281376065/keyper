@@ -21,7 +21,8 @@ import { globalActions, globalHolder, globalState, type ConnectionItem } from '@
 import { useActiveApi } from '@/store/useRedis'
 import { useObservable } from '@/store/subscription'
 import { tipProps } from '@/components/tip'
-import type { RedisConnectionConfig } from '@shared/types'
+import { toConfig } from '@/utils/engine'
+import type { CacheConnectionConfig, RedisConnectionConfig } from '@shared/types'
 
 /**
  * 应用外壳：顶栏 + 连接侧栏 + 标签工作区 + CLI，以及各全局弹窗的挂载点。
@@ -39,7 +40,7 @@ export function App() {
 
   const [dialogVisible, setDialogVisible] = useState(false)
   /** null 表示新建；有值表示编辑既有连接 */
-  const [dialogInitial, setDialogInitial] = useState<RedisConnectionConfig | null>(null)
+  const [dialogInitial, setDialogInitial] = useState<CacheConnectionConfig | null>(null)
   /** 粘贴连接串弹窗：解析成功后把结果交给标准连接表单，用户仍可改 */
   const [importUriVisible, setImportUriVisible] = useState(false)
   const [version, setVersion] = useState(APP_VERSION)
@@ -105,9 +106,18 @@ export function App() {
          * 连接配置本身退出后仍在，不必列。
          */
         const online = globalState.connections.filter((c) => c.status === 'connected')
+        /*
+         * 明细里带上引擎：同时连了 Redis 与 Memcached 时，
+         * 只写 host:port 分不清是哪个模块的会话，
+         * 而"退出会断哪些"正是这个弹窗要回答的问题。
+         * 尾部信息也按引擎给：Redis 显示 db，Memcached 显示连接池。
+         */
         const details = online.map((c) => ({
           label: '连接中',
-          value: `${c.name} · ${c.host}:${c.port} · db${c.db}`,
+          value:
+            c.engine === 'memcached'
+              ? `[Memcached] ${c.name} · ${c.host}:${c.port} · 池 ${c.poolSize ?? 4}`
+              : `[Redis] ${c.name} · ${c.host}:${c.port} · db${c.db}`,
           mono: false,
         }))
 
@@ -120,7 +130,7 @@ export function App() {
           .askConfirm({
             force: true,
             danger: true,
-            title: '退出 RedisDocter',
+            title: '退出 Keyper',
             description: online.length ? '退出前会先断开连接' : '退出后可以再次打开，连接配置不会丢失',
             message: online.length
               ? `当前有 ${online.length} 个连接处于连接状态，退出会连同${many ? '这些' : '该'}会话一起断开。`
@@ -219,7 +229,12 @@ export function App() {
   }
 
   function openEditConnection(connection: ConnectionItem): void {
-    setDialogInitial(connection)
+    /*
+     * 编辑传的是"配置"而不是界面条目：ConnectionItem 挂着
+     * status/latency 这些运行时字段，直接塞进表单会让对话框
+     * 拿到一份含过期状态的草稿，保存时容易连带写回磁盘。
+     */
+    setDialogInitial(toConfig(connection))
     setDialogVisible(true)
   }
 
@@ -239,7 +254,7 @@ export function App() {
       <header className="topbar">
         <div className="brand">
           <span className="logo">R</span>
-          <span className="brand-name">RedisDocter</span>
+          <span className="brand-name">Keyper</span>
           <span className="version mono">v{version}</span>
         </div>
 

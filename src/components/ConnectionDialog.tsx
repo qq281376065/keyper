@@ -22,7 +22,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useRedis } from '@/store/useRedis'
-import type { RedisConnectionConfig, SshAuthMethod, SshHop } from '@shared/types'
+import type { CacheConnectionConfig, RedisConnectionConfig, SshAuthMethod, SshHop } from '@shared/types'
+import { ENGINES, engineMeta } from '@/utils/engine'
 
 const AUTH_OPTIONS: Array<{ value: SshAuthMethod; label: string }> = [
   { value: 'password', label: '密码' },
@@ -69,7 +70,7 @@ function toHopForm(hop: SshHop): SshHopForm {
 }
 
 export interface ConnectionDialogProps {
-  initial?: RedisConnectionConfig | null
+  initial?: CacheConnectionConfig | null
   onClose: () => void
 }
 
@@ -91,39 +92,77 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
 
   const isEdit = !!initial
 
+  /*
+   * 引擎选择。
+   *
+   * 编辑已有连接时锁定引擎 —— 改引擎等于换一套连接语义，
+   * 在原地改会留下一份"字段残留"的配置（Redis 的 db 留在 Memcached 条目里）。
+   * 想换引擎就新建一个，这也符合用户对"这是两种不同的东西"的直觉。
+   */
+  const [engine, setEngine] = useState<CacheConnectionConfig['engine']>(initial?.engine ?? 'redis')
+  const engineLocked = isEdit
+
+  const redisInitial = initial?.engine === 'redis' ? initial : null
+  const mcInitial = initial?.engine === 'memcached' ? initial : null
+
   const [form, setForm] = useState<RedisConnectionConfig>({
     id: initial?.id ?? `conn-${Date.now().toString(36)}`,
+    engine: 'redis',
     name: initial?.name ?? '',
     host: initial?.host ?? '127.0.0.1',
-    port: initial?.port ?? 6379,
-    username: initial?.username ?? '',
-    password: initial?.password ?? '',
-    db: initial?.db ?? 0,
-    tls: initial?.tls ?? false,
+    port: initial?.port ?? (initial?.engine === 'memcached' ? 11211 : 6379),
+    username: redisInitial?.username ?? '',
+    password: redisInitial?.password ?? '',
+    db: redisInitial?.db ?? 0,
+    tls: redisInitial?.tls ?? false,
   })
+
+  /** Memcached 专属字段单独维护：与 Redis 的表单互不影响，切换引擎时不互相覆盖 */
+  const [poolSize, setPoolSize] = useState<number>(mcInitial?.poolSize ?? 4)
 
   function patchForm(patch: Partial<RedisConnectionConfig>): void {
     setForm((prev) => ({ ...prev, ...patch }))
   }
 
+  /**
+   * 切换引擎。
+   *
+   * 端口跟随引擎换默认值（6379 ↔ 11211），但**只在用户没手动改过**时才换 ——
+   * 判断依据是"当前端口是否等于旧引擎的默认端口"。
+   * 这样既能在来回切换时给出合理默认，又不会抹掉用户特意填的 6390。
+   */
+  function switchEngine(next: CacheConnectionConfig['engine']): void {
+    if (next === engine) return
+    setEngine(next)
+    setTestResult(null)
+    setForm((prev) => {
+      const oldDefault = engineMeta(engine).defaultPort
+      const nextDefault = engineMeta(next).defaultPort
+      const port = prev.port === oldDefault ? nextDefault : prev.port
+      return { ...prev, port }
+    })
+  }
+
   /* ---------------------------------------------------------------- SSH 隧道 */
 
   /**
-   * SSH 相关表单单独维护：它是连接的**可选扩展**，与 Redis 本身的主字段分开，
+   * SSH 相关表单单独维护：它是连接的**可选扩展**，与引擎主字段分开，
    * 提交时再拼进 payload。好处是关闭隧道时不必逐字段清空，重新开启还能恢复上次填的内容。
+   * 两种引擎共用同一套表单（隧道不感知上层协议）。
    */
-  const [sshEnabled, setSshEnabled] = useState(initial?.sshEnabled ?? false)
+  const sshInitial = redisInitial ?? mcInitial
+  const [sshEnabled, setSshEnabled] = useState(sshInitial?.sshEnabled ?? false)
 
   const [ssh, setSsh] = useState<SshForm>({
-    host: initial?.ssh?.host ?? '',
-    port: initial?.ssh?.port ?? 22,
+    host: sshInitial?.ssh?.host ?? '',
+    port: sshInitial?.ssh?.port ?? 22,
     // 新建时默认 root（最常见跳板机账号）；编辑已有配置时保留原值
-    username: initial?.ssh?.username ?? 'root',
-    authMethod: initial?.ssh?.authMethod ?? 'password',
-    password: initial?.ssh?.password ?? '',
-    privateKey: initial?.ssh?.privateKey ?? '',
-    passphrase: initial?.ssh?.passphrase ?? '',
-    targetFromRemote: initial?.ssh?.targetFromRemote ?? true,
+    username: sshInitial?.ssh?.username ?? 'root',
+    authMethod: sshInitial?.ssh?.authMethod ?? 'password',
+    password: sshInitial?.ssh?.password ?? '',
+    privateKey: sshInitial?.ssh?.privateKey ?? '',
+    passphrase: sshInitial?.ssh?.passphrase ?? '',
+    targetFromRemote: sshInitial?.ssh?.targetFromRemote ?? true,
   })
 
   function patchSsh(patch: Partial<SshForm>): void {
@@ -132,7 +171,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
 
   /* ------------------------------------------------ 中间跳板（多级） */
 
-  const [hops, setHops] = useState<SshHopForm[]>((initial?.ssh?.hops ?? []).map(toHopForm))
+  const [hops, setHops] = useState<SshHopForm[]>((sshInitial?.ssh?.hops ?? []).map(toHopForm))
 
   function patchHop(index: number, patch: Partial<SshHopForm>): void {
     setHops((prev) => prev.map((hop, i) => (i === index ? { ...hop, ...patch } : hop)))
@@ -200,7 +239,21 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
 
   const canSubmit = form.name.trim().length > 0 && form.host.trim().length > 0 && sshError === null
 
-  function payload(): RedisConnectionConfig {
+  function payload(): CacheConnectionConfig {
+    /*
+     * 两种引擎的专属字段不同，但 SSH 隧道是共用的：
+     * Memcached 分支不携带 db/username/password/tls，
+     * 否则存盘后就会挂着它不该有的字段；ssh/sshEnabled 则两者都带。
+     */
+    const base = {
+      id: form.id,
+      name: form.name.trim(),
+      host: form.host.trim(),
+      port: form.port,
+      /* 透传置顶：form 里没有 pinned 字段，不带上的话「改个名字保存」就会把置顶挤掉 */
+      ...(initial?.pinned !== undefined ? { pinned: initial.pinned } : {}),
+    }
+
     /*
      * 中间跳板：完整填写才进 payload（校验已拦截空行），
      * 空数组归一为 undefined —— 主进程按"无 hops = 单级跳板"处理。
@@ -214,25 +267,28 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
       privateKey: hop.privateKey.trim() || undefined,
       passphrase: hop.passphrase || undefined,
     }))
+
+    /*
+     * 关闭隧道时保留 ssh 配置但不置 sshEnabled，
+     * 下次打开开关即可复用，不必重填 —— 但主进程不会使用它。
+     */
+    const sshPayload = ssh.host.trim()
+      ? { ...ssh, host: ssh.host.trim(), username: ssh.username.trim(), hops: hopList.length ? hopList : undefined }
+      : undefined
+
+    if (engine === 'memcached') {
+      return { ...base, engine: 'memcached', poolSize, ssh: sshPayload, sshEnabled }
+    }
+
     return {
-      ...form,
-      name: form.name.trim(),
-      host: form.host.trim(),
+      ...base,
+      engine: 'redis',
       username: form.username?.trim() || undefined,
       password: form.password || undefined,
-      /*
-       * 关闭隧道时保留 ssh 配置但不置 sshEnabled，
-       * 下次打开开关即可复用，不必重填 —— 但主进程不会使用它。
-       */
-      ssh: ssh.host.trim()
-        ? { ...ssh, host: ssh.host.trim(), username: ssh.username.trim(), hops: hopList.length ? hopList : undefined }
-        : undefined,
+      db: form.db,
+      tls: form.tls,
+      ssh: sshPayload,
       sshEnabled,
-      /*
-       * 透传置顶状态：form 里没有 pinned 字段，不带上的话
-       * 「改个名字保存」就会把已置顶的连接悄悄挤出顶部。
-       */
-      pinned: initial?.pinned,
     }
   }
 
@@ -329,10 +385,19 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                 <span className="dlg-head-icon">
                   <DialogIcon name={isEdit ? 'edit' : 'add'} size={15} />
                 </span>
-                <DialogTitle className="dlg-title">{isEdit ? '编辑连接' : '新建连接'}</DialogTitle>
+                <DialogTitle className="dlg-title">
+                  {isEdit ? '编辑连接' : '新建连接'}
+                  {/*
+                    标题后缀带引擎名：用户点开时就知道自己在建哪一种，
+                    不必回头去看上面的选择卡。
+                  */}
+                  <span className="dlg-title-engine">{engineMeta(engine).label}</span>
+                </DialogTitle>
               </div>
               <DialogDescription id="dlg-desc" className="dlg-sub">
-                {isEdit ? '修改后保存即生效，已打开的会话需重连' : '填写 Redis 实例信息，可先测试再保存'}
+                {isEdit
+                  ? '修改后保存即生效，已打开的会话需重连'
+                  : `填写 ${engineMeta(engine).label} 实例信息，可先测试再保存`}
               </DialogDescription>
             </div>
             <Button
@@ -385,7 +450,44 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
             </div>
           ) : null}
 
-          <div className="dlg-body">
+            <div className="dlg-body">
+            {/*
+              ---------- 引擎选择 ----------
+              放在最前面而不是混在表单里：它决定"下面要填哪些字段"，
+              用户在填任何东西之前应该先看到这个选择。
+              编辑已有连接时锁定 —— 换引擎等于换一套连接语义，
+              原地改会留下跨引擎的残留字段（Redis 的 db 留在 Memcached 条目里）。
+            */}
+            <section className="dlg-section">
+              <h3 className="dlg-section-title">
+                缓存引擎
+                {engineLocked ? <span className="dlg-section-note">编辑时不可更改</span> : null}
+              </h3>
+
+              <div className="engine-pick" role="radiogroup" aria-label="缓存引擎">
+                {ENGINES.map((item) => {
+                  const on = engine === item.key
+                  return (
+                    <button
+                      key={item.key}
+                      type="button"
+                      role="radio"
+                      aria-checked={on}
+                      className={`engine-opt${on ? ' on' : ''}${engineLocked && !on ? ' muted' : ''}`}
+                      disabled={engineLocked && !on}
+                      onClick={() => switchEngine(item.key)}
+                    >
+                      <span className={`engine-mark engine-${item.key}`}>{item.short}</span>
+                      <span className="engine-text">
+                        <span className="engine-name">{item.label}</span>
+                        <span className="engine-hint">{item.hint}</span>
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </section>
+
             {/* ------------------------------------------------ 基础信息 */}
             <section className="dlg-section">
               <h3 className="dlg-section-title">连接信息</h3>
@@ -439,6 +541,13 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                 </div>
               </div>
 
+              {/*
+                Redis 专属字段从这里开始。Memcached 不显示整块 ——
+                它没有账号密码、没有多库、没有 TLS，硬摆出来只会让用户
+                以为"要填但可以先跳过"，而实际是他们永远用不到。
+              */}
+              {engine === 'redis' ? (
+                <>
               <div className="field-row">
                 <div className="field grow">
                   <Label htmlFor="conn-user" className="field-label">
@@ -508,16 +617,48 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                   </Select>
                 </div>
               </div>
+                </>
+              ) : (
+                /*
+                 * Memcached 专属：连接池大小。
+                 * 单实例只有一个线程在跑，多开几条 TCP 才能压满吞吐；
+                 * 4 是常规起点，8~16 用于高并发读取。
+                 * 不暴露"超时/重试"这类参数 —— 本模块用 memjs 的内置策略，
+                 * 摆出来但改不动，比不摆更让人困惑。
+                 */
+                <div className="field-row">
+                  <div className="field grow">
+                    <Label htmlFor="conn-pool" className="field-label">
+                      连接池大小
+                    </Label>
+                    <Input
+                      id="conn-pool"
+                      value={poolSize}
+                      onChange={(event) => {
+                        const next = Number(event.target.value)
+                        setPoolSize(Number.isFinite(next) ? Math.min(32, Math.max(1, next)) : 4)
+                      }}
+                      className="mono"
+                      type="number"
+                      min="1"
+                      max="32"
+                    />
+                    <p className="ml-field-hint">
+                      Memcached 单线程处理命令，多个连接才能并发压满带宽。常用 4，高并发读可调到 8~16。
+                    </p>
+                  </div>
+                </div>
+              )}
             </section>
 
-            {/* ------------------------------------------------ SSH 隧道 */}
+            {/* ------------------------------------------------ SSH 隧道（两种引擎通用） */}
             <section className={`dlg-section ssh-block${sshEnabled ? ' is-on' : ''}`}>
               <div className="ssh-switch-row">
                 <div className="ssh-switch-text">
                   <Label htmlFor="ssh-enabled" className="ssh-switch-title">
                     通过 SSH 隧道连接
                   </Label>
-                  <p className="ssh-switch-sub">Redis 只在内网可达时，先登录跳板机再转发</p>
+                  <p className="ssh-switch-sub">实例只在内网可达时，先登录跳板机再转发</p>
                 </div>
                 <Switch id="ssh-enabled" checked={sshEnabled} onCheckedChange={setSshEnabled} />
               </div>
@@ -681,7 +822,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                     </div>
                     {!hops.length ? (
                       <p className="ssh-hint">
-                        Redis 需经多台机器接力可达时，按登录顺序添加：本机 → 跳板 1 → … → 上方跳板机 → Redis。
+                        实例需经多台机器接力可达时，按登录顺序添加：本机 → 跳板 1 → … → 上方跳板机 → 实例。
                       </p>
                     ) : null}
                     {hops.map((hop, index) => (
@@ -830,7 +971,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                   {sshError ? (
                     <p className="ssh-error">{sshError}</p>
                   ) : (
-                    <p className="ssh-hint">隧道在连接时建立，断开连接后自动关闭；Redis 地址按跳板机视角填写。</p>
+                    <p className="ssh-hint">隧道在连接时建立，断开连接后自动关闭；目标地址按跳板机视角填写。</p>
                   )}
                 </div>
               ) : null}

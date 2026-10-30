@@ -7,7 +7,8 @@ import { useObservable } from '@/store/subscription'
 import { globalHolder } from '@/store/global'
 import { copyText } from '@/utils/clipboard'
 import { isMutation, logSeverity } from '@/utils/log'
-import type { LogEntry, LogFileInfo } from '@shared/types'
+import type { CacheEngine, LogEntry, LogFileInfo } from '@shared/types'
+import { engineMeta } from '@/utils/engine'
 
 export interface LogPanelProps {
   /** 正在播放离场动画：此时外部会等动画结束再卸载 */
@@ -31,6 +32,12 @@ export function LogPanel({ closing, onClose, onClosed }: LogPanelProps) {
   const [entries, setEntries] = useState<LogEntry[]>([])
   const [activeDate, setActiveDate] = useState('')
   const [connectionFilter, setConnectionFilter] = useState('')
+  /*
+   * 引擎筛选。
+   * 两种引擎的日志写在同一个文件里（同一天一个文件），
+   * 不提供筛选的话，用户在排查 Redis 问题时会不断看到 Memcached 的行。
+   */
+  const [engineFilter, setEngineFilter] = useState<'' | CacheEngine>('')
   const [keyword, setKeyword] = useState('')
   /** 仅看变更：过滤掉命令执行、连接等常规操作，直击删除与改数据 */
   const [changesOnly, setChangesOnly] = useState(false)
@@ -109,6 +116,7 @@ export function LogPanel({ closing, onClose, onClosed }: LogPanelProps) {
     date?: string
     connection?: string
     keywordText?: string
+    engine?: '' | CacheEngine
   }): Promise<void> {
     setLoading(true)
     try {
@@ -116,6 +124,7 @@ export function LogPanel({ closing, onClose, onClosed }: LogPanelProps) {
         date: options?.date ?? (activeDate || undefined),
         connection: options?.connection ?? (connectionFilter || undefined),
         keyword: options?.keywordText ?? (keyword.trim() || undefined),
+        engine: (options?.engine ?? engineFilter) || undefined,
       })
       if (res.ok) {
         setEntries(res.data)
@@ -215,6 +224,20 @@ export function LogPanel({ closing, onClose, onClosed }: LogPanelProps) {
           </select>
 
           <select
+            value={engineFilter}
+            className="conn-select"
+            onChange={(event) => {
+              const next = event.target.value as '' | CacheEngine
+              setEngineFilter(next)
+              void loadEntries({ engine: next })
+            }}
+          >
+            <option value="">全部模块</option>
+            <option value="redis">Redis</option>
+            <option value="memcached">Memcached</option>
+          </select>
+
+          <select
             value={connectionFilter}
             className="conn-select"
             onChange={(event) => {
@@ -285,6 +308,17 @@ export function LogPanel({ closing, onClose, onClosed }: LogPanelProps) {
               return (
                 <div key={index} className={`log-row ${severity}${entry.ok ? '' : ' fail'}`}>
                   <span className="col-time mono">{formatTime(entry.timestamp)}</span>
+                  {/*
+                    引擎标记放在连接名之前：日志按时间倒序排列，
+                    同一屏里 Redis 与 Memcached 的记录会交替出现，
+                    行首一个字母标比"去读连接名猜引擎"快得多。
+                  */}
+                  <span
+                    className={`engine-chip engine-${entry.engine}`}
+                    {...tipProps(engineMeta(entry.engine).label)}
+                  >
+                    {engineMeta(entry.engine).short}
+                  </span>
                   <span className="col-conn ellipsis" {...tipProps(entry.connectionName)}>
                     {entry.connectionName}
                   </span>

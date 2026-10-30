@@ -71,20 +71,28 @@ export interface SshConfig {
 
 export type SshAuthMethod = 'password' | 'key'
 
-export interface RedisConnectionConfig {
+/**
+ * 缓存引擎标识。
+ *
+ * 为什么要有这个字段：应用同时支持 Redis 与 Memcached，
+ * 两者的连接参数、状态结构、可执行命令完全不同。
+ * 用判别联合（discriminated union）而不是"一个大而全的可选字段对象"，
+ * 是为了让编译器替我们检查分支遗漏 —— 以后新增引擎时，
+ * 所有 switch 会立刻报"缺少分支"，而不是在运行期拿到 undefined。
+ */
+export type CacheEngine = 'redis' | 'memcached'
+
+/**
+ * 所有引擎共有的连接字段。
+ * 只放"与引擎无关"的东西：标识、名称、地址、置顶。
+ * 引擎专属字段一律放在各自的子类型里，避免出现
+ * "Memcached 配置里挂着一个永远用不到的 db 字段"这种污染。
+ */
+export interface BaseConnectionConfig {
   id: string
   name: string
   host: string
   port: number
-  username?: string
-  password?: string
-  /** 默认库序号 */
-  db: number
-  tls?: boolean
-  /** SSH 隧道；未设置表示直连 */
-  ssh?: SshConfig
-  /** 是否启用 SSH 隧道（与 ssh 是否存在分开，便于临时关闭而不丢失配置） */
-  sshEnabled?: boolean
   /**
    * 是否在连接列表中置顶。只影响渲染排序，不参与连接逻辑。
    *
@@ -103,6 +111,46 @@ export interface RedisConnectionConfig {
    */
   credentialError?: string
 }
+
+/** Redis 连接配置（可持久化） */
+export interface RedisConnectionConfig extends BaseConnectionConfig {
+  /** 判别字段。旧配置文件没有它，读取时按 'redis' 补齐（见 connection-store） */
+  engine: 'redis'
+  username?: string
+  password?: string
+  /** 默认库序号 */
+  db: number
+  tls?: boolean
+  /** SSH 隧道；未设置表示直连 */
+  ssh?: SshConfig
+  /** 是否启用 SSH 隧道（与 ssh 是否存在分开，便于临时关闭而不丢失配置） */
+  sshEnabled?: boolean
+}
+
+/**
+ * Memcached 连接配置（可持久化）。
+ *
+ * 与 Redis 的差异：
+ *   · 没有 db —— Memcached 不分区，所有 key 共用一个命名空间；
+ *   · 没有 username/password —— 标准协议无认证（SASL 是二进制扩展，
+ *     主流部署罕用，且 memjs 主要支持文本协议）；
+ *   · 没有 TLS —— 项目内不做（如需可后续单独加）；
+ *   · 多了 poolSize —— 单线程事件循环下，多个 TCP 连接才能压满吞吐，
+ *     默认 4 是常规取值，太小在大并发下成为瓶颈。
+ *   · SSH 隧道与 Redis 共用同一套配置结构（本地端口转发不感知上层协议）。
+ */
+export interface MemcachedConnectionConfig extends BaseConnectionConfig {
+  engine: 'memcached'
+  /** 连接池大小，默认 4 */
+  poolSize?: number
+  /** SSH 隧道；未设置表示直连 */
+  ssh?: SshConfig
+  /** 是否启用 SSH 隧道（与 ssh 是否存在分开，便于临时关闭而不丢失配置） */
+  sshEnabled?: boolean
+}
+
+/** 任意引擎的连接配置联合类型 —— 界面与持久化层只认这个 */
+export type CacheConnectionConfig = RedisConnectionConfig | MemcachedConnectionConfig
 
 /**
  * 检查更新的结果。
@@ -127,22 +175,58 @@ export interface UpdateCheckResult {
   notice: string | null
 }
 
-/** 连接运行时状态 */
-export interface ConnectionState extends Omit<RedisConnectionConfig, 'password' | 'ssh'> {
+/** 连接运行时状态（与引擎无关的公共部分） */
+export interface BaseConnectionState extends Omit<BaseConnectionConfig, 'credentialError'> {
+  engine: CacheEngine
   status: ConnectionStatus
   /** 错误或提示信息 */
   message?: string
-  /** 服务端版本，如 7.2.4 */
+  /** 服务端版本，如 7.2.4 / 1.6.21 */
   version?: string
-  /** 部署模式：standalone / cluster / sentinel */
-  mode?: string
   /** PING 往返耗时（毫秒） */
   latency?: number
+}
+
+/**
+ * Redis 的运行时状态。
+ *
+ * 之所以不用 `Omit<RedisConnectionConfig, 'password'|'ssh'>` 直接派生：
+ * 那样会把 engine/name/host 等从配置类型"继承"过来，导致
+ * 状态类型与配置类型被强行绑死 —— 配置里加一个字段，
+ * 状态里就自动多一个可能并不该暴露给界面的字段。
+ * 显式列出，边界清楚。
+ */
+export interface RedisConnectionState extends BaseConnectionState {
+  engine: 'redis'
+  /** 默认库序号 */
+  db: number
+  username?: string
+  tls?: boolean
+  /** 部署模式：standalone / cluster / sentinel */
+  mode?: string
   /** 是否经 SSH 隧道（界面用于标注，不含任何凭据） */
   sshEnabled?: boolean
   /** 跳板机地址（仅用于展示） */
   sshHost?: string
 }
+
+/**
+ * Memcached 的运行时状态。
+ * 没有 db / mode —— 这些概念在 Memcached 里不存在，
+ * 留空字段会让界面误以为"连上了只是没读到"。
+ */
+export interface MemcachedConnectionState extends BaseConnectionState {
+  engine: 'memcached'
+  /** 连接池大小 */
+  poolSize?: number
+  /** 是否经 SSH 隧道（界面用于标注，不含任何凭据） */
+  sshEnabled?: boolean
+  /** 跳板机地址（仅用于展示） */
+  sshHost?: string
+}
+
+/** 任意引擎的运行时状态 */
+export type ConnectionState = RedisConnectionState | MemcachedConnectionState
 
 export interface RedisKeyItem {
   key: string
@@ -438,6 +522,11 @@ export type SearchHistoryFile = Record<string, SearchHistoryEntry[]>
 export interface LogEntry {
   /** 时间戳（毫秒） */
   timestamp: number
+  /**
+   * 所属引擎。旧日志文件没有这一列，读取时按 'redis' 补齐 ——
+   * 历史日志全部来自 Redis 时期，这个默认值是准确的而不是猜测。
+   */
+  engine: CacheEngine
   connectionId: string
   connectionName: string
   /** 操作类别，如 命令 / 写入 / 删除键 / 新建键 */
@@ -454,6 +543,8 @@ export interface LogEntry {
 export interface LogQuery {
   /** 日期，格式 yyyymmdd；缺省为今天 */
   date?: string
+  /** 按引擎过滤；缺省为全部 */
+  engine?: CacheEngine
   /** 按连接名过滤 */
   connection?: string
   /** 关键字过滤（匹配操作与详情） */
@@ -488,4 +579,66 @@ export interface ErrorReport {
   platform?: string
   /** 发生时间戳（毫秒） */
   timestamp: number
+}
+
+/* ===========================================================================
+ * Memcached 专属类型
+ *
+ * 刻意不复用 Redis 的 ServerInfo / RedisKeyItem：
+ * 两者语义不同（Memcached 没有 db、没有 TTL-1 的约定、没有值类型），
+ * 复用会导致界面到处写"这个字段对 Memcached 无意义"的判断。
+ * =========================================================================== */
+
+/** Memcached 概览：面板顶部卡片与统计页签的来源 */
+export interface MemcachedOverview {
+  /** stats 原始键值（命中、内存、条目、连接等），界面按需取值 */
+  stats: Record<string, string>
+  /** slabs 原始键值（items:<slab>:xxx） */
+  items: Record<string, string>
+  /** stats settings 原始键值；服务端禁用时为空对象 */
+  settings: Record<string, string>
+  /** 服务端版本，如 1.6.21 */
+  version: string
+}
+
+/** 一个 slab class 的条目分布 */
+export interface MemcachedSlab {
+  /** slab class 编号 */
+  slab: number
+  /** 该 class 当前条目数 */
+  count: number
+  /** 最老条目存活秒数 */
+  age: number
+  /** 因内存不足被淘汰的条目数 */
+  evicted: number
+}
+
+/** cachedump 的结果集 */
+export interface MemcachedKeyList {
+  items: Array<{
+    key: string
+    /** 值的字节数 */
+    bytes: number
+    /** 过期时间戳（秒）；0 表示永不过期 */
+    expiresAt: number
+    /** 所属 slab class */
+    slab: number
+  }>
+  /** 是否因取样上限而可能不完整 */
+  truncated: boolean
+  /** 拒绝执行 cachedump 的 slab（服务端禁用或出错） */
+  deniedSlabs: number[]
+}
+
+/** 单个键的值 */
+export interface MemcachedValue {
+  found: boolean
+  /** 按 UTF-8 解码的内容（二进制值可能出现替换符） */
+  data: string
+  /** 原始字节数 */
+  bytes: number
+  /** 协议 flags，业务侧自解释 */
+  flags: number
+  /** 剩余存活秒数：-1 永久；undefined 表示服务端不支持 meta 协议，无法得知 */
+  ttl?: number
 }

@@ -265,11 +265,16 @@ export function ServerOverview() {
    * 走 SSH 时额外标出跳板机 —— 同样的 Redis 地址可能经不同跳板机访问。
    */
   const endpoint = activeConnection ? `${activeConnection.host}:${activeConnection.port}` : ''
-  const sshLabel = activeConnection?.sshEnabled
-    ? activeConnection.sshHost
-      ? `SSH · ${activeConnection.sshHost}`
-      : 'SSH'
-    : null
+  /*
+   * SSH 标注对两种引擎都成立：同样的实例地址可能经不同跳板机访问，
+   * 连不通时这里就是区分「直连」与「隧道」的第一线索。
+   */
+  const sshLabel =
+    activeConnection?.sshEnabled
+      ? activeConnection.sshHost
+        ? `SSH · ${activeConnection.sshHost}`
+        : 'SSH'
+      : null
 
   return (
     <div ref={rootRef} className="overview s-server-overview">
@@ -311,7 +316,7 @@ export function ServerOverview() {
         </div>
       ) : (
         <div className="ov-loading">
-          <span className="ov-badge">RedisDocter</span>
+          <span className="ov-badge">Keyper</span>
           <p>正在读取服务端指标…</p>
           <p className="ov-hint">若长时间无响应，请检查连接是否仍然可用</p>
         </div>

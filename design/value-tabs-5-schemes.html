@@ -1,0 +1,2056 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>值区底部多键标签栏 · 5 套方案</title>
+<style>
+/* ============================================================
+   主题令牌 —— 与 src/styles/main.css 中的暗色 / 亮色保持一致
+   （这里只复制预览需要的部分，真实实现直接复用全局变量）
+   ============================================================ */
+:root {
+  --bg-app: #15171c;
+  --bg-panel: #1b1e25;
+  --bg-elevated: #21252e;
+  --bg-hover: #272c37;
+  --bg-active: #2f3542;
+
+  --border: #2b3140;
+  --border-strong: #3a4256;
+
+  --text-primary: #e6e9ef;
+  --text-secondary: #9aa4b8;
+  --text-muted: #6b7488;
+
+  --accent: #dc382d;
+  --accent-hover: #ef4a3e;
+  --accent-soft: rgba(220, 56, 45, 0.14);
+
+  --shadow-panel: 0 8px 24px rgba(0, 0, 0, 0.35);
+
+  --badge-string-fg: #6ee7b7; --badge-string-bg: rgba(63, 191, 127, 0.14);
+  --badge-hash-fg: #93c5fd;   --badge-hash-bg: rgba(74, 158, 255, 0.14);
+  --badge-list-fg: #fcd34d;   --badge-list-bg: rgba(229, 161, 58, 0.14);
+  --badge-set-fg: #c4b5fd;    --badge-set-bg: rgba(167, 139, 250, 0.14);
+  --badge-zset-fg: #f9a8d4;   --badge-zset-bg: rgba(244, 114, 182, 0.14);
+  --badge-stream-fg: #7dd3fc; --badge-stream-bg: rgba(56, 189, 248, 0.14);
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  --font-ui: "Segoe UI", system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", Consolas, "Courier New", monospace;
+}
+
+:root[data-theme="light"] {
+  --bg-app: #f4f5f7;
+  --bg-panel: #ffffff;
+  --bg-elevated: #f0f1f4;
+  --bg-hover: #e8eaef;
+  --bg-active: #dfe2e9;
+
+  --border: #d9dce3;
+  --border-strong: #c2c7d0;
+
+  --text-primary: #1c2129;
+  --text-secondary: #566072;
+  --text-muted: #868fa1;
+
+  --accent: #d0342c;
+  --accent-hover: #b62b24;
+  --accent-soft: rgba(208, 52, 44, 0.1);
+
+  --shadow-panel: 0 8px 24px rgba(15, 23, 42, 0.1);
+
+  --badge-string-fg: #0f7a4d; --badge-string-bg: rgba(18, 133, 90, 0.12);
+  --badge-hash-fg: #1d6fe0;   --badge-hash-bg: rgba(29, 111, 224, 0.12);
+  --badge-list-fg: #a06406;   --badge-list-bg: rgba(214, 138, 20, 0.14);
+  --badge-set-fg: #6d3fc4;    --badge-set-bg: rgba(124, 77, 219, 0.12);
+  --badge-zset-fg: #b3246f;   --badge-zset-bg: rgba(195, 36, 127, 0.12);
+  --badge-stream-fg: #0b7ea3; --badge-stream-bg: rgba(11, 126, 163, 0.12);
+}
+
+/* ============================================================
+   预览页外壳
+   ============================================================ */
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  padding: 0 24px 80px;
+  background: #eef1f5;
+  color: #1c2129;
+  font: 13px/1.65 var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 1180px; margin: 0 auto; }
+.mono { font-family: var(--font-mono); }
+
+.phead { padding: 36px 0 0; }
+.phead h1 { margin: 0; font-size: 23px; font-weight: 650; letter-spacing: .2px; }
+.phead h1 span { color: #d0342c; }
+.phead .lede {
+  margin: 10px 0 0; max-width: 900px; font-size: 12.5px; color: #59636f;
+}
+.phead .lede b { color: #232b34; }
+.phead .lede code {
+  font: 10.5px/1.5 var(--font-mono);
+  background: #e5eaf1; border-radius: 3px; padding: 1px 5px; color: #232b34;
+}
+
+.controls {
+  display: flex; align-items: center; gap: 22px; flex-wrap: wrap;
+  margin-top: 18px; padding: 11px 14px;
+  background: #fff; border: 1px solid #e2e7ee; border-radius: 10px;
+}
+.ctl { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: #59636f; }
+.seg { display: inline-flex; background: #f0f3f7; border: 1px solid #e2e7ee; border-radius: 7px; padding: 2px; }
+.seg button {
+  border: 0; background: transparent; color: #59636f; font: 11.5px var(--font-ui);
+  padding: 4px 11px; border-radius: 5px; cursor: pointer;
+}
+.seg button.active { background: #1c2129; color: #fff; }
+.stress {
+  border: 1px solid #cfd8e4; background: #fff; color: #232b34;
+  font: 11.5px var(--font-ui); padding: 5px 12px; border-radius: 7px; cursor: pointer;
+}
+.stress:hover { border-color: #a9b6c7; }
+.stress.on { background: #1c2129; color: #fff; border-color: #1c2129; }
+.ctl-hint { margin-left: auto; font-size: 11px; color: #7a8494; }
+
+.jump {
+  position: sticky; top: 0; z-index: 40;
+  display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
+  margin: 20px 0 4px; padding: 9px 0;
+  background: rgba(238, 241, 245, .93);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid #dfe5ec;
+}
+.jump a {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 6px; text-decoration: none;
+  color: #4b5563; font-size: 11.5px; border: 1px solid transparent;
+}
+.jump a:hover { background: #fff; border-color: #dfe5ec; color: #1c2129; }
+.jump a b { font: 700 9.5px var(--font-mono); color: #a3adba; }
+.jump a.reco { color: #b62b24; }
+.jump a.reco b { color: #d0342c; }
+
+/* ============================================================
+   方案区块
+   ============================================================ */
+.scheme { margin-top: 30px; scroll-margin-top: 66px; }
+.shead { display: flex; align-items: flex-start; gap: 11px; margin-bottom: 11px; }
+.sno {
+  flex: 0 0 30px; height: 30px; border-radius: 8px; display: grid; place-items: center;
+  background: #1c2129; color: #fff; font: 700 12px/1 var(--font-mono);
+}
+.scheme.reco .sno { background: #d0342c; }
+.stext { min-width: 0; flex: 1; }
+.stext h2 { margin: 0; font-size: 15.5px; font-weight: 650; letter-spacing: .1px; }
+.stext h2 small { font: 400 11.5px var(--font-mono); color: #8b95a3; margin-left: 8px; }
+.stext p { margin: 3px 0 0; font-size: 12px; color: #59636f; max-width: 930px; }
+.sbadge {
+  flex: 0 0 auto; margin-top: 5px; padding: 3px 8px; border-radius: 5px;
+  font-size: 9.5px; font-weight: 600; letter-spacing: .3px;
+  background: #e8f0fd; color: #2d5fa8; border: 1px solid #c6daf5;
+}
+.sbadge.reco { background: #fdecea; color: #b62b24; border-color: #f3c9c5; }
+.sbadge.calm { background: #eaf6ef; color: #1a7a50; border-color: #c5e6d5; }
+.sbadge.ink { background: #1c2129; color: #fff; border-color: #1c2129; }
+
+.stage {
+  padding: 13px;
+  background: #f6f8fa;
+  border: 1px solid #e2e7ee;
+  border-radius: 13px;
+  overflow: hidden;
+}
+
+/* ============================================================
+   值区模拟基座（5 套方案共用）
+   ============================================================ */
+.demo {
+  position: relative;
+  display: flex;
+  height: 420px;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg-app);
+  box-shadow: 0 14px 30px -22px rgba(15, 23, 42, .55);
+  font-family: var(--font-ui);
+}
+.demo, .demo * { box-sizing: border-box; }
+
+/* ---- 左侧键列表（仅提供上下文，非本次设计重点） ---- */
+.klist {
+  width: 188px; flex: 0 0 auto; display: flex; flex-direction: column;
+  min-height: 0; background: var(--bg-panel); border-right: 1px solid var(--border);
+}
+.klist-head {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 6px;
+  height: 34px; padding: 0 10px; border-bottom: 1px solid var(--border);
+  font-size: 10.5px; color: var(--text-secondary);
+}
+.klist-head .kcount {
+  margin-left: auto; font: 600 9px var(--font-mono); color: var(--text-muted);
+  border: 1px solid var(--border); border-radius: 999px; padding: 1px 6px;
+}
+.klist-body { flex: 1; min-height: 0; overflow: hidden; padding: 4px 4px 6px; }
+.krow {
+  position: relative; display: flex; align-items: center; gap: 7px;
+  width: 100%; height: 29px; padding: 0 16px 0 7px;
+  border: 0; border-left: 2px solid transparent; border-radius: 0;
+  background: transparent; color: var(--text-secondary);
+  font-size: 11px; text-align: left; cursor: pointer;
+}
+.krow:hover { background: var(--bg-hover); color: var(--text-primary); }
+.krow.active { background: var(--accent-soft); border-left-color: var(--accent); color: var(--text-primary); }
+.krow.open::after {
+  content: ''; position: absolute; right: 7px; top: 50%; margin-top: -2px;
+  width: 4px; height: 4px; border-radius: 50%; background: var(--accent); opacity: .85;
+}
+.kbadge {
+  width: 16px; height: 16px; flex: 0 0 auto; border-radius: 4px;
+  display: grid; place-items: center;
+  background: var(--tcs); color: var(--tc);
+  font: 700 8px/1 var(--font-mono);
+}
+.kname {
+  min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font: 10px var(--font-mono); letter-spacing: -.1px;
+}
+
+/* ---- 右侧值区 ---- */
+.panel { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--bg-app); }
+.pcontent { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+.vhead {
+  position: relative; flex: 0 0 auto; min-height: 66px;
+  padding: 12px 12px 10px 36px;
+  background: var(--bg-panel); border-bottom: 1px solid var(--border);
+  overflow: hidden;
+}
+.vstub {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 23px;
+  display: grid; place-items: center; overflow: hidden;
+  background: var(--accent-soft); border-right: 1px solid var(--border);
+  writing-mode: vertical-rl; text-orientation: mixed;
+  font: 700 8px var(--font-mono); letter-spacing: 2.6px; text-transform: uppercase;
+  color: color-mix(in srgb, var(--accent) 65%, var(--text-primary));
+}
+.vperf {
+  position: absolute; left: 29px; top: 8px; bottom: 8px; width: 1px;
+  background-image: repeating-linear-gradient(to bottom, var(--text-muted) 0 3px, transparent 3px 6px);
+  opacity: .55;
+}
+.vkey {
+  max-width: calc(100% - 90px); overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; color: var(--text-primary);
+  font: 600 13px var(--font-mono);
+}
+.vmeta {
+  display: flex; align-items: center; gap: 7px; margin-top: 4px;
+  font-size: 10.5px; color: var(--text-muted);
+}
+.vmeta b { color: var(--text-secondary); font-weight: 600; font-family: var(--font-mono); }
+.vsep { color: var(--border-strong); }
+.vmore {
+  position: absolute; top: 10px; right: 10px;
+  width: 22px; height: 22px; border: 1px solid var(--border); border-radius: 5px;
+  background: var(--bg-elevated); color: var(--text-muted);
+  font: 13px/1 var(--font-ui); cursor: pointer;
+}
+.vwm {
+  position: absolute; right: 8px; bottom: -16px; z-index: 0;
+  font: 800 62px/1 var(--font-mono); color: var(--text-primary);
+  opacity: .045; pointer-events: none;
+}
+
+.vtool {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 5px;
+  padding: 5px 8px; border-bottom: 1px solid var(--border);
+  background: var(--bg-app); min-width: 0;
+}
+.toolbtn {
+  flex: 0 0 auto; display: inline-flex; align-items: center; height: 22px;
+  padding: 0 7px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--bg-elevated); color: var(--text-secondary);
+  font-size: 10.5px; white-space: nowrap;
+}
+.toolbtn.on { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.segdiv { flex: 0 0 auto; width: 1px; height: 14px; background: var(--border); margin: 0 2px; }
+.asw {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px;
+  font-size: 10.5px; color: var(--text-secondary); white-space: nowrap;
+}
+.asw i {
+  position: relative; width: 19px; height: 11px; border-radius: 999px;
+  background: var(--accent-soft); border: 1px solid var(--accent);
+}
+.asw i::after {
+  content: ''; position: absolute; right: 1px; top: 1px;
+  width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
+}
+.vsearch {
+  margin-left: auto; flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px;
+  height: 22px; padding: 0 7px; min-width: 132px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--bg-elevated); color: var(--text-muted); font-size: 10.5px;
+}
+.vsearch svg { flex: 0 0 auto; opacity: .8; }
+
+.vbody { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 8px; overflow: hidden; }
+
+/* 容器类型表格 */
+.pcard {
+  flex: 1; min-height: 0; display: flex; flex-direction: column;
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  background: var(--bg-panel); overflow: hidden;
+}
+.pthead {
+  flex: 0 0 auto; display: grid; grid-template-columns: 34px minmax(80px, 1fr) minmax(0, 1.7fr);
+  background: var(--bg-elevated); border-bottom: 1px solid var(--border);
+}
+.pthead.one { grid-template-columns: 34px 1fr; }
+.pthead span { padding: 5px 8px; font-size: 9.5px; color: var(--text-muted); letter-spacing: .2px; }
+.pthead span:first-child { text-align: right; padding-right: 6px; }
+.prow {
+  flex: 0 0 auto; display: grid; grid-template-columns: 34px minmax(80px, 1fr) minmax(0, 1.7fr);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 52%, transparent);
+  font-size: 11px;
+}
+.prow.one { grid-template-columns: 34px 1fr; }
+.prow:hover { background: var(--bg-hover); }
+.prow > span {
+  min-width: 0; padding: 5px 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pidx { text-align: right; padding-right: 6px !important; color: var(--text-muted); font: 9.5px var(--font-mono); }
+.pk { color: var(--text-secondary); font-family: var(--font-mono); }
+.pv { color: var(--text-primary); font-family: var(--font-mono); }
+
+/* string 文本视图 */
+.textcard {
+  flex: 1; min-height: 0; display: flex; flex-direction: column;
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  background: var(--bg-panel); overflow: hidden;
+  font-family: var(--font-mono); font-size: 11px; line-height: 1.75;
+}
+.cline { flex: 0 0 auto; display: grid; grid-template-columns: 34px 1fr; }
+.cln {
+  padding-right: 7px; text-align: right; color: var(--text-muted); font-size: 9.5px;
+  background: color-mix(in srgb, var(--bg-panel) 72%, var(--border-strong) 28%);
+  border-right: 1px solid var(--border);
+}
+.ctext { padding: 0 9px; color: var(--text-primary); white-space: pre; overflow: hidden; text-overflow: ellipsis; }
+
+/* 空态 */
+.blank2 {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; color: var(--text-muted); font-size: 11.5px;
+}
+.blank2 .bb {
+  font: 600 9px var(--font-mono); letter-spacing: 1.2px; color: var(--accent);
+  border: 1px solid var(--accent); border-radius: 999px; padding: 3px 9px;
+}
+
+/* ============================================================
+   标签栏公共件
+   ============================================================ */
+.tabsarea { position: relative; flex: 0 0 auto; border-top: 1px solid var(--border); background: var(--bg-panel); }
+[data-strip] { scrollbar-width: none; }
+[data-strip]::-webkit-scrollbar { height: 0; display: none; }
+.xbtn {
+  width: 14px; height: 14px; flex: 0 0 auto;
+  display: grid; place-items: center; border-radius: 999px;
+  font: 12px/1 var(--font-ui); color: var(--text-muted); opacity: 0; cursor: pointer;
+  transition: color .12s, background .12s;
+}
+.t:hover .xbtn, .t.active .xbtn, .xbtn:focus-visible { opacity: 1; }
+.xbtn:hover { background: var(--accent-soft); color: var(--accent); }
+.strip-empty { display: flex; align-items: center; height: 100%; padding: 0 12px; font-size: 11px; color: var(--text-muted); }
+
+/* ============================================================
+   方案 01 · 票根标签
+   ============================================================ */
+.s1 { display: flex; align-items: stretch; height: 38px; padding-left: 4px; background: var(--bg-panel); }
+.s1-tabs {
+  display: flex; align-items: flex-end; gap: 2px;
+  flex: 0 1 auto; min-width: 0;
+  overflow-x: auto; overflow-y: hidden; padding-top: 4px;
+}
+.s1-tab {
+  position: relative; flex: 0 0 auto;
+  display: flex; align-items: center; gap: 6px;
+  height: 29px; max-width: 205px; padding: 0 8px;
+  border: 1px solid transparent; border-bottom: 0; border-radius: 6px 6px 0 0;
+  background: transparent; color: var(--text-muted); cursor: pointer;
+}
+.s1-tab:hover { background: var(--bg-hover); color: var(--text-secondary); }
+.s1-tab.active {
+  height: 34px; padding-top: 1px;
+  background: var(--bg-app); border-color: var(--border); border-top: 2px solid var(--tc);
+  color: var(--text-primary);
+  box-shadow: 0 -6px 14px -10px rgba(0, 0, 0, .55);
+}
+/* 撕口：两个半圆咬进顶部强调线，延续票根头部的打孔语言 */
+.s1-tab.active::before, .s1-tab.active::after {
+  content: ''; position: absolute; top: -2px; width: 7px; height: 7px;
+  border-radius: 50%; background: var(--bg-panel);
+}
+.s1-tab.active::before { left: -4.5px; }
+.s1-tab.active::after { right: -4.5px; }
+.s1-type {
+  width: 16px; height: 16px; flex: 0 0 auto; border-radius: 4px;
+  display: grid; place-items: center;
+  background: var(--tcs); color: var(--tc); font: 700 8px/1 var(--font-mono);
+}
+.s1-name { max-width: 152px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 11px var(--font-mono); }
+.s1-stat {
+  margin-left: auto; flex: 0 0 auto; max-width: 45%;
+  display: flex; align-items: center; gap: 6px; padding: 0 10px;
+  border-left: 1px solid var(--border);
+  font: 10px var(--font-mono); color: var(--text-muted);
+  white-space: nowrap; overflow: hidden;
+}
+.s1-stat b { color: var(--text-secondary); font-weight: 600; }
+.s1-stat .sepdot { color: var(--border-strong); }
+
+/* ============================================================
+   方案 02 · 胶囊条
+   ============================================================ */
+.s2 { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 8px; background: var(--bg-panel); }
+.s2-count {
+  flex: 0 0 auto; min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: 999px; background: var(--accent-soft); color: var(--accent);
+  font: 700 9px/18px var(--font-mono); text-align: center;
+}
+.s2-tabs {
+  flex: 1 1 auto; min-width: 0;
+  display: flex; align-items: center; gap: 5px;
+  overflow-x: auto; padding: 4px 0;
+}
+.s2-tab {
+  flex: 0 0 auto; max-width: 190px;
+  display: flex; align-items: center; gap: 6px;
+  height: 25px; padding: 0 8px;
+  border: 1px solid transparent; border-radius: 999px;
+  background: transparent; color: var(--text-secondary); cursor: pointer;
+}
+.s2-tab:hover { background: var(--bg-hover); color: var(--text-primary); }
+.s2-tab.active {
+  background: var(--tcs); color: var(--text-primary);
+  border-color: color-mix(in srgb, var(--tc) 42%, transparent);
+  font-weight: 600;
+}
+.s2-dot { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: var(--tc); }
+.s2-tab.active .s2-dot { box-shadow: 0 0 0 2px color-mix(in srgb, var(--tc) 20%, transparent); }
+.s2-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 11px var(--font-mono); }
+.s2-stats {
+  flex: 0 0 auto; max-width: 40%;
+  display: flex; align-items: center; gap: 6px;
+  padding-left: 9px; border-left: 1px solid var(--border);
+  font: 10px var(--font-mono); color: var(--text-muted);
+  white-space: nowrap; overflow: hidden;
+}
+.s2-tag {
+  flex: 0 0 auto; padding: 1px 4px; border-radius: 3px;
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  color: var(--text-secondary); font-size: 9px;
+}
+
+/* ============================================================
+   方案 03 · 双层底栏
+   ============================================================ */
+.s3 { display: flex; flex-direction: column; background: var(--bg-panel); }
+.s3-tabs {
+  display: flex; align-items: flex-end; gap: 2px;
+  height: 32px; padding: 0 6px; overflow-x: auto;
+}
+.s3-tab {
+  flex: 0 0 auto; max-width: 205px;
+  display: flex; align-items: center; gap: 6px;
+  height: 26px; padding: 0 8px;
+  border: 1px solid transparent; border-bottom: 0; border-radius: 5px 5px 0 0;
+  background: transparent; color: var(--text-muted); cursor: pointer;
+}
+.s3-tab:hover { background: var(--bg-hover); color: var(--text-secondary); }
+.s3-tab.active {
+  height: 32px; padding-top: 1px;
+  background: var(--bg-app); border-color: var(--border); border-top: 2px solid var(--accent);
+  color: var(--text-primary);
+}
+.s3-type {
+  width: 15px; height: 15px; flex: 0 0 auto; border-radius: 3px;
+  display: grid; place-items: center;
+  background: var(--tcs); color: var(--tc); font: 700 7.5px/1 var(--font-mono);
+}
+.s3-name { max-width: 156px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 10.5px var(--font-mono); }
+.s3-status {
+  display: flex; align-items: center; gap: 7px;
+  height: 24px; padding: 0 9px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-panel);
+  font: 10px var(--font-mono); color: var(--text-muted);
+  white-space: nowrap; overflow: hidden;
+}
+.s3-status b { color: var(--text-secondary); font-weight: 600; }
+.s3-sp { margin-left: auto; }
+
+/* ============================================================
+   方案 04 · 折叠脊标
+   ============================================================ */
+.s4 { position: relative; display: flex; align-items: center; gap: 6px; height: 44px; padding: 0 8px; background: var(--bg-panel); }
+.s4-count {
+  flex: 0 0 auto; padding: 2px 6px;
+  border: 1px solid var(--border); border-radius: 999px;
+  color: var(--text-muted); font: 700 9px var(--font-mono);
+}
+.s4-tabs {
+  flex: 1 1 auto; min-width: 0;
+  display: flex; align-items: center; gap: 5px;
+  overflow-x: auto; padding: 5px 0;
+}
+.s4-tab {
+  position: relative; flex: 0 0 auto; width: 58px; height: 32px;
+  display: flex; align-items: center; gap: 6px; padding: 0 7px;
+  border: 1px solid var(--border); border-radius: 7px;
+  background: var(--bg-elevated); color: var(--text-muted);
+  cursor: pointer; overflow: hidden;
+  transition: width .16s ease, background .16s ease, border-color .16s ease;
+}
+.s4-tab:hover { width: 128px; background: var(--bg-hover); color: var(--text-secondary); }
+.s4-tab.active {
+  width: 246px; padding-right: 22px;
+  background: var(--tcs); color: var(--text-primary);
+  border-color: color-mix(in srgb, var(--tc) 45%, transparent);
+  border-top: 2px solid var(--tc);
+}
+.s4-chip {
+  width: 18px; height: 18px; flex: 0 0 auto; border-radius: 5px;
+  display: grid; place-items: center;
+  background: var(--tcs); color: var(--tc); font: 700 8px/1 var(--font-mono);
+}
+.s4-tab.active .s4-chip { background: color-mix(in srgb, var(--tc) 22%, transparent); }
+.s4-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; line-height: 1.15; text-align: left; }
+.s4-name {
+  max-width: 34px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font: 10px var(--font-mono);
+}
+.s4-tab:hover .s4-name { max-width: 86px; }
+.s4-tab.active .s4-name { max-width: 190px; font-size: 11px; }
+.s4-meta {
+  display: none; max-width: 190px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font: 9px var(--font-mono); color: var(--text-muted);
+}
+.s4-tab.active .s4-meta { display: block; }
+.s4-x { position: absolute; right: 4px; top: 4px; opacity: 0; }
+.s4-tab.active .s4-x, .s4-tab:hover .s4-x { opacity: 1; }
+.s4-more {
+  flex: 0 0 auto; width: 24px; height: 24px;
+  border: 1px solid var(--border); border-radius: 5px;
+  background: var(--bg-elevated); color: var(--text-muted); cursor: pointer;
+  font: 14px/1 var(--font-ui);
+}
+.s4-more:hover { color: var(--text-primary); border-color: var(--border-strong); }
+.s4-mask { position: fixed; inset: 0; z-index: 60; }
+.s4-menu {
+  position: absolute; right: 8px; bottom: calc(100% + 6px); z-index: 61;
+  width: 254px; max-height: 264px; overflow: auto; padding: 4px;
+  background: var(--bg-panel); border: 1px solid var(--border);
+  border-radius: 8px; box-shadow: var(--shadow-panel);
+}
+.s4-menu-hd { padding: 5px 8px; font-size: 10px; color: var(--text-muted); }
+.s4-mi {
+  display: flex; align-items: center; gap: 7px;
+  width: 100%; padding: 5px 7px; border: 0; border-radius: 5px;
+  background: transparent; color: var(--text-secondary);
+  font: 10.5px var(--font-mono); text-align: left; cursor: pointer;
+}
+.s4-mi:hover { background: var(--bg-hover); color: var(--text-primary); }
+.s4-mi.active { background: var(--accent-soft); color: var(--text-primary); }
+.s4-mi .mi-t {
+  width: 16px; height: 16px; flex: 0 0 auto; border-radius: 4px;
+  display: grid; place-items: center;
+  background: var(--tcs); color: var(--tc); font: 700 8px/1 var(--font-mono);
+}
+.s4-mi .mi-k { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ============================================================
+   方案 05 · 悬停书签（拟选定）
+   [‹][›] 滚动区 [n 个键] [⋯ 更多操作]
+   ============================================================ */
+.s5 { position: relative; display: flex; align-items: stretch; height: 30px; background: var(--bg-panel); }
+.s5-arrow {
+  flex: 0 0 20px; padding: 0; display: grid; place-items: center;
+  border: 0; background: transparent; color: var(--text-secondary);
+  font: 13px/1 var(--font-ui); cursor: pointer;
+}
+.s5-arrow.l { border-right: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
+.s5-arrow.r { border-left: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
+.s5-arrow:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); }
+.s5-arrow:disabled { opacity: .28; cursor: default; }
+.s5-tabs { flex: 1 1 auto; min-width: 0; display: flex; align-items: stretch; overflow-x: auto; }
+.s5-tab {
+  position: relative; flex: 0 0 auto; min-width: 0;
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 10px; cursor: pointer;
+  border-right: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  color: var(--text-muted); font: 11px var(--font-mono);
+}
+.s5-tab::before {
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: transparent;
+}
+.s5-tab:hover { background: var(--bg-hover); color: var(--text-secondary); }
+.s5-tab.active { background: var(--bg-app); color: var(--text-primary); }
+.s5-tab.active::before { background: var(--tc); }
+.s5-tab:focus-visible { outline: 1px solid var(--accent); outline-offset: -2px; }
+.s5-dot { width: 5px; height: 5px; flex: 0 0 auto; border-radius: 2px; background: var(--tc); opacity: .65; }
+.s5-tab.active .s5-dot { opacity: 1; box-shadow: 0 0 0 3px color-mix(in srgb, var(--tc) 14%, transparent); }
+.s5-name { max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.s5-more {
+  flex: 0 0 28px; display: grid; place-items: center; padding: 0;
+  border: 0; border-left: 1px solid var(--border); background: transparent;
+  color: var(--text-secondary); font: 15px/1 var(--font-ui); cursor: pointer;
+}
+.s5-more:hover, .s5-more.on { background: var(--bg-hover); color: var(--text-primary); }
+.s5-more.on { box-shadow: inset 0 2px 0 var(--accent); }
+.s5-more:disabled { opacity: .3; cursor: default; }
+
+/* 固定详情标签：永远第一位，不参与滚动，不可关闭 */
+.s5-home {
+  position: relative; flex: 0 0 auto; display: flex; align-items: center; gap: 6px;
+  padding: 0 10px 0 9px; border-right: 1px solid var(--border);
+  color: var(--text-muted); font-size: 11px; white-space: nowrap; cursor: pointer;
+}
+.s5-home svg { width: 13px; height: 13px; flex: 0 0 auto; }
+.s5-home:hover { background: var(--bg-hover); color: var(--text-secondary); }
+.s5-home.active { background: var(--bg-app); color: var(--text-primary); }
+.s5-home.active::before {
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: var(--accent);
+}
+.s5-home.active svg { color: var(--accent); }
+.s5-home:focus-visible { outline: 1px solid var(--accent); outline-offset: -2px; }
+
+/* 更多操作菜单 */
+.s5-mask { position: fixed; inset: 0; z-index: 60; }
+.s5-menu {
+  position: absolute; right: 6px; bottom: calc(100% + 6px); z-index: 61;
+  width: 312px; display: flex; flex-direction: column; overflow: hidden;
+  background: var(--bg-panel); border: 1px solid var(--border-strong);
+  border-radius: 8px; box-shadow: var(--shadow-panel);
+}
+.s5-menu-hd {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 5px;
+  padding: 7px 9px; border-bottom: 1px solid var(--border);
+  color: var(--text-secondary); font-size: 10.5px;
+}
+.s5-menu-hd b { font: 600 10px var(--font-mono); color: var(--text-primary); }
+.s5-menu-x {
+  margin-left: auto; width: 18px; height: 18px; flex: 0 0 auto;
+  display: grid; place-items: center; padding: 0;
+  border: 0; border-radius: 999px; background: transparent;
+  color: var(--text-muted); cursor: pointer; transition: color .12s, background .12s;
+}
+.s5-menu-x svg { width: 11px; height: 11px; }
+.s5-menu-x:hover { background: var(--accent-soft); color: var(--accent); }
+.s5-menu-x:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
+.s5-menu-search {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 6px;
+  margin: 6px 6px 2px; padding: 0 7px; height: 26px;
+  background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 5px;
+  color: var(--text-muted); transition: border-color .12s;
+}
+.s5-menu-search:focus-within { border-color: var(--accent); }
+.s5-menu-search svg { width: 12px; height: 12px; flex: 0 0 auto; }
+.s5-menu-search input {
+  flex: 1; min-width: 0; border: 0; outline: 0; background: transparent;
+  color: var(--text-primary); font: 10.5px var(--font-mono);
+}
+.s5-menu-search input::placeholder { color: var(--text-muted); }
+.s5-menu-empty { padding: 16px 10px; text-align: center; color: var(--text-muted); font-size: 10.5px; }
+.s5-menu-list { flex: 1 1 auto; min-height: 0; max-height: 220px; overflow: auto; padding: 4px 4px 0; }
+.s5-mi {
+  display: flex; align-items: center; gap: 7px; width: 100%; height: 27px;
+  padding: 0 4px 0 6px; border: 0; border-radius: 5px;
+  background: transparent; color: var(--text-secondary);
+  font: 10.5px var(--font-mono); text-align: left; cursor: pointer;
+}
+.s5-mi:hover { background: var(--bg-hover); color: var(--text-primary); }
+.s5-mi.active { background: var(--accent-soft); color: var(--text-primary); }
+.s5-mi .mi-t {
+  width: 16px; height: 16px; flex: 0 0 auto; border-radius: 4px;
+  display: grid; place-items: center;
+  background: var(--tcs); color: var(--tc); font: 700 8px/1 var(--font-mono);
+}
+.s5-mi .mi-k { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.s5-mi .mi-x {
+  width: 16px; height: 16px; flex: 0 0 auto; display: grid; place-items: center;
+  border-radius: 999px; color: var(--text-muted); font: 12px/1 var(--font-ui); opacity: .38;
+  transition: color .12s, background .12s;
+}
+.s5-mi:hover .mi-x, .s5-mi.active .mi-x, .s5-mi:focus-visible .mi-x { opacity: 1; }
+.s5-mi .mi-x:hover { background: var(--accent-soft); color: var(--accent); }
+.s5-acts { flex: 0 0 auto; display: flex; gap: 4px; padding: 6px; border-top: 1px solid var(--border); }
+.s5-acts button {
+  flex: 1 1 0; height: 24px; padding: 0 7px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  border: 1px solid var(--border); border-radius: 999px;
+  background: var(--bg-elevated); color: var(--text-secondary);
+  font: 10.5px var(--font-ui); cursor: pointer; white-space: nowrap;
+}
+.s5-acts button svg { width: 11px; height: 11px; flex: 0 0 auto; opacity: .9; }
+.s5-acts button:hover:not(:disabled) { border-color: var(--border-strong); color: var(--text-primary); }
+.s5-acts button.danger:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.s5-acts button:disabled { opacity: .35; cursor: default; }
+
+/* ---- 固定详情标签的内容：当前连接概览 ---- */
+.dview { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.dbody { flex: 1; min-height: 0; overflow: auto; padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 9px; }
+.dgrid { flex: 1 1 auto; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); gap: 8px; }
+.dcard {
+  min-width: 0; padding: 8px 10px 9px;
+  display: flex; flex-direction: column; justify-content: center;
+  background: var(--bg-panel); border: 1px solid var(--border); border-radius: 7px;
+}
+.dcard span { display: block; font-size: 9.5px; color: var(--text-muted); letter-spacing: .2px; }
+.dcard b { display: block; margin-top: 2px; font: 600 15px/1.2 var(--font-mono); color: var(--text-primary); }
+.dcard i { display: block; margin-top: 2px; font: 9.5px/1.4 var(--font-mono); font-style: normal; color: var(--text-muted); }
+.dbar { margin-top: 6px; height: 3px; border-radius: 2px; background: var(--bg-active); overflow: hidden; }
+.dbar u { display: block; height: 100%; border-radius: 2px; background: var(--accent); }
+.dinfo {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 14px;
+  padding: 6px 10px;
+  background: var(--bg-panel); border: 1px solid var(--border); border-radius: 7px;
+}
+.dinfo div {
+  display: flex; align-items: baseline; gap: 7px; min-width: 0; padding: 5px 0;
+  border-bottom: 1px dashed color-mix(in srgb, var(--border) 65%, transparent);
+}
+.dinfo div:nth-last-child(-n+3) { border-bottom: 0; }
+.dinfo i { flex: 0 0 48px; font-style: normal; font-size: 10px; color: var(--text-muted); }
+.dinfo b {
+  min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font: 10.5px var(--font-mono); color: var(--text-secondary);
+}
+.dpill {
+  display: inline-flex; align-items: center; gap: 4px; margin-left: 7px;
+  height: 15px; padding: 0 6px; border-radius: 999px; vertical-align: 2px;
+  background: var(--badge-string-bg); color: var(--badge-string-fg);
+  font: 600 9px var(--font-mono);
+}
+.dpill::before { content: ''; width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
+
+/* ---- 悬停统计卡（可独立复用） ---- */
+.hoverpop {
+  position: fixed; z-index: 80; display: none; width: 268px;
+  padding: 9px 11px 8px;
+  background: var(--bg-elevated); border: 1px solid var(--border-strong);
+  border-radius: 8px; box-shadow: var(--shadow-panel);
+  color: var(--text-secondary); font-size: 11px; pointer-events: none;
+}
+.hoverpop::after {
+  content: ''; position: absolute; left: var(--caret-x, 24px); width: 8px; height: 8px;
+  background: var(--bg-elevated); border: 1px solid var(--border-strong);
+  transform: rotate(45deg);
+}
+.hoverpop[data-side="above"]::after { bottom: -5px; border-top: 0; border-left: 0; }
+.hoverpop[data-side="below"]::after { top: -5px; border-bottom: 0; border-right: 0; }
+.hoverpop .hk { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.hoverpop .hk-t {
+  width: 16px; height: 16px; flex: 0 0 auto; border-radius: 4px;
+  display: grid; place-items: center; font: 700 8px/1 var(--font-mono);
+}
+.hoverpop .hk-k {
+  flex: 1; min-width: 0;
+  color: var(--text-primary); font: 600 11px/1.35 var(--font-mono);
+  overflow-wrap: anywhere; white-space: normal;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.hoverpop .hk-ty {
+  flex: 0 0 auto; color: var(--text-muted);
+  font: 9.5px var(--font-mono); letter-spacing: .3px; text-transform: uppercase;
+}
+.hoverpop .hr { display: flex; align-items: flex-start; gap: 8px; margin-top: 4px; }
+.hoverpop .hr i { flex: 0 0 30px; font-style: normal; color: var(--text-muted); line-height: 1.5; }
+.hoverpop .hr b {
+  flex: 1; min-width: 0; font: 500 10.5px/1.5 var(--font-mono);
+  color: var(--text-secondary); word-break: break-word;
+}
+.hoverpop .hr b.warn { color: var(--accent); }
+.hoverpop .ttlchip {
+  margin-left: 5px; padding: 0 4px; border-radius: 3px;
+  background: var(--accent-soft); color: var(--accent);
+  font: 600 8.5px/14px var(--font-mono); letter-spacing: .2px;
+}
+.hoverpop .hh {
+  margin-top: 6px; padding-top: 6px;
+  border-top: 1px dashed var(--border);
+  color: var(--text-muted); font-size: 9.5px;
+}
+
+/* ============================================================
+   方案 05 拆件 · 悬停统计卡独立预览
+   ============================================================ */
+.stage.popstage { padding: 16px; background: var(--bg-app); border-color: var(--border); }
+.popspec { display: grid; grid-template-columns: 268px 268px minmax(0, 1fr); gap: 18px; align-items: start; }
+.popcell { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.poplabel {
+  font: 600 9.5px var(--font-mono); letter-spacing: .5px;
+  text-transform: uppercase; color: var(--text-muted);
+}
+.popcap { font-size: 10px; line-height: 1.5; color: var(--text-muted); }
+.hoverpop.static { position: relative; display: block; width: 268px; }
+.hoverpop.static::after { display: none; }
+.ptrg { display: flex; flex-direction: column; gap: 5px; }
+.ptrg-h { font-size: 9.5px; color: var(--text-muted); }
+.ptrg-bar {
+  display: flex; height: 30px; overflow: hidden;
+  background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px;
+}
+.ptrg-bar .s5-tab { flex: 1; border-right: 0; }
+.ptrg-list {
+  padding: 3px; overflow: hidden;
+  background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px;
+}
+.ptrg-list .krow { height: 27px; }
+.poprules {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px;
+  margin-top: 16px; padding-top: 13px; border-top: 1px dashed var(--border);
+}
+.poprules div { font-size: 10.5px; line-height: 1.55; color: var(--text-secondary); }
+.poprules b {
+  display: block; margin-bottom: 2px; color: var(--text-primary);
+  font-size: 9.5px; letter-spacing: .3px;
+}
+
+/* ============================================================
+   方案脚注
+   ============================================================ */
+.snotes {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px;
+  margin-top: 10px;
+}
+.snotes div {
+  padding: 9px 11px; border: 1px solid #e2e7ee; border-radius: 8px;
+  background: #fff; font-size: 11.5px; line-height: 1.6; color: #59636f;
+}
+.snotes b { display: block; margin-bottom: 2px; color: #232b34; font-size: 10px; letter-spacing: .3px; }
+.snotes .cost b { color: #b62b24; }
+
+/* ============================================================
+   对比与落地说明
+   ============================================================ */
+.compare { margin-top: 42px; padding-top: 4px; scroll-margin-top: 66px; }
+.compare h2 { margin: 0 0 12px; font-size: 17px; font-weight: 650; }
+.compare table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #e2e7ee; border-radius: 10px; overflow: hidden; font-size: 11.5px; }
+.compare th, .compare td { padding: 9px 11px; text-align: left; border-bottom: 1px solid #edf0f4; vertical-align: top; }
+.compare th { background: #f6f8fa; color: #4b5563; font-size: 10.5px; font-weight: 600; white-space: nowrap; }
+.compare tr:last-child td { border-bottom: 0; }
+.compare td:first-child { font-weight: 600; color: #232b34; white-space: nowrap; }
+.compare .best { color: #b62b24; font-weight: 600; }
+.compare code { font: 10.5px var(--font-mono); background: #f0f3f7; padding: 1px 4px; border-radius: 3px; }
+
+.landing { margin-top: 26px; display: grid; grid-template-columns: 1.25fr .75fr; gap: 14px; }
+.card {
+  background: #fff; border: 1px solid #e2e7ee; border-radius: 10px; padding: 15px 17px;
+}
+.card h3 { margin: 0 0 8px; font-size: 13px; font-weight: 650; }
+.card ol, .card ul { margin: 0; padding-left: 18px; }
+.card li { margin: 5px 0; font-size: 11.5px; color: #59636f; line-height: 1.6; }
+.card li b { color: #232b34; }
+.card code { font: 10.5px var(--font-mono); background: #f0f3f7; padding: 1px 4px; border-radius: 3px; color: #232b34; }
+.card.reco { background: #1c2129; border-color: #1c2129; color: #cbd3de; }
+.card.reco h3 { color: #fff; }
+.card.reco li { color: #aab4c4; }
+.card.reco b { color: #fff; }
+
+@media (max-width: 900px) {
+  body { padding-left: 14px; padding-right: 14px; }
+  .controls { gap: 12px; }
+  .ctl-hint { margin-left: 0; }
+  .snotes { grid-template-columns: 1fr; }
+  .landing { grid-template-columns: 1fr; }
+  .demo { height: 440px; }
+  .klist { width: 150px; }
+  .kname { font-size: 9px; }
+  .popspec { grid-template-columns: 1fr; }
+  .poprules { grid-template-columns: 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="phead">
+    <h1>值区底部 <span>多键标签栏</span> · 5 套方案</h1>
+    <p class="lede">
+      现状：值区底部是一条统计状态栏（<code>.viewer-foot</code>），显示当前键的类型、字段数、大小、最长字段等。
+      目标：在这条底栏位置支持同时打开多个键、快速切换查看，同时不丢掉原有的统计信息。
+      因为标签在<strong>底部</strong>，方案的核心差异在于三件事：<b>选中态如何与上方内容建立联系</b>、
+      <b>统计信息放在哪里</b>、<b>标签多了以后如何折叠</b>。下面 5 套方案共用同一份值区模拟，可直接点击标签、关闭标签、从左侧开新标签。
+    </p>
+
+    <div class="controls">
+      <div class="ctl">
+        <span>主题</span>
+        <div class="seg" id="themeSeg">
+          <button type="button" data-v="dark" class="active">暗色</button>
+          <button type="button" data-v="light">亮色</button>
+        </div>
+      </div>
+      <div class="ctl">
+        <span>多键压力</span>
+        <button type="button" class="stress" id="stressBtn">载入 12 个标签</button>
+      </div>
+      <div class="ctl-hint">点击左侧键可新开标签 · 点击标签切换 · × 关闭 · 滚轮 / ‹ › 横向滚动 · ⋯ 更多操作</div>
+    </div>
+  </header>
+
+  <nav class="jump">
+    <a href="#s1"><b>01</b>票根标签</a>
+    <a href="#s2"><b>02</b>胶囊条</a>
+    <a href="#s3"><b>03</b>双层底栏</a>
+    <a href="#s4"><b>04</b>折叠脊标</a>
+    <a href="#s5" class="reco"><b>05</b>悬停书签</a>
+    <a href="#s5pop"><b>06</b>悬停统计卡</a>
+    <a href="#compare" style="margin-left:auto"><b>≡</b>对比与落地</a>
+  </nav>
+
+  <section class="scheme" id="s1">
+    <div class="shead">
+      <span class="sno">01</span>
+      <div class="stext">
+        <h2>票根标签 <small>Ticket Tabs</small></h2>
+        <p>把值区头上的票根语言延伸到页脚：标签像一排撕下的票根，选中项升高 5px、顶部用类型色封口，并在左右各咬出一个半圆撕口；统计信息常驻右端。</p>
+      </div>
+      <span class="sbadge">备选 · 信息最全</span>
+    </div>
+    <div class="stage"><div class="demo" id="demo1"></div></div>
+    <div class="snotes">
+      <div><b>设计意图</b>底部标签最怕“和内容没关系”。上浮 + 类型色封口 + 撕口，让选中项像从上方内容里垂下来的票根，归属感最强。</div>
+      <div><b>优点</b>与现有票根头部是同一套视觉；右端保留紧凑统计，原状态栏信息不丢；38px 只比现状多几像素。</div>
+      <div class="cost"><b>代价</b>长键名需要截断；右端统计在窄窗口下会被压缩，建议窄窗时自动隐藏次要项。</div>
+    </div>
+  </section>
+
+  <section class="scheme" id="s2">
+    <div class="shead">
+      <span class="sno">02</span>
+      <div class="stext">
+        <h2>胶囊条 <small>Pill Strip</small></h2>
+        <p>底栏变成一条胶囊工具条：每个键是一枚带类型色圆点的胶囊，选中项使用类型色浅底；最左侧显示已打开数量，最右侧固定统计信息。</p>
+      </div>
+      <span class="sbadge calm">改动最小</span>
+    </div>
+    <div class="stage"><div class="demo" id="demo2"></div></div>
+    <div class="snotes">
+      <div><b>设计意图</b>复用工具栏里已有的胶囊 / 分段控件语言，不引入新的形状；底部只做“切换器”，不做“页签”。</div>
+      <div><b>优点</b>落地成本最低，DOM 和样式都简单；胶囊比页签窄，同样宽度能放更多键；视觉与现有按钮体系最一致。</div>
+      <div class="cost"><b>代价</b>没有页签的“纸张”结构，更像筛选 chip；需要靠计数徽标和选中底色强调“这些是已打开的键”。</div>
+    </div>
+  </section>
+
+  <section class="scheme" id="s3">
+    <div class="shead">
+      <span class="sno">03</span>
+      <div class="stext">
+        <h2>双层底栏 <small>Tabs + Status</small></h2>
+        <p>上排是页签，下排原样保留现有状态栏。选中页签顶部用品牌红压线，与上方内容区相连；底部 24px 统计行一字不改地迁移过来。</p>
+      </div>
+      <span class="sbadge">信息零损失</span>
+    </div>
+    <div class="stage"><div class="demo" id="demo3"></div></div>
+    <div class="snotes">
+      <div><b>设计意图</b>不赌“统计信息可以收起来”。页签负责切换，状态栏继续负责读数，两块职责彻底分开。</div>
+      <div><b>优点</b>迁移成本最低，统计代码几乎原样保留；用户不需要重新学习信息位置；页签可以做得更薄。</div>
+      <div class="cost"><b>代价</b>整条底栏 56px，比现状多占约 24px 垂直空间；键多时上下两排都显拥挤。</div>
+    </div>
+  </section>
+
+  <section class="scheme" id="s4">
+    <div class="shead">
+      <span class="sno">04</span>
+      <div class="stext">
+        <h2>折叠脊标 <small>Spine Tabs</small></h2>
+        <p>未选中的标签折叠成 58px 的“书脊”，只留类型字母和 3~4 个字符；选中项展开为 246px，键名下方直接内嵌「字段 / 大小 / TTL」。左端是数量徽标，右端是「更多」菜单。</p>
+      </div>
+      <span class="sbadge ink">多键优先</span>
+    </div>
+    <div class="stage"><div class="demo" id="demo4"></div></div>
+    <div class="snotes">
+      <div><b>设计意图</b>把状态栏“折叠进选中的标签里”。视野内所有标签都可见，选中的那个自然成为当前键的信息卡。</div>
+      <div><b>优点</b>10 个以上键也不挤；可完全移除独立状态栏；溢出有「更多」菜单兜底，适合键间反复比对。</div>
+      <div class="cost"><b>代价</b>未选中标签只能看到类型和几个字符，需靠 tooltip / hover 展开补偿；hover 展开会推挤相邻标签，动效要克制。</div>
+    </div>
+  </section>
+
+  <section class="scheme reco" id="s5">
+    <div class="shead">
+      <span class="sno">05</span>
+      <div class="stext">
+        <h2>悬停书签 <small>Hover Bookmarks</small></h2>
+        <p>30px 极简书签条：最左是固定的 <b>「详情」</b>（房子图标 + 当前连接概览，永远第一位、不可关闭），其后是 <b>‹ ›</b> 方向滑动与无缝书签（类型色点 + 键名，长键名保留头尾、中间省略），右端只留 <b>⋯ 更多操作</b>。键数量与统计信息都不再常驻，把横向宽度全部让给标签；更多菜单里可搜索已打开的键、批量关闭，统计由独立的悬停统计卡按需给出（见 06）。</p>
+      </div>
+      <span class="sbadge reco">拟选定</span>
+    </div>
+    <div class="stage"><div class="demo" id="demo5"></div></div>
+    <div class="snotes">
+      <div><b>设计意图</b>「详情」常驻第一位，作为这只连接的“主页”；键标签只回答打开了哪些键，箭头解决装不下，更多菜单解决找不到 / 批量关。常驻统计全部撤掉，宽度优先给标签。键名超长时保留头尾，因为 Redis 键的区分度常在尾部。</div>
+      <div><b>优点</b>30px 与现状几乎一致，且没有统计区争抢宽度；12 个键靠箭头 + 滚轮逐一可达，更多菜单内置搜索，标签再多也能一键定位；关闭全部键后自动回到详情，不出现空占位；长键名不会撑爆标签，title 与悬停卡可看全名。</div>
+      <div class="cost"><b>代价</b>键总数只能打开菜单看；详情标签固定占约 60px；悬停浮层会遮住内容底部；更多菜单多一次点击，极端长键仍需悬停看全名。</div>
+    </div>
+  </section>
+
+  <section class="scheme" id="s5pop">
+    <div class="shead">
+      <span class="sno">06</span>
+      <div class="stext">
+        <h2>悬停统计卡 <small>Key Stats Popover</small></h2>
+        <p>从 05 中拆出的独立组件：卡片只负责“解释这个键”，触发面可以有很多——底部书签、左侧键列表、搜索结果、命令面板。05 的底栏因此可以维持 30px 只做切换，卡片单独迭代。</p>
+      </div>
+      <span class="sbadge ink">独立组件</span>
+    </div>
+    <div class="stage popstage">
+      <div class="popspec">
+        <div class="popcell">
+          <div class="poplabel">Card · 常规键</div>
+          <div class="hoverpop static" id="popStatic"></div>
+          <div class="popcap">固定顺序：TTL / 统计 / 编码；键名最多两行完整显示。</div>
+        </div>
+        <div class="popcell">
+          <div class="poplabel">Card · 临近过期</div>
+          <div class="hoverpop static" id="popWarn"></div>
+          <div class="popcap">TTL ≤ 5 分钟时数值转为强调色并附加标记。</div>
+        </div>
+        <div class="popcell">
+          <div class="poplabel">Triggers · 两处入口，同一张卡</div>
+          <div class="ptrg">
+            <div class="ptrg-h">底部书签</div>
+            <div class="ptrg-bar" id="ptrgBar"></div>
+            <div class="ptrg-h">左侧键列表</div>
+            <div class="ptrg-list" id="ptrgList"></div>
+          </div>
+          <div class="popcap">悬停任意一处，卡片出现在触发元素上方，并带一个指向它的箭头。</div>
+        </div>
+      </div>
+      <div class="poprules">
+        <div><b>定位</b>默认在触发元素上方 8px；上方空间不足时翻到下方；左右钳制在视口内 8px。</div>
+        <div><b>时机</b>悬停 90ms 后出现；移出即消失；滚动、Esc、切换标签立即隐藏。</div>
+        <div><b>键盘</b>聚焦标签或列表行同样显示；卡片 <code>pointer-events: none</code>，不抢焦点。</div>
+        <div><b>解耦</b>入参只有键对象；颜色取类型令牌，不改底栏也能单独上线。</div>
+      </div>
+    </div>
+    <div class="snotes">
+      <div><b>设计意图</b>“切换”和“解释”分开：标签条回答打开了哪些键，卡片回答这个键有多大、多久过期、什么编码。</div>
+      <div><b>优点</b>一处实现、多处复用；信息可以比状态栏更完整，却没有常驻成本；05 的底栏因此能保持 30px。</div>
+      <div class="cost"><b>代价</b>触屏无悬停，需保留点击入口；浮层遮挡内容底部约 80px，所以必须轻、必须及时消失。</div>
+    </div>
+  </section>
+
+  <section class="compare" id="compare">
+    <h2>五套方案横向对比</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>方案</th><th>底栏高度</th><th>统计信息</th><th>标签形态</th><th>多键承载</th><th>改动成本</th><th>建议定位</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>01 票根标签</td><td>38px</td><td>右端常驻</td><td>上浮票根 + 撕口</td><td>中</td><td>低</td><td>备选 · 信息最全</td>
+        </tr>
+        <tr>
+          <td>02 胶囊条</td><td>40px</td><td>右端常驻</td><td>类型色圆点胶囊</td><td>中高</td><td class="best">最低</td><td>保守迭代 / A-B</td>
+        </tr>
+        <tr>
+          <td>03 双层底栏</td><td>56px</td><td>独立状态行（原样）</td><td>双层页签</td><td>中</td><td>低</td><td>数据核对场景</td>
+        </tr>
+        <tr>
+          <td>04 折叠脊标</td><td>44px</td><td>内嵌在选中标签</td><td>折叠书脊 + 展开</td><td class="best">最高</td><td>中</td><td>高级工作流 / 紧凑模式</td>
+        </tr>
+        <tr>
+          <td>05 悬停书签</td><td>30px</td><td>独立悬停卡按需</td><td>固定详情 + 无缝书签（中间省略）</td><td class="best">高（箭头 / 滚轮 / 菜单）</td><td>中</td><td class="best">拟选定</td>
+        </tr>
+      </tbody>
+    </table>
+    <p style="margin:8px 2px 0; font-size:11px; color:#7a8494;">06 悬停统计卡是 05 的配套组件，可独立上线，也适用于键列表、搜索结果，不参与方案对比。</p>
+
+    <div class="landing">
+      <div class="card">
+        <h3>落地要点（五套共用）</h3>
+        <ol>
+          <li><b>状态模型</b>：新增 <code>openKeys: string[]</code> 与 <code>activeKey: string | null</code>，并允许特殊值 <code>'detail'</code> 表示连接详情页。不要复用单个 <code>selectedKey</code>，否则无法表达“打开了但未激活”。</li>
+          <li><b>视图状态隔离</b>：每个键的搜索词、排序、滚动位置、行内编辑草稿按 key 存一份 Map；切回标签时原样恢复，这是多键查看的核心体验。</li>
+          <li><b>键生命周期</b>：重命名同步标签文字；删除键后关闭对应标签并自动激活右邻；TTL 变化只更新当前激活键的统计。</li>
+          <li><b>交互补齐</b>：滚轮 / 方向键横向滚动、激活标签自动滚入视野、中键 / <code>Ctrl+W</code> 关闭、<code>Ctrl+Tab</code> 切换、右键「关闭其他 / 关闭右侧」。固定「详情」标签不参与滚动、批量关闭，也不显示关闭按钮；更多菜单内置搜索（回车切换首项、上下键浏览）。</li>
+          <li><b>长键名</b>：书签按「头 12 + … + 尾 8」截断（尾部通常才是区分位），<code>title</code> 提供全名，悬停卡最多两行完整显示；不要依赖末尾省略。</li>
+          <li><b>零标签</b>：所有键标签关闭后自动回到固定的「详情」标签，不再显示“未选择键”的占位文案。</li>
+        </ol>
+      </div>
+      <div class="card reco">
+        <h3>建议</h3>
+        <ul>
+          <li><b>先落地 05</b>：30px≈现状高度；两端箭头 + 滚轮 + ⋯ 更多菜单把“很多键”这条短板补齐。</li>
+          <li><b>06 并行独立开发</b>：卡片不依赖标签栏，先挂键列表也能用，之后直接复用到书签。</li>
+          <li>若后续反馈“信息找不到”，再升级到 <b>01 票根标签</b>（统计常驻），两者共用同一份状态模型。</li>
+          <li>五套共用同一份 DOM 契约（open 列表 + active id），样式层切换即可，不必重写逻辑。</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+/* ============================================================
+   数据
+   ============================================================ */
+const TYPE = {
+  string: { letter: 'S', tc: 'var(--badge-string-fg)', tcs: 'var(--badge-string-bg)' },
+  hash:   { letter: 'H', tc: 'var(--badge-hash-fg)',   tcs: 'var(--badge-hash-bg)' },
+  list:   { letter: 'L', tc: 'var(--badge-list-fg)',   tcs: 'var(--badge-list-bg)' },
+  set:    { letter: 'E', tc: 'var(--badge-set-fg)',    tcs: 'var(--badge-set-bg)' },
+  zset:   { letter: 'Z', tc: 'var(--badge-zset-fg)',   tcs: 'var(--badge-zset-bg)' },
+  stream: { letter: 'X', tc: 'var(--badge-stream-fg)', tcs: 'var(--badge-stream-bg)' },
+};
+
+const KEYS = [
+  {
+    id: 'session', key: 'user:session:9f2c48d1', type: 'string',
+    ttl: '1 小时 02 分', encoding: 'embstr', len: 286, size: '286 B',
+    foot: '字符 286 · 9 行 · 286 B · 最长行 44', right: 'STRLEN 286 字节',
+    lines: [
+      '{',
+      '  "uid": 1042,',
+      '  "role": "admin",',
+      '  "issuedAt": "2026-10-30T09:12:44Z",',
+      '  "expiresAt": "2026-10-30T11:12:44Z",',
+      '  "device": "MacBook Pro · Chrome 141",',
+      '  "ip": "10.24.8.66",',
+      '  "mfa": true',
+      '}',
+    ],
+  },
+  {
+    id: 'cart', key: 'cart:items:10086', type: 'hash',
+    ttl: '永久', encoding: 'hashtable', len: 6, size: '412 B',
+    foot: '字段 6 · 412 B · 最大字段 96 B', right: '6 / 6 项',
+    cols: ['field', 'value'],
+    rows: [
+      ['sku:1001', '{"name":"机械键盘","qty":1,"price":699}'],
+      ['sku:1002', '{"name":"腕托","qty":2,"price":89}'],
+      ['coupon', 'NEWUSER20'],
+      ['selected', 'sku:1001'],
+      ['updatedAt', '2026-10-30 09:41:07'],
+      ['owner', '1042'],
+    ],
+  },
+  {
+    id: 'feed', key: 'feed:timeline:global', type: 'list',
+    ttl: '28 分钟', encoding: 'quicklist', len: 1204, size: '96.4 KB',
+    foot: '元素 1,204 · 96.4 KB · 最长 120', right: '1,204 / 1,204 项',
+    cols: ['element'],
+    rows: [
+      ['post:88421 — Redis 7.4 字段级 TTL 实测'],
+      ['post:88418 — 一次慢查询的排查记录'],
+      ['post:88402 — 用 Lua 做限流的三个坑'],
+      ['post:88397 — 本周新增的 12 个键'],
+      ['post:88381 — Cluster 槽位迁移笔记'],
+      ['post:88376 — 从 RDB 里捞回一条被删的 key'],
+    ],
+  },
+  {
+    id: 'tags', key: 'tags:article:42', type: 'set',
+    ttl: '永久', encoding: 'hashtable', len: 18, size: '288 B',
+    foot: '成员 18 · 288 B · 最长 22 · 无序集合', right: '18 / 18 项',
+    cols: ['member'],
+    rows: [
+      ['redis'], ['cache'], ['backend'], ['tuning'], ['lua'], ['cluster'],
+    ],
+  },
+  {
+    id: 'lb', key: 'leaderboard:daily', type: 'zset',
+    ttl: '17 小时 40 分', encoding: 'skiplist', len: 50, size: '1.6 KB',
+    foot: '成员 50 · 1.6 KB · score 12 ~ 9,820', right: '50 / 50 项',
+    cols: ['member', 'score'],
+    rows: [
+      ['player:1024', '9820'],
+      ['player:77', '8410'],
+      ['player:2093', '7966'],
+      ['player:512', '7320'],
+      ['player:88', '6544'],
+      ['player:3111', '5902'],
+    ],
+  },
+  {
+    id: 'stream', key: 'orders:stream', type: 'stream',
+    ttl: '永久', encoding: 'stream', len: 2318, size: '512 KB',
+    foot: 'entry 2,318 · 512 KB · ID 1.73e9 ~ 1.73e9', right: '2,318 / 2,318 项',
+    cols: ['entry ID', 'fields'],
+    rows: [
+      ['1730267400000-0', '{ event:"order.created", orderId:"A1042", amount:699 }'],
+      ['1730267403188-0', '{ event:"order.paid", orderId:"A1042", amount:699 }'],
+      ['1730267451220-0', '{ event:"order.created", orderId:"A1043", amount:89 }'],
+      ['1730267488014-0', '{ event:"order.shipped", orderId:"A1041", amount:1299 }'],
+      ['1730267516770-0', '{ event:"order.refunded", orderId:"A1038", amount:299 }'],
+    ],
+  },
+  {
+    id: 'profile', key: 'user:profile:1024', type: 'hash',
+    ttl: '6 天 22 小时', encoding: 'listpack', len: 9, size: '620 B',
+    foot: '字段 9 · 620 B · 最大字段 128 B', right: '9 / 9 项',
+    cols: ['field', 'value'],
+    rows: [
+      ['name', '林默'],
+      ['email', 'mo.lin@example.com'],
+      ['level', 'enterprise'],
+      ['city', 'Shanghai'],
+      ['locale', 'zh-CN'],
+      ['createdAt', '2024-03-18T02:11:09Z'],
+    ],
+  },
+  {
+    id: 'config', key: 'app:config', type: 'string',
+    ttl: '永久', encoding: 'embstr', len: 428, size: '428 B',
+    foot: '字符 428 · 9 行 · 428 B · 最长行 36', right: 'STRLEN 428 字节',
+    lines: [
+      '# app config',
+      'port = 6379',
+      'maxmemory = 2gb',
+      'maxmemory-policy = allkeys-lru',
+      'timeout = 300',
+      'tcp-keepalive = 300',
+      'appendonly = yes',
+      'save = 900 1 300 10',
+    ],
+  },
+  {
+    id: 'queue', key: 'queue:jobs:pending:worker:priority:high', type: 'list',
+    ttl: '永久', encoding: 'quicklist', len: 240, size: '18.2 KB',
+    foot: '元素 240 · 18.2 KB · 最长 64', right: '240 / 240 项',
+    cols: ['element'],
+    rows: [
+      ['job:84211 — resize-avatar'],
+      ['job:84212 — send-welcome-mail'],
+      ['job:84215 — rebuild-search-index'],
+      ['job:84218 — sync-billing'],
+      ['job:84221 — export-report'],
+    ],
+  },
+  {
+    id: 'rate', key: 'rate:limit:api:v2:tenant:acme:endpoint:checkout', type: 'string',
+    ttl: '52 秒', encoding: 'embstr', len: 42, size: '42 B',
+    foot: '字符 42 · 1 行 · 42 B · 最长行 42', right: 'STRLEN 42 字节',
+    lines: ['{"limit":100,"window":60,"remaining":37}'],
+  },
+  {
+    id: 'cache', key: 'cache:homepage:v7', type: 'string',
+    ttl: '4 分钟', encoding: 'raw', len: 43318, size: '42.3 KB',
+    foot: '字符 43,318 · 1 行 · 42.3 KB', right: 'STRLEN 43,318 字节',
+    lines: ['{"html":"<div id=\\"app\\">…</div>","etag":"v7:aa91","expires":1730268000}'],
+  },
+  {
+    id: 'geo', key: 'geo:cities', type: 'zset',
+    ttl: '永久', encoding: 'listpack', len: 12, size: '320 B',
+    foot: '成员 12 · 320 B · score 1 ~ 99', right: '12 / 12 项',
+    cols: ['member', 'score'],
+    rows: [
+      ['Shanghai', '99'],
+      ['Beijing', '86'],
+      ['Shenzhen', '72'],
+      ['Hangzhou', '58'],
+      ['Chengdu', '41'],
+      ['Wuhan', '33'],
+    ],
+  },
+];
+
+const BY_ID = {};
+KEYS.forEach((k) => { BY_ID[k.id] = k; });
+
+const INITIAL = ['session', 'cart', 'lb', 'config'];
+const state = { open: INITIAL.slice(), active: 'detail', stress: false };
+
+/* ============================================================
+   工具
+   ============================================================ */
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const typeOf = (k) => TYPE[k.type];
+
+function metaText(k) {
+  return k.type === 'string'
+    ? `${k.foot.replace(' · 最长行', ' · 最长行')}`
+    : k.foot;
+}
+
+function shortKey(k) {
+  const tail = k.key.split(':').pop();
+  return tail.length > 5 ? tail.slice(0, 5) : tail;
+}
+
+/* Redis 键名常在尾部区分（:10086 / :v7），中间省略比末尾省略更有用 */
+function midTruncate(s, head = 12, tail = 8) {
+  if (s.length <= head + tail + 1) return s;
+  return s.slice(0, head) + '…' + s.slice(-tail);
+}
+
+function tabCommon(k, scheme) {
+  const t = typeOf(k);
+  return `style="--tc:${t.tc};--tcs:${t.tcs}" title="${esc(k.key)} · ${esc(k.type)}"`;
+}
+
+function statsHTML(k) {
+  const t = typeOf(k);
+  return `<span class="pstat-type" style="color:${t.tc}">${t.letter}</span>`;
+}
+
+/* ============================================================
+   值区面板
+   ============================================================ */
+function toolbarHTML(k) {
+  const isStr = k.type === 'string';
+  const actions = isStr
+    ? ['编辑', '复制', 'JSON 美化', '自动换行', '刷新']
+    : ['复制', '导出', '新增', '刷新'];
+  const on = isStr ? ['JSON 美化', '自动换行'] : [];
+  const btns = actions
+    .map((a) => `<span class="toolbtn${on.includes(a) ? ' on' : ''}">${a}</span>`)
+    .join('');
+  const sw = isStr
+    ? ''
+    : '<span class="segdiv"></span><span class="asw"><i></i>自动刷新</span>';
+  const ph =
+    k.type === 'hash' ? '搜索 field'
+    : k.type === 'zset' ? '搜索 member'
+    : k.type === 'stream' ? '搜索 ID 或字段'
+    : k.type === 'string' ? '搜索值内容'
+    : '搜索元素';
+  return `
+    <div class="vtool">
+      ${btns}${sw}
+      <span class="vsearch">
+        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">
+          <circle cx="7" cy="7" r="4.4"></circle><path d="m10.4 10.4 3.1 3.1"></path>
+        </svg>${ph}
+      </span>
+    </div>`;
+}
+
+function bodyHTML(k) {
+  if (k.type === 'string') {
+    return `<div class="vbody"><div class="textcard">${k.lines
+      .map((line, i) => `<div class="cline"><span class="cln">${i + 1}</span><span class="ctext">${esc(line)}</span></div>`)
+      .join('')}</div></div>`;
+  }
+  const one = k.cols.length === 1;
+  const head = `<div class="pthead${one ? ' one' : ''}"><span>#</span>${k.cols
+    .map((c) => `<span>${esc(c)}</span>`)
+    .join('')}</div>`;
+  const rows = k.rows
+    .map((r, i) => `<div class="prow${one ? ' one' : ''}"><span class="pidx">${i + 1}</span>${r
+      .map((cell, ci) => `<span class="${ci === 0 && !one ? 'pk' : 'pv'}">${esc(cell)}</span>`)
+      .join('')}</div>`)
+    .join('');
+  return `<div class="vbody"><div class="pcard${one ? ' one' : ''}">${head}${rows}</div></div>`;
+}
+
+function panelHTML(k) {
+  const t = typeOf(k);
+  return `
+    <header class="vhead">
+      <div class="vstub">${k.type}</div>
+      <div class="vperf"></div>
+      <div class="vkey" title="${esc(k.key)}">${esc(k.key)}</div>
+      <div class="vmeta">
+        <span>TTL：<b>${esc(k.ttl)}</b></span><span class="vsep">|</span>
+        <span>encoding：<b>${esc(k.encoding)}</b></span><span class="vsep">|</span>
+        <span>大小：<b>${k.len}</b></span>
+      </div>
+      <button class="vmore" type="button" aria-label="更多操作">⋮</button>
+      <div class="vwm">${t.letter}</div>
+    </header>
+    ${toolbarHTML(k)}
+    ${bodyHTML(k)}`;
+}
+
+/* ============================================================
+   标签栏（按方案分支）
+   ============================================================ */
+function tabsHTML(inst) {
+  const open = state.open.map((id) => BY_ID[id]).filter(Boolean);
+  const a = BY_ID[state.active];
+  switch (inst.scheme) {
+    case 's1': return s1HTML(open, a);
+    case 's2': return s2HTML(open, a);
+    case 's3': return s3HTML(open, a);
+    case 's4': return s4HTML(inst, open, a);
+    case 's5': return s5HTML(inst, open, a);
+    default: return '';
+  }
+}
+
+function s1HTML(open, a) {
+  const tabs = open.length
+    ? open.map((k) => {
+        const active = state.active === k.id;
+        return `<button type="button" class="s1-tab t${active ? ' active' : ''}" data-tab="${k.id}" ${tabCommon(k)}>
+          <span class="s1-type">${typeOf(k).letter}</span>
+          <span class="s1-name">${esc(k.key)}</span>
+          <span class="xbtn" data-close="${k.id}" title="关闭">×</span>
+        </button>`;
+      }).join('')
+    : '<span class="strip-empty">尚未打开任何键</span>';
+  const stat = a
+    ? `<div class="s1-stat"><b>${a.type}</b><span class="sepdot">·</span>${esc(a.foot)}</div>`
+    : '<div class="s1-stat">—</div>';
+  return `<div class="s1"><div class="s1-tabs" data-strip>${tabs}</div>${stat}</div>`;
+}
+
+function s2HTML(open, a) {
+  const tabs = open.length
+    ? open.map((k) => {
+        const active = state.active === k.id;
+        return `<button type="button" class="s2-tab t${active ? ' active' : ''}" data-tab="${k.id}" ${tabCommon(k)}>
+          <span class="s2-dot"></span>
+          <span class="s2-name">${esc(k.key)}</span>
+          <span class="xbtn" data-close="${k.id}" title="关闭">×</span>
+        </button>`;
+      }).join('')
+    : '<span class="strip-empty">底部标签为空 · 从左侧选择键</span>';
+  const stat = a
+    ? `<div class="s2-stats"><span class="s2-tag">${a.type}</span>${esc(a.foot)}</div>`
+    : '<div class="s2-stats">—</div>';
+  return `<div class="s2">
+    <span class="s2-count">${open.length}</span>
+    <div class="s2-tabs" data-strip>${tabs}</div>
+    ${stat}
+  </div>`;
+}
+
+function s3HTML(open, a) {
+  const tabs = open.length
+    ? open.map((k) => {
+        const active = state.active === k.id;
+        return `<button type="button" class="s3-tab t${active ? ' active' : ''}" data-tab="${k.id}" ${tabCommon(k)}>
+          <span class="s3-type">${typeOf(k).letter}</span>
+          <span class="s3-name">${esc(k.key)}</span>
+          <span class="xbtn" data-close="${k.id}" title="关闭">×</span>
+        </button>`;
+      }).join('')
+    : '<span class="strip-empty">尚未打开任何键</span>';
+  const status = a
+    ? `<div class="s3-status">
+        <b>${a.type}</b><span>·</span><span>${esc(a.foot)}</span>
+        <span class="s3-sp"></span><span>${esc(a.right)}</span>
+      </div>`
+    : `<div class="s3-status"><span>无激活键</span><span class="s3-sp"></span><span>—</span></div>`;
+  return `<div class="s3"><div class="s3-tabs" data-strip>${tabs}</div>${status}</div>`;
+}
+
+function compactMeta(k) {
+  const unit = k.foot.split(' · ')[0];
+  return `${unit} · ${k.size} · TTL ${k.ttl}`;
+}
+
+function s4HTML(inst, open, a) {
+  const tabs = open.length
+    ? open.map((k) => {
+        const active = state.active === k.id;
+        const meta = active ? compactMeta(k) : '';
+        return `<button type="button" class="s4-tab t${active ? ' active' : ''}" data-tab="${k.id}" ${tabCommon(k)}>
+          <span class="s4-chip">${typeOf(k).letter}</span>
+          <span class="s4-text">
+            <span class="s4-name">${active ? esc(k.key) : esc(shortKey(k))}</span>
+            <span class="s4-meta">${esc(meta)}</span>
+          </span>
+          <span class="xbtn s4-x" data-close="${k.id}" title="关闭">×</span>
+        </button>`;
+      }).join('')
+    : '<span class="strip-empty">尚未打开任何键</span>';
+
+  const menu = inst.menuOpen && open.length
+    ? `<div class="s4-mask" data-mask></div>
+       <div class="s4-menu">
+         <div class="s4-menu-hd">已打开 ${open.length} 个键</div>
+         ${open.map((k) => `<button type="button" class="s4-mi${state.active === k.id ? ' active' : ''}" data-pick="${k.id}" ${tabCommon(k)}>
+            <span class="mi-t">${typeOf(k).letter}</span>
+            <span class="mi-k">${esc(k.key)}</span>
+         </button>`).join('')}
+       </div>`
+    : '';
+
+  return `<div class="s4">
+    <span class="s4-count" title="已打开键数">${open.length}</span>
+    <div class="s4-tabs" data-strip>${tabs}</div>
+    <button type="button" class="s4-more" data-more title="全部已打开标签">⋯</button>
+    ${menu}
+  </div>`;
+}
+
+const HOME_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 10.6 12 3.5l8.5 7.1"/><path d="M5.8 9.6V20h12.4V9.6"/><path d="M9.7 20v-5.8h4.6V20"/></svg>';
+
+function s5HTML(inst, open, a) {
+  const tabs = open.length
+    ? open.map((k) => {
+        const active = state.active === k.id;
+        return `<div class="s5-tab t${active ? ' active' : ''}" role="button" tabindex="0" data-tab="${k.id}" ${tabCommon(k)}>
+          <span class="s5-dot"></span>
+          <span class="s5-name">${esc(midTruncate(k.key, 12, 8))}</span>
+          <span class="xbtn" data-close="${k.id}" title="关闭">×</span>
+        </div>`;
+      }).join('')
+    : '<span class="strip-empty">还没有打开键 · 从左侧选择</span>';
+
+  return `<div class="s5">
+    <div class="s5-home${state.active === 'detail' ? ' active' : ''}" role="tab" tabindex="0" data-home title="当前连接详情">
+      ${HOME_ICON}<span>详情</span>
+    </div>
+    <button type="button" class="s5-arrow l" data-scroll="-1" title="向左滚动" disabled>‹</button>
+    <div class="s5-tabs" data-strip>${tabs}</div>
+    <button type="button" class="s5-arrow r" data-scroll="1" title="向右滚动" disabled>›</button>
+    <button type="button" class="s5-more${inst.menuOpen ? ' on' : ''}" data-more title="更多操作"${open.length ? '' : ' disabled'}>⋯</button>
+    ${s5MenuHTML(inst, open)}
+  </div>`;
+}
+
+function s5MenuHTML(inst, open) {
+  if (!inst.menuOpen || !open.length) return '';
+  const i = state.open.indexOf(state.active);
+  return `<div class="s5-mask" data-mask></div>
+    <div class="s5-menu">
+      <div class="s5-menu-hd"><b data-menu-count>${open.length}</b><span>个已打开的键</span>
+        <button type="button" class="s5-menu-x" data-menu-close title="关闭 (Esc)" aria-label="关闭">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+      <div class="s5-menu-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 4.5 4.5"/></svg>
+        <input type="text" data-menu-search placeholder="搜索已打开的键" autocomplete="off" spellcheck="false" aria-label="搜索已打开的键">
+      </div>
+      <div class="s5-menu-list">
+        ${open.map((k) => `<div class="s5-mi${state.active === k.id ? ' active' : ''}" role="button" tabindex="0" data-pick="${k.id}" ${tabCommon(k)}>
+          <span class="mi-t">${typeOf(k).letter}</span>
+          <span class="mi-k">${esc(midTruncate(k.key, 20, 10))}</span>
+          <span class="mi-x" data-mi-close="${k.id}" title="关闭">×</span>
+        </div>`).join('')}
+        <div class="s5-menu-empty" data-menu-empty hidden>没有匹配的键</div>
+      </div>
+      <div class="s5-acts">
+        <button type="button" data-act="others"${open.length < 2 ? ' disabled' : ''}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 4.5H6a1.5 1.5 0 0 0-1.5 1.5v9.5"/><path d="m12.6 12.4 2.8 2.8m0-2.8-2.8 2.8"/></svg>
+          <span>关闭其他</span>
+        </button>
+        <button type="button" data-act="right"${i < 0 || i >= open.length - 1 ? ' disabled' : ''}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 5v14"/><path d="m8.5 8 4 4-4 4"/><path d="m14.5 8 4 4-4 4"/></svg>
+          <span>关闭右侧</span>
+        </button>
+        <button type="button" class="danger" data-act="all">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9.5 7V4.8h5V7"/><path d="M6.5 7l.9 12.2h9.2L17.5 7"/><path d="M10.5 10.8v5M13.5 10.8v5"/></svg>
+          <span>全部关闭</span>
+        </button>
+      </div>
+    </div>`;
+}
+
+function hoverCardHTML(k, opt = {}) {
+  const t = typeOf(k);
+  const warn = !!opt.warn;
+  return `
+    <div class="hk">
+      <span class="hk-t" style="background:${t.tcs};color:${t.tc}">${t.letter}</span>
+      <span class="hk-k">${esc(k.key)}</span>
+      <span class="hk-ty">${esc(k.type)}</span>
+    </div>
+    <div class="hr"><i>TTL</i><b class="${warn ? 'warn' : ''}">${esc(k.ttl)}${warn ? '<span class="ttlchip">即将过期</span>' : ''}</b></div>
+    <div class="hr"><i>统计</i><b>${esc(k.foot)}</b></div>
+    <div class="hr"><i>编码</i><b>${esc(k.encoding)} · ${esc(k.right)}</b></div>
+    <div class="hh">${opt.hint || '点击切换 · × 关闭 · 滚轮 / ‹ › 横向滚动'}</div>`;
+}
+
+function detailHTML() {
+  return `<div class="dview">
+    <header class="vhead">
+      <div class="vstub">CONN</div>
+      <div class="vperf"></div>
+      <div class="vkey">local-dev<span class="dpill">已连接</span></div>
+      <div class="vmeta">
+        <b>Redis 7.2.4</b><span class="vsep">·</span>10.24.8.66:6379<span class="vsep">·</span>db0<span class="vsep">·</span>standalone<span class="vsep">·</span>TLS 关闭
+      </div>
+      <div class="vwm">R</div>
+    </header>
+    <div class="dbody">
+      <div class="dgrid">
+        <div class="dcard"><span>键总数</span><b>12</b><i>db0 · 3 个带 TTL</i></div>
+        <div class="dcard"><span>已用内存</span><b>42.6 MB</b><i>上限 128 MB · 33%</i><div class="dbar"><u style="width:33%"></u></div></div>
+        <div class="dcard"><span>客户端</span><b>12</b><i>阻塞 0 · 上限 10000</i></div>
+        <div class="dcard"><span>每秒命令</span><b>1.2k</b><i>命中率 98.7%</i></div>
+        <div class="dcard"><span>运行时长</span><b>6 天 4 小时</b><i>10-24 06:12 启动</i></div>
+        <div class="dcard"><span>版本</span><b>7.2.4</b><i>standalone · 0 从节点</i></div>
+      </div>
+      <div class="dinfo">
+        <div><i>连接名</i><b>local-dev</b></div>
+        <div><i>引擎</i><b>Redis 7.2.4</b></div>
+        <div><i>地址</i><b>10.24.8.66:6379</b></div>
+        <div><i>认证</i><b>ACL · default</b></div>
+        <div><i>慢日志</i><b>1 条 &gt; 10 ms</b></div>
+        <div><i>刷新</i><b>自动 5s · 刚刚</b></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ============================================================
+   实例构建 / 渲染
+   ============================================================ */
+const SCHEMES = ['s1', 's2', 's3', 's4', 's5'];
+const instances = [];
+
+document.querySelectorAll('.demo').forEach((el, i) => {
+  const scheme = SCHEMES[i];
+  el.innerHTML = `
+    <aside class="klist">
+      <div class="klist-head"><span>键</span><span class="kcount">${KEYS.length}</span></div>
+      <div class="klist-body" data-klist></div>
+    </aside>
+    <div class="panel">
+      <div class="pcontent" data-pcontent></div>
+      <div class="blank2" data-blank hidden>
+        <span class="bb">Keyper</span>
+        <span>底部标签全部关闭 · 从左侧选择一个键</span>
+      </div>
+      <div class="tabsarea" data-tabs></div>
+    </div>`;
+
+  const inst = {
+    scheme,
+    root: el,
+    klist: el.querySelector('[data-klist]'),
+    pcontent: el.querySelector('[data-pcontent]'),
+    blank: el.querySelector('[data-blank]'),
+    tabs: el.querySelector('[data-tabs]'),
+    scroll: 0,
+    menuOpen: false,
+  };
+
+  inst.klist.addEventListener('click', (ev) => {
+    const row = ev.target.closest('[data-key]');
+    if (!row) return;
+    openKey(row.dataset.key);
+  });
+
+  instances.push(inst);
+});
+
+function renderInstance(inst) {
+  inst.klist.innerHTML = KEYS.map((k) => {
+    const t = typeOf(k);
+    const active = state.active === k.id;
+    const open = state.open.includes(k.id);
+    return `<button type="button" class="krow${active ? ' active' : ''}${open ? ' open' : ''}" data-key="${k.id}" ${tabCommon(k)}>
+      <span class="kbadge">${t.letter}</span>
+      <span class="kname">${esc(midTruncate(k.key, 14, 8))}</span>
+    </button>`;
+  }).join('');
+
+  const k = BY_ID[state.active];
+  if (state.active === 'detail') {
+    inst.pcontent.hidden = false;
+    inst.blank.hidden = true;
+    inst.pcontent.innerHTML = detailHTML();
+  } else if (k) {
+    inst.pcontent.hidden = false;
+    inst.blank.hidden = true;
+    inst.pcontent.innerHTML = panelHTML(k);
+  } else {
+    inst.pcontent.hidden = true;
+    inst.blank.hidden = false;
+  }
+
+  inst.tabs.innerHTML = tabsHTML(inst);
+  bindTabs(inst);
+}
+
+function renderAll() {
+  cancelHover();
+  instances.forEach(renderInstance);
+}
+
+function bindTabs(inst) {
+  const area = inst.tabs;
+  const strip = area.querySelector('[data-strip]');
+
+  if (strip) {
+    strip.scrollLeft = inst.scroll || 0;
+    strip.addEventListener('scroll', () => {
+      inst.scroll = strip.scrollLeft;
+      syncArrows(area, strip);
+    });
+    strip.addEventListener('wheel', (ev) => {
+      if (strip.scrollWidth <= strip.clientWidth + 1) return;
+      ev.preventDefault();
+      strip.scrollLeft += ev.deltaY;
+    }, { passive: false });
+
+    // 激活标签始终滚入可见区：键多时从左侧列表选中被藏起的键，底栏要跟上
+    const activeTab = strip.querySelector('[data-tab].active');
+    if (activeTab && strip.scrollWidth > strip.clientWidth + 1) {
+      const sr = strip.getBoundingClientRect();
+      const ar = activeTab.getBoundingClientRect();
+      if (ar.left < sr.left) strip.scrollLeft -= sr.left - ar.left + 8;
+      else if (ar.right > sr.right) strip.scrollLeft += ar.right - sr.right + 8;
+      inst.scroll = strip.scrollLeft;
+    }
+    syncArrows(area, strip);
+
+    area.querySelectorAll('[data-scroll]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const dir = Number(btn.dataset.scroll);
+        const step = Math.max(88, Math.round(strip.clientWidth * 0.72));
+        strip.scrollBy({ left: dir * step, behavior: 'smooth' });
+      });
+    });
+  }
+
+  const home = area.querySelector('[data-home]');
+  if (home) {
+    home.addEventListener('click', selectDetail);
+    home.addEventListener('keydown', (ev) => {
+      if (ev.key !== 'Enter' && ev.key !== ' ') return;
+      ev.preventDefault();
+      selectDetail();
+    });
+  }
+
+  area.querySelectorAll('[data-tab]').forEach((el) => {
+    el.addEventListener('click', (ev) => {
+      if (ev.target.closest('[data-close]')) return;
+      selectTab(el.dataset.tab);
+    });    if (inst.scheme === 's5') {
+      el.addEventListener('mouseenter', () => queueHover(el, BY_ID[el.dataset.tab]));
+      el.addEventListener('mouseleave', cancelHover);
+      el.addEventListener('focus', () => queueHover(el, BY_ID[el.dataset.tab]));
+      el.addEventListener('blur', cancelHover);
+      el.addEventListener('keydown', (ev) => {
+        if (ev.key !== 'Enter' && ev.key !== ' ') return;
+        ev.preventDefault();
+        selectTab(el.dataset.tab);
+      });
+      el.addEventListener('auxclick', (ev) => {
+        if (ev.button !== 1) return;
+        ev.preventDefault();
+        closeTab(el.dataset.tab);
+      });
+    }
+  });
+
+  area.querySelectorAll('[data-close]').forEach((el) => {
+    el.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      closeTab(el.dataset.close);
+    });
+  });
+
+  const more = area.querySelector('[data-more]');
+  if (more) {
+    more.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      cancelHover();
+      const next = !inst.menuOpen;
+      instances.forEach((x) => { x.menuOpen = false; });
+      inst.menuOpen = next;
+      renderAll();
+    });
+  }
+
+  const search = area.querySelector('[data-menu-search]');
+  if (search) {
+    const items = [...area.querySelectorAll('.s5-mi')];
+    const countEl = area.querySelector('[data-menu-count]');
+    const emptyEl = area.querySelector('[data-menu-empty]');
+    const total = items.length;
+    const visible = () => items.filter((el) => !el.hidden);
+
+    const apply = () => {
+      const q = search.value.trim().toLowerCase();
+      let shown = 0;
+      items.forEach((el) => {
+        const k = BY_ID[el.dataset.pick];
+        const hit = !q || k.key.toLowerCase().includes(q);
+        el.hidden = !hit;
+        if (hit) shown++;
+      });
+      if (countEl) countEl.textContent = q ? shown + ' / ' + total : String(total);
+      if (emptyEl) emptyEl.hidden = shown > 0;
+    };
+    search.addEventListener('input', apply);
+    search.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        const first = visible()[0];
+        if (first) selectTab(first.dataset.pick);
+      } else if (ev.key === 'ArrowDown') {
+        ev.preventDefault();
+        const first = visible()[0];
+        if (first) first.focus();
+      }
+    });
+    items.forEach((el) => {
+      el.addEventListener('keydown', (ev) => {
+        if (ev.key !== 'ArrowDown' && ev.key !== 'ArrowUp') return;
+        ev.preventDefault();
+        const list = visible();
+        const idx = list.indexOf(el);
+        if (ev.key === 'ArrowDown') {
+          if (list[idx + 1]) list[idx + 1].focus();
+        } else if (idx > 0) {
+          list[idx - 1].focus();
+        } else {
+          search.focus();
+        }
+      });
+    });
+    search.focus();
+  }
+
+  area.querySelectorAll('[data-pick]').forEach((el) => {
+    el.addEventListener('click', () => {
+      selectTab(el.dataset.pick);
+    });
+    el.addEventListener('keydown', (ev) => {
+      if (ev.key !== 'Enter' && ev.key !== ' ') return;
+      ev.preventDefault();
+      selectTab(el.dataset.pick);
+    });
+  });
+
+  area.querySelectorAll('[data-mi-close]').forEach((el) => {
+    el.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      closeTab(el.dataset.miClose);
+    });
+  });
+
+  area.querySelectorAll('[data-act]').forEach((el) => {
+    el.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      if (el.disabled) return;
+      const act = el.dataset.act;
+      if (act === 'others') {
+        state.open = state.active ? [state.active] : [];
+      } else if (act === 'right') {
+        const i = state.open.indexOf(state.active);
+        if (i >= 0) state.open = state.open.slice(0, i + 1);
+      } else if (act === 'all') {
+        state.open = [];
+        state.active = 'detail';
+      }
+      inst.menuOpen = false;
+      cancelHover();
+      renderAll();
+    });
+  });
+
+  const menuClose = area.querySelector('[data-menu-close]');
+  if (menuClose) {
+    menuClose.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      inst.menuOpen = false;
+      cancelHover();
+      renderAll();
+    });
+  }
+
+  const mask = area.querySelector('[data-mask]');
+  if (mask) {
+    mask.addEventListener('click', () => {
+      inst.menuOpen = false;
+      renderAll();
+    });
+  }
+}
+
+function selectTab(id) {
+  state.active = id;
+  instances.forEach((x) => { x.menuOpen = false; });
+  cancelHover();
+  renderAll();
+}
+
+function selectDetail() {
+  state.active = 'detail';
+  instances.forEach((x) => { x.menuOpen = false; });
+  cancelHover();
+  renderAll();
+}
+
+function syncArrows(area, strip) {
+  const max = strip.scrollWidth - strip.clientWidth;
+  const left = area.querySelector('[data-scroll="-1"]');
+  const right = area.querySelector('[data-scroll="1"]');
+  if (left) left.disabled = strip.scrollLeft <= 1;
+  if (right) right.disabled = strip.scrollLeft >= max - 1;
+}
+
+/* ============================================================
+   行为
+   ============================================================ */
+function openKey(id) {
+  if (!state.open.includes(id)) state.open.push(id);
+  state.active = id;
+  instances.forEach((x) => { x.menuOpen = false; });
+  cancelHover();
+  renderAll();
+}
+
+function closeTab(id) {
+  const i = state.open.indexOf(id);
+  if (i < 0) return;
+  state.open.splice(i, 1);
+  if (state.active === id) {
+    state.active = state.open[Math.min(i, state.open.length - 1)] || 'detail';
+  }
+  if (!state.open.length) instances.forEach((x) => { x.menuOpen = false; });
+  cancelHover();
+  renderAll();
+}
+
+/* ---- 方案 05/06 悬停统计卡：与触发面解耦，只吃键对象 ---- */
+let hoverPop = null;
+let hoverTimer = null;
+function ensureHoverPop() {
+  if (hoverPop) return hoverPop;
+  hoverPop = document.createElement('div');
+  hoverPop.className = 'hoverpop live';
+  document.body.appendChild(hoverPop);
+  return hoverPop;
+}
+
+function queueHover(el, k) {
+  if (!k) return;
+  clearTimeout(hoverTimer);
+  hoverTimer = setTimeout(() => showHover(el, k), 90);
+}
+
+function cancelHover() {
+  clearTimeout(hoverTimer);
+  hideHover();
+}
+
+function showHover(el, k) {
+  if (!k) return;
+  const pop = ensureHoverPop();
+  pop.innerHTML = hoverCardHTML(k);
+  pop.style.display = 'block';
+
+  const r = el.getBoundingClientRect();
+  const w = pop.offsetWidth;
+  const h = pop.offsetHeight;
+  let left = Math.min(Math.max(8, r.left + r.width / 2 - w / 2), window.innerWidth - w - 8);
+  let top = r.top - h - 8;
+  let side = 'above';
+  if (top < 8) { top = r.bottom + 8; side = 'below'; }
+  pop.dataset.side = side;
+  pop.style.left = left + 'px';
+  pop.style.top = top + 'px';
+
+  const caret = Math.min(Math.max(14, r.left + r.width / 2 - left), w - 22);
+  pop.style.setProperty('--caret-x', caret + 'px');
+}
+
+function hideHover() {
+  if (hoverPop) hoverPop.style.display = 'none';
+}
+
+window.addEventListener('scroll', cancelHover, true);
+window.addEventListener('resize', () => {
+  cancelHover();
+  document.querySelectorAll('.s5').forEach((bar) => {
+    const strip = bar.querySelector('[data-strip]');
+    if (strip) syncArrows(bar, strip);
+  });
+});
+document.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Escape') {
+    cancelHover();
+    if (instances.some((x) => x.menuOpen)) {
+      instances.forEach((x) => { x.menuOpen = false; });
+      renderAll();
+    }
+  }
+});
+
+/* ============================================================
+   06 拆件预览：静态卡片 + 两个触发面共用同一组件
+   ============================================================ */
+const popStatic = document.getElementById('popStatic');
+const popWarn = document.getElementById('popWarn');
+if (popStatic) popStatic.innerHTML = hoverCardHTML(BY_ID.cart, { hint: 'TTL / 统计 / 编码 · 固定四行' });
+if (popWarn) popWarn.innerHTML = hoverCardHTML(BY_ID.rate, { warn: true, hint: 'TTL ≤ 5 分钟 · 数值转强调色' });
+
+const ptrgBar = document.getElementById('ptrgBar');
+const ptrgList = document.getElementById('ptrgList');
+if (ptrgBar) {
+  ptrgBar.innerHTML = ['cart', 'feed', 'rate'].map((id) => {
+    const k = BY_ID[id];
+    return `<div class="s5-tab t" role="button" tabindex="0" data-popkey="${id}" ${tabCommon(k)}>
+      <span class="s5-dot"></span><span class="s5-name">${esc(midTruncate(k.key, 12, 8))}</span>
+    </div>`;
+  }).join('');
+}
+if (ptrgList) {
+  ptrgList.innerHTML = ['session', 'lb', 'stream'].map((id) => {
+    const k = BY_ID[id];
+    const t = typeOf(k);
+    return `<div class="krow t" role="button" tabindex="0" data-popkey="${id}" ${tabCommon(k)}>
+      <span class="kbadge">${t.letter}</span><span class="kname">${esc(k.key)}</span>
+    </div>`;
+  }).join('');
+}
+document.querySelectorAll('[data-popkey]').forEach((el) => {
+  const k = () => BY_ID[el.dataset.popkey];
+  el.addEventListener('mouseenter', () => queueHover(el, k()));
+  el.addEventListener('mouseleave', cancelHover);
+  el.addEventListener('focus', () => queueHover(el, k()));
+  el.addEventListener('blur', cancelHover);
+});
+
+/* ============================================================
+   页面控制
+   ============================================================ */
+const stressBtn = document.getElementById('stressBtn');
+stressBtn.addEventListener('click', () => {
+  state.stress = !state.stress;
+  if (state.stress) {
+    state.open = KEYS.map((k) => k.id);
+    state.active = 'cart';
+    stressBtn.textContent = '恢复 4 个标签';
+    stressBtn.classList.add('on');
+  } else {
+    state.open = INITIAL.slice();
+    state.active = 'detail';
+    stressBtn.textContent = '载入 12 个标签';
+    stressBtn.classList.remove('on');
+  }
+  renderAll();
+});
+
+document.querySelectorAll('#themeSeg button').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.documentElement.dataset.theme = btn.dataset.v;
+    document.querySelectorAll('#themeSeg button').forEach((x) => {
+      x.classList.toggle('active', x === btn);
+    });
+    cancelHover();
+  });
+});
+
+renderAll();
+</script>
+</body>
+</html>

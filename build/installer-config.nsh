@@ -1,5 +1,5 @@
 ﻿; ============================================================================
-; RedisDocter — 用户配置的保留与清理
+; Keyper — 用户配置的保留与清理
 ; ============================================================================
 ; 背景：
 ;   配置文件（connections.json / settings.json / logs）默认放在
@@ -13,7 +13,7 @@
 ;     · 升级 / 覆盖安装：配置原样保留（无论机器上装的是哪个旧版本）
 ;     · 手动交互卸载：询问是否清理配置，默认保留
 ;     · 静默卸载（/S，含升级时被静默调用的场景）：一律保留
-;     · 卸载选择保留时：配置挪到 <安装目录父>\RedisDocter-config，
+;     · 卸载选择保留时：配置挪到 <安装目录父>\Keyper-config，
 ;       之后重装回同一目录会自动接回，继续免配置
 ;
 ;   两套机制，缺一不可：
@@ -69,22 +69,39 @@ Var RdConfigBackup
 ;      覆盖无副作用；config 目录若被①接回则只是原地刷新一遍）。
 ;
 !macro RdRestoreConfig
-  ; ① 接回 <安装目录父>\RedisDocter-config（仅当安装目录下还没有 config）
+  ; ① 接回 <安装目录父>\Keyper-config（仅当安装目录下还没有 config）
   IfFileExists "$INSTDIR\config\*.*" rd_restore_2 rd_restore_1
   rd_restore_1:
-    IfFileExists "$INSTDIR\..\RedisDocter-config\*.*" rd_restore_do 0
+    IfFileExists "$INSTDIR\..\Keyper-config\*.*" rd_restore_do 0
     ;
-    ; 兼容旧名：项目曾叫 RedisDesktop，那一版卸载时保留的是
-    ; <父目录>\RedisDesktop-config。改名后必须仍能接回，
+    ; 兼容历史名。改名链共三代：
+    ;   RedisDesktop-config（最初）→ RedisDocter-config（1.x）→ Keyper-config（现在）
+    ; 每一代都可能留在用户机器上。按新→旧顺序尝试，先改名为新名再走统一接回逻辑，
     ; 否则老用户升级上来会以为"配置丢了"（其实只是目录名不同）。
     ;
+    ; 先试上一代 RedisDocter-config
+    IfFileExists "$INSTDIR\..\RedisDocter-config\*.*" rd_restore_prev 0
     IfFileExists "$INSTDIR\..\RedisDesktop-config\*.*" rd_restore_legacy 0
     Goto rd_restore_2
 
-  rd_restore_legacy:
-    ; 旧名目录：先改名再按新名接回（保持下面只有一条接回逻辑）
+  rd_restore_prev:
     ClearErrors
-    Rename "$INSTDIR\..\RedisDesktop-config" "$INSTDIR\..\RedisDocter-config"
+    Rename "$INSTDIR\..\RedisDocter-config" "$INSTDIR\..\Keyper-config"
+    ${If} ${Errors}
+      CreateDirectory "$INSTDIR"
+      ClearErrors
+      Rename "$INSTDIR\..\RedisDocter-config" "$INSTDIR\config"
+      ${If} ${Errors}
+        ClearErrors
+      ${EndIf}
+      Goto rd_restore_2
+    ${EndIf}
+    Goto rd_restore_do
+
+  rd_restore_legacy:
+    ; 最初的名字：先改名再按新名接回（保持下面只有一条接回逻辑）
+    ClearErrors
+    Rename "$INSTDIR\..\RedisDesktop-config" "$INSTDIR\..\Keyper-config"
     ${If} ${Errors}
       ; 改不动（被占用）：直接试接回旧名
       CreateDirectory "$INSTDIR"
@@ -99,7 +116,7 @@ Var RdConfigBackup
   rd_restore_do:
     CreateDirectory "$INSTDIR"
     ClearErrors
-    Rename "$INSTDIR\..\RedisDocter-config" "$INSTDIR\config"
+    Rename "$INSTDIR\..\Keyper-config" "$INSTDIR\config"
     ${If} ${Errors}
       ; 接不回来（目录被占用等）：留在原地，下次重装还有机会
       ClearErrors
@@ -147,21 +164,21 @@ Var RdDelConfig
   ; ① 把 config 挪出安装目录（同盘 Rename 是瞬移，不复制数据）
   IfFileExists "$INSTDIR\config\*.*" 0 rd_rm_ask
     ClearErrors
-    Rename "$INSTDIR\config" "$INSTDIR\..\RedisDocter-config"
+    Rename "$INSTDIR\config" "$INSTDIR\..\Keyper-config"
     ${If} ${Errors}
       ClearErrors
       ${IfNot} ${Silent}
         MessageBox MB_OK|MB_ICONEXCLAMATION "无法自动保留配置目录（$INSTDIR\config 可能被其他程序占用）。$\r$\n$\r$\n如需保留连接配置与设置，请先手动复制该目录，再继续卸载。" /SD IDOK
       ${EndIf}
     ${Else}
-      StrCpy $RdConfigKeep "$INSTDIR\..\RedisDocter-config"
+      StrCpy $RdConfigKeep "$INSTDIR\..\Keyper-config"
     ${EndIf}
   rd_rm_ask:
 
   ; ② 交互卸载才询问；静默（升级流程 /S）一律保留
   ${If} $RdConfigKeep != ""
   ${AndIfNot} ${Silent}
-    MessageBox MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2 "是否同时删除配置数据？$\r$\n$\r$\n包含：连接配置、界面设置、操作日志。$\r$\n选择「否」将保留到 $INSTDIR\..\RedisDocter-config，重装时可自动恢复。" /SD IDNO IDYES rd_rm_yes
+    MessageBox MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2 "是否同时删除配置数据？$\r$\n$\r$\n包含：连接配置、界面设置、操作日志。$\r$\n选择「否」将保留到 $INSTDIR\..\Keyper-config，重装时可自动恢复。" /SD IDNO IDYES rd_rm_yes
     Goto rd_rm_do
     rd_rm_yes:
     StrCpy $RdDelConfig 1

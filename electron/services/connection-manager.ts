@@ -418,9 +418,18 @@ class ConnectionManager {
      * 而不是隧道本机端口 —— 界面状态栏、版本弹窗展示的都该是
      * "我在连哪台 Redis"，而不是一个随机的内部端口。
      */
+    /*
+     * identity：连接成功后要回给渲染层的"我是谁"。
+     *
+     * 显式带 engine —— 渲染层靠它决定把这条状态放进 Redis 还是 Memcached
+     * 的分支，缺了就会被当成 Redis，出现"Memcached 连上后显示 db0"。
+     * 其余字段按 Redis 语义给出：本管理器只负责 Redis，
+     * Memcached 走独立的 memcached-manager（见 engine-registry）。
+     */
     const identity = {
       id: config.id,
       name: config.name,
+      engine: 'redis' as const,
       host: config.host,
       port: config.port,
       username: config.username,

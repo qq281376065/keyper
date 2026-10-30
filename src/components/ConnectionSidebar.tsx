@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { ConnectionActions } from '@/components/ConnectionActions'
 import { DialogIcon } from '@/components/DialogIcon'
 import { tipProps } from '@/components/tip'
+import { engineMeta } from '@/utils/engine'
 import { useSettings } from '@/services/settings'
 import { useSettingsHolder } from '@/hooks/useSettingsHolder'
 import type { ConnectionItem } from '@/store/useRedis'
@@ -307,6 +308,18 @@ export function ConnectionSidebar({
                     ) : null}
                   </div>
                   <div className="conn-line sub">
+                    {/*
+                      引擎角标：Redis 与 Memcached 的卡片长得很像，
+                      而"这条连的是哪个模块"是打开列表第一个要回答的问题。
+                      用字母 R / M 而非整词 —— 236px 宽的卡片里，
+                      整词会把地址挤掉，而地址才是第二重要的信息。
+                    */}
+                    <span
+                      className={`engine-chip engine-${item.engine}`}
+                      {...tipProps(engineMeta(item.engine).label)}
+                    >
+                      {engineMeta(item.engine).short}
+                    </span>
                     <span className="mono ellipsis">
                       {item.host}:{item.port}
                     </span>
@@ -319,7 +332,10 @@ export function ConnectionSidebar({
                         SSH
                       </span>
                     ) : null}
-                    <span className="db-chip mono">db{item.db}</span>
+                    {/* db 只有 Redis 有；Memcached 不分区，显示 db0 是错的 */}
+                    {item.engine === 'redis' ? (
+                      <span className="db-chip mono">db{item.db}</span>
+                    ) : null}
                   </div>
                   {item.status === 'error' && item.message ? (
                     <div className="conn-error ellipsis">{item.message}</div>

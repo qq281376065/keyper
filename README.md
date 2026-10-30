@@ -1,13 +1,31 @@
-# RedisDocter
+# Keyper
 
-基于 **TypeScript + Electron + React 18 + electron-builder** 的跨平台 Redis 桌面管理工具。
+基于 **TypeScript + Electron + React 18 + electron-builder** 的跨平台键值缓存管理工具。
 
-> 本项目是 RedisDesktop（Vue 3 版）的 **React 移植版**：功能与界面完全对齐，
-> 仅替换渲染层技术栈；主进程、preload、IPC、shared 类型契约、打包配置均原样复用。
+**同时支持 Redis 与 Memcached**：两者作为彼此隔离的引擎模块接入 ——
+配置、连接池、日志、搜索历史均按引擎分开存放，一个模块的异常不会影响另一个。
+新增引擎只需实现一个适配器并注册，不需要改动已有模块的代码路径。
+
+| 引擎 | 能力 |
+| --- | --- |
+| **Redis** | 多库、六种数据结构（string / hash / list / set / zset / stream）、Pub/Sub、慢查询、键内存分析、SSH 多级跳板、内置 CLI |
+| **Memcached** | 统计与命中率、按 slab 分组的键浏览（`stats cachedump`）、单键查看与增删、`flush_all`、运行参数查看 |
+
+> 本项目起源于 RedisDesktop（Vue 3 版）的 React 移植；主进程、preload、IPC、
+> shared 类型契约、打包配置沿用其结构，渲染层已按多引擎架构重构。
 
 当前版本：`1.0.2`
 
-本轮（1.0.1 → 1.0.2）：
+本轮变更（未发布，待验收）：
+
+- **集成 Memcached 引擎模块**：与 Redis 完全隔离（独立连接池 / 管理器 / IPC 通道 /
+  日志字段），连接列表带引擎角标、新建弹窗可选引擎、日志可按模块筛选
+- **Memcached 信息面板**：四张概览卡（服务 / 内存 / 命中 / 状态）+ 统计页签 +
+  按 slab 分组的键浏览 + 设置页签（含 flush_all）
+- **项目更名为 Keyper**：产品名、appId、安装器配置目录、主题存储键全部更新，
+  并保留对旧名（RedisDocter / RedisDesktop）配置与偏好的迁移
+
+上一版（1.0.1 → 1.0.2）：
 
 - **值区头部改为票根 + 水印**（75px）：左侧 26px 存根竖排类型名、右缘 mask 咬出半圆撕口，
   票面右侧压 72px 类型首字母水印
@@ -63,7 +81,7 @@ string 值实底行号槽；安装器开始菜单快捷方式勾选页；
 ## 目录结构
 
 ```
-RedisDocter/
+Keyper/
 ├── electron/                 # 主进程
 │   ├── main.ts               # 应用入口：窗口、单实例、生命周期
 │   ├── preload.ts            # 预加载：contextBridge 暴露 window.redisApi
@@ -181,13 +199,13 @@ export ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ # macOS / Linux
 `exe --version` 会输出 Node 的版本号而非 Electron 版本。验证时先清掉这两个变量：
 
 ```bash
-env -u ELECTRON_RUN_AS_NODE -u NODE_OPTIONS ./RedisDocter.exe
+env -u ELECTRON_RUN_AS_NODE -u NODE_OPTIONS ./Keyper.exe
 ```
 
 需要定位启动问题时，可开启主进程诊断日志：
 
 ```bash
-REDISDOCTER_DEBUG_LOG=/tmp/rd.log ./RedisDocter.exe
+KEYPER_DEBUG_LOG=/tmp/rd.log ./Keyper.exe
 # 日志会记录：module loaded → requestSingleInstanceLock 结果 → app ready → 窗口创建
 ```
 
@@ -225,7 +243,7 @@ REDISDOCTER_DEBUG_LOG=/tmp/rd.log ./RedisDocter.exe
 
 - 用 `WriteRegExpandStr` 写 `REG_EXPAND_SZ`，保留 `%USERPROFILE%` 一类变量不被固化
 - 幂等：重复安装不会产生重复条目（实测验证）
-- 卸载按分号边界逐段比对，不会把 `RedisDocter2` 误伤成 `RedisDocter`
+- 卸载按分号边界逐段比对，不会把 `Keyper2` 误伤成 `Keyper`
 
 ### 踩过的坑（修改时注意）
 
@@ -655,8 +673,8 @@ npm run icon   # 等价于 python scripts/make-icon.py
   持久化于配置文件 `settings.json`
   - **位置（便携模式）**：程序目录旁的 `config/`，整个文件夹拷走即可带走全部配置与日志。
     若程序目录不可写（如装在 `C:////////Program Files\` 下），自动回退到系统目录
-    （Windows `%APPDATA%\\RedisDocter\`），并在设置界面如实标注回退原因
-  - 也可用环境变量 `REDISDOCTER_CONFIG_DIR` 指定任意目录
+    （Windows `%APPDATA%\\Keyper\`），并在设置界面如实标注回退原因
+  - 也可用环境变量 `KEYPER_CONFIG_DIR` 指定任意目录
   - 目录解析见 `electron/services/config-path.ts`（结果缓存，避免每次读写都试写文件）
 - **操作日志**：仅记录**手动操作**（CLI 命令、键的增删改、连接与配置变更）。
   记录点在 IPC 层，主进程内部的自动任务不经过 IPC，因此天然不会入日志；

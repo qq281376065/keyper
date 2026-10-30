@@ -5,19 +5,28 @@ import { renamedKey } from '@/utils/renamedKey'
 import type {
   ConnectionStatus,
   DatabaseInfo,
+  MemcachedConnectionConfig,
   RedisConnectionConfig,
   KeyValue,
   RedisKeyItem,
   ServerInfo,
 } from '@shared/types'
 
-/** 界面使用的连接条目：在配置基础上叠加运行时状态 */
-export interface ConnectionItem extends RedisConnectionConfig {
+/**
+ * 界面使用的连接条目：在配置基础上叠加运行时状态。
+ *
+ * 与 ConnectionState 一样按引擎分叉，而不是做成"配置 + 一堆可选状态字段"。
+ * 原因：界面要根据 engine 决定渲染哪套字段（Redis 有 db，Memcached 没有），
+ * 用联合类型能让编辑器在 switch 里自动收窄，少写一堆类型断言。
+ */
+export type ConnectionItem = (RedisConnectionConfig | MemcachedConnectionConfig) & {
   status: ConnectionStatus
   message?: string
   version?: string
+  /** 仅 Redis：部署模式 */
   mode?: string
   latency?: number
+  /** 跳板机展示地址（经 SSH 隧道时由主进程返回） */
   sshHost?: string
 }
 
@@ -378,7 +387,7 @@ export function createSession(
     refreshingValue: false,
     serverInfo: null,
     cliEntries: [
-      { kind: 'output', text: 'RedisDocter CLI 就绪。输入命令后回车执行，例如 PING / DBSIZE / GET key' },
+      { kind: 'output', text: 'Keyper CLI 就绪。输入命令后回车执行，例如 PING / DBSIZE / GET key' },
     ],
     cliRunning: false,
     cliHistory: [],

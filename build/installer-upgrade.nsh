@@ -1,9 +1,9 @@
 ﻿; ============================================================================
-; RedisDocter — 已安装检测与升级
+; Keyper — 已安装检测与升级
 ; ============================================================================
 ;
 ; 目标行为：
-;   安装器启动后，先判断本机是否已经装过 RedisDocter。
+;   安装器启动后，先判断本机是否已经装过 Keyper。
 ;     · 已安装 → 进入「升级模式」：沿用原安装目录，保留用户数据，提示版本变化
 ;     · 未安装 → 走全新安装：允许选目录，提示为首次安装
 ;
@@ -11,7 +11,7 @@
 ;   内置的 ${isUpdated} 判断是"安装写到一半时"才知道的，用户在界面上
 ;   完全感知不到区别 —— 目录页照样让他重选，选到别处就会留下两份安装。
 ;   这里在**欢迎页之前**就检测出来，把结论直接摆给用户：
-;   升级就锁定原目录并禁止改路径，避免出现"同一台机器两份 RedisDocter"。
+;   升级就锁定原目录并禁止改路径，避免出现"同一台机器两份 Keyper"。
 ;
 ; 检测依据（为何以注册表为主、目录为辅）：
 ;   1. 卸载信息键（HKCU/HKLM 的 Uninstall 节点）—— 安装器自己写的，
@@ -99,7 +99,7 @@ Function DetectInstalled
 
   ; ---- 1b) InstallLocation 为空时，从 UninstallString 反推 ----
   ;
-  ; 形如： "D:\Program Files\RedisDocter\Uninstall RedisDocter.exe" /currentuser
+  ; 形如： "D:\Program Files\Keyper\Uninstall Keyper.exe" /currentuser
   ; 去掉首尾引号与末尾参数，再剥掉最后的 \文件名，剩下的就是安装目录。
   ${If} $RdOldDir == ""
     ReadRegStr $RdProbe HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_APP_KEY}" "UninstallString"
@@ -179,9 +179,9 @@ FunctionEnd
 ; 入参/出参：$RdProbe（原地改写为目录；无法解析时置空）
 ;
 ; 处理的输入形如：
-;   "D:\Program Files\RedisDocter\Uninstall RedisDocter.exe" /currentuser
-;   "D:\Program Files\RedisDocter\uninstallerIcon.ico"
-;   D:\Program Files\RedisDocter\RedisDocter.exe        （无引号）
+;   "D:\Program Files\Keyper\Uninstall Keyper.exe" /currentuser
+;   "D:\Program Files\Keyper\uninstallerIcon.ico"
+;   D:\Program Files\Keyper\Keyper.exe        （无引号）
 ;
 ; 步骤：去首尾引号 → 截掉第一个空格后的参数 → 去掉最后一个反斜杠及之后的部分。
 ;
@@ -309,13 +309,13 @@ FunctionEnd
   ${ElseIf} $RdInstalled == 1
     ${If} $RdOldVersion == ""
       MessageBox MB_OK|MB_ICONINFORMATION \
-        "检测到本机已安装 RedisDocter。$\r$\n$\r$\n将执行升级安装：$\r$\n  · 安装目录：$RdOldDir$\r$\n  · 覆盖旧版本程序文件$\r$\n  · 保留现有连接配置与设置"
+        "检测到本机已安装 Keyper。$\r$\n$\r$\n将执行升级安装：$\r$\n  · 安装目录：$RdOldDir$\r$\n  · 覆盖旧版本程序文件$\r$\n  · 保留现有连接配置与设置"
     ${Else}
       MessageBox MB_OK|MB_ICONINFORMATION \
-        "检测到本机已安装 RedisDocter $RdOldVersion。$\r$\n$\r$\n将升级至 ${VERSION}：$\r$\n  · 安装目录：$RdOldDir$\r$\n  · 覆盖旧版本程序文件$\r$\n  · 保留现有连接配置与设置"
+        "检测到本机已安装 Keyper $RdOldVersion。$\r$\n$\r$\n将升级至 ${VERSION}：$\r$\n  · 安装目录：$RdOldDir$\r$\n  · 覆盖旧版本程序文件$\r$\n  · 保留现有连接配置与设置"
     ${EndIf}
   ${Else}
     MessageBox MB_OK|MB_ICONINFORMATION \
-      "未检测到已安装的 RedisDocter。$\r$\n$\r$\n将执行全新安装，可以自行选择安装目录。"
+      "未检测到已安装的 Keyper。$\r$\n$\r$\n将执行全新安装，可以自行选择安装目录。"
   ${EndIf}
 !macroend
