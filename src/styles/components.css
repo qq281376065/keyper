@@ -4010,18 +4010,20 @@
  */
 .log-body{
   flex: 1;
-  overflow-y: auto;
+  /* 表头也在本滚动容器内：横竖共用同一视口，列宽永远同步 */
+  overflow: auto;
   min-height: 0;
 }
 .s-log-panel .log-head,
 .s-log-panel.log-row, .s-log-panel .log-row{
   display: grid;
   /*
-   * 六列：时间 / 连接 / 操作 / 详情 / 结果 / 行操作。
+   * 六列：连接 / 时间 / 操作 / 详情 / 结果 / 行操作。
+   * 连接列放宽到 126px：引擎角标与连接名同格，需要同时容下两者。
    * 详情列用 minmax(0, 1fr) 吃掉剩余空间，保证表格右侧被填满、
    * 不留空白；行操作列固定 34px，只放一个图标按钮。
    */
-  grid-template-columns: 96px 106px 78px minmax(0, 1fr) 190px 34px;
+  grid-template-columns: 126px 96px 84px minmax(180px, 1fr) 190px 34px;
   gap: 10px;
   align-items: center;
   /* 左右内边距：内容与外框之间留出呼吸空间 */
@@ -4029,8 +4031,20 @@
   padding-right: 14px;
   /* 预留左侧色条位：删除=红、变更=琥珀，便于运维纵向扫视 */
   border-left: 3px solid transparent;
+  /*
+   * 窄窗口下整体横向滚动，而不是把详情列压成 0。
+   * 数值 = 固定列之和 + 列间距 + 左右留白，详情列保底 180px。
+   */
+  min-width: 788px;
 }
 .s-log-panel.log-head, .s-log-panel .log-head{
+  /*
+   * 吸顶：表头与数据行在同一滚动容器里，竖向滚动条出现 / 消失时
+   * 两者一起变宽变窄，列位置不会相对漂移。
+   */
+  position: sticky;
+  top: 0;
+  z-index: 2;
   height: 28px;
   font-size: var(--fs-sm);
   color: var(--text-muted);
@@ -4044,20 +4058,27 @@
  * 不会因为表头没有滚动条而显得更宽。
  */
 .log-row{
-  height: var(--row-h);
+  /*
+   * 行高下限 30px：行尾复制按钮固定 22px，紧凑密度（--row-h: 22px）
+   * 下会把按钮顶满、贴住上下边框，看起来像溢出到行外。
+   * 舒适密度（--row-h: 28px）仍由变量决定，不受影响。
+   */
+  height: max(30px, var(--row-h));
   font-size: var(--fs-md);
   border-bottom: 1px solid var(--border);
+  /* 供 sticky 操作列继承：悬停 / 风险底色变化时，操作列同步跟随 */
+  background-color: var(--bg-panel);
 }
 .s-log-panel .log-row:hover{
-  background: var(--bg-hover);
+  background-color: var(--bg-hover);
 }
 .s-log-panel.log-row.fail, .s-log-panel .log-row.fail{
-  background: rgba(220, 56, 45, 0.05);
+  background-color: rgba(220, 56, 45, 0.05);
 }
 /* 删除：最高关注级 */
 .s-log-panel.log-row.danger, .s-log-panel .log-row.danger{
   border-left-color: var(--accent);
-  background: rgba(220, 56, 45, 0.045);
+  background-color: rgba(220, 56, 45, 0.045);
 }
 /* 变更：改数据 / 改配置 */
 .s-log-panel.log-row.change, .s-log-panel .log-row.change{
@@ -4068,7 +4089,14 @@
   color: var(--text-muted);
 }
 .s-log-panel.col-conn, .s-log-panel .col-conn{
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
   color: var(--text-secondary);
+}
+.s-log-panel .conn-name{
+  min-width: 0;
 }
 .s-log-panel.col-action, .s-log-panel .col-action{
   display: flex;
@@ -4116,6 +4144,75 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+/*
+ * 日志表的行操作列：固定在右侧，不随横向滚动移动。
+ * 背景继承整行 —— 悬停 / 失败 / 高风险底色变化时，本列不会露底。
+ * 表头同样吸顶 + 右固定，两层都固定后滚动时仍严格对齐。
+ */
+.s-log-panel .col-ops{
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  align-self: stretch;
+  background-color: inherit;
+}
+.s-log-panel .log-head .col-ops{
+  z-index: 3;
+}
+/*
+ * 可排序表头：标签 + 双三角图标。
+ *
+ * 不用全局 .th-sort —— 那是居中版式，日志列的数据是左对齐的，
+ * 表头居中会与下面的内容错开半格。这里保留左对齐，只补图标与点击态。
+ * align-self: stretch 让整格高度（28px）都可点击，而不是只有文字那一行。
+ */
+.s-log-panel .log-sort{
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  justify-content: flex-start;
+  gap: 4px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  transition: color 0.12s;
+}
+.s-log-panel .log-sort:hover{
+  color: var(--text-primary);
+}
+/* 当前排序列：用主色标出，滚动时也能一眼看出按哪列排的 */
+.s-log-panel .log-sort.on{
+  color: var(--accent);
+}
+/*
+ * 排序图标统一为上下双三角（LogSortIcon）。
+ * 未排序时整枚压淡，作为"这列能点"的弱提示；悬停提亮。
+ * 双三角的形状上下对称，和中文标签并排时视觉重心落在同一条水平线上，
+ * 不会像单个三角那样显得偏低。
+ */
+.s-log-panel .log-sort .log-sort-tri{
+  opacity: 0.5;
+  transition: opacity 0.12s;
+}
+.s-log-panel .log-sort:hover .log-sort-tri{
+  opacity: 0.8;
+}
+/* 已排序列：图标跟随主色，当前方向实心、反方向压淡 */
+.s-log-panel .log-sort.on .log-sort-tri{
+  color: var(--accent);
+  opacity: 1;
+}
+.s-log-panel .log-sort.on .log-sort-tri path{
+  opacity: 0.3;
+}
+.s-log-panel .log-sort.on .log-sort-tri path.lit{
+  opacity: 1;
 }
 .s-log-panel.row-copy, .s-log-panel .row-copy{
   display: grid;

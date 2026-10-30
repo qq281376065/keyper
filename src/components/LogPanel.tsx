@@ -18,6 +18,44 @@ export interface LogPanelProps {
   onClosed: () => void
 }
 
+type LogSortKey = 'connection' | 'time' | 'action' | 'detail' | 'result'
+
+/** 连接名 / 操作名可能是中文，用本地化排序而不是码点序 */
+const logCollator = new Intl.Collator('zh-Hans-CN', { numeric: true, sensitivity: 'base' })
+
+function sortValue(entry: LogEntry, key: LogSortKey): string | number {
+  switch (key) {
+    case 'connection':
+      return entry.connectionName
+    case 'time':
+      return entry.timestamp
+    case 'action':
+      return entry.action
+    case 'detail':
+      return entry.detail
+    case 'result':
+      // 结果列以状态徽标为主：先按成功/失败分组，再比结果文本
+      return `${entry.ok ? '0' : '1'} ${entry.result}`
+  }
+}
+
+/**
+ * 日志表头的排序图标：始终是上下双三角。
+ *
+ * 不用通用的 SortIcon —— 它在已排序时换成单个实心三角，
+ * 与未排序列的双箭头形状不一致；单三角的可视重心也偏低，
+ * 和中文标签并排时看起来没有垂直居中。
+ * 这里固定双三角几何，只把当前方向的那一半点亮，形状始终统一。
+ */
+function LogSortIcon({ direction }: { direction: 'asc' | 'desc' | null }) {
+  return (
+    <svg viewBox="0 0 12 12" className="sort-tri s-sort-icon log-sort-tri" aria-hidden="true">
+      <path className={direction === 'asc' ? 'lit' : undefined} d="M6 1.6 9.1 5.2H2.9z" />
+      <path className={direction === 'desc' ? 'lit' : undefined} d="M6 10.4 2.9 6.8h6.2z" />
+    </svg>
+  )
+}
+
 /**
  * 操作日志抽屉（右侧滑入）。
  *
@@ -67,10 +105,33 @@ export function LogPanel({ closing, onClose, onClosed }: LogPanelProps) {
     onClosed()
   }
 
-  /** 面板中实际展示的条目 */
-  const visibleEntries = changesOnly
+  /** 排序列：默认时间倒序，与日志「新→旧」的阅读习惯一致 */
+  const [sortKey, setSortKey] = useState<LogSortKey>('time')
+  const [sortAsc, setSortAsc] = useState(false)
+
+  /** 面板中实际展示的条目：先按「仅看变更」过滤，再按当前列排序 */
+  const filteredEntries = changesOnly
     ? entries.filter((entry) => isMutation(entry.action, entry.detail))
     : entries
+  const visibleEntries = [...filteredEntries].sort((a, b) => {
+    const left = sortValue(a, sortKey)
+    const right = sortValue(b, sortKey)
+    const cmp =
+      typeof left === 'number' && typeof right === 'number'
+        ? left - right
+        : logCollator.compare(String(left), String(right))
+    return sortAsc ? cmp : -cmp
+  })
+
+  /** 点击表头：同列切换升降序，换列时时间默认倒序、文本列默认升序 */
+  function toggleSort(key: LogSortKey): void {
+    if (sortKey === key) {
+      setSortAsc((prev) => !prev)
+      return
+    }
+    setSortKey(key)
+    setSortAsc(key !== 'time')
+  }
 
   /** 变更类操作数量，用于工具栏提示 */
   const mutationCount = entries.filter((entry) => isMutation(entry.action, entry.detail)).length
@@ -290,38 +351,71 @@ export function LogPanel({ closing, onClose, onClosed }: LogPanelProps) {
 
         {/*
           表格外壳：统一控制左右留白。
-          表头与数据区都放在这一层里，留白只在外壳上声明一次。
+          表头放在滚动区内（sticky 吸顶）：两者共享同一个滚动视口，
+          竖向滚动条出现时列宽同步收缩，「操作」列不会相对表头左右漂移。
         */}
         <div className="log-table">
-          <div className="log-head">
-            <span className="col-time">时间</span>
-            <span className="col-conn">连接</span>
-            <span className="col-action">操作</span>
-            <span className="col-detail">详情</span>
-            <span className="col-result">结果</span>
-            <span className="col-ops">操作</span>
-          </div>
-
           <div className="log-body">
+            <div className="log-head">
+              <button
+                className={`col-conn log-sort${sortKey === 'connection' ? ' on' : ''}`}
+                onClick={() => toggleSort('connection')}
+              >
+                连接
+                <LogSortIcon direction={sortKey === 'connection' ? (sortAsc ? 'asc' : 'desc') : null} />
+              </button>
+              <button
+                className={`col-time log-sort${sortKey === 'time' ? ' on' : ''}`}
+                onClick={() => toggleSort('time')}
+              >
+                时间
+                <LogSortIcon direction={sortKey === 'time' ? (sortAsc ? 'asc' : 'desc') : null} />
+              </button>
+              <button
+                className={`col-action log-sort${sortKey === 'action' ? ' on' : ''}`}
+                onClick={() => toggleSort('action')}
+              >
+                操作
+                <LogSortIcon direction={sortKey === 'action' ? (sortAsc ? 'asc' : 'desc') : null} />
+              </button>
+              <button
+                className={`col-detail log-sort${sortKey === 'detail' ? ' on' : ''}`}
+                onClick={() => toggleSort('detail')}
+              >
+                详情
+                <LogSortIcon direction={sortKey === 'detail' ? (sortAsc ? 'asc' : 'desc') : null} />
+              </button>
+              <button
+                className={`col-result log-sort${sortKey === 'result' ? ' on' : ''}`}
+                onClick={() => toggleSort('result')}
+              >
+                结果
+                <LogSortIcon direction={sortKey === 'result' ? (sortAsc ? 'asc' : 'desc') : null} />
+              </button>
+              <span className="col-ops">操作</span>
+            </div>
+
             {visibleEntries.map((entry, index) => {
               const severity = logSeverity(entry.action, entry.detail)
               return (
                 <div key={index} className={`log-row ${severity}${entry.ok ? '' : ' fail'}`}>
-                  <span className="col-time mono">{formatTime(entry.timestamp)}</span>
                   {/*
-                    引擎标记放在连接名之前：日志按时间倒序排列，
-                    同一屏里 Redis 与 Memcached 的记录会交替出现，
-                    行首一个字母标比"去读连接名猜引擎"快得多。
+                    连接列放最前：先回答「这条操作发生在哪个实例」。
+                    引擎标记与名称同格：它是连接的属性，不该单独占一列 ——
+                    独立成列会让表头与数据行错开一格。
                   */}
-                  <span
-                    className={`engine-chip engine-${entry.engine}`}
-                    {...tipProps(engineMeta(entry.engine).label)}
-                  >
-                    {engineMeta(entry.engine).short}
+                  <span className="col-conn">
+                    <span
+                      className={`engine-chip engine-${entry.engine}`}
+                      {...tipProps(engineMeta(entry.engine).label)}
+                    >
+                      {engineMeta(entry.engine).short}
+                    </span>
+                    <span className="conn-name ellipsis" {...tipProps(entry.connectionName)}>
+                      {entry.connectionName}
+                    </span>
                   </span>
-                  <span className="col-conn ellipsis" {...tipProps(entry.connectionName)}>
-                    {entry.connectionName}
-                  </span>
+                  <span className="col-time mono">{formatTime(entry.timestamp)}</span>
                   <span className="col-action">
                     <span className={`sev-dot ${severity}`} />
                     {entry.action}
