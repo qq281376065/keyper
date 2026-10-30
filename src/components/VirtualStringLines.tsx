@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { tipProps } from '@/components/tip'
 import { useI18n } from '@/i18n'
 
 export interface StringLine {
@@ -90,7 +91,8 @@ export function VirtualStringLines({
       className={`text-block mono${wrap ? '' : ' nowrap'}`}
       onScroll={onScroll}
       onDoubleClick={onDoubleClick}
-      title={t('virtualStringLines.doubleClickEdit')}
+      /* 放在下方：文本区整块都是锚点，提示弹在上方会压住正在读的行 */
+      {...tipProps({ text: t('virtualStringLines.doubleClickEdit'), placement: 'bottom' })}
     >
       {/* 顶部占位：把可见行推到正确的滚动位置 */}
       {padTop > 0 ? <div className="vlines-pad" style={{ height: padTop }} aria-hidden /> : null}

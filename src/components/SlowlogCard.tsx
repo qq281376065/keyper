@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '@/api'
 import { DialogIcon } from '@/components/DialogIcon'
+import { tipProps } from '@/components/tip'
 import { useI18n } from '@/i18n'
 import { useRedis } from '@/store/useRedis'
 import { useObservable } from '@/store/subscription'
@@ -119,7 +120,7 @@ export function SlowlogCard({ registerRefresh }: { registerRefresh?: (fn: () => 
         <button
           className="slow-reset"
           disabled={!connected || resetting || !entries.length}
-          title={t('slowlogCard.clearServerSideSlowQuery')}
+          {...tipProps(t('slowlogCard.clearServerSideSlowQuery'))}
           onClick={() => void resetSlowlog()}
         >
           <DialogIcon name="clear" size={12} className="ti" />
@@ -157,18 +158,18 @@ export function SlowlogCard({ registerRefresh }: { registerRefresh?: (fn: () => 
                 {/*
                   序号而非服务端 ID：ID 是 Redis 内部的递增整数，
                   对"第几条"没有信息量；序号与阅读顺序一致。
-                  ID 保留在 title 里，需要跟服务端核对时能看到。
+                  ID 保留在悬停提示里，需要跟服务端核对时能看到。
                 */}
-                <td className="mono col-id" title={t('slowlogCard.serverId', { id: entry.id })}>
+                <td className="mono col-id" {...tipProps(t('slowlogCard.serverId', { id: entry.id }))}>
                   {i + 1}
                 </td>
-                <td className="col-time" title={formatTime(entry.timestamp)}>
+                <td className="col-time" {...tipProps(formatTime(entry.timestamp))}>
                   {timeAgo(entry.timestamp)}
                 </td>
                 <td className={`mono col-cost ${durationTone(entry.duration) ?? ''}`.trim()}>
                   {formatDuration(entry.duration)}
                 </td>
-                <td className="mono col-cmd" title={entry.command.join(' ')}>
+                <td className="mono col-cmd" {...tipProps(entry.command.join(' '))}>
                   {entry.command.join(' ')}
                 </td>
                 {/*
@@ -176,7 +177,7 @@ export function SlowlogCard({ registerRefresh }: { registerRefresh?: (fn: () => 
                   比 "172.16.30.11:52344" 更回答"是我哪个程序干的"。
                   没有名字时回退到地址。
                 */}
-                <td className="mono col-client" title={entry.client}>
+                <td className="mono col-client" {...tipProps(entry.client)}>
                   {entry.clientName || entry.client || '-'}
                 </td>
               </tr>

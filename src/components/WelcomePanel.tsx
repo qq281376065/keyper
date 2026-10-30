@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api, isElectron } from '@/api'
 import { BrandMark } from '@/components/BrandMark'
 import { DialogIcon } from '@/components/DialogIcon'
+import { tipProps } from '@/components/tip'
 import { PixelHeading } from '@/components/ui/pixel-heading-character'
 import {
   Expandable,
@@ -212,18 +213,18 @@ export function WelcomePanel({ onNewConnection, onImportUri, onOpenLog }: Welcom
             → 操作日志（连不上时第一时间来看）→ 检查更新。
           */}
           <div className="cta-secondary">
-            <button className="cta-sec-btn" onClick={onImportUri} title={t('welcomePanel.pasteRedis')}>
+            <button className="cta-sec-btn" onClick={onImportUri} {...tipProps(t('welcomePanel.pasteRedis'))}>
               <DialogIcon name="link" size={14} />
               {t('welcomePanel.pasteConnectionString')}
             </button>
-            <button className="cta-sec-btn" onClick={onOpenLog} title={t('welcomePanel.viewConnectionsActivityLog')}>
+            <button className="cta-sec-btn" onClick={onOpenLog} {...tipProps(t('welcomePanel.viewConnectionsActivityLog'))}>
               <DialogIcon name="activity" size={14} />
               {t('common.activityLog')}
             </button>
             <button
               className={`cta-sec-btn${updateOpen ? ' is-open' : ''}`}
               onClick={() => setUpdateOpen((prev) => !prev)}
-              title={t('welcomePanel.checkForNewVersion')}
+              {...tipProps(t('welcomePanel.checkForNewVersion'))}
               aria-expanded={updateOpen}
             >
               <DialogIcon name="refresh" size={14} />

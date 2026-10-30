@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { tipProps } from '@/components/tip'
 import { useI18n } from '@/i18n'
 
 /**
@@ -134,7 +135,7 @@ export function SplitPane({
       aria-valuenow={value}
       aria-valuemin={min}
       aria-valuemax={max}
-      title={t('splitPane.dragResize', { min, max, defaultValue })}
+      {...tipProps(t('splitPane.dragResize', { min, max, defaultValue }))}
       onPointerDown={start}
       onDoubleClick={reset}
     >

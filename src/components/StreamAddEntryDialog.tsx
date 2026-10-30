@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { tipProps } from '@/components/tip'
 import { DialogShell } from '@/components/DialogShell'
 import { DialogIcon } from '@/components/DialogIcon'
 import { Button } from '@/components/ui/button'
@@ -67,7 +68,7 @@ export function StreamAddEntryDialog({ keyName, total, onConfirm, onCancel }: St
       {/* 目标键：stream 是只追加的日志流，用条数表达规模 */}
       <div className="key-preview">
         <span className="type-badge">stream</span>
-        <span className="key-name mono ellipsis" title={keyName}>
+        <span className="key-name mono ellipsis" {...tipProps(keyName)}>
           {keyName}
         </span>
         <span className="pos mono">{t('streamAddEntryDialog.countMessages', { count: total })}</span>

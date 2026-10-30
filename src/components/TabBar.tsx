@@ -210,7 +210,7 @@ export function TabBar() {
           <button
             key={tab.id}
             className={`tab${state.activeTabId === tab.id ? ' active' : ''}`}
-            title={tab.conn ? `${tab.conn.name} · ${tab.conn.host}:${tab.conn.port}` : tab.id}
+            {...tipProps(tab.conn ? `${tab.conn.name} · ${tab.conn.host}:${tab.conn.port}` : tab.id)}
             onClick={() => activateTab(tab.id)}
             onContextMenu={(event) => openCtxMenu(event, tab.id)}
           >

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { tipProps } from '@/components/tip'
 import { DialogIcon } from '@/components/DialogIcon'
 import { DialogShell } from '@/components/DialogShell'
 import { Button } from '@/components/ui/button'
@@ -107,7 +108,7 @@ export function EditZsetMemberDialog({
       {/* 目标键：zset 有序，用成员数表达规模比位置更有意义 */}
       <div className="key-preview">
         <span className="type-badge">zset</span>
-        <span className="key-name mono ellipsis" title={keyName}>
+        <span className="key-name mono ellipsis" {...tipProps(keyName)}>
           {keyName}
         </span>
         <span className="pos mono">{t('editZsetMemberDialog.countMembers', { count: total })}</span>

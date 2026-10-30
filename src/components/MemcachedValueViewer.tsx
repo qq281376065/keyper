@@ -684,7 +684,7 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
         disabled={!tabArrows.left}
         onClick={() => scrollTabs(-1)}
         aria-label={t('common.scrollLeft')}
-        title={t('common.scrollLeft')}
+        {...tipProps(t('common.scrollLeft'))}
       >
         ‹
       </button>
@@ -724,13 +724,14 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
                 }}
               >
                 <span className="vt-dot" />
-                <span className="vt-name" title={key}>
+                {/* 不加 title / tipProps：书签悬停已有统计卡（含完整键名） */}
+                <span className="vt-name">
                   {tabLabel(key, t)}
                 </span>
                 <button
                   type="button"
                   className="vt-x"
-                  title={t('common.close')}
+                  {...tipProps(t('common.close'))}
                   aria-label={t('memcachedValueViewer.closeKey', { key })}
                   onClick={(event) => {
                     event.stopPropagation()
@@ -751,7 +752,7 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
         disabled={!tabArrows.right}
         onClick={() => scrollTabs(1)}
         aria-label={t('common.scrollRight')}
-        title={t('common.scrollRight')}
+        {...tipProps(t('common.scrollRight'))}
       >
         ›
       </button>
@@ -788,7 +789,7 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
               <button
                 type="button"
                 className="vt-menu-x"
-                title={t('memcachedValueViewer.close')}
+                {...tipProps(t('memcachedValueViewer.close'))}
                 aria-label={t('common.close')}
                 onClick={() => {
                   setTabMenuOpen(false)
@@ -859,13 +860,13 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
                     }}
                   >
                     <span className="vt-t type-string">M</span>
-                    <span className="vt-mi-k mono" title={key}>
+                    <span className="vt-mi-k mono" {...tipProps(key)}>
                       {tabLabel(key, t, 20, 10)}
                     </span>
                     <button
                       type="button"
                       className="vt-mi-x"
-                      title={t('common.close')}
+                      {...tipProps(t('common.close'))}
                       aria-label={t('memcachedValueViewer.closeKey', { key })}
                       onClick={(event) => {
                         event.stopPropagation()

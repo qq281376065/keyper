@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { tipProps } from '@/components/tip'
 import { api } from '@/api'
 import { DialogIcon } from '@/components/DialogIcon'
 import { DialogShell } from '@/components/DialogShell'
@@ -111,13 +112,13 @@ export function EditHashFieldTtlDialog({
       <div className="target">
         <div className="target-row">
           <span className="k">{t('editHashFieldTtlDialog.key')}</span>
-          <span className="v mono ellipsis" title={keyName}>
+          <span className="v mono ellipsis" {...tipProps(keyName)}>
             {keyName}
           </span>
         </div>
         <div className="target-row">
           <span className="k">{t('common.field')}</span>
-          <span className="v mono ellipsis" title={field}>
+          <span className="v mono ellipsis" {...tipProps(field)}>
             {field}
           </span>
         </div>

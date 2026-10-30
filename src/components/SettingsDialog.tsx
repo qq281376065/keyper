@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '@/api'
 import { DialogShell } from '@/components/DialogShell'
 import { DialogIcon } from '@/components/DialogIcon'
+import { tipProps } from '@/components/tip'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -353,7 +354,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
           <span className="set-label">{t('serverOverview.configFile')}</span>
           <div className="set-control is-block">
             <div className="path-box">
-              <span className="path mono" title={configDir}>
+              <span className="path mono" {...tipProps(configDir)}>
                 {configDir || '—'}
               </span>
               <Button
@@ -378,7 +379,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
           <span className="set-label">{t('settingsDialog.logDirectory')}</span>
           <div className="set-control is-block">
             <div className="path-box">
-              <span className="path mono" title={logPath}>
+              <span className="path mono" {...tipProps(logPath)}>
                 {logPath || '—'}
               </span>
               <Button

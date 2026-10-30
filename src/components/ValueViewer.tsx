@@ -573,7 +573,7 @@ export function ValueViewer() {
             disabled={!tabArrows.left}
             onClick={() => scrollTabs(-1)}
             aria-label={t('common.scrollLeft')}
-            title={t('common.scrollLeft')}
+            {...tipProps(t('common.scrollLeft'))}
           >
             ‹
           </button>
@@ -620,14 +620,16 @@ export function ValueViewer() {
                     }}
                   >
                     <span className={`vt-dot${meta ? '' : ' unknown'}`} />
-                    <span className="vt-name" title={key}>
+                    {/* 不加 title / tipProps：书签悬停已有统计卡（含完整键名），
+                        再挂一层提示会两个气泡叠在一起 */}
+                    <span className="vt-name">
                       {tabLabel(key, t)}
                     </span>
                     <button
                       type="button"
                       className="vt-x"
-                      title={t('common.close')}
                       aria-label={t('memcachedValueViewer.closeKey', { key })}
+                      {...tipProps(t('common.close'))}
                       onClick={(event) => {
                         event.stopPropagation()
                         closeTab(key)
@@ -647,7 +649,7 @@ export function ValueViewer() {
             disabled={!tabArrows.right}
             onClick={() => scrollTabs(1)}
             aria-label={t('common.scrollRight')}
-            title={t('common.scrollRight')}
+            {...tipProps(t('common.scrollRight'))}
           >
             ›
           </button>
@@ -684,8 +686,8 @@ export function ValueViewer() {
                   <button
                     type="button"
                     className="vt-menu-x"
-                    title={t('memcachedValueViewer.close')}
                     aria-label={t('common.close')}
+                    {...tipProps(t('memcachedValueViewer.close'))}
                     onClick={() => {
                       setTabMenuOpen(false)
                       setTabQuery('')
@@ -759,14 +761,14 @@ export function ValueViewer() {
                           <span className={`vt-t${meta ? ` type-${meta.type}` : ''}`}>
                             {meta ? meta.type.charAt(0).toUpperCase() : '?'}
                           </span>
-                          <span className="vt-mi-k mono" title={key}>
+                          <span className="vt-mi-k mono" {...tipProps(key)}>
                             {tabLabel(key, t, 20, 10)}
                           </span>
                           <button
                             type="button"
                             className="vt-mi-x"
-                            title={t('common.close')}
                             aria-label={t('memcachedValueViewer.closeKey', { key })}
+                            {...tipProps(t('common.close'))}
                             onClick={(event) => {
                               event.stopPropagation()
                               closeTab(key)

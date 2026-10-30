@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { tipProps } from '@/components/tip'
 import { DialogIcon } from '@/components/DialogIcon'
 import { DialogShell } from '@/components/DialogShell'
 import { Button } from '@/components/ui/button'
@@ -158,7 +159,7 @@ export function EditListElementDialog({
       {/* 目标键：徽标显示类型，完整键名等宽展示，便于核对 */}
       <div className="key-preview">
         <span className="type-badge">{keyType}</span>
-        <span className="key-name mono ellipsis" title={keyName}>
+        <span className="key-name mono ellipsis" {...tipProps(keyName)}>
           {keyName}
         </span>
         {showPosition ? (

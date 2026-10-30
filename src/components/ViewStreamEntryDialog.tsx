@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { tipProps } from '@/components/tip'
 import { DialogIcon } from '@/components/DialogIcon'
 import { DialogShell } from '@/components/DialogShell'
 import { Button } from '@/components/ui/button'
@@ -167,7 +168,7 @@ export function ViewStreamEntryDialog({
       {/* 目标键：类型徽标 + 键名 + entry 在 stream 中的位置 */}
       <div className="key-preview">
         <span className="type-badge">stream</span>
-        <span className="key-name mono ellipsis" title={keyName}>
+        <span className="key-name mono ellipsis" {...tipProps(keyName)}>
           {keyName}
         </span>
         <span className="pos mono">
