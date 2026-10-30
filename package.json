@@ -25,7 +25,7 @@
     "build": "npm run typecheck && vite build",
     "dist": "npm run build && electron-builder",
     "dist:win": "npm run build && electron-builder --win",
-    "dist:win:alt": "npm run build && electron-builder --win -c.directories.output=release/${npm_package_version}-final",
+    "dist:win:alt": "npm run build && electron-builder --win -c.directories.output=release/${version}-final",
     "i18n:check": "node scripts/i18n-check.mjs"
   },
   "dependencies": {
