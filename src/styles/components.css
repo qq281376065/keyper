@@ -5277,6 +5277,28 @@
   color: var(--text-secondary);
   font-size: var(--fs-md);
 }
+/*
+ * 页签标题前的图标（Redis 与 Memcached 两个面板共用）。
+ *
+ * 页签是 <button>，默认 inline-block —— 图标与文字会按基线排，SVG 会偏下。
+ * 改成 inline-flex 让两者沿同一水平轴居中。
+ * 图标颜色不单独指定：走 currentColor，随页签文字一起在 hover / 激活时加深。
+ */
+.s-server-overview .ov-tab,
+.s-mc-overview .ov-tab{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.s-server-overview .ov-tab-ico,
+.s-mc-overview .ov-tab-ico{
+  flex: 0 0 auto;
+  opacity: 0.8;
+}
+.s-server-overview .ov-tab.active .ov-tab-ico,
+.s-mc-overview .ov-tab.active .ov-tab-ico{
+  opacity: 1;
+}
 .s-server-overview .ov-tab:hover{
   color: var(--text-primary);
   background: var(--bg-hover);

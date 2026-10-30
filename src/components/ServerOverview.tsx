@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '@/api'
-import { DialogIcon } from '@/components/DialogIcon'
+import { DialogIcon, type DialogIconName } from '@/components/DialogIcon'
 import { MemoryCard } from '@/components/MemoryCard'
 import { PubsubCard } from '@/components/PubsubCard'
 import { SlowlogCard } from '@/components/SlowlogCard'
@@ -22,11 +22,16 @@ type ServerTab = 'info' | 'slowlog' | 'memory' | 'pubsub'
  * - PubsubCard 的订阅挂在组件生命周期上，切页签就断订阅属于误伤；
  * - MemoryCard 的分析结果不自动重算，切走再切回应保留上次的结论。
  */
-const TABS: { key: ServerTab; label: MsgKey }[] = [
-  { key: 'info', label: 'serverOverview.redisInfoTab' },
-  { key: 'slowlog', label: 'common.slowQueryLog' },
-  { key: 'memory', label: 'common.keyMemoryAnalysis' },
-  { key: 'pubsub', label: 'common.pubSubSubscriptions' },
+/*
+ * 页签图标：只承担「这是哪一类」的快速识别。
+ * 颜色随页签文字（currentColor），激活时由 .ov-tab.active 一并加深，不单独配色。
+ *   info 信息卡 / clock 耗时（慢查询）/ memory 内存条 / activity 信号波（订阅）
+ */
+const TABS: Array<{ key: ServerTab; label: MsgKey; icon: DialogIconName }> = [
+  { key: 'info', label: 'serverOverview.redisInfoTab', icon: 'info' },
+  { key: 'slowlog', label: 'common.slowQueryLog', icon: 'clock' },
+  { key: 'memory', label: 'common.keyMemoryAnalysis', icon: 'memory' },
+  { key: 'pubsub', label: 'common.pubSubSubscriptions', icon: 'activity' },
 ]
 
 /**
@@ -343,6 +348,7 @@ export function ServerOverview() {
             className={`ov-tab${activeTab === item.key ? ' active' : ''}`}
             onClick={() => switchTab(item.key)}
           >
+            <DialogIcon name={item.icon} size={13} className="ov-tab-ico" />
             {t(item.label)}
           </button>
         ))}

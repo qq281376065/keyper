@@ -278,6 +278,7 @@ export function MemcachedOverview() {
                 className={`ov-tab${tab === item.key ? ' active' : ''}`}
                 onClick={() => setTab(item.key)}
               >
+                <DialogIcon name={item.icon} size={13} className="ov-tab-ico" />
                 {t(item.label)}
               </button>
             ))}
