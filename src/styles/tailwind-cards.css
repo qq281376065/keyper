@@ -421,6 +421,25 @@
   outline-offset: 3px;
 }
 
+/*
+ * 内容层（图标 + 文字）改成 inline-flex 居中。
+ *
+ * 官方 buttonVariants 的 base 只有 `relative overflow-hidden px-6 py-2 …`，
+ * 没有 flex —— 里面 `<svg>` 与文字是按基线排的：SVG 默认
+ * `vertical-align: baseline`，图标底边会坐在文字基线上，看起来整体偏下。
+ * 中文的基线位置又比拉丁字母低，偏移更明显。
+ *
+ * 这不是给组件"加样式"，而是补上官方 demo 依赖 shadcn preflight 才有的
+ * 居中行为 —— 本项目刻意不引 preflight（见当前文件上方的说明）。
+ * 只动布局，不碰颜色、圆角与渐变层。
+ */
+.cta-animate > div {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
 
 /* 尊重系统「减少动态效果」：停止旋转，保留静态渐变 */
 @media (prefers-reduced-motion: reduce) {
