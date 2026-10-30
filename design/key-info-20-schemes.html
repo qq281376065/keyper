@@ -1,0 +1,1077 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Keyper · 值区顶部 key 信息区 20 套视觉方案</title>
+<style>
+/* ============================================================
+   页面框架（深色，与项目设计稿一致）
+   ============================================================ */
+:root{
+  --bg-app:#15171c;
+  --bg-panel:#1b1e25;
+  --bg-elevated:#21252e;
+  --bg-hover:#272c37;
+  --border:#2b3140;
+  --border-strong:#3a4256;
+  --text-primary:#e6e9ef;
+  --text-secondary:#9aa4b8;
+  --text-muted:#6b7488;
+  --accent:#dc382d;
+  --accent-soft:rgba(220,56,45,.14);
+  --green:#3fbf7f;
+  --amber:#e5a13a;
+  --purple:#a78bfa;
+  --font-ui:"Segoe UI",system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  --font-mono:"JetBrains Mono","Cascadia Code",Consolas,"Courier New",monospace;
+  --radius-sm:4px;--radius-md:6px;--radius-lg:10px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg-app);color:var(--text-primary);font-family:var(--font-ui);}
+body{padding:28px 24px 80px;}
+.page{max-width:1180px;margin:0 auto;}
+.page-head h1{font-size:22px;margin:0 0 8px;letter-spacing:.01em;}
+.page-head p{margin:0 0 6px;color:var(--text-secondary);font-size:13px;line-height:1.7;max-width:960px;}
+.page-head .hint{color:var(--text-muted);font-size:12px;}
+.baseline-note{margin:14px 0 0;padding:10px 14px;border:1px dashed var(--border-strong);border-radius:10px;color:var(--text-secondary);font-size:12.5px;line-height:1.7;background:color-mix(in srgb, var(--bg-panel) 60%, transparent);}
+.baseline-note b{color:var(--text-primary);font-weight:600;}
+
+/* 顶部索引 */
+.pick-index{display:flex;flex-wrap:wrap;gap:6px;margin:18px 0 22px;}
+.pick-index a{
+  display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;
+  border:1px solid var(--border);background:var(--bg-panel);color:var(--text-secondary);
+  font-size:11.5px;text-decoration:none;transition:border-color .15s,color .15s;
+}
+.pick-index a b{font-family:var(--font-mono);font-size:10.5px;color:var(--text-muted);font-weight:600;}
+.pick-index a:hover{border-color:var(--accent);color:var(--text-primary);}
+
+/* 方案卡 */
+.scheme{
+  border:1px solid var(--border);border-radius:14px;background:var(--bg-panel);
+  padding:14px 16px 15px;margin-bottom:16px;scroll-margin-top:16px;
+}
+.scheme-head{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px;}
+.scheme-head .no{
+  font-family:var(--font-mono);font-size:11px;font-weight:600;color:var(--text-muted);
+  border:1px solid var(--border-strong);border-radius:6px;padding:2px 6px;margin-top:1px;
+}
+.scheme-head h2{margin:0;font-size:14.5px;line-height:1.3;}
+.scheme-head .mech{margin:2px 0 0;color:var(--text-muted);font-size:11.5px;line-height:1.6;}
+.scheme-head .mech code{font-family:var(--font-mono);font-size:10.5px;color:var(--text-secondary);background:var(--bg-elevated);border:1px solid var(--border);border-radius:3px;padding:0 4px;}
+.scheme-head .kind{
+  margin-left:auto;flex:0 0 auto;font-size:10.5px;letter-spacing:.06em;padding:2px 8px;
+  border:1px solid var(--border);border-radius:999px;color:var(--text-muted);
+}
+.scheme-head .kind.pick{color:var(--green);border-color:color-mix(in srgb,var(--green) 45%,var(--border));}
+.scheme-body{display:grid;grid-template-columns:minmax(0,1fr) 286px;gap:18px;align-items:start;}
+@media (max-width:980px){.scheme-body{grid-template-columns:minmax(0,1fr);}}
+
+/* 迷你预览容器 */
+.mini{
+  position:relative;border:1px solid var(--border);border-radius:10px;background:var(--bg-app);
+  padding:12px;margin-bottom:14px;
+}
+.mini::before{
+  content:attr(data-t);position:absolute;top:-8px;left:10px;padding:0 5px;
+  font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-muted);
+  background:var(--bg-app);
+}
+.mini[data-t="dark"]{
+  --bg-app:#15171c;--bg-panel:#1b1e25;--bg-elevated:#21252e;--bg-hover:#272c37;
+  --border:#2b3140;--border-strong:#3a4256;
+  --text-primary:#e6e9ef;--text-secondary:#9aa4b8;--text-muted:#6b7488;
+  --accent:#dc382d;--accent-soft:rgba(220,56,45,.14);
+  --green:#3fbf7f;--amber:#e5a13a;--purple:#a78bfa;
+  --badge-string-fg:#6ee7b7;--badge-string-bg:rgba(63,191,127,.14);
+  --badge-hash-fg:#93c5fd;--badge-hash-bg:rgba(74,158,255,.14);
+  --badge-list-fg:#fcd34d;--badge-list-bg:rgba(229,161,58,.14);
+  --badge-set-fg:#c4b5fd;--badge-set-bg:rgba(167,139,250,.14);
+  --badge-zset-fg:#f9a8d4;--badge-zset-bg:rgba(244,114,182,.14);
+  --badge-stream-fg:#7dd3fc;--badge-stream-bg:rgba(56,189,248,.14);
+  --badge-none-fg:#6b7488;--badge-none-bg:rgba(107,116,136,.14);
+  --cli-bg:#111318;
+  --paper:#1b1e25;
+}
+.mini[data-t="light"]{
+  --bg-app:#f4f5f7;--bg-panel:#ffffff;--bg-elevated:#f0f1f4;--bg-hover:#e8eaef;
+  --border:#d9dce3;--border-strong:#c2c7d0;
+  --text-primary:#1c2129;--text-secondary:#566072;--text-muted:#868fa1;
+  --accent:#d0342c;--accent-soft:rgba(208,52,44,.1);
+  --green:#12855a;--amber:#b3690a;--purple:#7c4ddb;
+  --badge-string-fg:#0f7a4d;--badge-string-bg:rgba(18,133,90,.12);
+  --badge-hash-fg:#1d6fe0;--badge-hash-bg:rgba(29,111,224,.12);
+  --badge-list-fg:#a06406;--badge-list-bg:rgba(214,138,20,.14);
+  --badge-set-fg:#6d3fc4;--badge-set-bg:rgba(124,77,219,.12);
+  --badge-zset-fg:#b3246f;--badge-zset-bg:rgba(195,36,127,.12);
+  --badge-stream-fg:#0b7ea3;--badge-stream-bg:rgba(11,126,163,.12);
+  --badge-none-fg:#868fa1;--badge-none-bg:rgba(134,143,161,.14);
+  --cli-bg:#f7f8fa;
+  --paper:#fbfaf7;
+}
+
+/* 演示内容容器 */
+.demo{border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--bg-panel);}
+.demo + .demo{margin-top:10px;}
+.faux{padding:10px 14px 13px;display:flex;flex-direction:column;gap:7px;}
+.faux .fl{height:7px;border-radius:2px;background:var(--text-muted);opacity:.16;}
+.faux .fl.short{width:62%}.faux .fl.mid{width:78%}.faux .fl.tiny{width:38%}
+
+/* ============================================================
+   key 信息区 · 共享骨架（所有方案共用同一份 DOM）
+   ============================================================ */
+.khead{
+  --tc:var(--badge-none-fg);--tcb:var(--badge-none-bg);
+  position:relative;display:flex;align-items:center;gap:10px;
+  min-height:58px;padding:11px 14px;background:var(--bg-panel);
+  border-bottom:1px solid var(--border);font-family:var(--font-ui);
+}
+.khead.type-string{--tc:var(--badge-string-fg);--tcb:var(--badge-string-bg);}
+.khead.type-hash{--tc:var(--badge-hash-fg);--tcb:var(--badge-hash-bg);}
+.khead.type-list{--tc:var(--badge-list-fg);--tcb:var(--badge-list-bg);}
+.khead.type-set{--tc:var(--badge-set-fg);--tcb:var(--badge-set-bg);}
+.khead.type-zset{--tc:var(--badge-zset-fg);--tcb:var(--badge-zset-bg);}
+.khead.type-stream{--tc:var(--badge-stream-fg);--tcb:var(--badge-stream-bg);}
+.kh-id{display:flex;align-items:center;gap:8px;min-width:0;}
+.kh-name{
+  font-family:var(--font-mono);font-size:13px;font-weight:600;color:var(--text-primary);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;
+}
+.kh-meta{display:flex;align-items:center;gap:12px;margin-left:auto;min-width:0;}
+.kh-item{display:inline-flex;align-items:baseline;gap:0;min-width:0;}
+.kh-item i{
+  font-style:normal;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--text-muted);margin-right:5px;white-space:nowrap;
+}
+.kh-item b{
+  font-family:var(--font-mono);font-weight:500;font-size:11.5px;
+  color:var(--text-secondary);white-space:nowrap;
+}
+.kh-more{
+  flex:0 0 auto;width:24px;height:24px;display:grid;place-items:center;
+  border:none;border-radius:6px;background:transparent;color:var(--text-muted);
+  font-size:15px;line-height:1;cursor:pointer;
+}
+.kh-more:hover{background:var(--bg-hover);color:var(--text-primary);}
+.kh-type{display:none;}
+.kh-ring{display:none;}
+
+/* ============================================================
+   00 现状基线：票根 + 水印（仅作对照，不参与编号）
+   ============================================================ */
+[data-scheme="00"] .khead{
+  display:grid;grid-template-columns:34px minmax(0,1fr);grid-template-rows:auto auto;
+  gap:3px 12px;padding:9px 12px 9px 0;min-height:66px;overflow:hidden;
+}
+[data-scheme="00"] .kh-type{
+  display:flex;grid-row:1 / 3;align-items:center;justify-content:center;
+  writing-mode:vertical-rl;text-orientation:mixed;letter-spacing:.28em;
+  font-size:9.5px;text-transform:uppercase;color:color-mix(in srgb,var(--accent) 65%,var(--text-primary));
+  border-right:1px dashed var(--border-strong);padding-left:2px;
+}
+[data-scheme="00"] .kh-id{padding-left:12px;}
+[data-scheme="00"] .kh-meta{grid-column:2;margin-left:0;padding-left:12px;gap:10px;}
+[data-scheme="00"] .kh-meta .kh-item:not(:first-child)::before{content:"|";color:var(--border-strong);margin-right:10px;}
+[data-scheme="00"] .kh-meta .kh-item i{text-transform:none;letter-spacing:0;font-size:10px;}
+[data-scheme="00"] .kh-more{position:absolute;top:10px;right:10px;}
+[data-scheme="00"] .khead::after{
+  content:attr(data-letter);position:absolute;right:8px;bottom:-14px;
+  font-size:64px;line-height:1;font-weight:700;font-family:var(--font-ui);
+  color:var(--text-primary);opacity:.05;pointer-events:none;
+}
+
+/* ============================================================
+   01 终端命令行
+   ============================================================ */
+[data-scheme="01"] .khead{background:var(--cli-bg);gap:8px;}
+[data-scheme="01"] .kh-id::before{content:"❯";color:var(--accent);font-family:var(--font-mono);font-size:13px;margin-right:2px;}
+[data-scheme="01"] .kh-name{font-weight:500;}
+[data-scheme="01"] .kh-name::after{content:"▍";color:var(--accent);margin-left:2px;animation:k-blink 1.2s steps(1) infinite;}
+@keyframes k-blink{50%{opacity:0}}
+[data-scheme="01"] .kh-meta{gap:14px;}
+[data-scheme="01"] .kh-item i{text-transform:lowercase;letter-spacing:0;font-size:11px;color:var(--text-muted);}
+[data-scheme="01"] .kh-item i::before{content:"--";}
+[data-scheme="01"] .kh-item i::after{content:"=";}
+[data-scheme="01"] .kh-item b{color:var(--text-secondary);}
+[data-scheme="01"] .kh-more{color:var(--text-muted);}
+
+/* ============================================================
+   02 状态栏色块
+   ============================================================ */
+[data-scheme="02"] .khead{gap:0;padding:0;align-items:stretch;min-height:42px;border-bottom:none;background:var(--bg-elevated);}
+[data-scheme="02"] .kh-type{
+  display:flex;align-items:center;padding:0 14px;background:var(--tcb);color:var(--tc);
+  font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:.02em;
+}
+[data-scheme="02"] .kh-id{background:var(--bg-elevated);padding:0 14px;}
+[data-scheme="02"] .kh-meta{gap:0;height:100%;}
+[data-scheme="02"] .kh-item{
+  align-items:center;padding:0 12px;border-left:1px solid var(--border);height:100%;
+}
+[data-scheme="02"] .kh-item i{font-size:9px;letter-spacing:.1em;}
+[data-scheme="02"] .kh-item b{font-size:11px;}
+[data-scheme="02"] .kh-more{margin:0 6px 0 4px;align-self:center;}
+.mini[data-t="light"] [data-scheme="02"] .kh-type{background:color-mix(in srgb,var(--tc) 14%,var(--bg-panel));}
+
+/* ============================================================
+   03 规格表
+   ============================================================ */
+[data-scheme="03"] .khead{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px 12px;padding:11px 14px 0;}
+[data-scheme="03"] .kh-more{position:absolute;top:12px;right:12px;}
+[data-scheme="03"] .kh-id{padding-right:30px;}
+[data-scheme="03"] .kh-meta{
+  grid-column:1 / -1;margin:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+  border-top:1px solid var(--border);gap:0;
+}
+[data-scheme="03"] .kh-item{display:block;padding:7px 12px 9px 0;}
+[data-scheme="03"] .kh-item + .kh-item{border-left:1px solid var(--border);padding-left:12px;}
+[data-scheme="03"] .kh-item i{display:block;margin:0 0 2px;font-size:9px;letter-spacing:.14em;}
+[data-scheme="03"] .kh-item b{font-size:12px;}
+
+/* ============================================================
+   04 芯片流
+   ============================================================ */
+[data-scheme="04"] .kh-type{
+  display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;
+  background:var(--tcb);color:var(--tc);font-family:var(--font-mono);
+  font-size:10px;font-weight:600;
+}
+[data-scheme="04"] .kh-meta{gap:6px;}
+[data-scheme="04"] .kh-item{
+  display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;
+  border:1px solid var(--border);background:var(--bg-panel);
+}
+[data-scheme="04"] .kh-item i{font-size:9px;letter-spacing:.06em;margin-right:4px;}
+[data-scheme="04"] .kh-item b{font-size:10.5px;}
+[data-scheme="04"] .kh-more{margin-left:4px;}
+
+/* ============================================================
+   05 类型色脊
+   ============================================================ */
+[data-scheme="05"] .khead{
+  background:linear-gradient(90deg,color-mix(in srgb,var(--tc) 9%,var(--bg-panel)),var(--bg-panel) 55%);
+  border-bottom-color:color-mix(in srgb,var(--tc) 22%,var(--border));
+  padding-left:17px;
+}
+[data-scheme="05"] .khead::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--tc);}
+[data-scheme="05"] .kh-name{font-weight:600;}
+
+/* ============================================================
+   06 文件夹页签
+   ============================================================ */
+[data-scheme="06"] .khead{
+  align-items:flex-end;gap:10px;padding:8px 12px 0;min-height:66px;
+  background:transparent;border-bottom:1px solid var(--border);
+}
+[data-scheme="06"] .kh-type{
+  display:inline-flex;align-items:center;padding:1px 6px;border-radius:4px;
+  background:var(--tcb);color:var(--tc);font-family:var(--font-mono);font-size:9.5px;font-weight:600;
+}
+[data-scheme="06"] .kh-id{
+  order:-1;position:relative;top:1px;background:var(--bg-elevated);
+  border:1px solid var(--border);border-bottom:none;border-radius:8px 8px 0 0;
+  padding:7px 12px 8px;max-width:60%;
+}
+[data-scheme="06"] .kh-meta{padding-bottom:9px;gap:10px;}
+[data-scheme="06"] .kh-more{margin-bottom:5px;}
+
+/* ============================================================
+   07 悬浮玻璃
+   ============================================================ */
+[data-scheme="07"] .demo{padding-top:14px;background:var(--bg-panel);}
+[data-scheme="07"] .khead{
+  margin:6px 8px 0;border:1px solid color-mix(in srgb,var(--border) 75%,transparent);
+  border-radius:10px;min-height:52px;
+  background:color-mix(in srgb,var(--bg-elevated) 66%,transparent);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  box-shadow:0 8px 22px -12px rgba(0,0,0,.55);
+}
+.mini[data-t="light"] [data-scheme="07"] .khead{
+  background:color-mix(in srgb,#fff 62%,transparent);
+  box-shadow:0 8px 22px -14px rgba(15,23,42,.35);
+}
+[data-scheme="07"] .kh-more{color:var(--text-secondary);}
+
+/* ============================================================
+   08 倒计时焦点
+   ============================================================ */
+[data-scheme="08"] .kh-type{
+  display:inline-flex;align-items:center;gap:6px;
+  font-family:var(--font-mono);font-size:11px;color:var(--text-muted);
+}
+[data-scheme="08"] .kh-type::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--tc);}
+[data-scheme="08"] .kh-meta{gap:14px;}
+[data-scheme="08"] .kh-item:first-child{order:3;display:flex;flex-direction:column;align-items:flex-end;gap:0;padding-left:14px;border-left:1px solid var(--border);}
+[data-scheme="08"] .kh-item:first-child i{font-size:8.5px;letter-spacing:.14em;margin:0 0 1px;}
+[data-scheme="08"] .kh-item:first-child b{font-size:20px;font-weight:600;line-height:1;color:var(--text-primary);letter-spacing:-.02em;}
+[data-scheme="08"] .kh-item:not(:first-child){flex-direction:column;align-items:flex-start;gap:0;}
+[data-scheme="08"] .kh-item:not(:first-child) i{margin:0 0 1px;font-size:8.5px;}
+[data-scheme="08"] .kh-more{margin-left:2px;}
+
+/* ============================================================
+   09 TTL 环
+   ============================================================ */
+[data-scheme="09"] .kh-ring{display:grid;place-items:center;position:relative;width:34px;height:34px;flex:0 0 auto;}
+[data-scheme="09"] .kh-ring svg{width:34px;height:34px;transform:rotate(-90deg);}
+[data-scheme="09"] .ring-bg{fill:none;stroke:var(--border);stroke-width:3;}
+[data-scheme="09"] .ring-fg{fill:none;stroke:var(--tc);stroke-width:3;stroke-linecap:round;}
+[data-scheme="09"] .ring-txt{
+  position:absolute;inset:0;display:grid;place-items:center;font-style:normal;
+  font-family:var(--font-mono);font-size:9.5px;font-weight:600;color:var(--text-secondary);
+}
+
+/* ============================================================
+   10 索引卡
+   ============================================================ */
+[data-scheme="10"] .demo{padding:10px;background:var(--bg-app);}
+[data-scheme="10"] .khead{
+  padding-left:28px;padding-right:10px;border:1px solid var(--border);border-radius:6px;
+  background:
+    repeating-linear-gradient(180deg,transparent 0 21px,color-mix(in srgb,var(--border) 50%,transparent) 21px 22px),
+    var(--paper);
+  box-shadow:0 4px 12px -8px rgba(0,0,0,.5);min-height:66px;
+}
+[data-scheme="10"] .khead::before{
+  content:"";position:absolute;left:18px;top:6px;bottom:6px;width:1px;
+  background:color-mix(in srgb,var(--accent) 45%,transparent);
+}
+[data-scheme="10"] .kh-name{font-weight:500;font-size:13.5px;}
+[data-scheme="10"] .kh-meta{gap:10px;}
+[data-scheme="10"] .kh-item i{text-transform:none;letter-spacing:0;font-size:10px;}
+[data-scheme="10"] .kh-more{color:var(--text-muted);}
+
+/* ============================================================
+   11 报头
+   ============================================================ */
+[data-scheme="11"] .khead{
+  display:block;padding:12px 16px 11px;min-height:70px;
+  border-bottom:3px double var(--border-strong);
+}
+[data-scheme="11"] .kh-type{
+  display:inline-block;margin-bottom:3px;
+  font-size:9px;letter-spacing:.2em;text-transform:uppercase;font-weight:600;color:var(--tc);
+}
+[data-scheme="11"] .kh-name{display:block;font-family:var(--font-ui);font-size:18px;font-weight:600;letter-spacing:.005em;}
+[data-scheme="11"] .kh-meta{position:absolute;right:46px;bottom:10px;gap:12px;}
+[data-scheme="11"] .kh-item i{font-size:9px;letter-spacing:.12em;}
+[data-scheme="11"] .kh-more{position:absolute;top:10px;right:10px;}
+
+/* ============================================================
+   12 头像头部
+   ============================================================ */
+[data-scheme="12"] .khead{
+  display:grid;grid-template-columns:auto minmax(0,1fr) auto;
+  grid-template-areas:"type id more" "type meta more";column-gap:10px;row-gap:2px;align-items:center;
+}
+[data-scheme="12"] .kh-type{
+  grid-area:type;display:grid;place-items:center;width:32px;height:32px;border-radius:50%;
+  background:var(--tcb);color:var(--tc);font-family:var(--font-mono);font-size:0;font-weight:700;
+}
+[data-scheme="12"] .kh-type::before{content:attr(data-glyph);font-size:12px;}
+[data-scheme="12"] .kh-id{grid-area:id;}
+[data-scheme="12"] .kh-meta{grid-area:meta;margin:0;gap:0;}
+[data-scheme="12"] .kh-item i{display:none;}
+[data-scheme="12"] .kh-item b{font-size:10.5px;color:var(--text-muted);}
+[data-scheme="12"] .kh-item:not(:first-child)::before{content:"·";margin:0 6px;color:var(--border-strong);}
+[data-scheme="12"] .kh-more{grid-area:more;}
+
+/* ============================================================
+   13 代码注解
+   ============================================================ */
+[data-scheme="13"] .khead{
+  background:var(--bg-elevated);border-left:3px solid var(--tc);gap:9px;
+  font-family:var(--font-mono);
+}
+[data-scheme="13"] .kh-name{font-weight:600;}
+[data-scheme="13"] .kh-name::before{content:"key: ";color:var(--text-muted);font-weight:400;}
+[data-scheme="13"] .kh-meta{gap:8px;}
+[data-scheme="13"] .kh-item i{display:none;}
+[data-scheme="13"] .kh-item::before{content:"@" attr(data-k) "(";color:var(--tc);font-family:var(--font-mono);font-size:10.5px;}
+[data-scheme="13"] .kh-item::after{content:")";color:var(--tc);font-family:var(--font-mono);font-size:10.5px;}
+[data-scheme="13"] .kh-item b{font-size:10.5px;color:var(--text-secondary);}
+
+/* ============================================================
+   14 印章
+   ============================================================ */
+[data-scheme="14"] .khead{overflow:visible;}
+[data-scheme="14"] .khead::after{
+  content:attr(data-letter);position:absolute;right:14px;top:50%;
+  width:42px;height:42px;margin-top:-21px;transform:rotate(-9deg);
+  display:grid;place-items:center;border:2px double var(--tc);border-radius:50%;
+  color:var(--tc);opacity:.6;font-family:var(--font-mono);font-size:17px;font-weight:600;
+  box-shadow:inset 0 0 0 3px transparent,inset 0 0 0 4px color-mix(in srgb,var(--tc) 55%,transparent);
+  pointer-events:none;
+}
+[data-scheme="14"] .kh-meta{margin-right:56px;}
+[data-scheme="14"] .kh-more{margin-right:52px;}
+
+/* ============================================================
+   15 键帽
+   ============================================================ */
+[data-scheme="15"] .kh-type{
+  display:inline-flex;align-items:center;padding:1px 5px;border-radius:4px;
+  background:var(--tcb);color:var(--tc);font-family:var(--font-mono);font-size:9px;font-weight:600;
+}
+[data-scheme="15"] .kh-id{
+  background:var(--bg-elevated);border:1px solid var(--border-strong);border-radius:7px;
+  padding:5px 10px 5px;box-shadow:0 2px 0 var(--border-strong);margin-right:2px;
+}
+[data-scheme="15"] .kh-name{font-weight:500;}
+[data-scheme="15"] .kh-meta{gap:11px;}
+
+/* ============================================================
+   16 台账
+   ============================================================ */
+[data-scheme="16"] .khead{display:grid;grid-template-columns:1fr;gap:6px;padding:10px 14px 11px;}
+[data-scheme="16"] .kh-id{justify-content:space-between;}
+[data-scheme="16"] .kh-meta{margin:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;}
+[data-scheme="16"] .kh-item{display:flex;align-items:baseline;min-width:0;}
+[data-scheme="16"] .kh-item i{
+  display:flex;align-items:baseline;flex:1;min-width:0;margin:0;
+  text-transform:none;letter-spacing:0;font-size:10px;
+}
+[data-scheme="16"] .kh-item i::after{content:"";flex:1;margin:0 6px 2px;border-bottom:1px dotted var(--border-strong);}
+[data-scheme="16"] .kh-item b{font-size:11px;}
+[data-scheme="16"] .kh-more{position:absolute;top:10px;right:10px;}
+
+/* ============================================================
+   17 类型渐变
+   ============================================================ */
+[data-scheme="17"] .khead{
+  background:linear-gradient(90deg,color-mix(in srgb,var(--tc) 13%,transparent),transparent 68%);
+  border-bottom:1px solid var(--border);
+}
+[data-scheme="17"] .khead::after{
+  content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;
+  background:linear-gradient(90deg,var(--tc),transparent 72%);
+}
+[data-scheme="17"] .kh-name{font-weight:600;}
+[data-scheme="17"] .kh-meta .kh-item:last-child b{color:var(--tc);}
+
+/* ============================================================
+   18 刻度尺
+   ============================================================ */
+[data-scheme="18"] .khead{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;padding-bottom:15px;}
+[data-scheme="18"] .kh-more{position:absolute;top:12px;right:10px;}
+[data-scheme="18"] .kh-meta{gap:12px;padding-right:26px;}
+[data-scheme="18"] .kh-item:last-child b{color:var(--tc);}
+[data-scheme="18"] .khead::after{
+  content:"";grid-column:1 / -1;height:6px;border-radius:2px;
+  background-image:linear-gradient(var(--tc),var(--tc)),repeating-linear-gradient(90deg,var(--border-strong) 0 1px,transparent 1px 9px);
+  background-size:35% 100%,100% 100%;background-repeat:no-repeat;opacity:.55;
+}
+
+/* ============================================================
+   19 极简细线
+   ============================================================ */
+[data-scheme="19"] .khead{background:transparent;border-bottom:1px solid var(--border);padding:10px 4px;}
+[data-scheme="19"] .kh-type{
+  display:inline;font-family:var(--font-mono);font-size:11.5px;color:var(--text-muted);
+}
+[data-scheme="19"] .kh-type::after{content:"/";margin-left:1px;color:var(--border-strong);}
+[data-scheme="19"] .kh-name{font-weight:600;}
+[data-scheme="19"] .kh-meta{gap:0;}
+[data-scheme="19"] .kh-item i{display:none;}
+[data-scheme="19"] .kh-item b{font-size:10.5px;color:var(--text-muted);font-weight:400;}
+[data-scheme="19"] .kh-item:not(:first-child)::before{content:"·";margin:0 7px;color:var(--border-strong);}
+[data-scheme="19"] .kh-more{opacity:.4;}
+[data-scheme="19"] .khead:hover .kh-more{opacity:1;}
+
+/* ============================================================
+   20 霓虹顶边
+   ============================================================ */
+[data-scheme="20"] .khead{
+  background:color-mix(in srgb,var(--bg-elevated) 88%,var(--tc) 12%);
+  border-top:2px solid var(--tc);border-bottom:1px solid var(--border);
+  box-shadow:inset 0 10px 18px -16px color-mix(in srgb,var(--tc) 70%,transparent);
+}
+[data-scheme="20"] .kh-type{
+  display:inline-flex;align-items:center;padding:1px 6px;border-radius:3px;
+  background:color-mix(in srgb,var(--tc) 16%,transparent);color:var(--tc);
+  font-family:var(--font-mono);font-size:9.5px;font-weight:600;letter-spacing:.04em;
+}
+[data-scheme="20"] .kh-name{text-shadow:0 0 14px color-mix(in srgb,var(--tc) 45%,transparent);}
+.mini[data-t="light"] [data-scheme="20"] .khead{
+  box-shadow:inset 0 8px 14px -14px color-mix(in srgb,var(--tc) 45%,transparent);
+}
+.mini[data-t="light"] [data-scheme="20"] .kh-name{text-shadow:none;}
+
+/* 说明列表 */
+.notes{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px;}
+.notes li{display:grid;grid-template-columns:38px minmax(0,1fr);gap:8px;font-size:11.5px;line-height:1.65;color:var(--text-secondary);}
+.notes li b{font-weight:600;font-size:10px;letter-spacing:.05em;padding-top:2px;}
+.notes li.good b{color:var(--green);}
+.notes li.warn b{color:var(--amber);}
+.notes li.bad b{color:var(--accent);}
+.notes code{font-family:var(--font-mono);font-size:10.5px;color:var(--text-primary);background:var(--bg-elevated);border:1px solid var(--border);border-radius:3px;padding:0 4px;}
+
+/* 对比表 */
+.compare{margin-top:26px;border:1px solid var(--border);border-radius:14px;background:var(--bg-panel);padding:16px;}
+.compare h2{margin:0 0 4px;font-size:15px;}
+.compare p{margin:0 0 14px;color:var(--text-muted);font-size:11.5px;}
+.compare table{width:100%;border-collapse:collapse;font-size:11.5px;}
+.compare th,.compare td{text-align:left;padding:7px 10px;border-top:1px solid var(--border);vertical-align:top;line-height:1.55;}
+.compare th{color:var(--text-muted);font-weight:600;font-size:10.5px;letter-spacing:.06em;border-top:none;}
+.compare td:first-child{font-family:var(--font-mono);color:var(--text-muted);width:36px;}
+.compare td:nth-child(2){color:var(--text-primary);white-space:nowrap;}
+.compare td{color:var(--text-secondary);}
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="page-head">
+    <h1>值区顶部 key 信息区 · 20 套新视觉方案</h1>
+    <p>每套方案渲染同一组真实信息：<b>key 名 / 类型 / TTL / encoding / 大小 / 更多操作</b>；每组给「string + TTL」与「hash + 永久」两个实例，并附深浅双主题。所有方案共用同一份 DOM，仅以 CSS 塑形，落地时可只替换 <code>ticket-head</code> 的样式块。</p>
+    <p class="hint">下面 00 为现有「票根 + 水印」基线，仅作对照；20 套新方案均刻意避开票根、穿孔、水印语言。</p>
+    <div class="baseline-note">
+      <b>选型提示：</b>顶部信息区高度有限、要扛住长 key 名与窄侧栏。建议重点看 03 / 08 / 16（信息可读性与密度）、04 / 13 / 19（轻量不抢戏）、07 / 20（氛围感但要看亮色主题的接受度）。
+    </div>
+    <nav class="pick-index">
+      <a href="#s01"><b>01</b>终端命令行</a><a href="#s02"><b>02</b>状态栏色块</a><a href="#s03"><b>03</b>规格表</a><a href="#s04"><b>04</b>芯片流</a><a href="#s05"><b>05</b>类型色脊</a>
+      <a href="#s06"><b>06</b>文件夹页签</a><a href="#s07"><b>07</b>悬浮玻璃</a><a href="#s08"><b>08</b>倒计时焦点</a><a href="#s09"><b>09</b>TTL 环</a><a href="#s10"><b>10</b>索引卡</a>
+      <a href="#s11"><b>11</b>报头</a><a href="#s12"><b>12</b>头像头部</a><a href="#s13"><b>13</b>代码注解</a><a href="#s14"><b>14</b>印章</a><a href="#s15"><b>15</b>键帽</a>
+      <a href="#s16"><b>16</b>台账</a><a href="#s17"><b>17</b>类型渐变</a><a href="#s18"><b>18</b>刻度尺</a><a href="#s19"><b>19</b>极简细线</a><a href="#s20"><b>20</b>霓虹顶边</a>
+    </nav>
+  </header>
+
+  <!-- 00 baseline -->
+  <article class="scheme" id="s00">
+    <header class="scheme-head">
+      <span class="no">00</span>
+      <div>
+        <h2>现状基线：票根 + 水印</h2>
+        <p class="mech">左侧竖排类型票根 + 虚线穿孔 + 右下 64px 水印首字母；<code>min-height 75px</code></p>
+      </div>
+      <span class="kind">对照</span>
+    </header>
+    <div class="scheme-body">
+      <div>
+        <div class="mini" data-t="dark"><div class="demos" data-scheme="00"></div></div>
+        <div class="mini" data-t="light"><div class="demos" data-scheme="00"></div></div>
+      </div>
+      <ul class="notes">
+        <li class="good"><b>优点</b><span>有明确的「票据」隐喻，和值区内容区区分度高。</span></li>
+        <li class="warn"><b>代价</b><span>竖排类型字可读性弱；水印在浅色主题几乎消失；高度偏高。</span></li>
+        <li class="bad"><b>问题</b><span>信息只有两行，标题行与元信息行之间缺少视觉锚点，扫视时容易漏掉 TTL。</span></li>
+      </ul>
+    </div>
+  </article>
+
+  <article class="scheme" id="s01">
+    <header class="scheme-head">
+      <span class="no">01</span>
+      <div>
+        <h2>终端命令行</h2>
+        <p class="mech"><code>❯ key --ttl= --enc= --size=</code>：把 header 写成一行 Redis 命令</p>
+      </div>
+      <span class="kind">开发味</span>
+    </header>
+    <div class="scheme-body">
+      <div>
+        <div class="mini" data-t="dark"><div class="demos" data-scheme="01"></div></div>
+        <div class="mini" data-t="light"><div class="demos" data-scheme="01"></div></div>
+      </div>
+      <ul class="notes">
+        <li class="good"><b>优点</b><span>与产品气质（CLI 控制台）同源，长 key 名自然成为"命令"，不需要额外容器。</span></li>
+        <li class="good"><b>优点</b><span>元信息变成 flag，弱化标签感；<code>cli-bg</code> 底色与值区正文区分清楚。</span></li>
+        <li class="warn"><b>代价</b><span>flag 写法对非技术用户有门槛；闪烁光标需尊重 reduced-motion。</span></li>
+      </ul>
+    </div>
+  </article>
+
+  <article class="scheme" id="s02">
+    <header class="scheme-head">
+      <span class="no">02</span>
+      <div>
+        <h2>状态栏色块</h2>
+        <p class="mech">vim statusline：类型块反白、名字块 elevated、元信息贴边分格</p>
+      </div>
+      <span class="kind">沉浸感</span>
+    </header>
+    <div class="scheme-body">
+      <div>
+        <div class="mini" data-t="dark"><div class="demos" data-scheme="02"></div></div>
+        <div class="mini" data-t="light"><div class="demos" data-scheme="02"></div></div>
+      </div>
+      <ul class="notes">
+        <li class="good"><b>优点</b><span>类型色块是最强的类型识别信号，纵向高度仅 42px，省出值区空间。</span></li>
+        <li class="good"><b>优点</b><span>整条 bar 无内边距断点，贴着值区顶边，像编辑器状态栏一样安静。</span></li>
+        <li class="warn"><b>代价</b><span>满宽色块对亮色主题要求高，颜色透明度需按主题单独调。</span></li>
+      </ul>
+    </div>
+  </article>
+
+  <article class="scheme" id="s03">
+    <header class="scheme-head">
+      <span class="no">03</span>
+      <div>
+        <h2>规格表</h2>
+        <p class="mech">名字一行 + 三列均分、竖向分隔的 <code>label / value</code> 规格区</p>
+      </div>
+      <span class="kind pick">信息最稳</span>
+    </header>
+    <div class="scheme-body">
+      <div>
+        <div class="mini" data-t="dark"><div class="demos" data-scheme="03"></div></div>
+        <div class="mini" data-t="light"><div class="demos" data-scheme="03"></div></div>
+      </div>
+      <ul class="notes">
+        <li class="good"><b>优点</b><span>label 恒在 value 正上方，TTL 与 encoding 不再靠分隔符区分，扫读成本最低。</span></li>
+        <li class="good"><b>优点</b><span>三列均分天然适配 Memcached 的 TTL / 大小 / flags 三项。</span></li>
+        <li class="warn"><b>代价</b><span>头部约 90px，比现状还高；窄侧栏下三列会挤，需在 240px 以下降级为两列。</span></li>
+      </ul>
+    </div>
+  </article>
+
+  <article class="scheme" id="s04">
+    <header class="scheme-head">
+      <span class="no">04</span>
+      <div>
+        <h2>芯片流</h2>
+        <p class="mech">类型实底 chip + 三项描边 chip，右对齐成一条可换行的胶囊行</p>
+      </div>
+      <span class="kind">轻量</span>
+    </header>
+    <div class="scheme-body">
+      <div>
+        <div class="mini" data-t="dark"><div class="demos" data-scheme="04"></div></div>
+        <div class="mini" data-t="light"><div class="demos" data-scheme="04"></div></div>
+      </div>
+      <ul class="notes">
+        <li class="good"><b>优点</b><span>胶囊与项目现有按钮语言一致；类型色只出现在一枚 chip 上，克制。</span></li>
+        <li class="good"><b>优点</b><span>chip 可换行：窄侧栏下自动落第二行，不会把 key 名压没。</span></li>
+        <li class="warn"><b>代价</b><span>chip 的内边距让三项元信息占宽明显，长 key 名可用宽度变少。</span></li>
+      </ul>
+    </div>
+  </article>
+
+  <article class="scheme" id="s05">
+    <header class="scheme-head">
+      <span class="no">05</span>
+      <div>
+        <h2>类型色脊</h2>
+        <p class="mech">左缘 3px 类型色竖脊 + 同色 9% 渐变底，其余保持现状排版</p>
+      </div>
+      <span class="kind">最小改动</span>
+    </header>
+    <div class="scheme-body">
+      <div>
+        <div class="mini" data-t="dark"><div class="demos" data-scheme="05"></div></div>
+        <div class="mini" data-t="light"><div class="demos" data-scheme="05"></div></div>
+      </div>
+      <ul class="notes">
+        <li class="good"><b>优点</b><span>只加一条脊和一个渐变，就能去掉「票根」的装饰性，保留全部现有排版。</span></li>
+        <li class="good"><b>优点</b><span>类型色在余光里可辨，切换 key 时不需要读类型文字。</span></li>
+        <li class="warn"><b>代价</b><span>三种元信息仍是单行以分隔符区分，信息层级没有变化。</span></li>
+      </ul>
+    </div>
+  </article>
+
+  <article class="scheme" id="s06">
+    <header class="scheme-head">
+      <span class="no">06</span>
+      <div>
+        <h2>文件夹页签</h2>
+        <p class="mech">名字坐在一枚凸起的页签上，元信息留在下方横轨</p>
+      </div>
+      <span class="kind">实体感</span>
+    </header>
+    <div class="scheme-body">
+      <div>
+        <div class="mini" data-t="dark"><div class="demos" data-scheme="06"></div></div>
+        <div class="mini" data-t="light"><div class="demos" data-scheme="06"></div></div>
+      </div>
+      <ul class="notes">
+        <li class="good"><b>优点</b><span>页签与下方值区形成「文件—内容」的空间关系，比票根更直白。</span></li>
+        <li class="good"><b>优点</b><span>页签宽度随名字收缩，长名字时仍用 ellipsis，不会被撑开。</span></li>
+        <li class="warn"><b>代价</b><span>顶部需要 8px 空隙容纳页签，整体高度略高；多标签场景会与底部页签语言重复。</span></li>
+      </ul>
+    </div>
+  </article>
+
+  <article class="scheme" id="s07">
+    <header class="scheme-head">
+      <span class="no">07</span>
+      <div>
+        <h2>悬浮玻璃</h2>
+        <p class="mech">内缩 8px 的圆角毛玻璃条 + <code>backdrop-filter: blur(10px)</code></p>
+      </div>
+      <span class="kind">氛围</span>
+    </header>
+    <div class="scheme-body">
+      <div>
+        <div class="mini" data-t="dark"><div class="demos" data-scheme="07"></div></div>
+        <div class="mini" data-t="light"><div class="demos" data-scheme="07"></div></div>
+      </div>
+      <ul class="notes">
+        <li class="good"><b>优点</b><span>信息条像浮在值区之上，层次感强，深色主题下质感尤其好。</span></li>
+        <li class="good"><b>优点</b><span>内缩后与值区左右留白同宽，视觉上更像一个独立浮层。</span></li>
+        <li class="warn"><b>代价</b><span>blur 对低端 GPU 有开销；亮色主题下玻璃感较弱，已单独降阴影补救。</span></li>
+      </ul>
+    </div>
+  </article>
+
+  <article class="scheme" id="s08">
+    <header class="scheme-head">
+      <span class="no">08</span>
+      <div>
+        <h2>倒计时焦点</h2>
+        <p class="mech">TTL 放大到 <code>20px</code> 独立右置，encoding / 大小降为两列小注</p>
+      </div>
+      <span class="kind pick">重点突出</span>
+    </header>
+    <div class="scheme-body">
+      <div>
+        <div class="mini" data-t="dark"><div class="demos" data-scheme="08"></div></div>
+        <div class="mini" data-t="light"><div class="demos" data-scheme="08"></div></div>
+      </div>
+      <ul class="notes">
+        <li class="good"><b>优点</b><span>TTL 是排查缓存问题时最常看的一项，放大后无需眯眼；永久 key 显示 ∞ 同样醒目。</span></li>
+        <li class="good"><b>优点</b><span>类型色点 + 小写类型名，低干扰地保留类型信息。</span></li>
+        <li class="warn"><b>代价</b><span>高亮 TTL 会让 encoding 显得次要，仍需保留小标签避免歧义。</span></li>
+      </ul>
+    </div>
+  </article>
+
+  <article class="scheme" id="s09">
+    <header class="scheme-head">
+      <span class="no">09</span>
+      <div>
+        <h2>TTL 环</h2>
+        <p class="mech">34px 环形进度（类型色弧 + 中心剩余时长），像一块小仪表</p>
+      </div>
+      <span class="kind">图形化</span>
+    </header>
+    <div class="scheme-body">
+      <div>
+        <div class="mini" data-t="dark"><div class="demos" data-scheme="09"></div></div>
+        <div class="mini" data-t="light"><div class="demos" data-scheme="09"></div></div>
+      </div>
+      <ul class="notes">
+        <li class="good"><b>优点</b><span>环形把「剩余比例」变成可感的图形；中心文字解决精确值。</span></li>
+        <li class="good"><b>优点</b><span>类型色弧同时承担类型识别，一元素两用。</span></li>
+        <li class="warn"><b>代价</b><span>需要知道 key 的 TTL 上限才能算比例（可用 24h / 7d 归一，语义要提前定）；永久 key 环为空。</span></li>
+      </ul>
+    </div>
+  </article>
+
+  <article class="scheme" id="s10">
+    <header class="scheme-head">
+      <span class="no">10</span>
+      <div>
+        <h2>索引卡</h2>
+        <p class="mech">横线纸底 + 左侧红色竖线，元信息像卡片上的三个字段</p>
+      </div>
+      <span class="kind">纸质</span>
+    </header>
+    <div class="scheme-body">
+      <div>
+        <div class="mini" data-t="dark"><div class="demos" data-scheme="10"></div></div>
+        <div class="mini" data-t="light"><div class="demos" data-scheme="10"></div></div>
+      </div>
+      <ul class="notes">
+        <li class="good"><b>优点</b><span>横线纸让两行内容有落点，长 key 名像写在卡片上；与值区的纯色面形成材质差。</span></li>
+        <li class="good"><b>优点</b><span>深色主题下横线极淡，不会变成"作文本"。</span></li>
+        <li class="warn"><b>代价</b><span>装饰性较强，与「简洁暗色工具」的整体气质有冲突风险；内缩后高度增加。</span></li>
+      </ul>
+    </div>
+  </article>
+
+  <article class="scheme" id="s11">
+    <header class="scheme-head">
+      <span class="no">11</span>
+      <div>
+        <h2>报头</h2>
+        <p class="mech">类型作 eyebrow 小字 + <code>18px</code> 名字 + 双线底，元信息贴右下</p>
+      </div>
+      <span class="kind">编辑感</span>
+    </header>
+    <div class="scheme-body">
+      <div>
+        <div class="mini" data-t="dark"><div class="demos" data-scheme="11"></div></div>
+        <div class="mini" data-t="light"><div class="demos" data-scheme="11"></div></div>
+      </div>
+      <ul class="notes">
+        <li class="good"><b>优点</b><span>「报头」天然强调标题层级，名字变大后长 key 的可读性反而提升（截断更直观）。</span></li>
+        <li class="good"><b>优点</b><span>双线底与值区内容形成明显的版面分界。</span></li>
+        <li class="warn"><b>代价</b><span>名字变大导致可见字符变少；右下角元信息与右上 ⋮ 容易挤，需要留出按钮位。</span></li>
+      </ul>
+    </div>
+  </article>
+
+  <article class="scheme" id="s12">
+    <header class="scheme-head">
+      <span class="no">12</span>
+      <div>
+        <h2>头像头部</h2>
+        <p class="mech">32px 圆形类型字母 + 两行布局（名字 / 点分元信息）</p>
+      </div>
+      <span class="kind">亲和</span>
+    </header>
+    <div class="scheme-body">
+      <div>
+        <div class="mini" data-t="dark"><div class="demos" data-scheme="12"></div></div>
+        <div class="mini" data-t="light"><div class="demos" data-scheme="12"></div></div>
+      </div>
+      <ul class="notes">
+        <li class="good"><b>优点</b><span>两行结构把三项元信息压成一行点分小字，宽度占用最小，适合窄侧栏。</span></li>
+        <li class="good"><b>优点</b><span>圆形类型字母与连接列表的引擎图形语言呼应。</span></li>
+        <li class="warn"><b>代价</b><span>去掉 label 后需要用户记住数值顺序（TTL / 编码 / 大小）；字母缩写需与类型一致。</span></li>
+      </ul>
+    </div>
+  </article>
+
+  <article class="scheme" id="s13">
+    <header class="scheme-head">
+      <span class="no">13</span>
+      <div>
+        <h2>代码注解</h2>
+        <p class="mech"><code>key: name @ttl(3600s) @enc(raw) @size(2.4KB)</code>，左缘类型色竖条</p>
+      </div>
+      <span class="kind">极客</span>
+    </header>
+    <div class="scheme-body">
+      <div>
+        <div class="mini" data-t="dark"><div class="demos" data-scheme="13"></div></div>
+        <div class="mini" data-t="light"><div class="demos" data-scheme="13"></div></div>
+      </div>
+      <ul class="notes">
+        <li class="good"><b>优点</b><span>注解语法与「代码工具」语境一致，TTL 等值按类型色着色，扫读快。</span></li>
+        <li class="good"><b>优点</b><span>全等宽排版让长 key 与值区正文共享节奏，切换不跳。</span></li>
+        <li class="warn"><b>代价</b><span>注解括号增加了字符噪音；非技术用户可能读成命令而不是元信息。</span></li>
+      </ul>
+    </div>
+  </article>
+
+  <article class="scheme" id="s14">
+    <header class="scheme-head">
+      <span class="no">14</span>
+      <div>
+        <h2>印章</h2>
+        <p class="mech">右侧 42px 旋转 -9° 的双环印章，以类型首字母落款</p>
+      </div>
+      <span class="kind">个性</span>
+    </header>
+    <div class="scheme-body">
+      <div>
+        <div class="mini" data-t="dark"><div class="demos" data-scheme="14"></div></div>
+        <div class="mini" data-t="light"><div class="demos" data-scheme="14"></div></div>
+      </div>
+      <ul class="notes">
+        <li class="good"><b>优点</b><span>印章足够克制又有个性，类型色 + 双环让它在两种主题下都成立。</span></li>
+        <li class="good"><b>优点</b><span>与现有票根隐喻同源但形式不同（落款 vs 票根），过渡自然。</span></li>
+        <li class="warn"><b>代价</b><span>旋转元素需要给 ⋮ 让位（右侧多留 52px）；单个字母信息量低，仍需其他位置给类型文字。</span></li>
+      </ul>
+    </div>
+  </article>
+
+  <article class="scheme" id="s15">
+    <header class="scheme-head">
+      <span class="no">15</span>
+      <div>
+        <h2>键帽</h2>
+        <p class="mech">key 名装进 3D 键帽（底边 2px 实影），类型为小色标</p>
+      </div>
+      <span class="kind">实体</span>
+    </header>
+    <div class="scheme-body">
+      <div>
+        <div class="mini" data-t="dark"><div class="demos" data-scheme="15"></div></div>
+        <div class="mini" data-t="light"><div class="demos" data-scheme="15"></div></div>
+      </div>
+      <ul class="notes">
+        <li class="good"><b>优点</b><span>「key」的双关被具象化成键帽，产品记忆点强。</span></li>
+        <li class="good"><b>优点</b><span>键帽天然限宽，长名字截断看起来是设定而不是缺陷。</span></li>
+        <li class="warn"><b>代价</b><span>键帽边框+底影与项目「轻边框」风格有偏差；名字越长键帽越宽，极端情况会挤占元信息。</span></li>
+      </ul>
+    </div>
+  </article>
+
+  <article class="scheme" id="s16">
+    <header class="scheme-head">
+      <span class="no">16</span>
+      <div>
+        <h2>台账</h2>
+        <p class="mech">三列 <code>label ····· value</code> 点线引导，像账本的字段行</p>
+      </div>
+      <span class="kind pick">窄栏友好</span>
+    </header>
+    <div class="scheme-body">
+      <div>
+        <div class="mini" data-t="dark"><div class="demos" data-scheme="16"></div></div>
+        <div class="mini" data-t="light"><div class="demos" data-scheme="16"></div></div>
+      </div>
+      <ul class="notes">
+        <li class="good"><b>优点</b><span>点线把 label 与 value 绑定，三列在窄栏下依然可读；等宽数字对齐。</span></li>
+        <li class="good"><b>优点</b><span>无额外装饰色，主题切换零负担。</span></li>
+        <li class="warn"><b>代价</b><span>点线在缩放 125% 下可能显脏，需要按 <code>1px dotted</code> 固定；比芯片方案更"表格化"。</span></li>
+      </ul>
+    </div>
+  </article>
+
+  <article class="scheme" id="s17">
+    <header class="scheme-head">
+      <span class="no">17</span>
+      <div>
+        <h2>类型渐变</h2>
+        <p class="mech">左起 13% 类型色渐变铺底 + 2px 渐变下划线</p>
+      </div>
+      <span class="kind">氛围</span>
+    </header>
+    <div class="scheme-body">
+      <div>
+        <div class="mini" data-t="dark"><div class="demos" data-scheme="17"></div></div>
+        <div class="mini" data-t="light"><div class="demos" data-scheme="17"></div></div>
+      </div>
+      <ul class="notes">
+        <li class="good"><b>优点</b><span>不增加任何结构，只借渐变表达类型；与值区之间有一条彩色分界。</span></li>
+        <li class="good"><b>优点</b><span>类型色同时点亮 size 值，视觉上「类型 → 大小」形成呼应。</span></li>
+        <li class="warn"><b>代价</b><span>渐变对深色主题友好，亮色主题需压到 10% 以下，否则显脏。</span></li>
+      </ul>
+    </div>
+  </article>
+
+  <article class="scheme" id="s18">
+    <header class="scheme-head">
+      <span class="no">18</span>
+      <div>
+        <h2>刻度尺</h2>
+        <p class="mech">名字行下方 6px 刻度带，类型色填充段表示大小占比</p>
+      </div>
+      <span class="kind">图形化</span>
+    </header>
+    <div class="scheme-body">
+      <div>
+        <div class="mini" data-t="dark"><div class="demos" data-scheme="18"></div></div>
+        <div class="mini" data-t="light"><div class="demos" data-scheme="18"></div></div>
+      </div>
+      <ul class="notes">
+        <li class="good"><b>优点</b><span>让「大小」从数字变成比例，评估大 key 时一眼有数。</span></li>
+        <li class="good"><b>优点</b><span>刻度线轻，不抢 key 名。</span></li>
+        <li class="warn"><b>代价</b><span>需要定义「满分」基准（如 10 万字符），语义要写清楚；否则容易误读。</span></li>
+      </ul>
+    </div>
+  </article>
+
+  <article class="scheme" id="s19">
+    <header class="scheme-head">
+      <span class="no">19</span>
+      <div>
+        <h2>极简细线</h2>
+        <p class="mech"><code>string/ key · 3600s · raw · 2.4KB</code>，仅保留一条底线</p>
+      </div>
+      <span class="kind pick">最安静</span>
+    </header>
+    <div class="scheme-body">
+      <div>
+        <div class="mini" data-t="dark"><div class="demos" data-scheme="19"></div></div>
+        <div class="mini" data-t="light"><div class="demos" data-scheme="19"></div></div>
+      </div>
+      <ul class="notes">
+        <li class="good"><b>优点</b><span>信息全部压成一行，头高最低，把纵向空间还给值区。</span></li>
+        <li class="good"><b>优点</b><span>与值的代码正文共享等宽节奏，像编辑器面包屑。</span></li>
+        <li class="warn"><b>代价</b><span>去掉 label 后需约定值顺序；类型/元信息全是低对比灰，弱视用户不友好。</span></li>
+      </ul>
+    </div>
+  </article>
+
+  <article class="scheme" id="s20">
+    <header class="scheme-head">
+      <span class="no">20</span>
+      <div>
+        <h2>霓虹顶边</h2>
+        <p class="mech">顶缘 2px 类型色发光边 + 同色 12% 底，其余保持现状排版</p>
+      </div>
+      <span class="kind">氛围张力</span>
+    </header>
+    <div class="scheme-body">
+      <div>
+        <div class="mini" data-t="dark"><div class="demos" data-scheme="20"></div></div>
+        <div class="mini" data-t="light"><div class="demos" data-scheme="20"></div></div>
+      </div>
+      <ul class="notes">
+        <li class="good"><b>优点</b><span>一条发光边就能区分类型与「当前值区」，不占用布局空间。</span></li>
+        <li class="good"><b>优点</b><span>名字带极淡光晕，和深色主题的「深海 / 森林」皮肤很搭。</span></li>
+        <li class="warn"><b>代价</b><span>发光强度稍高就有霓虹感；亮色主题需要独降光晕（已单独处理）。</span></li>
+      </ul>
+    </div>
+  </article>
+
+  <section class="compare">
+    <h2>横向对比</h2>
+    <p>按信息密度与气质归类，便于快速缩小范围。</p>
+    <table>
+      <thead><tr><th>#</th><th>方案</th><th>形态</th><th>信息密度</th><th>适合场景</th><th>风险</th></tr></thead>
+      <tbody>
+        <tr><td>01</td><td>终端命令行</td><td>单行等宽</td><td>中</td><td>极客用户 / 控制台气质</td><td>flag 语法门槛</td></tr>
+        <tr><td>02</td><td>状态栏色块</td><td>满宽分段</td><td>中高</td><td>最大化纵向空间</td><td>亮色主题配色</td></tr>
+        <tr><td>03</td><td>规格表</td><td>两行三列</td><td>高</td><td>频繁查 TTL / 编码</td><td>高度增加</td></tr>
+        <tr><td>04</td><td>芯片流</td><td>胶囊行</td><td>中</td><td>与现有 UI 语言最一致</td><td>宽度占用</td></tr>
+        <tr><td>05</td><td>类型色脊</td><td>左脊 + 渐变</td><td>中</td><td>最小改动落地</td><td>层级不变</td></tr>
+        <tr><td>06</td><td>文件夹页签</td><td>凸起页签</td><td>中</td><td>强调「文件—内容」</td><td>与底部页签重复</td></tr>
+        <tr><td>07</td><td>悬浮玻璃</td><td>毛玻璃浮条</td><td>中</td><td>氛围 / 高级感</td><td>GPU 开销</td></tr>
+        <tr><td>08</td><td>倒计时焦点</td><td>大 TTL</td><td>中高</td><td>缓存排障</td><td>编码被弱化</td></tr>
+        <tr><td>09</td><td>TTL 环</td><td>环形仪表</td><td>中</td><td>图形化剩余比例</td><td>需定归一上限</td></tr>
+        <tr><td>10</td><td>索引卡</td><td>纸质横线</td><td>中</td><td>个性 / 记忆点</td><td>与整体气质冲突</td></tr>
+        <tr><td>11</td><td>报头</td><td>大标题 + 双线</td><td>中</td><td>强调 key 身份</td><td>可见字符变少</td></tr>
+        <tr><td>12</td><td>头像头部</td><td>圆形字母 + 两行</td><td>中高</td><td>窄侧栏</td><td>无 label</td></tr>
+        <tr><td>13</td><td>代码注解</td><td>装饰器语法</td><td>中</td><td>代码工具气质</td><td>符号噪音</td></tr>
+        <tr><td>14</td><td>印章</td><td>旋转落款</td><td>中</td><td>个性 / 与票根同源</td><td>需给 ⋮ 让位</td></tr>
+        <tr><td>15</td><td>键帽</td><td>3D 键帽</td><td>中</td><td>强记忆点</td><td>与轻边框风格偏差</td></tr>
+        <tr><td>16</td><td>台账</td><td>点线引导</td><td>高</td><td>窄栏 + 高可读</td><td>表格感</td></tr>
+        <tr><td>17</td><td>类型渐变</td><td>渐变底 + 线</td><td>中</td><td>氛围 / 零结构</td><td>亮色需压强度</td></tr>
+        <tr><td>18</td><td>刻度尺</td><td>比例刻度</td><td>中</td><td>评估大 key</td><td>基准语义</td></tr>
+        <tr><td>19</td><td>极简细线</td><td>单行面包屑</td><td>中</td><td>最省空间</td><td>低对比可用性</td></tr>
+        <tr><td>20</td><td>霓虹顶边</td><td>发光边</td><td>中</td><td>深色皮肤契合</td><td>发光强度难调</td></tr>
+      </tbody>
+    </table>
+  </section>
+</div>
+
+<script>
+  const DEMOS = [
+    {
+      type: 'string', glyph: 'S', letter: 'S',
+      name: 'user:session:8f3a2c19',
+      ttl: '3600s', ring: '60 31', ringTxt: '1h',
+      enc: 'raw', size: '2.4KB',
+    },
+    {
+      type: 'hash', glyph: 'H', letter: 'H',
+      name: 'HALLOWEEN:ANCHOR_TASKS',
+      ttl: '∞', ring: '0 92', ringTxt: '∞',
+      enc: 'listpack', size: '12',
+    },
+  ]
+
+  function header(d) {
+    return `
+      <header class="khead type-${d.type}" data-letter="${d.letter}">
+        <span class="kh-ring" aria-hidden="true">
+          <svg viewBox="0 0 36 36">
+            <circle class="ring-bg" cx="18" cy="18" r="14.5"></circle>
+            <circle class="ring-fg" cx="18" cy="18" r="14.5" stroke-dasharray="${d.ring}"></circle>
+          </svg>
+          <em class="ring-txt">${d.ringTxt}</em>
+        </span>
+        <span class="kh-type" data-glyph="${d.glyph}">${d.type}</span>
+        <div class="kh-id"><span class="kh-name" title="${d.name}">${d.name}</span></div>
+        <div class="kh-meta">
+          <span class="kh-item" data-k="ttl"><i>TTL</i><b>${d.ttl}</b></span>
+          <span class="kh-item" data-k="enc"><i>encoding</i><b>${d.enc}</b></span>
+          <span class="kh-item" data-k="size"><i>size</i><b>${d.size}</b></span>
+        </div>
+        <button class="kh-more" aria-label="更多操作">⋮</button>
+      </header>
+      <div class="faux" aria-hidden="true">
+        <div class="fl"></div><div class="fl short"></div><div class="fl mid"></div><div class="fl tiny"></div>
+      </div>`
+  }
+
+  document.querySelectorAll('.demos').forEach((el) => {
+    el.innerHTML = DEMOS.map((d) => `<div class="demo">${header(d)}</div>`).join('')
+  })
+</script>
+</body>
+</html>
