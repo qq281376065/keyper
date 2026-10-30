@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useI18n } from '@/i18n'
 import { settingsHolder, useSettings, UI_FONTS, MONO_FONTS } from '@/services/settings'
 import { setThemeMode, useTheme, type ThemeMode } from '@/services/theme'
 import { useRedis } from '@/store/useRedis'
@@ -48,6 +49,7 @@ const SKINS: Array<{ value: ThemeMode; label: string }> = [
 
 /** 全局设置弹窗：外观 / 数据浏览 / 操作日志三组 */
 export function SettingsDialog({ onClose }: { onClose: () => void }) {
+  const { t } = useI18n()
   const { settings, save } = useSettings()
   const { mode } = useTheme()
   const { notify } = useRedis()
@@ -62,10 +64,10 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const [configReason, setConfigReason] = useState<string | null>(null)
 
   const configNote = !configDir
-    ? '读取中…'
+    ? t('读取中…')
     : configPortable
-      ? '便携模式：配置与日志都在程序目录旁的 config/ 下'
-      : `已回退到系统目录：${configReason ?? '程序目录不可写'}`
+      ? t('便携模式：配置与日志都在程序目录旁的 config/ 下')
+      : t('已回退到系统目录：{reason}', { reason: configReason ?? t('程序目录不可写') })
 
   useEffect(() => {
     void (async () => {
@@ -85,7 +87,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
 
   async function openLogDir(): Promise<void> {
     const res = await api.log.openDir()
-    if (res.ok) notify('ok', res.data.message ?? '已打开日志目录')
+    if (res.ok) notify('ok', res.data.message ?? t('已打开日志目录'))
     else notify('err', res.error)
   }
 
@@ -101,14 +103,14 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
       logRetentionDays: 30,
     })
     setThemeMode('system')
-    notify('ok', '已恢复默认设置')
+    notify('ok', t('已恢复默认设置'))
   }
 
   return (
     <DialogShell
       icon="settings"
-      title="全局设置"
-      description="外观、浏览与日志三项偏好，改动立即生效"
+      title={t('全局设置')}
+      description={t('外观、浏览与日志三项偏好，改动立即生效')}
       className="settings-dialog"
       closeOnOverlay
       onClose={onClose}
@@ -116,22 +118,22 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
         <>
           <Button type="button" variant="outline" className="foot-btn" onClick={() => void resetAll()}>
             <DialogIcon name="reset" size={13} />
-            恢复默认
+            {t('恢复默认')}
           </Button>
           <span className="spacer" />
           <Button type="button" className="foot-btn foot-primary" onClick={onClose}>
             <DialogIcon name="check" size={13} />
-            完成
+            {t('完成')}
           </Button>
         </>
       }
     >
       {/* ---------------------------------------------------- 外观 */}
       <section className="dlg-section">
-        <h3 className="dlg-section-title">外观</h3>
+        <h3 className="dlg-section-title">{t('外观')}</h3>
 
         <div className="set-row">
-          <span className="set-label">主题</span>
+          <span className="set-label">{t('主题')}</span>
           <div className="set-control">
             <div className="segmented">
               {THEMES.map((item) => (
@@ -141,7 +143,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
                   className={mode === item.value ? 'on' : ''}
                   onClick={() => setThemeMode(item.value)}
                 >
-                  {item.label}
+                  {t(item.label)}
                 </button>
               ))}
             </div>
@@ -149,7 +151,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="set-row">
-          <span className="set-label">配色皮肤</span>
+          <span className="set-label">{t('配色皮肤')}</span>
           <div className="set-control">
             <div className="segmented">
               {SKINS.map((item) => (
@@ -159,16 +161,16 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
                   className={mode === item.value ? 'on' : ''}
                   onClick={() => setThemeMode(item.value)}
                 >
-                  {item.label}
+                  {t(item.label)}
                 </button>
               ))}
             </div>
-            <span className="set-hint">皮肤自带明暗档</span>
+            <span className="set-hint">{t('皮肤自带明暗档')}</span>
           </div>
         </div>
 
         <div className="set-row">
-          <span className="set-label">界面字号</span>
+          <span className="set-label">{t('界面字号')}</span>
           <div className="set-control">
             <div className="segmented">
               {FONT_SIZES.map((size) => (
@@ -182,23 +184,23 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
                 </button>
               ))}
             </div>
-            <span className="set-hint">基准字号，其余字号自动推导</span>
+            <span className="set-hint">{t('基准字号，其余字号自动推导')}</span>
           </div>
         </div>
 
         <div className="set-row">
           <label className="set-label" htmlFor="ui-font">
-            界面字体
+            {t('界面字体')}
           </label>
           <div className="set-control">
             <Select value={settings.uiFont} onValueChange={(next) => void update({ uiFont: next })}>
               <SelectTrigger id="ui-font" className="dlg-select set-select">
-                <SelectValue placeholder="选择字体" />
+                <SelectValue placeholder={t('选择字体')} />
               </SelectTrigger>
               <SelectContent className="dlg-select-menu">
                 {UI_FONTS.map((item) => (
                   <SelectItem key={item.value} value={item.value}>
-                    {item.label}
+                    {t(item.label)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -208,7 +210,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
 
         <div className="set-row">
           <label className="set-label" htmlFor="mono-font">
-            代码字体
+            {t('代码字体')}
           </label>
           <div className="set-control">
             <Select
@@ -216,12 +218,12 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
               onValueChange={(next) => void update({ monoFont: next })}
             >
               <SelectTrigger id="mono-font" className="dlg-select set-select">
-                <SelectValue placeholder="选择字体" />
+                <SelectValue placeholder={t('选择字体')} />
               </SelectTrigger>
               <SelectContent className="dlg-select-menu">
                 {MONO_FONTS.map((item) => (
                   <SelectItem key={item.value} value={item.value}>
-                    {item.label}
+                    {t(item.label)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -231,7 +233,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="set-row">
-          <span className="set-label">界面密度</span>
+          <span className="set-label">{t('界面密度')}</span>
           <div className="set-control">
             <div className="segmented">
               <button
@@ -239,14 +241,14 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
                 className={settings.density === 'compact' ? 'on' : ''}
                 onClick={() => void update({ density: 'compact' })}
               >
-                紧凑
+                {t('紧凑')}
               </button>
               <button
                 type="button"
                 className={settings.density === 'cozy' ? 'on' : ''}
                 onClick={() => void update({ density: 'cozy' })}
               >
-                舒适
+                {t('舒适')}
               </button>
             </div>
           </div>
@@ -255,10 +257,10 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
 
       {/* ---------------------------------------------------- 数据浏览 */}
       <section className="dlg-section">
-        <h3 className="dlg-section-title">数据浏览</h3>
+        <h3 className="dlg-section-title">{t('数据浏览')}</h3>
 
         <div className="set-row">
-          <span className="set-label">每页加载键数</span>
+          <span className="set-label">{t('每页加载键数')}</span>
           <div className="set-control">
             <div className="segmented">
               {PAGE_SIZES.map((size) => (
@@ -272,12 +274,12 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
                 </button>
               ))}
             </div>
-            <span className="set-hint">单次 SCAN 的 COUNT</span>
+            <span className="set-hint">{t('单次 SCAN 的 COUNT')}</span>
           </div>
         </div>
 
         <div className="set-row">
-          <span className="set-label">键名分隔符</span>
+          <span className="set-label">{t('键名分隔符')}</span>
           <div className="set-control">
             <div className="segmented sep-segmented">
               {SEPARATORS.map((sep) => (
@@ -291,12 +293,12 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
                 </button>
               ))}
             </div>
-            <span className="set-hint">树形视图的默认分层符号</span>
+            <span className="set-hint">{t('树形视图的默认分层符号')}</span>
           </div>
         </div>
 
         <div className="set-row">
-          <span className="set-label">删除键前确认</span>
+          <span className="set-label">{t('删除键前确认')}</span>
           <div className="set-control">
             <div className="segmented">
               <button
@@ -304,27 +306,27 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
                 className={settings.confirmDelete ? 'on' : ''}
                 onClick={() => void update({ confirmDelete: true })}
               >
-                开启
+                {t('开启')}
               </button>
               <button
                 type="button"
                 className={!settings.confirmDelete ? 'on' : ''}
                 onClick={() => void update({ confirmDelete: false })}
               >
-                关闭
+                {t('关闭')}
               </button>
             </div>
-            <span className="set-hint">关闭后删除立即生效，不可撤销</span>
+            <span className="set-hint">{t('关闭后删除立即生效，不可撤销')}</span>
           </div>
         </div>
       </section>
 
       {/* ---------------------------------------------------- 操作日志 */}
       <section className="dlg-section">
-        <h3 className="dlg-section-title">操作日志</h3>
+        <h3 className="dlg-section-title">{t('操作日志')}</h3>
 
         <div className="set-row">
-          <span className="set-label">保留天数</span>
+          <span className="set-label">{t('保留天数')}</span>
           <div className="set-control">
             <div className="segmented">
               {RETENTIONS.map((days) => (
@@ -334,11 +336,11 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
                   className={settings.logRetentionDays === days ? 'on' : ''}
                   onClick={() => void update({ logRetentionDays: days })}
                 >
-                  {days} 天
+                  {t('{days} 天', { days })}
                 </button>
               ))}
             </div>
-            <span className="set-hint">超期文件在启动或写入时自动清理</span>
+            <span className="set-hint">{t('超期文件在启动或写入时自动清理')}</span>
           </div>
         </div>
 
@@ -347,7 +349,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
           路径是长字符串且含本地用户名，必须能省略 —— 撑破布局比显示不全更糟。
         */}
         <div className="set-row is-block">
-          <span className="set-label">配置文件</span>
+          <span className="set-label">{t('配置文件')}</span>
           <div className="set-control is-block">
             <div className="path-box">
               <span className="path mono" title={configDir}>
@@ -360,7 +362,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
                 onClick={() => void openLogDir()}
               >
                 <DialogIcon name="folder-open" size={12} />
-                打开目录
+                {t('打开目录')}
               </Button>
             </div>
             {/*
@@ -372,7 +374,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="set-row is-block">
-          <span className="set-label">日志目录</span>
+          <span className="set-label">{t('日志目录')}</span>
           <div className="set-control is-block">
             <div className="path-box">
               <span className="path mono" title={logPath}>
@@ -385,15 +387,16 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
                 onClick={() => void openLogDir()}
               >
                 <DialogIcon name="folder-open" size={12} />
-                打开目录
+                {t('打开目录')}
               </Button>
             </div>
           </div>
         </div>
 
         <p className="set-note">
-          仅记录手动操作（命令、键的增删改、连接与配置变更）。文件名格式{' '}
-          <code className="mono">yyyymmdd.log</code>，单行一条便于 grep。
+          {t('仅记录手动操作（命令、键的增删改、连接与配置变更）。文件名格式')}{' '}
+          <code className="mono">yyyymmdd.log</code>
+          {t('，单行一条便于 grep。')}
         </p>
       </section>
     </DialogShell>

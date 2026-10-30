@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '@/api'
 import { DialogIcon } from '@/components/DialogIcon'
 import { tipProps } from '@/components/tip'
+import { useI18n } from '@/i18n'
 import { useRedis } from '@/store/useRedis'
 import { useObservable } from '@/store/subscription'
 import { useSessionStore } from '@/hooks/useSessionStore'
@@ -20,6 +21,7 @@ const PAGE_SIZE = 20
  * 本身就是继续分析的表达，再点一次按钮是多余动作。
  */
 export function MemoryCard() {
+  const { t } = useI18n()
   const { state, activeConnection } = useRedis()
   useObservable(useSessionStore())
 
@@ -43,7 +45,7 @@ export function MemoryCard() {
       /* 新结果从第一页看起（切粒度自动重算同样走这里） */
       setVisibleCount(PAGE_SIZE)
     } catch (err) {
-      setError(err instanceof Error ? err.message : '键内存分析失败')
+      setError(err instanceof Error ? err.message : t('键内存分析失败'))
     } finally {
       setLoading(false)
     }
@@ -96,7 +98,7 @@ export function MemoryCard() {
       <header className="mem-head">
         <h3 className="mem-title">
           <DialogIcon name="memory" size={14} className="mem-icon" />
-          <span>键内存分析</span>
+          <span>{t('键内存分析')}</span>
         </h3>
         {/* 前缀粒度：并列选项组，选中态高亮（分段选择器，按约定不加图标） */}
         {connected ? (
@@ -105,10 +107,10 @@ export function MemoryCard() {
               <button
                 key={n}
                 className={`mem-depth-btn${depth === n ? ' on' : ''}`}
-                {...tipProps(`按键名前 ${n} 段聚合`)}
+                {...tipProps(t('按键名前 {count} 段聚合', { count: n }))}
                 onClick={() => setDepth(n)}
               >
-                {n} 段
+                {t('{count} 段', { count: n })}
               </button>
             ))}
           </div>
@@ -116,13 +118,13 @@ export function MemoryCard() {
         {connected ? (
           <button className="mem-run" disabled={loading} onClick={() => void runAnalysis()}>
             <DialogIcon name="memory" size={12} className="ti" />
-            {loading ? '分析中…' : analysis ? '重新分析' : '开始分析'}
+            {loading ? t('分析中…') : analysis ? t('重新分析') : t('开始分析')}
           </button>
         ) : null}
       </header>
 
       <p className="mem-hint">
-        按前缀聚合各键组的内存占用（MEMORY USAGE，集合类为采样近似值）；逐键探测较重，扫描上限 10000 个键，结果保留内存前 200 的前缀
+        {t('按前缀聚合各键组的内存占用（MEMORY USAGE，集合类为采样近似值）；逐键探测较重，扫描上限 10000 个键，结果保留内存前 200 的前缀')}
       </p>
 
       {error ? (
@@ -130,18 +132,18 @@ export function MemoryCard() {
       ) : analysis ? (
         <>
           {analysis.truncated ? (
-            <p className="mem-trunc">键数超过扫描上限，仅统计前 {analysis.scanned} 个键 —— 结果为近似分布</p>
+            <p className="mem-trunc">{t('键数超过扫描上限，仅统计前 {count} 个键 —— 结果为近似分布', { count: analysis.scanned })}</p>
           ) : null}
-          {analysis.bucketsTruncated ? <p className="mem-trunc">前缀超过 200 个，仅保留内存占用前 200 的前缀</p> : null}
+          {analysis.bucketsTruncated ? <p className="mem-trunc">{t('前缀超过 200 个，仅保留内存占用前 200 的前缀')}</p> : null}
 
           {analysis.buckets.length ? (
             <table className="mem-table">
               <thead>
                 <tr>
-                  <th className="col-prefix">前缀</th>
-                  <th className="col-keys">键数</th>
-                  <th className="col-bytes">内存</th>
-                  <th className="col-pct">占比</th>
+                  <th className="col-prefix">{t('前缀')}</th>
+                  <th className="col-keys">{t('键数')}</th>
+                  <th className="col-bytes">{t('内存')}</th>
+                  <th className="col-pct">{t('占比')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -163,28 +165,32 @@ export function MemoryCard() {
               </tbody>
             </table>
           ) : (
-            <div className="mem-empty">当前库没有键</div>
+            <div className="mem-empty">{t('当前库没有键')}</div>
           )}
 
           {remaining > 0 ? (
             <button
               className="mem-more"
-              {...tipProps(`再显示 ${Math.min(PAGE_SIZE, remaining)} 行`)}
+              {...tipProps(t('再显示 {count} 行', { count: Math.min(PAGE_SIZE, remaining) }))}
               onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
             >
               <DialogIcon name="arrow-down" size={12} className="ti" />
-              加载更多（还有 {remaining} 个前缀）
+              {t('加载更多（还有 {count} 个前缀）', { count: remaining })}
             </button>
           ) : null}
 
           {analysis.buckets.length ? (
             <p className="mem-summary mono">
-              共 {analysis.buckets.length} 个前缀 · {analysis.scanned} 个键 · 总内存 {formatBytes(analysis.totalBytes)}
+              {t('共 {prefixes} 个前缀 · {keys} 个键 · 总内存 {bytes}', {
+                prefixes: analysis.buckets.length,
+                keys: analysis.scanned,
+                bytes: formatBytes(analysis.totalBytes),
+              })}
             </p>
           ) : null}
         </>
       ) : (
-        <div className="mem-empty">{loading ? '正在分析…' : '点击「开始分析」统计当前库的内存分布'}</div>
+        <div className="mem-empty">{loading ? t('正在分析…') : t('点击「开始分析」统计当前库的内存分布')}</div>
       )}
     </section>
   )

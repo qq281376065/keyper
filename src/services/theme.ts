@@ -47,11 +47,14 @@ const systemHolder = defineStore<{ value: ResolvedTheme }>({
   value: media.matches ? 'dark' : 'light',
 })
 
+const THEME_MODES = new Set<string>(['system', 'light', 'dark', ...Object.keys(SKIN_SCHEME)])
+
 /**
  * 首次升级迁移：把 localStorage 里的旧值搬到 settings。
  *
  * 只在 settings 仍是默认值（system）而 localStorage 有明确偏好时生效，
- * 避免覆盖用户在设置界面里已经选好的值。
+ * 避免覆盖用户在设置界面里已经选好的值。皮肤也是主题（如 aurora），
+ * 必须一并迁移 —— 过去只认 light/dark，皮肤偏好会在设置文件缺失时丢失。
  */
 export function migrateThemeFromStorage(): void {
   if (settings.theme !== 'system') return
@@ -68,7 +71,7 @@ export function migrateThemeFromStorage(): void {
       localStorage.setItem(THEME_STORAGE_KEY, legacy)
       localStorage.removeItem(LEGACY_THEME_STORAGE_KEY)
     }
-    if (value === 'light' || value === 'dark') settings.theme = value
+    if (value && THEME_MODES.has(value)) settings.theme = value as ThemeMode
   } catch {
     /* 隐私模式等场景下读取失败，按默认处理 */
   }

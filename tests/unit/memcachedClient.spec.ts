@@ -11,7 +11,12 @@ import { MemcachedPool } from '../../electron/services/engines/memcached/pool'
 
 const require = createRequire(import.meta.url)
 const { createServer } = require('../fixtures/memcached-server.cjs') as {
-  createServer: (options?: { disableCachedump?: boolean }) => {
+  createServer: (options?: {
+    disableCachedump?: boolean
+    disableMeta?: boolean
+    disableMetadump?: boolean
+    hideFromCachedump?: string[]
+  }) => {
     listen: (port?: number) => Promise<number>
     close: () => Promise<void>
     store: Map<string, { flags: number; data: Buffer; expiresAt: number }>
@@ -144,6 +149,41 @@ describe('memcached 客户端 · 统计与键浏览', () => {
     const client = new MemcachedClient({ host: '127.0.0.1', port: p })
     await client.connect()
     await expect(client.cachedump(1, 10)).rejects.toBeInstanceOf(MemcachedError)
+    client.disconnect()
+    await disabled.close()
+  })
+
+  it('metadump 覆盖 cachedump 看不到的分段，并还原 URL 编码', async () => {
+    /*
+     * 回归：分段 LRU 下 cachedump 只遍历 COLD 段，
+     * 刚写入的 group:yufei:2030 留在 HOT/WARM 段，键栏因此"少键"。
+     * metadump 必须把它读回来，且 %3A 要还原成冒号。
+     */
+    const segmented = createServer({ hideFromCachedump: ['group:yufei:2030'] })
+    const p = await segmented.listen()
+    const client = new MemcachedClient({ host: '127.0.0.1', port: p })
+    await client.connect()
+    await client.store('set', 'group:yufei:2030', Buffer.from('v'), { exptime: 600 })
+
+    const dumped = await client.cachedump(1, 100)
+    expect(dumped.map((item) => item.key)).not.toContain('group:yufei:2030')
+
+    const all = await client.metadump()
+    const found = all.find((item) => item.key === 'group:yufei:2030')
+    expect(found).toBeDefined()
+    expect(found?.bytes).toBe(1)
+    expect(found?.expiresAt).toBeGreaterThan(Date.now() / 1000 - 5)
+
+    client.disconnect()
+    await segmented.close()
+  })
+
+  it('metadump 被服务端禁用时抛出可读错误（供上层回退）', async () => {
+    const disabled = createServer({ disableMetadump: true })
+    const p = await disabled.listen()
+    const client = new MemcachedClient({ host: '127.0.0.1', port: p })
+    await client.connect()
+    await expect(client.metadump()).rejects.toMatchObject({ code: 'SERVER_ERROR' })
     client.disconnect()
     await disabled.close()
   })

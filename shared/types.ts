@@ -440,6 +440,8 @@ export type ApiResponse<T> =
 export interface AppSettings {
   /** 界面基准字号（px），其余字号由它推导 */
   fontSize: number
+  /** 界面语言 */
+  locale: 'zh-CN' | 'zh-TW' | 'en'
   /** 界面字体标识（见渲染层的字体映射表） */
   uiFont: string
   /** 代码字体标识 */
@@ -613,20 +615,34 @@ export interface MemcachedSlab {
   evicted: number
 }
 
-/** cachedump 的结果集 */
+/** 键枚举来源：metadump 覆盖全部分段；cachedump 仅 COLD 分段（旧服务端回退） */
+export type MemcachedKeySource = 'metadump' | 'cachedump'
+
+/** 一个缓存项的元信息 */
+export interface MemcachedKeyItem {
+  key: string
+  /** 值的字节数 */
+  bytes: number
+  /** 过期时间戳（秒）；0 表示永不过期 */
+  expiresAt: number
+  /** 所属 slab class */
+  slab: number
+}
+
+/** 键列表的一页（主进程按全局「每页加载键数」切片） */
 export interface MemcachedKeyList {
-  items: Array<{
-    key: string
-    /** 值的字节数 */
-    bytes: number
-    /** 过期时间戳（秒）；0 表示永不过期 */
-    expiresAt: number
-    /** 所属 slab class */
-    slab: number
-  }>
-  /** 是否因取样上限而可能不完整 */
+  items: MemcachedKeyItem[]
+  /** 当前快照中的键总数（翻页期间保持不变） */
+  total: number
+  /** 是否还有下一页 */
+  hasMore: boolean
+  /** 下一页的 offset；hasMore 为 false 时为 0 */
+  nextOffset: number
+  /** 数据来源：metadump 全量；cachedump 仅 COLD 分段 */
+  source: MemcachedKeySource
+  /** 结果是否可能不完整（cachedump 回退，或被 slab/取样上限截断） */
   truncated: boolean
-  /** 拒绝执行 cachedump 的 slab（服务端禁用或出错） */
+  /** 拒绝执行 cachedump 的 slab（仅回退模式下可能出现） */
   deniedSlabs: number[]
 }
 

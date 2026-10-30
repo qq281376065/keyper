@@ -9,7 +9,7 @@
 | 引擎 | 能力 |
 | --- | --- |
 | **Redis** | 多库、六种数据结构（string / hash / list / set / zset / stream）、Pub/Sub、慢查询、键内存分析、SSH 多级跳板、内置 CLI |
-| **Memcached** | 统计与命中率、按 slab 分组的键浏览（`stats cachedump`）、单键查看与增删、`flush_all`、运行参数查看 |
+| **Memcached** | 统计与命中率、全量键浏览（`lru_crawler metadump`，旧服务端回退 `stats cachedump`）、分页加载、单键查看与增删、`flush_all`、运行参数查看 |
 
 > 本项目起源于 RedisDesktop（Vue 3 版）的 React 移植；主进程、preload、IPC、
 > shared 类型契约、打包配置沿用其结构，渲染层已按多引擎架构重构。
@@ -82,6 +82,36 @@ string 值实底行号槽；安装器开始菜单快捷方式勾选页；
 
 ---
 
+## 多语言（i18n）
+
+界面内置简体中文、繁體中文、English 三套语言，可在主页右上角语言菜单即时切换，
+选择持久化到 `settings.json`，重启后保持。
+
+| 位置 | 作用 |
+| --- | --- |
+| `lang/zh-CN.ts` / `lang/zh-TW.ts` / `lang/en.ts` | 每种语言一个独立字典文件，键即中文原文 |
+| `shared/i18n/index.ts` | 语言码、字典查找、`{name}` 插值；主进程与渲染层共用 |
+| `src/i18n/index.ts` | 渲染层入口：`useI18n()`（订阅语言变化）与模块级 `t()` |
+
+设计要点：
+
+- **键即原文**（gettext msgid 风格），漏译自然回退中文，不会出现 key 或空白；
+- 字典键集由 `npm run i18n:manifest` 从源码中的中文字面量生成，
+  `lang/zh-CN.ts` 是自动生成的身份映射，不要手改；`--check` 模式校验
+  en / zh-TW 是否缺键（供测试使用）；
+- 组件内一律 `const { t } = useI18n()`，在渲染期翻译；主进程 `import { t } from '@shared/i18n'`，
+  语言随设置同步（`syncMainLocale`）；
+- 模块级中文常量（主题名、表头映射、TTL 预设等）保持数据形态，渲染时 `t(常量)`；
+- 语言名与缩写始终用本名（English 界面下「繁體中文」不译），`<html lang>` 同步更新。
+
+新增一种语言：在 `lang/` 下加文件 → 在 `shared/i18n` 的 `LOCALES` / `LOCALE_NAMES` /
+`DICTIONARIES` 注册 → 运行 `npm run i18n:manifest` 补齐缺键。
+
+新增文案：直接写中文并包 `t('…')`，运行 `npm run i18n:manifest` 自动进清单，
+再补 en / zh-TW 两条翻译即可。
+
+---
+
 ## 技术栈
 
 | 层 | 选型 | 说明 |
@@ -117,10 +147,15 @@ Keyper/
 │       ├── update-service.ts        # 更新检查
 │       ├── config-path.ts           # 便携目录解析与回退
 │       └── close-signal.ts          # 退出前先断开的信号
+├── lang/                            # 语言字典（每语言一个独立文件，键即中文原文）
+│   ├── zh-CN.ts                     # 简体（由 npm run i18n:manifest 生成）
+│   ├── zh-TW.ts                     # 繁體
+│   └── en.ts                        # English
 ├── shared/                          # 主进程与渲染进程共享的类型契约
 │   ├── types.ts                     # 数据模型
 │   ├── api.ts                       # 接口 + IPC 通道常量
 │   ├── keyspace.ts                  # 键名空间解析（分隔符 / 前缀）
+│   ├── i18n/index.ts                # 翻译核心：语言码、查表、插值
 │   └── version.ts                   # 版本解析与比较
 ├── src/                             # 渲染进程
 │   ├── main.tsx                     # 挂载入口
@@ -260,8 +295,9 @@ KEYPER_DEBUG_LOG=/tmp/rd.log ./Keyper.exe
 `win.icon` / `installerIcon` / `uninstallerIcon` / `installerHeaderIcon`），
 文件已入库，没有生成脚本；替换时提供 256×256 PNG → 多尺寸 ICO 即可。
 
-图标为「红立方体 + 白色 R」，R 用矢量笔画手绘而非字体 —— 字体字形墨迹只有字号的 66%，
-缩到 16×16 时白色像素会归零，任务栏上只剩一个纯红方块。
+图标为「红色纯色圆角底 + 白色 K（钥匙齿）」：底色为品牌红 `#CE3F33`，无渐变、无高光；
+K 用矢量笔画手绘而非字体 —— 字体字形墨迹只有字号的 66%，缩到 16×16 时白色像素会归零，
+任务栏上只剩一个纯红方块。几何与 `src/components/BrandMark.tsx` 的 128×128 坐标系一致。
 
 ---
 

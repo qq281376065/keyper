@@ -1,6 +1,7 @@
 import { BrowserWindow, app, dialog, ipcMain } from 'electron'
 import fs from 'node:fs'
 import { IPC } from '../../shared/api'
+import { t } from '@shared/i18n'
 import type {
   CacheConnectionConfig,
   CacheEngine,
@@ -71,7 +72,7 @@ function fail(error: unknown): ApiResponse<never> {
 function unwrap<T>(value: T): T {
   const maybe = value as unknown as { ok?: boolean; message?: string }
   if (maybe && typeof maybe === 'object' && maybe.ok === false) {
-    throw new Error(maybe.message || '操作失败')
+    throw new Error(maybe.message || t('操作失败'))
   }
   return value
 }
@@ -82,6 +83,11 @@ function unwrap<T>(value: T): T {
  * 设计要点：日志只在 IPC 层落盘，意味着「用户显式触发的操作」才会被记录；
  * 主进程内部的自动任务（定时刷新、内部遍历等）不经过 IPC，天然不会进入日志。
  * 读取类通道（scan / value / info）同样不记录，避免浏览行为淹没关键操作。
+ *
+ * 操作名保持中文原文入库（不随界面语言变化）：渲染层据此做「变更 / 删除」
+ * 分级与筛选，日志文件中也是稳定可 grep 的取值；显示时由 LogPanel 用
+ * t(entry.action) 翻译。详情与结果在写入时按当时语言落盘 —— 它们是历史记录，
+ * 不该在语言切换后集体改写。
  */
 const LOG_ACTIONS: Record<string, string> = {
   [IPC.connectionConnect]: '建立连接',
@@ -183,14 +189,25 @@ function describe(
       case IPC.redisSetHashFieldTtl:
         return { connectionName, engine, detail: `${args[1]} · ${args[2]} → ${args[3]}s` }
       case IPC.redisSetListElement:
-        return { connectionName, engine, detail: `${args[1]} · 第 ${(args[2] as number) + 1} 项` }
+        return {
+          connectionName,
+          engine,
+          detail: t('{key} · 第 {index} 项', { key: String(args[1]), index: (args[2] as number) + 1 }),
+        }
       case IPC.redisDelListElement:
-        return { connectionName, engine, detail: `${args[1]} · 第 ${(args[2] as number) + 1} 项` }
+        return {
+          connectionName,
+          engine,
+          detail: t('{key} · 第 {index} 项', { key: String(args[1]), index: (args[2] as number) + 1 }),
+        }
       case IPC.redisInsertListElement:
         return {
           connectionName,
           engine,
-          detail: `${args[1]} · 第 ${(args[2] as number) + 1} 项${args[4] === 'before' ? '前' : '后'}`,
+          detail:
+            args[4] === 'before'
+              ? t('{key} · 第 {index} 项前', { key: String(args[1]), index: (args[2] as number) + 1 })
+              : t('{key} · 第 {index} 项后', { key: String(args[1]), index: (args[2] as number) + 1 }),
         }
       case IPC.redisAppendListElement:
         return { connectionName, engine, detail: args[1] as string }
@@ -266,7 +283,7 @@ function handle<T>(channel: string, handler: (...args: any[]) => T | Promise<T>)
         action,
         detail: meta.detail || '-',
         ok: response.ok,
-        result: response.ok ? (data?.message ?? '成功') : response.error,
+        result: response.ok ? (data?.message ?? t('成功')) : response.error,
         costMs: Date.now() - started,
       })
     }
@@ -399,7 +416,7 @@ export function registerIpcHandlers(): void {
 
   handle<OperationResult>(IPC.logOpenDir, async () => {
     await openLogDir()
-    return { ok: true, message: '已打开日志目录' }
+    return { ok: true, message: t('已打开日志目录') }
   })
 
   // -------------------------------------------------------- 检查更新
@@ -413,9 +430,9 @@ export function registerIpcHandlers(): void {
   handle<OperationResult>(IPC.logRendererError, (report) => {
     try {
       appendErrorLog((report ?? {}) as ErrorReport)
-      return { ok: true, message: '已记录' }
+      return { ok: true, message: t('已记录') }
     } catch {
-      return { ok: false, message: '错误日志写入失败' }
+      return { ok: false, message: t('错误日志写入失败') }
     }
   })
 
@@ -423,12 +440,12 @@ export function registerIpcHandlers(): void {
   handle<{ saved: boolean; path?: string }>(IPC.fileSaveText, async (options) => {
     const payload = (options ?? {}) as { suggestedName?: string; content?: string }
     const result = await dialog.showSaveDialog({
-      title: '导出内容',
+      title: t('导出内容'),
       defaultPath: payload.suggestedName || 'value.txt',
       filters: [
-        { name: '文本文件', extensions: ['txt', 'log'] },
+        { name: t('文本文件'), extensions: ['txt', 'log'] },
         { name: 'JSON', extensions: ['json'] },
-        { name: '全部文件', extensions: ['*'] },
+        { name: t('全部文件'), extensions: ['*'] },
       ],
     })
 
@@ -467,8 +484,8 @@ export function registerIpcHandlers(): void {
         engine: removedConn?.engine ?? 'redis',
         connectionId: String(id),
         connectionName: removedConn?.name ?? '-',
-        action: '删除配置',
-        detail: `同步清理 ${pruned} 条搜索历史`,
+        action: t('删除配置'),
+        detail: t('同步清理 {count} 条搜索历史', { count: pruned }),
         ok: true,
         result: 'ok',
       })
@@ -740,7 +757,10 @@ export function registerIpcHandlers(): void {
   )
   handle<MemcachedSlab[]>(IPC.memcachedSlabs, (id) => memcachedManager.slabs(id as string))
   handle<MemcachedKeyList>(IPC.memcachedKeys, (id, options) =>
-    memcachedManager.keys(id as string, (options ?? {}) as { perSlab?: number; maxSlabs?: number }),
+    memcachedManager.keys(
+      id as string,
+      (options ?? {}) as { offset?: number; limit?: number; refresh?: boolean },
+    ),
   )
   handle<MemcachedValue>(IPC.memcachedGet, (id, key) =>
     memcachedManager.get(id as string, key as string),

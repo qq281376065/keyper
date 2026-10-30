@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { utf8Bytes } from '@/utils/format'
 import { api } from '@/api'
+import { t } from '@/i18n'
 import { useRedis } from '@/store/useRedis'
 import { copyText } from '@/utils/clipboard'
 import type { ValueEditorContext } from './shared'
@@ -128,11 +129,16 @@ export function useHashEditor(ctx: ValueEditorContext) {
 
   async function copyHashAll(): Promise<void> {
     if (!hashView.total) {
-      notify('err', '当前 hash 没有字段')
+      notify('err', t('当前 hash 没有字段'))
       return
     }
     const done = await copyText(hashAsJson())
-    notify(done ? 'ok' : 'err', done ? `已复制 ${hashView.total} 个字段（JSON）` : '复制失败，请检查剪贴板权限')
+    notify(
+      done ? 'ok' : 'err',
+      done
+        ? t('已复制 {count} 个字段（JSON）', { count: hashView.total })
+        : t('复制失败，请检查剪贴板权限'),
+    )
   }
 
   /** 行内「复制」：同时给出字段名与字段值，避免两次操作 */
@@ -140,20 +146,28 @@ export function useHashEditor(ctx: ValueEditorContext) {
     const done = await copyText(`${row.field}\t${row.text}`)
     notify(
       done ? 'ok' : 'err',
-      done ? `已复制字段 ${row.field}（名称 + 值）` : '复制失败，请检查剪贴板权限',
+      done
+        ? t('已复制字段 {field}（名称 + 值）', { field: row.field })
+        : t('复制失败，请检查剪贴板权限'),
     )
   }
 
   /** 只复制字段名 */
   async function copyFieldName(field: string): Promise<void> {
     const done = await copyText(field)
-    notify(done ? 'ok' : 'err', done ? `已复制字段名 ${field}` : '复制失败，请检查剪贴板权限')
+    notify(
+      done ? 'ok' : 'err',
+      done ? t('已复制字段名 {field}', { field }) : t('复制失败，请检查剪贴板权限'),
+    )
   }
 
   /** 只复制字段值 */
   async function copyFieldValue(row: { field: string; text: string }): Promise<void> {
     const done = await copyText(row.text)
-    notify(done ? 'ok' : 'err', done ? `已复制 ${row.field} 的值` : '复制失败，请检查剪贴板权限')
+    notify(
+      done ? 'ok' : 'err',
+      done ? t('已复制 {field} 的值', { field: row.field }) : t('复制失败，请检查剪贴板权限'),
+    )
   }
 
   /** 复制为 HSET 命令：排障时可直接粘进 redis-cli 复现 */
@@ -161,13 +175,13 @@ export function useHashEditor(ctx: ValueEditorContext) {
     const key = getValue()?.key ?? ''
     const command = `HSET ${key} "${row.field}" "${row.text}"`
     const done = await copyText(command)
-    notify(done ? 'ok' : 'err', done ? '已复制 HSET 命令' : '复制失败，请检查剪贴板权限')
+    notify(done ? 'ok' : 'err', done ? t('已复制 HSET 命令') : t('复制失败，请检查剪贴板权限'))
   }
 
   /** 复制为 JSON 键值对：便于粘进配置或代码 */
   async function copyAsJsonEntry(row: { field: string; text: string }): Promise<void> {
     const done = await copyText(JSON.stringify({ [row.field]: row.text }, null, 2))
-    notify(done ? 'ok' : 'err', done ? '已复制 JSON 键值对' : '复制失败，请检查剪贴板权限')
+    notify(done ? 'ok' : 'err', done ? t('已复制 JSON 键值对') : t('复制失败，请检查剪贴板权限'))
   }
 
   /** 单击选中行：再次点击同一行取消选中 */
@@ -287,15 +301,18 @@ export function useHashEditor(ctx: ValueEditorContext) {
       return
     }
     if (!res.data.saved) {
-      notify('ok', '已取消导出')
+      notify('ok', t('已取消导出'))
       return
     }
-    notify('ok', `已导出到 ${res.data.path ?? '本地文件'}`)
+    notify('ok', t('已导出到 {path}', { path: res.data.path ?? t('本地文件') }))
   }
 
   async function copyField(field: string): Promise<void> {
     const done = await copyText(field)
-    notify(done ? 'ok' : 'err', done ? `已复制字段名 ${field}` : '复制失败，请检查剪贴板权限')
+    notify(
+      done ? 'ok' : 'err',
+      done ? t('已复制字段名 {field}', { field }) : t('复制失败，请检查剪贴板权限'),
+    )
   }
 
   async function removeField(field: string): Promise<void> {
@@ -307,23 +324,26 @@ export function useHashEditor(ctx: ValueEditorContext) {
     const totalCount = hashStats.total
 
     const confirmed = await askConfirm({
-      title: '删除字段',
-      message: '即将从该 hash 中移除以下字段：',
+      title: t('删除字段'),
+      message: t('即将从该 hash 中移除以下字段：'),
       details: [
-        { label: '键名', value: key, mono: true },
-        { label: '字段', value: field, mono: true, tone: 'danger' },
-        { label: '字段数', value: `${totalCount} → ${totalCount - 1}`, mono: true },
+        { label: t('键名'), value: key, mono: true },
+        { label: t('字段'), value: field, mono: true, tone: 'danger' },
+        { label: t('字段数'), value: `${totalCount} → ${totalCount - 1}`, mono: true },
       ],
       preview: {
-        label: '字段值',
-        text: fieldValue.length > 120 ? `${fieldValue.slice(0, 120)}…` : fieldValue || '（空值）',
+        label: t('字段值'),
+        text:
+          fieldValue.length > 120
+            ? `${fieldValue.slice(0, 120)}…`
+            : fieldValue || t('（空值）'),
         truncated: fieldValue.length > 120,
       },
       warning:
         totalCount <= 1
-          ? '这是该 hash 的最后一个字段，删除后整个键也会被移除。'
-          : '删除后无法恢复。',
-      confirmText: '删除',
+          ? t('这是该 hash 的最后一个字段，删除后整个键也会被移除。')
+          : t('删除后无法恢复。'),
+      confirmText: t('删除'),
       danger: true,
     })
     if (!confirmed) return
@@ -334,10 +354,10 @@ export function useHashEditor(ctx: ValueEditorContext) {
       return
     }
     if (!res.data.ok) {
-      notify('err', res.data.message ?? '删除失败')
+      notify('err', res.data.message ?? t('删除失败'))
       return
     }
-    notify('ok', res.data.message ?? '已删除')
+    notify('ok', res.data.message ?? t('已删除'))
 
     // 先记下是否最后一个字段：Redis 在字段清空后会连带移除整个键，
     // 此时应清空选中态，而不是让界面停留在一个已不存在的空壳上

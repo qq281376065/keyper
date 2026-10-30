@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useI18n } from '@/i18n'
 import { useRedis } from '@/store/useRedis'
 import type { CacheConnectionConfig, RedisConnectionConfig, SshAuthMethod, SshHop } from '@shared/types'
 import { ENGINES, engineMeta } from '@/utils/engine'
@@ -88,6 +89,7 @@ export interface ConnectionDialogProps {
  *   · 标题栏可拖动窗口（Electron 下尤其需要）。
  */
 export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
+  const { t } = useI18n()
   const { connect, saveConnection, notify } = useRedis()
   const { style, onDragStart } = useDialogDrag()
 
@@ -197,7 +199,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
     try {
       patchSsh({ privateKey: await file.text() })
     } catch (error) {
-      notify('err', error instanceof Error ? error.message : '读取私钥文件失败')
+      notify('err', error instanceof Error ? error.message : t('读取私钥文件失败'))
     }
   }
 
@@ -223,18 +225,20 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
      */
     for (let i = 0; i < hops.length; i += 1) {
       const hop = hops[i]!
-      const label = hop.host.trim() ? `跳板 ${i + 1}（${hop.host.trim()}）` : `跳板 ${i + 1}`
-      if (!hop.host.trim()) return `请填写${label}的地址`
-      if (!hop.username.trim()) return `请填写${label}的用户名`
-      if (!Number.isFinite(hop.port) || hop.port <= 0 || hop.port > 65535) return `${label}的端口无效`
-      if (hop.authMethod === 'password' && !hop.password) return `请填写${label}的密码`
-      if (hop.authMethod === 'key' && !hop.privateKey.trim()) return `请粘贴${label}的私钥内容`
+      const label = hop.host.trim()
+        ? t('跳板 {index}（{host}）', { index: i + 1, host: hop.host.trim() })
+        : t('跳板 {index}', { index: i + 1 })
+      if (!hop.host.trim()) return t('请填写{label}的地址', { label })
+      if (!hop.username.trim()) return t('请填写{label}的用户名', { label })
+      if (!Number.isFinite(hop.port) || hop.port <= 0 || hop.port > 65535) return t('{label}的端口无效', { label })
+      if (hop.authMethod === 'password' && !hop.password) return t('请填写{label}的密码', { label })
+      if (hop.authMethod === 'key' && !hop.privateKey.trim()) return t('请粘贴{label}的私钥内容', { label })
     }
-    if (!ssh.host.trim()) return '请填写 SSH 跳板机地址'
-    if (!ssh.username.trim()) return '请填写 SSH 用户名'
-    if (!Number.isFinite(ssh.port) || ssh.port <= 0 || ssh.port > 65535) return 'SSH 端口无效'
-    if (ssh.authMethod === 'password' && !ssh.password) return '请填写 SSH 密码'
-    if (ssh.authMethod === 'key' && !ssh.privateKey.trim()) return '请选择或粘贴私钥内容'
+    if (!ssh.host.trim()) return t('请填写 SSH 跳板机地址')
+    if (!ssh.username.trim()) return t('请填写 SSH 用户名')
+    if (!Number.isFinite(ssh.port) || ssh.port <= 0 || ssh.port > 65535) return t('SSH 端口无效')
+    if (ssh.authMethod === 'password' && !ssh.password) return t('请填写 SSH 密码')
+    if (ssh.authMethod === 'key' && !ssh.privateKey.trim()) return t('请选择或粘贴私钥内容')
     return null
   })()
 
@@ -304,11 +308,11 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
       const res = await api.connection.test(payload())
       setTestResult(
         res.ok
-          ? { ok: res.data.ok, text: res.data.message ?? (res.data.ok ? '连接成功' : '连接失败') }
+          ? { ok: res.data.ok, text: res.data.message ?? (res.data.ok ? t('连接成功') : t('连接失败')) }
           : { ok: false, text: res.error },
       )
     } catch (error) {
-      setTestResult({ ok: false, text: error instanceof Error ? error.message : '测试失败' })
+      setTestResult({ ok: false, text: error instanceof Error ? error.message : t('测试失败') })
     } finally {
       setTesting(false)
     }
@@ -336,7 +340,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
     onChange: (next: SshAuthMethod) => void
   }) {
     return (
-      <div className="seg" role="group" aria-label="认证方式">
+      <div className="seg" role="group" aria-label={t('认证方式')}>
         {AUTH_OPTIONS.map((option) => (
           <button
             key={option.value}
@@ -345,7 +349,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
             aria-pressed={value === option.value}
             onClick={() => onChange(option.value)}
           >
-            {option.label}
+            {t(option.label)}
           </button>
         ))}
       </div>
@@ -387,7 +391,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                   <DialogIcon name={isEdit ? 'edit' : 'add'} size={15} />
                 </span>
                 <DialogTitle className="dlg-title">
-                  {isEdit ? '编辑连接' : '新建连接'}
+                  {isEdit ? t('编辑连接') : t('新建连接')}
                   {/*
                     标题后缀带引擎名：用户点开时就知道自己在建哪一种，
                     不必回头去看上面的选择卡。
@@ -397,8 +401,8 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
               </div>
               <DialogDescription id="dlg-desc" className="dlg-sub">
                 {isEdit
-                  ? '修改后保存即生效，已打开的会话需重连'
-                  : `填写 ${engineMeta(engine).label} 实例信息，可先测试再保存`}
+                  ? t('修改后保存即生效，已打开的会话需重连')
+                  : t('填写 {engine} 实例信息，可先测试再保存', { engine: engineMeta(engine).label })}
               </DialogDescription>
             </div>
             <Button
@@ -406,7 +410,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
               variant="ghost"
               size="icon"
               className="dlg-close"
-              aria-label="关闭"
+              aria-label={t('关闭')}
               onClick={onClose}
             >
               <DialogIcon name="cancel" size={13} />
@@ -447,7 +451,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
           {initial?.credentialError ? (
             <div className="dlg-alert" role="status">
               <DialogIcon name="warning" size={14} />
-              <span>{initial.credentialError}，保存后将重新加密存储。</span>
+              <span>{t('{error}，保存后将重新加密存储。', { error: initial.credentialError })}</span>
             </div>
           ) : null}
 
@@ -461,11 +465,11 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
             */}
             <section className="dlg-section">
               <h3 className="dlg-section-title">
-                缓存引擎
-                {engineLocked ? <span className="dlg-section-note">编辑时不可更改</span> : null}
+                {t('缓存引擎')}
+                {engineLocked ? <span className="dlg-section-note">{t('编辑时不可更改')}</span> : null}
               </h3>
 
-              <div className="engine-pick" role="radiogroup" aria-label="缓存引擎">
+              <div className="engine-pick" role="radiogroup" aria-label={t('缓存引擎')}>
                 {ENGINES.map((item) => {
                   const on = engine === item.key
                   return (
@@ -483,7 +487,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                       </span>
                       <span className="engine-text">
                         <span className="engine-name">{item.label}</span>
-                        <span className="engine-hint">{item.hint}</span>
+                        <span className="engine-hint">{t(item.hint)}</span>
                       </span>
                     </button>
                   )
@@ -493,11 +497,11 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
 
             {/* ------------------------------------------------ 基础信息 */}
             <section className="dlg-section">
-              <h3 className="dlg-section-title">连接信息</h3>
+              <h3 className="dlg-section-title">{t('连接信息')}</h3>
 
               <div className="field">
                 <Label htmlFor="conn-name" className="field-label">
-                  连接名称
+                  {t('连接名称')}
                   <span className="req" aria-hidden="true">
                     *
                   </span>
@@ -506,7 +510,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                   id="conn-name"
                   value={form.name}
                   onChange={(event) => patchForm({ name: event.target.value })}
-                  placeholder="例如：本地开发"
+                  placeholder={t('例如：本地开发')}
                   autoComplete="off"
                 />
               </div>
@@ -514,7 +518,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
               <div className="field-row">
                 <div className="field grow">
                   <Label htmlFor="conn-host" className="field-label">
-                    主机
+                    {t('主机')}
                     <span className="req" aria-hidden="true">
                       *
                     </span>
@@ -530,7 +534,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                 </div>
                 <div className="field port">
                   <Label htmlFor="conn-port" className="field-label">
-                    端口
+                    {t('端口')}
                   </Label>
                   <Input
                     id="conn-port"
@@ -554,20 +558,20 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
               <div className="field-row">
                 <div className="field grow">
                   <Label htmlFor="conn-user" className="field-label">
-                    用户名
+                    {t('用户名')}
                   </Label>
                   <Input
                     id="conn-user"
                     value={form.username ?? ''}
                     onChange={(event) => patchForm({ username: event.target.value })}
                     className="mono"
-                    placeholder="Redis 6+ ACL，可留空"
+                    placeholder={t('Redis 6+ ACL，可留空')}
                     autoComplete="off"
                   />
                 </div>
                 <div className="field grow">
                   <Label htmlFor="conn-pass" className="field-label">
-                    密码
+                    {t('密码')}
                   </Label>
                   <div className="input-with-action">
                     <Input
@@ -576,7 +580,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                       onChange={(event) => patchForm({ password: event.target.value })}
                       className="mono"
                       type={showPassword ? 'text' : 'password'}
-                      placeholder="requirepass，可留空"
+                      placeholder={t('requirepass，可留空')}
                       autoComplete="new-password"
                     />
                     <Button
@@ -584,7 +588,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                       variant="ghost"
                       size="icon"
                       className="input-action"
-                      aria-label={showPassword ? '隐藏密码' : '显示密码'}
+                      aria-label={showPassword ? t('隐藏密码') : t('显示密码')}
                       onClick={() => setShowPassword((prev) => !prev)}
                     >
                       <DialogIcon name={showPassword ? 'eye-off' : 'eye'} size={13} />
@@ -596,7 +600,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
               <div className="field-row">
                 <div className="field port">
                   <Label htmlFor="conn-db" className="field-label">
-                    默认库
+                    {t('默认库')}
                   </Label>
                   {/*
                     默认库是固定枚举（Redis 默认 16 个库，0-15），
@@ -608,7 +612,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                     onValueChange={(next) => patchForm({ db: Number(next) })}
                   >
                     <SelectTrigger id="conn-db" className="dlg-select mono">
-                      <SelectValue placeholder="选择库" />
+                      <SelectValue placeholder={t('选择库')} />
                     </SelectTrigger>
                     <SelectContent className="dlg-select-menu">
                       {Array.from({ length: 16 }, (_, i) => (
@@ -632,7 +636,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                 <div className="field-row">
                   <div className="field grow">
                     <Label htmlFor="conn-pool" className="field-label">
-                      连接池大小
+                      {t('连接池大小')}
                     </Label>
                     <Input
                       id="conn-pool"
@@ -647,7 +651,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                       max="32"
                     />
                     <p className="ml-field-hint">
-                      Memcached 单线程处理命令，多个连接才能并发压满带宽。常用 4，高并发读可调到 8~16。
+                      {t('Memcached 单线程处理命令，多个连接才能并发压满带宽。常用 4，高并发读可调到 8~16。')}
                     </p>
                   </div>
                 </div>
@@ -659,9 +663,9 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
               <div className="ssh-switch-row">
                 <div className="ssh-switch-text">
                   <Label htmlFor="ssh-enabled" className="ssh-switch-title">
-                    通过 SSH 隧道连接
+                    {t('通过 SSH 隧道连接')}
                   </Label>
-                  <p className="ssh-switch-sub">实例只在内网可达时，先登录跳板机再转发</p>
+                  <p className="ssh-switch-sub">{t('实例只在内网可达时，先登录跳板机再转发')}</p>
                 </div>
                 <Switch id="ssh-enabled" checked={sshEnabled} onCheckedChange={setSshEnabled} />
               </div>
@@ -671,7 +675,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                   <div className="field-row">
                     <div className="field grow">
                       <Label htmlFor="ssh-host" className="field-label">
-                        跳板机地址
+                        {t('跳板机地址')}
                         <span className="req" aria-hidden="true">
                           *
                         </span>
@@ -681,13 +685,13 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                         value={ssh.host}
                         onChange={(event) => patchSsh({ host: event.target.value })}
                         className="mono"
-                        placeholder="例如：10.0.0.12 或 bastion.example.com"
+                        placeholder={t('例如：10.0.0.12 或 bastion.example.com')}
                         autoComplete="off"
                       />
                     </div>
                     <div className="field port">
                       <Label htmlFor="ssh-port" className="field-label">
-                        SSH 端口
+                        {t('SSH 端口')}
                       </Label>
                       <Input
                         id="ssh-port"
@@ -704,7 +708,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                   <div className="field-row">
                     <div className="field grow">
                       <Label htmlFor="ssh-user" className="field-label">
-                        SSH 用户名
+                        {t('SSH 用户名')}
                         <span className="req" aria-hidden="true">
                           *
                         </span>
@@ -714,12 +718,12 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                         value={ssh.username}
                         onChange={(event) => patchSsh({ username: event.target.value })}
                         className="mono"
-                        placeholder="例如：root / ubuntu"
+                        placeholder={t('例如：root / ubuntu')}
                         autoComplete="off"
                       />
                     </div>
                     <div className="field auth">
-                      <span className="field-label">认证方式</span>
+                      <span className="field-label">{t('认证方式')}</span>
                       <AuthSegmented value={ssh.authMethod} onChange={(next) => patchSsh({ authMethod: next })} />
                     </div>
                   </div>
@@ -727,7 +731,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                   {ssh.authMethod === 'password' ? (
                     <div className="field">
                       <Label htmlFor="ssh-pass" className="field-label">
-                        SSH 密码
+                        {t('SSH 密码')}
                         <span className="req" aria-hidden="true">
                           *
                         </span>
@@ -739,7 +743,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                           onChange={(event) => patchSsh({ password: event.target.value })}
                           className="mono"
                           type={showSshPassword ? 'text' : 'password'}
-                          placeholder="跳板机登录密码"
+                          placeholder={t('跳板机登录密码')}
                           autoComplete="new-password"
                         />
                         <Button
@@ -747,7 +751,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                           variant="ghost"
                           size="icon"
                           className="input-action"
-                          aria-label={showSshPassword ? '隐藏密码' : '显示密码'}
+                          aria-label={showSshPassword ? t('隐藏密码') : t('显示密码')}
                           onClick={() => setShowSshPassword((prev) => !prev)}
                         >
                           <DialogIcon name={showSshPassword ? 'eye-off' : 'eye'} size={13} />
@@ -759,14 +763,14 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                       <div className="field">
                         <div className="field-label key-label">
                           <span>
-                            私钥内容
+                            {t('私钥内容')}
                             <span className="req" aria-hidden="true">
                               *
                             </span>
                           </span>
                           <button type="button" className="link-btn" onClick={() => keyInputRef.current?.click()}>
                             <DialogIcon name="folder-open" size={12} />
-                            选择文件…
+                            {t('选择文件…')}
                           </button>
                           <input
                             ref={keyInputRef}
@@ -787,7 +791,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                       </div>
                       <div className="field">
                         <Label htmlFor="ssh-passphrase" className="field-label">
-                          私钥口令
+                          {t('私钥口令')}
                         </Label>
                         <div className="input-with-action">
                           <Input
@@ -796,7 +800,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                             onChange={(event) => patchSsh({ passphrase: event.target.value })}
                             className="mono"
                             type={showSshPassphrase ? 'text' : 'password'}
-                            placeholder="私钥未加密可留空"
+                            placeholder={t('私钥未加密可留空')}
                             autoComplete="new-password"
                           />
                           <Button
@@ -804,7 +808,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                             variant="ghost"
                             size="icon"
                             className="input-action"
-                            aria-label={showSshPassphrase ? '隐藏口令' : '显示口令'}
+                            aria-label={showSshPassphrase ? t('隐藏口令') : t('显示口令')}
                             onClick={() => setShowSshPassphrase((prev) => !prev)}
                           >
                             <DialogIcon name={showSshPassphrase ? 'eye-off' : 'eye'} size={13} />
@@ -817,27 +821,27 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                   {/* ---------------------------------------- 中间跳板（多级，可选） */}
                   <div className="hops-block">
                     <div className="hops-head">
-                      <span className="hops-title">中间跳板</span>
+                      <span className="hops-title">{t('中间跳板')}</span>
                       <button type="button" className="link-btn" onClick={addHop}>
                         <DialogIcon name="add" size={12} />
-                        添加跳板机
+                        {t('添加跳板机')}
                       </button>
                     </div>
                     {!hops.length ? (
                       <p className="ssh-hint">
-                        实例需经多台机器接力可达时，按登录顺序添加：本机 → 跳板 1 → … → 上方跳板机 → 实例。
+                        {t('实例需经多台机器接力可达时，按登录顺序添加：本机 → 跳板 1 → … → 上方跳板机 → 实例。')}
                       </p>
                     ) : null}
                     {hops.map((hop, index) => (
                       <div key={index} className="hop-card">
                         <div className="hop-head">
-                          <span className="hop-badge">跳板 {index + 1}</span>
+                          <span className="hop-badge">{t('跳板 {index}', { index: index + 1 })}</span>
                           <Button
                             type="button"
                             variant="ghost"
                             size="icon"
                             className="hop-del"
-                            aria-label={`删除跳板 ${index + 1}`}
+                            aria-label={t('删除跳板 {index}', { index: index + 1 })}
                             onClick={() => removeHop(index)}
                           >
                             <DialogIcon name="trash" size={12} />
@@ -846,7 +850,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                         <div className="field-row">
                           <div className="field grow">
                             <Label className="field-label">
-                              地址
+                              {t('地址')}
                               <span className="req" aria-hidden="true">
                                 *
                               </span>
@@ -855,12 +859,12 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                               value={hop.host}
                               onChange={(event) => patchHop(index, { host: event.target.value })}
                               className="mono"
-                              placeholder="例如：10.0.0.11"
+                              placeholder={t('例如：10.0.0.11')}
                               autoComplete="off"
                             />
                           </div>
                           <div className="field port">
-                            <Label className="field-label">SSH 端口</Label>
+                            <Label className="field-label">{t('SSH 端口')}</Label>
                             <Input
                               value={hop.port}
                               onChange={(event) => patchHop(index, { port: Number(event.target.value) })}
@@ -874,7 +878,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                         <div className="field-row">
                           <div className="field grow">
                             <Label className="field-label">
-                              用户名
+                              {t('用户名')}
                               <span className="req" aria-hidden="true">
                                 *
                               </span>
@@ -883,12 +887,12 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                               value={hop.username}
                               onChange={(event) => patchHop(index, { username: event.target.value })}
                               className="mono"
-                              placeholder="例如：root / ubuntu"
+                              placeholder={t('例如：root / ubuntu')}
                               autoComplete="off"
                             />
                           </div>
                           <div className="field auth">
-                            <span className="field-label">认证方式</span>
+                            <span className="field-label">{t('认证方式')}</span>
                             <AuthSegmented
                               value={hop.authMethod}
                               onChange={(next) => patchHop(index, { authMethod: next })}
@@ -898,7 +902,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                         {hop.authMethod === 'password' ? (
                           <div className="field">
                             <Label className="field-label">
-                              密码
+                              {t('密码')}
                               <span className="req" aria-hidden="true">
                                 *
                               </span>
@@ -909,7 +913,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                                 onChange={(event) => patchHop(index, { password: event.target.value })}
                                 className="mono"
                                 type={hop.showPassword ? 'text' : 'password'}
-                                placeholder="此跳板的登录密码"
+                                placeholder={t('此跳板的登录密码')}
                                 autoComplete="new-password"
                               />
                               <Button
@@ -917,7 +921,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                                 variant="ghost"
                                 size="icon"
                                 className="input-action"
-                                aria-label={hop.showPassword ? '隐藏密码' : '显示密码'}
+                                aria-label={hop.showPassword ? t('隐藏密码') : t('显示密码')}
                                 onClick={() => patchHop(index, { showPassword: !hop.showPassword })}
                               >
                                 <DialogIcon name={hop.showPassword ? 'eye-off' : 'eye'} size={13} />
@@ -928,7 +932,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                           <>
                             <div className="field">
                               <Label className="field-label">
-                                私钥内容
+                                {t('私钥内容')}
                                 <span className="req" aria-hidden="true">
                                   *
                                 </span>
@@ -939,18 +943,18 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                                 className="mono key-area"
                                 rows={3}
                                 spellCheck={false}
-                                placeholder="粘贴此跳板的私钥（-----BEGIN OPENSSH PRIVATE KEY-----…）"
+                                placeholder={t('粘贴此跳板的私钥（-----BEGIN OPENSSH PRIVATE KEY-----…）')}
                               />
                             </div>
                             <div className="field">
-                              <Label className="field-label">私钥口令</Label>
+                              <Label className="field-label">{t('私钥口令')}</Label>
                               <div className="input-with-action">
                                 <Input
                                   value={hop.passphrase}
                                   onChange={(event) => patchHop(index, { passphrase: event.target.value })}
                                   className="mono"
                                   type={hop.showPassphrase ? 'text' : 'password'}
-                                  placeholder="私钥未加密可留空"
+                                  placeholder={t('私钥未加密可留空')}
                                   autoComplete="new-password"
                                 />
                                 <Button
@@ -958,7 +962,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                                   variant="ghost"
                                   size="icon"
                                   className="input-action"
-                                  aria-label={hop.showPassphrase ? '隐藏口令' : '显示口令'}
+                                  aria-label={hop.showPassphrase ? t('隐藏口令') : t('显示口令')}
                                   onClick={() => patchHop(index, { showPassphrase: !hop.showPassphrase })}
                                 >
                                   <DialogIcon name={hop.showPassphrase ? 'eye-off' : 'eye'} size={13} />
@@ -974,7 +978,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                   {sshError ? (
                     <p className="ssh-error">{sshError}</p>
                   ) : (
-                    <p className="ssh-hint">隧道在连接时建立，断开连接后自动关闭；目标地址按跳板机视角填写。</p>
+                    <p className="ssh-hint">{t('隧道在连接时建立，断开连接后自动关闭；目标地址按跳板机视角填写。')}</p>
                   )}
                 </div>
               ) : null}
@@ -991,14 +995,14 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
               onClick={() => void handleTest()}
             >
               <DialogIcon name="test" size={13} />
-              {testing ? '测试中…' : '测试连接'}
+              {testing ? t('测试中…') : t('测试连接')}
             </Button>
             <span className="spacer" />
             <Button type="button" variant="ghost" className="foot-btn foot-quiet" onClick={onClose}>
               {/* 与「测试连接 / 仅保存 / 保存并连接」保持一致：每个按钮都带图标，
                   只有纯文字会让这一颗在视觉上轻一档，也容易被误读成"链接" */}
               <DialogIcon name="cancel" size={13} />
-              取消
+              {t('取消')}
             </Button>
             <Button
               type="button"
@@ -1008,7 +1012,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
               onClick={() => void handleSave(false)}
             >
               <DialogIcon name="save" size={13} />
-              仅保存
+              {t('仅保存')}
             </Button>
             <Button
               type="button"
@@ -1017,7 +1021,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
               onClick={() => void handleSave(true)}
             >
               <DialogIcon name="save" size={13} />
-              保存并连接
+              {t('保存并连接')}
             </Button>
           </footer>
         </div>

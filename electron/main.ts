@@ -7,6 +7,7 @@ import { registerIpcHandlers } from './ipc'
 import { connectionManager } from './services/connection-manager'
 import { appendErrorLog, pruneOldLogs } from './services/log-service'
 import { configDir } from './services/config-path'
+import { setSystemLocale, syncMainLocale } from './services/settings-store'
 import { CLOSE_CONFIRM, CLOSE_HANDLED, closeSignal } from './services/close-signal'
 
 /**
@@ -320,6 +321,10 @@ if (!gotTheLock) {
 
   app.whenReady().then(() => {
     trace('app ready')
+    // 首次启动 / 旧配置没有语言字段时，按操作系统语言初始化界面语言
+    setSystemLocale(app.getLocale())
+    // 主进程的错误文案跟随界面语言（保存设置时会再同步）
+    syncMainLocale()
     // 骨架阶段先隐藏系统菜单，后续按需改成自定义菜单
     Menu.setApplicationMenu(null)
     registerIpcHandlers()

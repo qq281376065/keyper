@@ -1,6 +1,7 @@
 import { api } from '@/api'
 import { defineStore } from '@/store'
 import type { AppSettings } from '@shared/types'
+import { detectLocale, normalizeLocale, setActiveLocale, LOCALE_HTML_LANG } from '@shared/i18n'
 
 /** 界面字体候选 */
 export const UI_FONTS: Array<{ value: string; label: string; stack: string }> = [
@@ -51,6 +52,8 @@ export const KEY_BROWSER_MIN_WIDTH = 420
 
 export const DEFAULT_SETTINGS: AppSettings = {
   fontSize: 13,
+  /* 首帧兜底用系统语言；主进程读到 settings.json 后会覆盖为已保存值 */
+  locale: detectLocale(typeof navigator === 'undefined' ? undefined : navigator.language),
   uiFont: 'system',
   monoFont: 'jetbrains-mono',
   density: 'compact',
@@ -94,6 +97,11 @@ function applyToDom(): void {
   root.style.setProperty('--row-h', settings.density === 'compact' ? '22px' : '28px')
   root.style.setProperty('--font-ui', uiFont.stack)
   root.style.setProperty('--font-mono', monoFont.stack)
+
+  /* 语言：同步给 <html lang> 与主进程 / 非 React 代码共用的翻译入口 */
+  const locale = normalizeLocale(settings.locale)
+  root.lang = LOCALE_HTML_LANG[locale]
+  setActiveLocale(locale)
 }
 
 /** 归一化键栏宽度：旧配置可能更窄甚至缺失，统一抬回下限 */
@@ -134,4 +142,4 @@ export function useSettings() {
   return { settings, load, save, preview, applyToDom }
 }
 
-export { applyToDom }
+export { applyToDom, save as saveSettings }

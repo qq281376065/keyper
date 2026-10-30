@@ -1,4 +1,5 @@
 import type { CacheConnectionConfig, CacheEngine } from '../../../shared/types'
+import { t } from '@shared/i18n'
 
 /**
  * 引擎路由表。
@@ -42,7 +43,7 @@ export function getEngine<TConnect, TTest>(
 ): EngineHandlers<TConnect, TTest> {
   const handlers = registry.get(engine)
   if (!handlers) {
-    throw new Error(`引擎 ${engine} 尚未注册，无法处理该连接`)
+    throw new Error(t('引擎 {engine} 尚未注册，无法处理该连接', { engine }))
   }
   return handlers as EngineHandlers<TConnect, TTest>
 }

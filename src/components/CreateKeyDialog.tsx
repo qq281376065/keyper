@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { api } from '@/api'
 import { DialogIcon } from '@/components/DialogIcon'
 import { useDialogDrag } from '@/hooks/useDialogDrag'
+import { useI18n } from '@/i18n'
 import { useRedis } from '@/store/useRedis'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -42,6 +43,7 @@ export interface CreateKeyDialogProps {
 
 /** 新建键：键名（可带固定前缀）、类型、TTL、初始内容 */
 export function CreateKeyDialog({ prefix, separator, onClose, onCreated }: CreateKeyDialogProps) {
+  const { t } = useI18n()
   const { state, notify } = useRedis()
 
   const sep = separator || ':'
@@ -58,27 +60,27 @@ export function CreateKeyDialog({ prefix, separator, onClose, onCreated }: Creat
 
   const placeholder =
     keyType === 'hash'
-      ? '每行一个字段，格式 field=value，例如：\nname=张伟\ncity=长沙'
+      ? t('每行一个字段，格式 field=value，例如：\nname=张伟\ncity=长沙')
       : keyType === 'list'
-        ? '每行一个元素，按输入顺序从左到右写入'
+        ? t('每行一个元素，按输入顺序从左到右写入')
         : keyType === 'set'
-          ? '每行一个成员，重复项会被自动去重'
+          ? t('每行一个成员，重复项会被自动去重')
           : keyType === 'zset'
-            ? '每行格式 member::score，例如：\nitem:1::98.5'
+            ? t('每行格式 member::score，例如：\nitem:1::98.5')
             : keyType === 'stream'
-              ? '每行格式 field::value，例如：\nname::张伟\ncity::长沙'
-              : '字符串内容，可多行'
+              ? t('每行格式 field::value，例如：\nname::张伟\ncity::长沙')
+              : t('字符串内容，可多行')
 
   const hint =
     keyType === 'hash'
-      ? '字段与值以第一个 = 分隔'
+      ? t('字段与值以第一个 = 分隔')
       : keyType === 'zset'
-        ? '成员与分值以 :: 分隔，分值需为数字'
+        ? t('成员与分值以 :: 分隔，分值需为数字')
         : keyType === 'stream'
-          ? '字段与值以 :: 分隔；消息 ID 由 Redis 自动生成'
+          ? t('字段与值以 :: 分隔；消息 ID 由 Redis 自动生成')
           : keyType === 'string'
-            ? '内容留空则创建一个空字符串键'
-            : '至少填写一行 —— Redis 容器类型需要有元素才会真正落库'
+            ? t('内容留空则创建一个空字符串键')
+            : t('至少填写一行 —— Redis 容器类型需要有元素才会真正落库')
 
   const canSubmit = keyName.trim().length > 0 && !submitting
 
@@ -108,13 +110,13 @@ export function CreateKeyDialog({ prefix, separator, onClose, onCreated }: Creat
 
     const id = state.activeId
     if (!id) {
-      notify('err', '请先建立连接')
+      notify('err', t('请先建立连接'))
       return
     }
 
     const name = keyName.trim()
     if (name.includes(' ')) {
-      notify('err', '键名不建议包含空格')
+      notify('err', t('键名不建议包含空格'))
       return
     }
 
@@ -124,7 +126,7 @@ export function CreateKeyDialog({ prefix, separator, onClose, onCreated }: Creat
     if (ttlText.trim()) {
       const parsed = Number(ttlText)
       if (!Number.isInteger(parsed) || parsed < 0) {
-        notify('err', 'TTL 需为不小于 0 的整数秒')
+        notify('err', t('TTL 需为不小于 0 的整数秒'))
         return
       }
       ttlSeconds = parsed
@@ -138,13 +140,13 @@ export function CreateKeyDialog({ prefix, separator, onClose, onCreated }: Creat
         return
       }
       if (!res.data.ok) {
-        notify('err', res.data.message ?? '创建失败')
+        notify('err', res.data.message ?? t('创建失败'))
         return
       }
-      notify('ok', res.data.message ?? `已创建 ${name}`)
+      notify('ok', res.data.message ?? t('已创建 {name}', { name }))
       onCreated(name)
     } catch (error) {
-      notify('err', error instanceof Error ? error.message : '创建失败')
+      notify('err', error instanceof Error ? error.message : t('创建失败'))
     } finally {
       setSubmitting(false)
     }
@@ -174,12 +176,14 @@ export function CreateKeyDialog({ prefix, separator, onClose, onCreated }: Creat
                 <span className="dlg-head-icon">
                   <DialogIcon name="text" size={15} />
                 </span>
-                <DialogTitle className="dlg-title">新建键</DialogTitle>
+                <DialogTitle className="dlg-title">{t('新建键')}</DialogTitle>
                 {/* 当前库：与连接弹窗的副标题同一行位置，用胶囊徽标区分 */}
                 <span className="dlg-badge mono">db{state.activeDb}</span>
               </div>
               <DialogDescription id="ck-desc" className="dlg-sub">
-                {prefix ? `在 ${prefix} 下创建，前缀不可修改` : '填写键名、类型与初始内容'}
+                {prefix
+                  ? t('在 {prefix} 下创建，前缀不可修改', { prefix })
+                  : t('填写键名、类型与初始内容')}
               </DialogDescription>
             </div>
             <Button
@@ -187,7 +191,7 @@ export function CreateKeyDialog({ prefix, separator, onClose, onCreated }: Creat
               variant="ghost"
               size="icon"
               className="dlg-close"
-              aria-label="关闭"
+              aria-label={t('关闭')}
               onClick={onClose}
             >
               <DialogIcon name="cancel" size={13} />
@@ -196,15 +200,15 @@ export function CreateKeyDialog({ prefix, separator, onClose, onCreated }: Creat
 
           <div className="dlg-body">
             <section className="dlg-section">
-              <h3 className="dlg-section-title">键信息</h3>
+              <h3 className="dlg-section-title">{t('键信息')}</h3>
 
               <div className="field">
                 <Label htmlFor="ck-name" className="field-label">
-                  键名
+                  {t('键名')}
                   <span className="req" aria-hidden="true">
                     *
                   </span>
-                  {prefix ? <span className="prefix-hint">前缀固定，只需填写后半段</span> : null}
+                  {prefix ? <span className="prefix-hint">{t('前缀固定，只需填写后半段')}</span> : null}
                 </Label>
 
                 {/*
@@ -224,7 +228,7 @@ export function CreateKeyDialog({ prefix, separator, onClose, onCreated }: Creat
                     value={suffix}
                     onChange={(event) => setSuffix(event.target.value)}
                     className="mono"
-                    placeholder={prefix ? '后半段键名' : '例如 user:1001:profile'}
+                    placeholder={prefix ? t('后半段键名') : t('例如 user:1001:profile')}
                     autoFocus
                     spellCheck={false}
                     autoComplete="off"
@@ -234,7 +238,8 @@ export function CreateKeyDialog({ prefix, separator, onClose, onCreated }: Creat
                 {/* 实时预览最终键名：前缀 + 后缀的组合结果比两段更直观 */}
                 {prefix && keyName ? (
                   <span className="hint full-name">
-                    将创建：<b className="mono">{keyName}</b>
+                    {t('将创建：')}
+                    <b className="mono">{keyName}</b>
                   </span>
                 ) : null}
               </div>
@@ -242,16 +247,16 @@ export function CreateKeyDialog({ prefix, separator, onClose, onCreated }: Creat
               <div className="field-row">
                 <div className="field grow">
                   <Label htmlFor="ck-type" className="field-label">
-                    类型
+                    {t('类型')}
                   </Label>
                   <Select value={keyType} onValueChange={(next) => setKeyType(next as RedisValueType)}>
                     <SelectTrigger id="ck-type" className="dlg-select">
-                      <SelectValue placeholder="选择类型" />
+                      <SelectValue placeholder={t('选择类型')} />
                     </SelectTrigger>
                     <SelectContent className="dlg-select-menu">
                       {TYPES.map((item) => (
                         <SelectItem key={item.value} value={item.value}>
-                          {item.label}
+                          {t(item.label)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -259,7 +264,7 @@ export function CreateKeyDialog({ prefix, separator, onClose, onCreated }: Creat
                 </div>
                 <div className="field ttl">
                   <Label htmlFor="ck-ttl" className="field-label">
-                    TTL（秒，可空）
+                    {t('TTL（秒，可空）')}
                   </Label>
                   {/* 不用 type="number"：提交时的 .trim() 会直接抛错 */}
                   <Input
@@ -268,14 +273,14 @@ export function CreateKeyDialog({ prefix, separator, onClose, onCreated }: Creat
                     onChange={(event) => setTtl(event.target.value)}
                     className="mono"
                     inputMode="numeric"
-                    placeholder="留空 = 永久"
+                    placeholder={t('留空 = 永久')}
                   />
                 </div>
               </div>
             </section>
 
             <section className="dlg-section">
-              <h3 className="dlg-section-title">初始内容</h3>
+              <h3 className="dlg-section-title">{t('初始内容')}</h3>
               <div className="field">
                 <Textarea
                   value={content}
@@ -293,7 +298,7 @@ export function CreateKeyDialog({ prefix, separator, onClose, onCreated }: Creat
             <span className="spacer" />
             <Button type="button" variant="ghost" className="foot-btn foot-quiet" onClick={onClose}>
               <DialogIcon name="cancel" size={13} />
-              取消
+              {t('取消')}
             </Button>
             <Button
               type="button"
@@ -302,7 +307,7 @@ export function CreateKeyDialog({ prefix, separator, onClose, onCreated }: Creat
               onClick={() => void submit()}
             >
               <DialogIcon name="add" size={13} />
-              {submitting ? '创建中…' : '创建'}
+              {submitting ? t('创建中…') : t('创建')}
             </Button>
           </footer>
         </div>

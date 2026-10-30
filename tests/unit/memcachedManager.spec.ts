@@ -11,7 +11,12 @@ import type { MemcachedConnectionConfig } from '../../shared/types'
 
 const require = createRequire(import.meta.url)
 const { createServer } = require('../fixtures/memcached-server.cjs') as {
-  createServer: (options?: { disableCachedump?: boolean; disableMeta?: boolean }) => {
+  createServer: (options?: {
+    disableCachedump?: boolean
+    disableMeta?: boolean
+    disableMetadump?: boolean
+    hideFromCachedump?: string[]
+  }) => {
     listen: (port?: number) => Promise<number>
     close: () => Promise<void>
     store: Map<string, { flags: number; data: Buffer; expiresAt: number }>
@@ -137,5 +142,74 @@ describe('memcached 管理器 · 重命名键', () => {
 
     memcachedManager.disconnect(id)
     await old.close()
+  })
+})
+
+describe('memcached 管理器 · 键枚举', () => {
+  it('分段 LRU 下仍能读到刚写入的键（group:yufei:2030 回归）', async () => {
+    /*
+     * 库里有 group:yufei:2030，但 cachedump 只遍历 COLD 分段读不到它。
+     * metadump 覆盖整条 LRU 链，重新连接后键栏必须能看到这个键。
+     */
+    const segmented = createServer({ hideFromCachedump: ['group:yufei:2030'] })
+    const segmentedPort = await segmented.listen()
+    const id = `keys-${++seq}`
+    await memcachedManager.connect(config(id, segmentedPort))
+    await memcachedManager.set(id, 'group:yufei:2030', 'v')
+    await memcachedManager.set(id, 'plain', 'v')
+
+    const page = await memcachedManager.keys(id, { offset: 0, limit: 200 })
+    expect(page.source).toBe('metadump')
+    expect(page.items.map((item) => item.key)).toContain('group:yufei:2030')
+    expect(page.total).toBe(2)
+    expect(page.truncated).toBe(false)
+
+    memcachedManager.disconnect(id)
+    await segmented.close()
+  })
+
+  it('写入 / 删除后快照失效，刷新即可看到变化', async () => {
+    const own = createServer()
+    const ownPort = await own.listen()
+    const id = `keys-${++seq}`
+    await memcachedManager.connect(config(id, ownPort))
+    await memcachedManager.set(id, 'a', '1')
+
+    const first = await memcachedManager.keys(id, { offset: 0, limit: 200 })
+    expect(first.items.map((item) => item.key)).toEqual(['a'])
+
+    await memcachedManager.set(id, 'b', '2')
+    /* refresh=true 时不复用旧快照 —— 与界面刷新 / 新建后的行为一致 */
+    const second = await memcachedManager.keys(id, { offset: 0, limit: 200, refresh: true })
+    expect(second.items.map((item) => item.key)).toEqual(['a', 'b'])
+
+    await memcachedManager.remove(id, 'a')
+    const third = await memcachedManager.keys(id, { offset: 0, limit: 200, refresh: true })
+    expect(third.items.map((item) => item.key)).toEqual(['b'])
+
+    memcachedManager.disconnect(id)
+    await own.close()
+  })
+
+  it('旧服务端不支持 metadump 时回退 cachedump，并如实标记不完整', async () => {
+    const legacy = createServer({
+      disableMetadump: true,
+      hideFromCachedump: ['warm:key'],
+    })
+    const legacyPort = await legacy.listen()
+    const id = `keys-${++seq}`
+    await memcachedManager.connect(config(id, legacyPort))
+    await memcachedManager.set(id, 'cold:key', 'v')
+    await memcachedManager.set(id, 'warm:key', 'v')
+
+    const page = await memcachedManager.keys(id, { offset: 0, limit: 200 })
+    expect(page.source).toBe('cachedump')
+    /* cachedump 只覆盖 COLD 分段：结果必须标记为可能不完整 */
+    expect(page.truncated).toBe(true)
+    expect(page.items.map((item) => item.key)).toContain('cold:key')
+    expect(page.items.map((item) => item.key)).not.toContain('warm:key')
+
+    memcachedManager.disconnect(id)
+    await legacy.close()
   })
 })

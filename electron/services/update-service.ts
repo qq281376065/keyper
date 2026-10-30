@@ -1,5 +1,6 @@
 import { app, shell } from 'electron'
 import { net } from 'electron'
+import { t } from '@shared/i18n'
 import type { UpdateCheckResult } from '../../shared/types'
 import { compareVersion } from '../../shared/version'
 
@@ -40,7 +41,10 @@ async function getJson<T>(url: string): Promise<{ ok: true; data: T } | { ok: fa
     }
 
     const timer = setTimeout(() => {
-      finish({ ok: false, error: `请求超时（${TIMEOUT_MS / 1000}s），请检查网络或代理设置` })
+      finish({
+        ok: false,
+        error: t('请求超时（{seconds}s），请检查网络或代理设置', { seconds: TIMEOUT_MS / 1000 }),
+      })
       try {
         request.abort()
       } catch {
@@ -52,7 +56,7 @@ async function getJson<T>(url: string): Promise<{ ok: true; data: T } | { ok: fa
     try {
       request = net.request({ method: 'GET', url })
     } catch (error) {
-      finish({ ok: false, error: error instanceof Error ? error.message : '请求发起失败' })
+      finish({ ok: false, error: error instanceof Error ? error.message : t('请求发起失败') })
       return
     }
 
@@ -62,7 +66,7 @@ async function getJson<T>(url: string): Promise<{ ok: true; data: T } | { ok: fa
     request.on('response', (response) => {
       // 3xx 交给 net 自动跟随；这里只处理 2xx 与明确的失败状态
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        finish({ ok: false, error: `服务器返回 ${response.statusCode}` })
+        finish({ ok: false, error: t('服务器返回 {status}', { status: response.statusCode }) })
         return
       }
 
@@ -72,14 +76,14 @@ async function getJson<T>(url: string): Promise<{ ok: true; data: T } | { ok: fa
         try {
           finish({ ok: true, data: JSON.parse(Buffer.concat(chunks).toString('utf-8')) as T })
         } catch {
-          finish({ ok: false, error: '返回内容不是合法 JSON' })
+          finish({ ok: false, error: t('返回内容不是合法 JSON') })
         }
       })
-      response.on('error', () => finish({ ok: false, error: '读取响应失败' }))
+      response.on('error', () => finish({ ok: false, error: t('读取响应失败') }))
     })
 
     request.on('error', (error) => {
-      finish({ ok: false, error: error.message || '网络请求失败' })
+      finish({ ok: false, error: error.message || t('网络请求失败') })
     })
 
     request.end()
@@ -99,7 +103,7 @@ export async function checkForUpdate(): Promise<UpdateCheckResult> {
   // 抛错由 IPC 的 handle() 统一转成 { ok:false, error }，不在这里自造响应壳
   if (!res.ok) throw new Error(res.error)
 
-  if (!Array.isArray(res.data)) throw new Error('版本列表格式异常')
+  if (!Array.isArray(res.data)) throw new Error(t('版本列表格式异常'))
 
 
   /*
@@ -118,7 +122,7 @@ export async function checkForUpdate(): Promise<UpdateCheckResult> {
       notes: null,
       pageUrl: `https://gitee.com/${OWNER}/${REPO}/tags`,
       checkedAt: new Date().toISOString(),
-      notice: '仓库里还没有版本标签，暂时无法比较版本',
+      notice: t('仓库里还没有版本标签，暂时无法比较版本'),
     }
   }
 
@@ -147,18 +151,18 @@ export async function openUpdatePage(url: string): Promise<{ ok: boolean; messag
   try {
     parsed = new URL(url)
   } catch {
-    return { ok: false, message: '地址格式不正确' }
+    return { ok: false, message: t('地址格式不正确') }
   }
 
   if (parsed.protocol !== 'https:') {
-    return { ok: false, message: '仅允许打开 https 地址' }
+    return { ok: false, message: t('仅允许打开 https 地址') }
   }
 
   const allowedHosts = ['gitee.com', 'github.com']
   if (!allowedHosts.includes(parsed.hostname)) {
-    return { ok: false, message: '该地址不在允许范围内' }
+    return { ok: false, message: t('该地址不在允许范围内') }
   }
 
   await shell.openExternal(url)
-  return { ok: true, message: '已在浏览器中打开' }
+  return { ok: true, message: t('已在浏览器中打开') }
 }

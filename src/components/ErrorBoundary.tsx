@@ -3,6 +3,7 @@ import { DialogIcon } from '@/components/DialogIcon'
 import { reportRendererError } from '@/services/errorReport'
 import { globalState, globalHolder } from '@/store/global'
 import { useObservable } from '@/store/subscription'
+import { useI18n } from '@/i18n'
 
 /**
  * 渲染层错误边界：组件树任何异常在此拦截，
@@ -83,6 +84,7 @@ function RenderErrorBar({
   onDismiss: () => void
 }) {
   useObservable(globalHolder)
+  const { t } = useI18n()
 
   /** 极简 toast（横幅动作的反馈就地实现，不依赖会话上下文） */
   let errorToastTimer: ReturnType<typeof setTimeout> | undefined
@@ -127,10 +129,10 @@ function RenderErrorBar({
     }
     if (!copied) copied = copyViaExecCommand(detail)
     if (copied) {
-      flashToast('ok', '错误详情已复制')
+      flashToast('ok', t('错误详情已复制'))
       onDismiss()
     } else {
-      flashToast('err', '复制失败，请展开详情手动选择')
+      flashToast('err', t('复制失败，请展开详情手动选择'))
     }
   }
 
@@ -138,15 +140,15 @@ function RenderErrorBar({
     <div className="render-error-bar">
       <DialogIcon name="warning" size={14} className="bar-icon" />
       <span className="render-error-text" title={detail}>
-        界面发生错误：{message}
+        {t('界面发生错误：{message}', { message })}
       </span>
       <button className="btn btn-ghost tiny" onClick={copyRenderError}>
         <DialogIcon name="copy" size={12} />
-        复制详情
+        {t('复制详情')}
       </button>
       <button className="btn btn-ghost tiny" onClick={onDismiss}>
         <DialogIcon name="cancel" size={12} />
-        关闭
+        {t('关闭')}
       </button>
     </div>
   )

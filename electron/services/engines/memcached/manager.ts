@@ -1,3 +1,4 @@
+import { t } from '@shared/i18n'
 import type {
   ConnectionStatus,
   MemcachedConnectionConfig,
@@ -28,6 +29,15 @@ export interface MemcachedStatusPayload {
   message?: string
 }
 
+interface MemcachedKeySnapshot {
+  items: Array<{ key: string; bytes: number; expiresAt: number; slab: number }>
+  source: 'metadump' | 'cachedump'
+  truncated: boolean
+  deniedSlabs: number[]
+  /** 快照建立时间：翻页期间复用，超过有效期后重建 */
+  at: number
+}
+
 interface ManagedMemcached {
   config: MemcachedConnectionConfig
   pool: MemcachedPool
@@ -35,10 +45,15 @@ interface ManagedMemcached {
   version?: string
   /** 服务端是否支持 meta get（1.6+）。探测一次后缓存，避免每次读取都先失败一次 */
   metaTtl?: boolean
+  /** 键枚举快照：metadump 一次取全量，分页只切片，写入/删除后失效 */
+  keySnapshot?: MemcachedKeySnapshot
 }
 
 /** Memcached 把超过 30 天的 exptime 当作绝对时间戳解释 */
 const ABSOLUTE_EXPTIME_THRESHOLD = 60 * 60 * 24 * 30
+
+/** 键快照有效期：翻页复用同一份结果；超过后重新枚举 */
+const KEY_SNAPSHOT_TTL_MS = 60_000
 
 /** 剩余 TTL（秒，-1 永久）→ 协议 exptime */
 function exptimeFromTtl(ttl: number): number {
@@ -53,18 +68,18 @@ function friendlyMessage(error: unknown): string {
   if (error instanceof MemcachedError) {
     switch (error.code) {
       case 'CONNECT_TIMEOUT':
-        return '连接超时：请检查地址、端口与防火墙'
+        return t('连接超时：请检查地址、端口与防火墙')
       case 'COMMAND_TIMEOUT':
-        return '命令超时：服务端无响应或负载过高'
+        return t('命令超时：服务端无响应或负载过高')
       case 'SOCKET_CLOSED':
-        return '连接已断开'
+        return t('连接已断开')
       case 'SERVER_ERROR':
-        return `服务端错误：${error.message}`
+        return t('服务端错误：{message}', { message: error.message })
       default:
         return error.message
     }
   }
-  return error instanceof Error ? error.message : '未知错误'
+  return error instanceof Error ? error.message : t('未知错误')
 }
 
 class MemcachedManager {
@@ -135,7 +150,9 @@ class MemcachedManager {
       const latency = Date.now() - started
       return {
         ok: true,
-        message: `连接成功${standalone ? '（SSH）' : ''} · Memcached ${version} · ${latency}ms`,
+        message: standalone
+          ? t('连接成功（SSH） · Memcached {version} · {latency}ms', { version, latency })
+          : t('连接成功 · Memcached {version} · {latency}ms', { version, latency }),
       }
     } catch (error) {
       return { ok: false, message: friendlyMessage(error) }
@@ -226,7 +243,7 @@ class MemcachedManager {
   /** 取池，未连接时抛错 —— 每个读写接口都要先过这一关 */
   private require(id: string): ManagedMemcached {
     const managed = this.pool.get(id)
-    if (!managed) throw new Error('未连接到该 Memcached 实例')
+    if (!managed) throw new Error(t('未连接到该 Memcached 实例'))
     return managed
   }
 
@@ -287,57 +304,117 @@ class MemcachedManager {
   }
 
   /**
-   * 列出键：对每个 slab 执行 cachedump。
+   * 分页列出键。
    *
-   * 限制（必须让用户知道，否则会以为"键就这些"）：
-   *   · cachedump 是调试命令，不保证完整；
-   *   · 大实例上慢，因此每个 slab 都限量；
-   *   · 部分服务端直接禁用（返回 CLIENT_ERROR），此时该 slab 记为不可用。
+   * 枚举顺序：
+   *   1. `lru_crawler metadump all` —— 覆盖 HOT/WARM/COLD 全部 LRU 分段，
+   *      解决 cachedump 漏掉刚写入/常访问键的问题；
+   *   2. 旧服务端不支持时回退逐 slab cachedump，并标记 truncated。
+   *
+   * 一次枚举的结果缓存为快照，翻页只做切片 ——
+   * 否则每点一次「加载更多」都要重新全量爬取，大实例上会明显卡顿。
+   * 写入/删除/重命名/清空时让快照失效，下一次读取即重建。
    */
   async keys(
     id: string,
-    options: { perSlab?: number; maxSlabs?: number } = {},
+    options: { offset?: number; limit?: number; refresh?: boolean } = {},
   ): Promise<{
     items: Array<{ key: string; bytes: number; expiresAt: number; slab: number }>
+    total: number
+    hasMore: boolean
+    nextOffset: number
+    source: 'metadump' | 'cachedump'
     truncated: boolean
     deniedSlabs: number[]
   }> {
     const managed = this.require(id)
-    const perSlab = options.perSlab ?? 500
-    const maxSlabs = options.maxSlabs ?? 16
+    const limit = Math.max(1, Math.min(options.limit ?? 200, 5000))
+    const offset = Math.max(0, options.offset ?? 0)
 
-    const slabList = await this.slabs(id)
+    const snapshot = managed.keySnapshot
+    if (options.refresh || !snapshot || Date.now() - snapshot.at > KEY_SNAPSHOT_TTL_MS) {
+      managed.keySnapshot = await this.buildKeySnapshot(managed)
+    }
+
+    const current = managed.keySnapshot!
+    const items = current.items.slice(offset, offset + limit)
+    const nextOffset = offset + items.length
+    const hasMore = nextOffset < current.items.length
+
+    return {
+      items,
+      total: current.items.length,
+      hasMore,
+      nextOffset: hasMore ? nextOffset : 0,
+      source: current.source,
+      truncated: current.truncated,
+      deniedSlabs: current.deniedSlabs,
+    }
+  }
+
+  /** 枚举一份键快照：优先 metadump，旧服务端回退 cachedump */
+  private async buildKeySnapshot(managed: ManagedMemcached): Promise<MemcachedKeySnapshot> {
+    try {
+      const items = await managed.pool.run((client) => client.metadump())
+      /* 固定顺序：翻页按 offset 切片，顺序必须稳定 */
+      items.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
+      return { items, source: 'metadump', truncated: false, deniedSlabs: [], at: Date.now() }
+    } catch (error) {
+      /*
+       * 只有"服务端不认识/禁用这条命令"才回退；
+       * 超时、断线属于真实故障，直接报错比悄悄给一份残缺列表更诚实。
+       */
+      if (
+        !(error instanceof MemcachedError) ||
+        (error.code !== 'PROTOCOL_ERROR' && error.code !== 'SERVER_ERROR')
+      ) {
+        throw error
+      }
+    }
+
+    const fallback = await this.cachedumpAll(managed, 500, 16)
+    fallback.items.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
+    return {
+      items: fallback.items,
+      source: 'cachedump',
+      /* cachedump 只覆盖 COLD 分段，本身就意味着结果可能不完整 */
+      truncated: true,
+      deniedSlabs: fallback.deniedSlabs,
+      at: Date.now(),
+    }
+  }
+
+  /** 回退路径：逐 slab cachedump（带每 slab 上限），部分 slab 被禁用时记录而不整体失败 */
+  private async cachedumpAll(
+    managed: ManagedMemcached,
+    perSlab: number,
+    maxSlabs: number,
+  ): Promise<{
+    items: Array<{ key: string; bytes: number; expiresAt: number; slab: number }>
+    deniedSlabs: number[]
+  }> {
+    const slabList = await this.slabs(managed.config.id)
     const targets = slabList.slice(0, maxSlabs)
 
     const items: Array<{ key: string; bytes: number; expiresAt: number; slab: number }> = []
     const deniedSlabs: number[] = []
-    let truncated = targets.length < slabList.length
 
     for (const slab of targets) {
       try {
         const dumped = await managed.pool.run((client) => client.cachedump(slab.slab, perSlab))
-        /*
-         * 客户端也要按上限截断。
-         *
-         * 真实 memcached 的 `stats cachedump <slab> <limit>` 会遵守 limit，
-         * 但 limit=0 表示"不限"，且部分实现/代理会忽略这个参数。
-         * 之前只在 dumped.length >= perSlab 时打个 truncated 标记，
-         * 却把服务端多给的条目全部返回 —— 结果是"标了截断但没真截"，
-         * 大实例上仍可能一次拉回几万条把界面拖死。
-         */
-        if (dumped.length >= perSlab) truncated = true
+        /* 客户端也按上限截断：部分实现/代理会忽略 limit 参数 */
         for (const entry of dumped.slice(0, perSlab)) items.push({ ...entry, slab: slab.slab })
-      } catch (error) {
-        /*
-         * 单个 slab 被禁用或读取失败，不该让整次浏览失败 ——
-         * 记下来在界面提示"部分 slab 无法读取"即可。
-         */
+      } catch {
         deniedSlabs.push(slab.slab)
-        void error
       }
     }
 
-    return { items, truncated, deniedSlabs }
+    return { items, deniedSlabs }
+  }
+
+  /** 数据变动后让键快照失效，避免刷新时读到旧的枚举结果 */
+  private invalidateKeys(managed: ManagedMemcached): void {
+    managed.keySnapshot = undefined
   }
 
   /**
@@ -419,13 +496,14 @@ class MemcachedManager {
         ok: false,
         message:
           options.mode === 'add'
-            ? '键已存在，未写入（add 语义）'
+            ? t('键已存在，未写入（add 语义）')
             : options.mode === 'replace'
-              ? '键不存在，未写入（replace 语义）'
-              : '服务端未确认写入',
+              ? t('键不存在，未写入（replace 语义）')
+              : t('服务端未确认写入'),
       }
     }
-    return { ok: true, message: '已保存' }
+    this.invalidateKeys(managed)
+    return { ok: true, message: t('已保存') }
   }
 
   /**
@@ -443,36 +521,40 @@ class MemcachedManager {
   async rename(id: string, key: string, newKey: string): Promise<OperationResult> {
     const managed = this.require(id)
     const target = newKey.trim()
-    if (!target) throw new Error('新的键名不能为空')
+    if (!target) throw new Error(t('新的键名不能为空'))
     if (/[\s\u0000-\u001f]/.test(target)) {
-      throw new Error('键名不能包含空格或控制字符（Memcached 协议限制）')
+      throw new Error(t('键名不能包含空格或控制字符（Memcached 协议限制）'))
     }
-    if (target === key) return { ok: true, message: '键名未变化' }
+    if (target === key) return { ok: true, message: t('键名未变化') }
 
     return managed.pool.run(async (client) => {
       if (await client.get(target)) {
-        throw new Error(`目标键 ${target} 已存在，重命名会覆盖它，已拒绝执行`)
+        throw new Error(t('目标键 {key} 已存在，重命名会覆盖它，已拒绝执行', { key: target }))
       }
 
       const source = await this.readOn(client, managed, key)
-      if (!source) throw new Error('键已过期或被删除')
+      if (!source) throw new Error(t('键已过期或被删除'))
 
       const stored = await client.store('add', target, source.data, {
         flags: source.flags,
         exptime: source.ttl !== undefined ? exptimeFromTtl(source.ttl) : 0,
       })
-      if (!stored) throw new Error(`写入目标键 ${target} 失败，目标可能已被占用`)
+      if (!stored) throw new Error(t('写入目标键 {key} 失败，目标可能已被占用', { key: target }))
 
       const deleted = await client.delete(key)
       if (!deleted) {
         /* 旧键在读取后被删除：撤销新键，避免留下"幽灵副本" */
         await client.delete(target)
-        throw new Error('旧键已不存在，重命名已回滚')
+        throw new Error(t('旧键已不存在，重命名已回滚'))
       }
 
+      this.invalidateKeys(managed)
       return {
         ok: true,
-        message: source.ttl !== undefined ? '已重命名' : '已重命名（未能读取原 TTL，新键为永久）',
+        message:
+          source.ttl !== undefined
+            ? t('已重命名')
+            : t('已重命名（未能读取原 TTL，新键为永久）'),
       }
     })
   }
@@ -480,14 +562,18 @@ class MemcachedManager {
   async remove(id: string, key: string): Promise<OperationResult> {
     const managed = this.require(id)
     const deleted = await managed.pool.run((client) => client.delete(key))
-    return deleted ? { ok: true, message: '已删除' } : { ok: false, message: '键不存在' }
+    if (deleted) this.invalidateKeys(managed)
+    return deleted
+      ? { ok: true, message: t('已删除') }
+      : { ok: false, message: t('键不存在') }
   }
 
   /** 清空全部数据 —— 破坏性操作，调用方必须先确认 */
   async flush(id: string): Promise<OperationResult> {
     const managed = this.require(id)
     await managed.pool.run((client) => client.flushAll())
-    return { ok: true, message: '已清空全部数据' }
+    this.invalidateKeys(managed)
+    return { ok: true, message: t('已清空全部数据') }
   }
 }
 

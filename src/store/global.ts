@@ -1,5 +1,6 @@
 import { api, isElectron } from '@/api'
-import { settings, useSettings } from '@/services/settings'
+import { t } from '@/i18n'
+import { settings, settingsHolder, useSettings } from '@/services/settings'
 import { defineStore } from '@/store'
 import {
   createSession,
@@ -48,9 +49,20 @@ export interface GlobalState {
 
 const { save: saveSettings } = useSettings()
 
+/**
+ * 运行时环境标签（侧栏 footer 展示）。
+ *
+ * 文案随语言变化，所以不能在模块加载时就把 t() 的结果定死：设置是异步
+ * 读盘的，模块初始化那一刻 locale 还是默认值。这里每次调用都按当前语言
+ * 求值，再由下方对 settings 的订阅在读盘完成 / 切换语言后刷新。
+ */
+function environmentLabel(): string {
+  return isElectron ? t('Electron 运行时') : t('浏览器预览（Mock 数据）')
+}
+
 export const globalHolder = defineStore<GlobalState>({
   ready: false,
-  envLabel: isElectron ? 'Electron 运行时' : '浏览器预览（Mock 数据）',
+  envLabel: environmentLabel(),
   connections: [],
   activeId: null,
   toast: null,
@@ -60,6 +72,12 @@ export const globalHolder = defineStore<GlobalState>({
 })
 
 export const globalState: GlobalState = globalHolder.store
+
+/* 设置写入（含读盘完成与切换语言）后同步环境标签，保证英文界面下不是中文 */
+settingsHolder.subscribe(() => {
+  const label = environmentLabel()
+  if (globalState.envLabel !== label) globalState.envLabel = label
+})
 
 let toastTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -368,7 +386,7 @@ async function bootstrap(): Promise<void> {
     if (!res.ok) throw new Error(res.error)
     globalState.connections = res.data.map((item) => ({ ...item, status: 'disconnected' as const }))
   } catch (error) {
-    failure(error, '加载连接列表失败')
+    failure(error, t('加载连接列表失败'))
   } finally {
     globalState.ready = true
     /*
@@ -448,7 +466,7 @@ async function connect(config: CacheConnectionConfig): Promise<boolean> {
     else globalState.connections.push(next)
 
     if (next.status !== 'connected') {
-      notify('err', next.message || '连接失败')
+      notify('err', next.message || t('连接失败'))
       return false
     }
 
@@ -461,14 +479,18 @@ async function connect(config: CacheConnectionConfig): Promise<boolean> {
     activateOrOpenTab(next.id, { refresh: true })
     notify(
       'ok',
-      `已连接 ${next.name} · ${next.engine === 'memcached' ? 'Memcached' : 'Redis'} ${next.version ?? '-'}`,
+      t('已连接 {name} · {engine} {version}', {
+        name: next.name,
+        engine: next.engine === 'memcached' ? 'Memcached' : 'Redis',
+        version: next.version ?? '-',
+      }),
     )
     return true
   } catch (error) {
     if (index >= 0) {
       globalState.connections[index] = { ...globalState.connections[index]!, status: 'error' }
     }
-    failure(error, '连接失败')
+    failure(error, t('连接失败'))
     return false
   }
 }
@@ -491,7 +513,7 @@ async function disconnect(id: string): Promise<void> {
     // 标签随会话一起收掉；快照已在 closeTab 里保留，重连即可恢复
     closeTab(id)
   }
-  notify('ok', '已断开连接')
+  notify('ok', t('已断开连接'))
 }
 
 /**
@@ -539,7 +561,7 @@ async function saveConnection(config: CacheConnectionConfig): Promise<boolean> {
     await bootstrap()
     return true
   } catch (error) {
-    failure(error, '保存连接失败')
+    failure(error, t('保存连接失败'))
     return false
   }
 }
@@ -561,9 +583,9 @@ async function removeConnection(id: string): Promise<void> {
     closeTab(id)
     snapshots.delete(id)
     await bootstrap()
-    notify('ok', '连接已删除')
+    notify('ok', t('连接已删除'))
   } catch (error) {
-    failure(error, '删除连接失败')
+    failure(error, t('删除连接失败'))
   }
 }
 
@@ -602,9 +624,16 @@ async function removeConnections(ids: string[]): Promise<void> {
 
   await bootstrap()
   if (failed.length) {
-    notify('err', `已删除 ${succeeded} 个，失败 ${failed.length} 个：${failed.join('、')}`)
+    notify(
+      'err',
+      t('已删除 {done} 个，失败 {failed} 个：{names}', {
+        done: succeeded,
+        failed: failed.length,
+        names: failed.join('、'),
+      }),
+    )
   } else {
-    notify('ok', `已删除 ${succeeded} 个连接`)
+    notify('ok', t('已删除 {count} 个连接', { count: succeeded }))
   }
 }
 
@@ -612,7 +641,7 @@ async function removeConnections(ids: string[]): Promise<void> {
 async function cloneConnection(source: ConnectionItem): Promise<void> {
   const base = {
     id: `conn-${Date.now().toString(36)}`,
-    name: `${source.name} - 副本`,
+    name: t('{name} - 副本', { name: source.name }),
     host: source.host,
     port: source.port,
   }
@@ -645,7 +674,7 @@ async function cloneConnection(source: ConnectionItem): Promise<void> {
           sshEnabled: source.sshEnabled,
         }
 
-  if (await saveConnection(cloned)) notify('ok', `已克隆为「${cloned.name}」`)
+  if (await saveConnection(cloned)) notify('ok', t('已克隆为「{name}」', { name: cloned.name }))
 }
 
 /**
@@ -663,9 +692,9 @@ async function pinConnection(id: string, pinned: boolean): Promise<void> {
     if (index >= 0) {
       globalState.connections[index] = { ...globalState.connections[index]!, pinned }
     }
-    notify('ok', pinned ? '已置顶' : '已取消置顶')
+    notify('ok', pinned ? t('已置顶') : t('已取消置顶'))
   } catch (error) {
-    failure(error, '设置置顶失败')
+    failure(error, t('设置置顶失败'))
   }
 }
 
@@ -697,7 +726,7 @@ async function reorderConnections(ids: string[]): Promise<void> {
     const res = await api.connection.reorder(ids)
     if (!res.ok) throw new Error(res.error)
   } catch (error) {
-    failure(error, '保存排序失败')
+    failure(error, t('保存排序失败'))
   }
 }
 

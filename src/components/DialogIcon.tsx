@@ -88,6 +88,8 @@ export type DialogIconName =
     /* 多标签溢出：左右箭头滚动 */
   | 'chevron-left'
   | 'chevron-right'
+    /* 语言切换：地球（经线 + 纬线） */
+  | 'globe'
   /** 尺寸（px），默认 13 */
 
 export interface DialogIconProps {
@@ -706,6 +708,16 @@ function renderGlyph(name: DialogIconName): React.ReactElement | null {
     return (
       <g>
         <path d="M6 3.4 10.6 8 6 12.6" />
+      </g>
+    )
+  }
+  /** 语言：地球 + 经线。纬线用两段短弧，避免小尺寸下线太多糊成墨团 */
+  if (name === 'globe') {
+    return (
+      <g>
+        <circle cx="8" cy="8" r="5.8" />
+        <path d="M2.2 8h11.6" />
+        <path d="M8 2.2c1.7 1.6 2.6 3.6 2.6 5.8S9.7 12.2 8 13.8C6.3 12.2 5.4 10.2 5.4 8S6.3 3.8 8 2.2z" />
       </g>
     )
   }

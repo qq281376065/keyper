@@ -3,6 +3,7 @@ import { DialogIcon } from '@/components/DialogIcon'
 import { DialogShell } from '@/components/DialogShell'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { useI18n } from '@/i18n'
 import { formatBytes } from '@/utils/format'
 
 export interface EditListElementDialogProps {
@@ -18,16 +19,12 @@ export interface EditListElementDialogProps {
   position?: 'before' | 'after'
   /** insert 模式：是否追加到末尾 */
   appending?: boolean
-  /**
-   * 对象称呼：默认按 list 语义称「项」。
-   * set 等无序集合应传「成员」—— "第 N 项"对无序集合没有意义，会误导用户。
-   */
-  itemLabel?: string
   /** 键类型：用于预览条徽标（list / set 等） */
   keyType?: string
   /**
    * 是否显示位置信息（`#N / 总数`、`插入后共 N 项`）。
-   * 无序集合应关闭：位置随时可能变化，展示出来反而制造困惑。
+   * 无序集合应关闭：位置随时可能变化，展示出来反而制造困惑；
+   * 关闭时文案称「成员」而不是「第 N 项」。
    */
   showPosition?: boolean
   onConfirm: (value: string) => void
@@ -50,12 +47,12 @@ export function EditListElementDialog({
   initialValue = '',
   position = 'after',
   appending = false,
-  itemLabel = '项',
   keyType = 'list',
   showPosition = true,
   onConfirm,
   onCancel,
 }: EditListElementDialogProps) {
+  const { t } = useI18n()
   const [draft, setDraft] = useState(initialValue)
 
   /** 状态栏统计：字符数、行数、字节数、是否修改 */
@@ -78,26 +75,33 @@ export function EditListElementDialog({
   const title =
     mode === 'edit'
       ? showPosition
-        ? `修改第 ${index + 1} ${itemLabel}`
-        : `修改${itemLabel}`
+        ? t('修改第 {index} 项', { index: index + 1 })
+        : t('修改成员')
       : !showPosition
-        ? `新增${itemLabel}`
+        ? t('新增成员')
         : appending
-          ? `追加${itemLabel}`
-          : `在第 ${index + 1} ${itemLabel}${position === 'before' ? '前' : '后'}插入`
+          ? t('追加项')
+          : position === 'before'
+            ? t('在第 {index} 项前插入', { index: index + 1 })
+            : t('在第 {index} 项后插入', { index: index + 1 })
 
   /** 副标题：说明这次操作的影响（无序集合无可预期的数量位置，仅在有序时展示） */
-  const subtitle = mode === 'edit' || !showPosition ? '' : appending ? `将追加为第 ${total + 1} 项` : `插入后共 ${total + 1} 项`
+  const subtitle =
+    mode === 'edit' || !showPosition
+      ? ''
+      : appending
+        ? t('将追加为第 {index} 项', { index: total + 1 })
+        : t('插入后共 {count} 项', { count: total + 1 })
 
   /** 尝试格式化为 JSON，便于用户确认自己写的是合法结构 */
   const jsonHint = (() => {
     const text = draft.trim()
-    if (!text || (!text.startsWith('{') && !text.startsWith('['))) return ''
+    if (!text || (!text.startsWith('{') && !text.startsWith('['))) return null
     try {
       JSON.parse(text)
-      return '合法 JSON'
+      return { text: t('合法 JSON'), bad: false }
     } catch {
-      return 'JSON 格式有误'
+      return { text: t('JSON 格式有误'), bad: true }
     }
   })()
 
@@ -112,16 +116,16 @@ export function EditListElementDialog({
     <DialogShell
       icon={mode === 'edit' ? 'edit' : 'add'}
       title={title}
-      description={subtitle || (mode === 'edit' ? '修改后立即生效' : '插入后立即生效')}
+      description={subtitle || (mode === 'edit' ? t('修改后立即生效') : t('插入后立即生效'))}
       badge={<span className="dlg-badge mono">{keyType}</span>}
       className="edit-list-element-dialog"
       onClose={onCancel}
       footer={
         <>
           {/* 统计条：字符 / 行 / 字节（+ 改动量），放在页脚左侧充当副信息 */}
-          <span className="stat mono">{stats.chars} 字符</span>
+          <span className="stat mono">{t('{count} 字符', { count: stats.chars })}</span>
           <span className="sep">·</span>
-          <span className="stat mono">{stats.lines} 行</span>
+          <span className="stat mono">{t('{count} 行', { count: stats.lines })}</span>
           <span className="sep">·</span>
           <span className="stat mono">{formatBytes(stats.bytes)}</span>
           {/* 改动量仅在编辑模式展示：插入是新增内容，没有对比基准 */}
@@ -137,7 +141,7 @@ export function EditListElementDialog({
           <span className="spacer" />
           <Button type="button" variant="ghost" className="foot-btn foot-quiet" onClick={onCancel}>
             <DialogIcon name="cancel" size={13} />
-            取消
+            {t('取消')}
           </Button>
           <Button
             type="button"
@@ -146,7 +150,7 @@ export function EditListElementDialog({
             onClick={() => onConfirm(draft)}
           >
             <DialogIcon name="save" size={13} />
-            {mode === 'edit' ? '保存' : '插入'}
+            {mode === 'edit' ? t('保存') : t('插入')}
           </Button>
         </>
       }
@@ -159,7 +163,9 @@ export function EditListElementDialog({
         </span>
         {showPosition ? (
           <span className="pos mono">
-            {mode === 'edit' ? `#${index + 1} / ${total}` : `插入点 #${index + 1}`}
+            {mode === 'edit'
+              ? `#${index + 1} / ${total}`
+              : t('插入点 #{index}', { index: index + 1 })}
           </span>
         ) : null}
       </div>
@@ -171,10 +177,12 @@ export function EditListElementDialog({
           className="mono dlg-content"
           autoGrow
           spellCheck={false}
-          placeholder={mode === 'edit' ? '元素内容，可多行' : '要插入的内容'}
+          placeholder={
+            !showPosition ? t('成员内容') : mode === 'edit' ? t('元素内容，可多行') : t('要插入的内容')
+          }
           autoFocus
         />
-        {jsonHint ? <p className={`json-hint${jsonHint.includes('有误') ? ' bad' : ''}`}>{jsonHint}</p> : null}
+        {jsonHint ? <p className={`json-hint${jsonHint.bad ? ' bad' : ''}`}>{jsonHint.text}</p> : null}
       </div>
     </DialogShell>
   )

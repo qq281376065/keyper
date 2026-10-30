@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useI18n } from '@/i18n'
 
 export interface StringLine {
   no: number
@@ -48,6 +49,7 @@ export function VirtualStringLines({
   onDoubleClick,
   renderLine,
 }: VirtualStringLinesProps) {
+  const { t } = useI18n()
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const [scrollTop, setScrollTop] = useState(0)
   const [viewportH, setViewportH] = useState(600)
@@ -88,7 +90,7 @@ export function VirtualStringLines({
       className={`text-block mono${wrap ? '' : ' nowrap'}`}
       onScroll={onScroll}
       onDoubleClick={onDoubleClick}
-      title="双击进入编辑"
+      title={t('双击进入编辑')}
     >
       {/* 顶部占位：把可见行推到正确的滚动位置 */}
       {padTop > 0 ? <div className="vlines-pad" style={{ height: padTop }} aria-hidden /> : null}

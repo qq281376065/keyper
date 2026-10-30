@@ -4,6 +4,7 @@ import { DialogIcon } from '@/components/DialogIcon'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useI18n } from '@/i18n'
 
 /** 通用单值输入弹窗：用于重命名键、设置 TTL 等轻量输入场景 */
 export interface PromptDialogProps {
@@ -27,26 +28,27 @@ export function PromptDialog({
   initialValue = '',
   placeholder = '',
   hint = '',
-  confirmText = '确定',
+  confirmText,
   inputType = 'text',
   presets = [],
   onConfirm,
   onCancel,
 }: PromptDialogProps) {
+  const { t } = useI18n()
   const [draft, setDraft] = useState(initialValue)
 
   return (
     <DialogShell
       icon="edit"
       title={title}
-      description="填写后按 Enter 可直接确认"
+      description={t('填写后按 Enter 可直接确认')}
       className="prompt-dialog"
       onClose={onCancel}
       footer={
         <>
           <Button type="button" variant="ghost" className="foot-btn foot-quiet" onClick={onCancel}>
             <DialogIcon name="cancel" size={13} />
-            取消
+            {t('取消')}
           </Button>
           <Button
             type="button"
@@ -54,7 +56,7 @@ export function PromptDialog({
             onClick={() => onConfirm(draft)}
           >
             <DialogIcon name="save" size={13} />
-            {confirmText}
+            {confirmText ?? t('确定')}
           </Button>
         </>
       }
@@ -83,7 +85,7 @@ export function PromptDialog({
       {/* 常用值：一键填入，省掉手输。整组胶囊化，与按钮约定一致 */}
       {presets.length ? (
         <div className="presets">
-          <span className="presets-label">常用值</span>
+          <span className="presets-label">{t('常用值')}</span>
           {presets.map((item) => (
             <button
               key={item.value}

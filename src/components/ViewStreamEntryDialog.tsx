@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { DialogIcon } from '@/components/DialogIcon'
 import { DialogShell } from '@/components/DialogShell'
 import { Button } from '@/components/ui/button'
+import { useI18n } from '@/i18n'
 import { useRedis } from '@/store/useRedis'
 import { copyText } from '@/utils/clipboard'
 import { formatBytes } from '@/utils/format'
@@ -40,6 +41,7 @@ export function ViewStreamEntryDialog({
   onClose,
 }: ViewStreamEntryDialogProps) {
   const { notify } = useRedis()
+  const { t } = useI18n()
 
   /**
    * 字段区的展示视图。
@@ -129,35 +131,35 @@ export function ViewStreamEntryDialog({
    * 复制并由全局 toast 反馈结果。
    * 用项目的 `copyText` 而非直接调 `navigator.clipboard`：后者在非安全上下文下不可用。
    */
-  async function copy(text: string, label: string): Promise<void> {
-    if (!text) {
-      notify('err', '内容为空，无可复制')
+  async function copyEntryId(): Promise<void> {
+    if (!entryId) {
+      notify('err', t('内容为空，无可复制'))
       return
     }
-    const done = await copyText(text)
-    notify(done ? 'ok' : 'err', done ? `已复制${label}` : '复制失败，请检查剪贴板权限')
+    const done = await copyText(entryId)
+    notify(done ? 'ok' : 'err', done ? t('已复制 entry ID') : t('复制失败，请检查剪贴板权限'))
   }
 
   return (
     <DialogShell
       icon="document"
-      title="查看 entry"
-      description="只读视图，stream 条目不可原地修改"
+      title={t('查看 entry')}
+      description={t('只读视图，stream 条目不可原地修改')}
       badge={<span className="dlg-badge mono">stream</span>}
       className="view-stream-entry-dialog"
       closeOnOverlay
       onClose={onClose}
       footer={
         <>
-          <span className="stat mono">{stats.chars} 字符</span>
+          <span className="stat mono">{t('{count} 字符', { count: stats.chars })}</span>
           <span className="sep">·</span>
-          <span className="stat mono">{stats.lines} 行</span>
+          <span className="stat mono">{t('{count} 行', { count: stats.lines })}</span>
           <span className="sep">·</span>
           <span className="stat mono">{formatBytes(stats.bytes)}</span>
           <span className="spacer" />
           <Button type="button" variant="ghost" className="foot-btn foot-quiet" onClick={onClose}>
             <DialogIcon name="cancel" size={13} />
-            关闭
+            {t('关闭')}
           </Button>
         </>
       }
@@ -183,8 +185,8 @@ export function ViewStreamEntryDialog({
             variant="ghost"
             size="icon"
             className="mini-copy"
-            aria-label="复制 entry ID"
-            onClick={() => void copy(entryId, ' entry ID')}
+            aria-label={t('复制 entry ID')}
+            onClick={() => void copyEntryId()}
           >
             <DialogIcon name="copy" size={11} />
           </Button>
@@ -192,19 +194,19 @@ export function ViewStreamEntryDialog({
 
         {timestamp ? (
           <>
-            <dt>时间</dt>
+            <dt>{t('时间')}</dt>
             <dd className="mono">{timestamp}</dd>
           </>
         ) : null}
 
-        <dt>字段数</dt>
+        <dt>{t('字段数')}</dt>
         <dd className="mono">{stats.fieldCount || '—'}</dd>
       </dl>
 
       {/* 字段区：可切换「字段明细」与「JSON 明细」 */}
       <section className="stream-section">
         <div className="stream-section-head">
-          <span className="stream-section-title">字段</span>
+          <span className="stream-section-title">{t('字段')}</span>
 
           {/* 视图切换固定在最右：位置稳定，切换时不会因文案长短左右跳动 */}
           {parsedFields || jsonAvailable ? (
@@ -214,7 +216,7 @@ export function ViewStreamEntryDialog({
                 className={view === 'fields' ? 'on' : ''}
                 onClick={() => setView('fields')}
               >
-                字段明细
+                {t('字段明细')}
               </button>
               {jsonAvailable ? (
                 <button
@@ -222,7 +224,7 @@ export function ViewStreamEntryDialog({
                   className={view === 'json' ? 'on' : ''}
                   onClick={() => setView('json')}
                 >
-                  JSON 明细
+                  {t('JSON 明细')}
                 </button>
               ) : null}
             </div>
@@ -244,9 +246,9 @@ export function ViewStreamEntryDialog({
           <pre className="raw json mono">{jsonText}</pre>
         ) : (
           <>
-            <pre className="raw mono">{fields || '（空）'}</pre>
+            <pre className="raw mono">{fields || t('（空）')}</pre>
             {/* 仅在「内容可拆成字段、但当前停在 JSON 视图」时给出回切引导 */}
-            {parsedFields ? <p className="note">切换到「字段明细」可按字段逐项查看。</p> : null}
+            {parsedFields ? <p className="note">{t('切换到「字段明细」可按字段逐项查看。')}</p> : null}
           </>
         )}
       </section>

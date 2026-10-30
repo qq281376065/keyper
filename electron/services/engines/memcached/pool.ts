@@ -1,3 +1,4 @@
+import { t } from '@shared/i18n'
 import { MemcachedClient, MemcachedError, type MemcachedClientOptions } from './client'
 
 /**
@@ -45,7 +46,7 @@ export class MemcachedPool {
     if (results.every((item) => item.status === 'rejected')) {
       this.clients = []
       const reason = firstError?.reason
-      throw reason instanceof Error ? reason : new MemcachedError('SOCKET_CLOSED', '无法建立任何连接')
+      throw reason instanceof Error ? reason : new MemcachedError('SOCKET_CLOSED', t('无法建立任何连接'))
     }
   }
 
@@ -62,7 +63,7 @@ export class MemcachedPool {
    */
   private async acquire(): Promise<MemcachedClient> {
     if (this.closed || !this.clients.length) {
-      throw new MemcachedError('SOCKET_CLOSED', '连接池未建立')
+      throw new MemcachedError('SOCKET_CLOSED', t('连接池未建立'))
     }
     const total = this.clients.length
     for (let i = 0; i < total; i++) {
@@ -80,7 +81,7 @@ export class MemcachedPool {
         /* 继续试下一条 */
       }
     }
-    throw new MemcachedError('SOCKET_CLOSED', '所有连接均不可用')
+    throw new MemcachedError('SOCKET_CLOSED', t('所有连接均不可用'))
   }
 
   /**

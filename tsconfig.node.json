@@ -40,6 +40,7 @@
     "tests/unit/credentialCrypto.spec.ts",
     "tests/unit/memcachedClient.spec.ts",
     "tests/unit/memcachedManager.spec.ts",
-    "tests/unit/engineIsolation.spec.ts"
+    "tests/unit/engineIsolation.spec.ts",
+    "lang/**/*.ts"
   ]
 }

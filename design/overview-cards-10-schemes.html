@@ -1,0 +1,1197 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>连接详情顶部卡片 · 10 套方案</title>
+<style>
+/* ============================================================
+   令牌：与 src/styles/main.css 暗 / 亮两套保持一致
+   ============================================================ */
+:root{
+  --bg-app:#15171c;
+  --bg-panel:#1b1e25;
+  --bg-elevated:#21252e;
+  --bg-hover:#272c37;
+
+  --border:#2b3140;
+  --border-strong:#3a4256;
+
+  --text-primary:#e6e9ef;
+  --text-secondary:#9aa4b8;
+  --text-muted:#6b7488;
+
+  --accent:#dc382d;
+  --accent-soft:rgba(220,56,45,.14);
+  --purple:#a78bfa;
+  --green:#3fbf7f;
+  --amber:#e5a13a;
+
+  --radius-sm:4px;
+  --radius-md:6px;
+  --radius-lg:10px;
+
+  --font-ui:"Segoe UI", system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-mono:"JetBrains Mono","Cascadia Code",Consolas,"Courier New",monospace;
+
+  --fs-base:13px;
+  --fs-2xs:10px;
+  --fs-xs:11px;
+  --fs-sm:11.5px;
+  --fs-md:12px;
+  --fs-lg:14px;
+  --fs-xl:16px;
+
+  --shadow:0 8px 24px rgba(0,0,0,.35);
+}
+:root[data-theme="light"]{
+  --bg-app:#f4f5f7;
+  --bg-panel:#ffffff;
+  --bg-elevated:#f0f1f4;
+  --bg-hover:#e8eaef;
+
+  --border:#d9dce3;
+  --border-strong:#c2c7d0;
+
+  --text-primary:#1c2129;
+  --text-secondary:#4f596b;
+  --text-muted:#6f7889;
+
+  --accent:#d0342c;
+  --accent-soft:rgba(208,52,44,.10);
+  --purple:#7c4ddb;
+  --green:#12855a;
+  --amber:#b3690a;
+
+  --shadow:0 8px 24px rgba(15,23,42,.10);
+}
+
+*{box-sizing:border-box;}
+[hidden]{display:none !important;}
+html{scroll-behavior:smooth;background:var(--bg-app);}
+body{
+  margin:0;
+  padding:0 0 80px;
+  background:
+    radial-gradient(1100px 520px at 12% -8%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 62%),
+    radial-gradient(900px 460px at 96% -4%, color-mix(in srgb, var(--purple) 9%, transparent), transparent 58%),
+    var(--bg-app);
+  color:var(--text-primary);
+  font-family:var(--font-ui);
+  font-size:var(--fs-base);
+  line-height:1.5;
+  min-height:100vh;
+}
+
+/* ---------------------------------------------------------- 页头 */
+.page-head{max-width:1440px;margin:0 auto;padding:34px 26px 14px;}
+.page-head h1{margin:0 0 8px;font-size:23px;letter-spacing:-.2px;}
+.page-head .lead{margin:0;max-width:940px;color:var(--text-secondary);font-size:12.5px;line-height:1.7;}
+.page-head .lead strong{color:var(--text-primary);font-weight:600;}
+.page-head code{
+  font-family:var(--font-mono);font-size:11.5px;padding:1px 5px;border-radius:5px;
+  background:var(--bg-elevated);border:1px solid var(--border);color:var(--text-secondary);
+}
+
+/* ---------------------------------------------------------- 工具条 */
+.toolbar{
+  position:sticky;top:0;z-index:30;
+  max-width:1440px;margin:0 auto;padding:10px 26px;
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  background:color-mix(in srgb, var(--bg-app) 88%, transparent);
+  backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--border);
+}
+.seg-switch{display:inline-flex;padding:2px;gap:2px;border:1px solid var(--border);border-radius:999px;background:var(--bg-panel);}
+.seg-switch button{
+  appearance:none;border:0;background:transparent;color:var(--text-secondary);
+  font-family:inherit;font-size:11.5px;padding:3px 12px;border-radius:999px;cursor:pointer;
+  transition:background .15s,color .15s;
+}
+.seg-switch button:hover{background:var(--bg-hover);color:var(--text-primary);}
+.seg-switch button.on{background:var(--accent-soft);color:var(--accent);font-weight:600;}
+.toolbar .hint{font-size:11.5px;color:var(--text-muted);}
+.toolbar .spacer{flex:1;}
+.check{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--text-secondary);cursor:pointer;
+  border:1px solid var(--border);background:var(--bg-panel);padding:3px 10px 3px 8px;border-radius:999px;}
+.check input{accent-color:var(--accent);margin:0;}
+
+/* ---------------------------------------------------------- 画布 */
+.board{max-width:1440px;margin:20px auto 0;padding:0 26px;display:flex;flex-direction:column;gap:16px;}
+.board.gray .stage{filter:grayscale(1);}
+.board.narrow .stage{max-width:560px;}
+.board.zoom .stage{zoom:1.18;}
+
+.scheme{
+  border:1px solid var(--border);
+  border-radius:14px;
+  background:var(--bg-panel);
+  padding:14px 16px 15px;
+  box-shadow:0 1px 0 rgba(255,255,255,.02) inset;
+}
+:root[data-theme="light"] .scheme{box-shadow:0 8px 22px rgba(15,23,42,.05);}
+.scheme.baseline{border-style:dashed;border-color:var(--border-strong);background:color-mix(in srgb, var(--bg-panel) 60%, transparent);}
+
+.scheme-head{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px;}
+.scheme-head .no{
+  flex:0 0 auto;min-width:30px;height:28px;padding:0 7px;display:grid;place-items:center;
+  border-radius:8px;background:var(--bg-elevated);border:1px solid var(--border);
+  color:var(--text-secondary);font-family:var(--font-mono);font-size:12px;font-weight:700;
+}
+.scheme-head h2{margin:0;font-size:14.5px;line-height:1.3;}
+.scheme-head .mech{margin:2px 0 0;color:var(--text-muted);font-size:11.5px;}
+.scheme-head .kind{
+  flex:0 0 auto;margin-left:auto;padding:2px 9px;border-radius:999px;
+  border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-muted);
+  font-size:10px;white-space:nowrap;
+}
+.scheme-head .kind.pick{border-color:color-mix(in srgb,var(--green) 45%,var(--border));color:var(--green);}
+
+.scheme-body{display:grid;grid-template-columns:minmax(0,1fr) 258px;gap:18px;align-items:start;}
+@media (max-width:1180px){
+  .scheme-body{grid-template-columns:minmax(0,1fr);}
+}
+
+.notes{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px;font-size:11.5px;color:var(--text-secondary);}
+.notes li{display:grid;grid-template-columns:46px 1fr;gap:6px;line-height:1.55;}
+.notes b{color:var(--text-primary);font-weight:600;font-size:11px;padding-top:1px;}
+.notes li.good b{color:var(--green);}
+.notes li.bad b{color:var(--accent);}
+.notes li.warn b{color:var(--amber);}
+
+/* ---------------------------------------------------------- 舞台：模拟真实面板 */
+.stage{
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:var(--bg-app);
+  padding:11px 12px 12px;
+  min-width:0;
+}
+.stage + .stage{margin-top:12px;}
+.stage-tag{
+  display:flex;align-items:center;gap:7px;margin:0 0 9px;
+  font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--text-muted);
+}
+.stage-tag .dot{width:5px;height:5px;border-radius:50%;background:var(--eng);}
+.stage-tag .sw{margin-left:auto;text-transform:none;letter-spacing:0;font-size:10px;}
+
+.stage[data-engine="redis"]{--eng:var(--accent);--eng-soft:var(--accent-soft);}
+.stage[data-engine="memcached"]{--eng:var(--purple);--eng-soft:color-mix(in srgb,var(--purple) 16%,transparent);}
+
+/* 面板头：与 ServerOverview 的 ov-head 同构 */
+.ov-head{display:flex;align-items:center;gap:10px;min-width:0;margin-bottom:10px;}
+.ov-ident{display:flex;align-items:baseline;gap:8px;min-width:0;flex-wrap:wrap;}
+.ov-name{font-size:var(--fs-lg);font-weight:600;}
+.ov-ep{font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--text-muted);}
+.chip-ssh{padding:0 6px;border-radius:8px;background:var(--accent-soft);color:var(--accent);font-size:var(--fs-2xs);font-weight:600;}
+.ov-refresh{
+  margin-left:auto;display:inline-flex;align-items:center;gap:5px;
+  padding:2px 11px;border-radius:999px;border:1px solid var(--border);
+  background:var(--bg-elevated);color:var(--text-secondary);
+  font-family:inherit;font-size:var(--fs-sm);cursor:pointer;white-space:nowrap;
+  transition:background .15s,color .15s,border-color .15s;
+}
+.ov-refresh:hover{background:var(--bg-hover);color:var(--text-primary);border-color:var(--border-strong);}
+.ov-refresh .ri{font-size:var(--fs-md);line-height:1;display:inline-block;}
+
+/* 二级页签：只做"下方还有内容"的语境提示 */
+.ov-tabs{display:flex;gap:2px;margin-top:12px;border-bottom:1px solid var(--border);}
+.ov-tab{
+  appearance:none;border:0;background:transparent;color:var(--text-muted);
+  font-family:inherit;font-size:var(--fs-sm);padding:4px 10px;cursor:pointer;
+  border-bottom:2px solid transparent;margin-bottom:-1px;
+}
+.ov-tab.active{color:var(--text-primary);border-bottom-color:var(--accent);font-weight:600;}
+
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums;}
+.ic{display:inline-flex;flex:0 0 auto;}
+.t{display:flex;align-items:center;}
+dd.ok{color:var(--green);}
+dd.warn{color:var(--amber);}
+dd.bad{color:var(--accent);}
+
+/* ============================================================
+   01 现状（对照）
+   ============================================================ */
+[data-scheme="01"] .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;}
+[data-scheme="01"] .card{padding:11px 10px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-panel);min-width:0;}
+[data-scheme="01"] .t{margin:0 0 9px;gap:6px;font-size:var(--fs-md);font-weight:600;color:var(--text-secondary);letter-spacing:.3px;}
+[data-scheme="01"] .ic{color:var(--text-muted);}
+[data-scheme="01"] .rows{margin:0;display:flex;flex-direction:column;gap:9px;}
+[data-scheme="01"] .r{display:flex;align-items:baseline;justify-content:space-between;gap:10px;min-width:0;}
+[data-scheme="01"] .r dt{font-size:var(--fs-md);color:var(--text-muted);white-space:nowrap;}
+[data-scheme="01"] .r dd{margin:0;font-size:var(--fs-lg);color:var(--text-primary);text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+/* ============================================================
+   02 单卡分区：一张面板，内部竖线分栏
+   ============================================================ */
+[data-scheme="02"] .panel{display:flex;flex-wrap:wrap;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--bg-panel);overflow:hidden;}
+[data-scheme="02"] .seg{flex:1 1 220px;min-width:220px;padding:10px 13px 11px;}
+[data-scheme="02"] .seg + .seg{border-left:1px solid var(--border-strong);}
+[data-scheme="02"] .t{margin:0 0 7px;gap:6px;font-size:var(--fs-2xs);font-weight:700;color:var(--text-muted);letter-spacing:.09em;}
+[data-scheme="02"] .t .ic{color:var(--eng);opacity:.85;}
+[data-scheme="02"] .rows{margin:0;display:flex;flex-direction:column;gap:7px;}
+[data-scheme="02"] .r{display:flex;align-items:baseline;justify-content:space-between;gap:8px;min-width:0;}
+[data-scheme="02"] .r dt{font-size:var(--fs-sm);color:var(--text-muted);white-space:nowrap;}
+[data-scheme="02"] .r dd{margin:0;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+/* ============================================================
+   03 主卡 + 微指标网格
+   ============================================================ */
+[data-scheme="03"] .c03{display:grid;grid-template-columns:minmax(180px,1fr) minmax(0,2.1fr);gap:10px;align-items:stretch;}
+@media (max-width:760px){[data-scheme="03"] .c03{grid-template-columns:minmax(0,1fr);}}
+[data-scheme="03"] .hero{
+  position:relative;padding:11px 12px;border:1px solid var(--border);border-radius:var(--radius-lg);
+  background:
+    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb,var(--eng) 16%, transparent), transparent 62%),
+    var(--bg-panel);
+  overflow:hidden;
+}
+[data-scheme="03"] .hero-t{display:flex;align-items:center;gap:6px;font-size:var(--fs-2xs);letter-spacing:.09em;font-weight:700;color:color-mix(in srgb,var(--eng) 78%, var(--text-primary));}
+[data-scheme="03"] .hero-v{font-family:var(--font-mono);font-size:20px;font-weight:600;line-height:1.2;margin:7px 0 2px;letter-spacing:-.3px;}
+[data-scheme="03"] .hero-sub{font-size:var(--fs-sm);color:var(--text-muted);}
+[data-scheme="03"] .hero-chips{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap;}
+[data-scheme="03"] .chip{
+  font-size:var(--fs-2xs);padding:1px 8px;border-radius:999px;
+  border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);
+  font-family:var(--font-mono);
+}
+[data-scheme="03"] .chip.on{border-color:color-mix(in srgb,var(--green) 40%,var(--border));color:var(--green);}
+[data-scheme="03"] .kpis{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));
+  border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--bg-panel);overflow:hidden;
+}
+[data-scheme="03"] .kpi{padding:9px 11px;min-width:0;border-bottom:1px solid var(--border);}
+[data-scheme="03"] .kpi:nth-child(2n){border-left:1px solid var(--border);}
+[data-scheme="03"] .kpi .k{font-size:var(--fs-2xs);color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+[data-scheme="03"] .kpi .v{font-family:var(--font-mono);font-size:14.5px;font-weight:600;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+/* ============================================================
+   04 大数字 KPI 卡
+   ============================================================ */
+[data-scheme="04"] .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(172px,1fr));gap:10px;}
+[data-scheme="04"] .card{padding:11px 12px 10px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--bg-panel);min-width:0;}
+[data-scheme="04"] .k{display:flex;align-items:center;gap:5px;font-size:var(--fs-2xs);letter-spacing:.07em;color:var(--text-muted);font-weight:600;}
+[data-scheme="04"] .k .ic{color:var(--eng);opacity:.9;}
+[data-scheme="04"] .v{
+  font-family:var(--font-mono);font-size:25px;font-weight:600;line-height:1.15;
+  margin:4px 0 0;letter-spacing:-.8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+[data-scheme="04"] .v.ok{color:var(--green);}
+[data-scheme="04"] .subrows{margin:9px 0 0;padding:0;display:flex;flex-direction:column;gap:5px;}
+[data-scheme="04"] .r{display:flex;justify-content:space-between;align-items:baseline;gap:8px;border-top:1px dashed var(--border);padding-top:5px;}
+[data-scheme="04"] .r:first-child{border-top:0;padding-top:0;}
+[data-scheme="04"] .r dt{font-size:var(--fs-2xs);color:var(--text-muted);white-space:nowrap;}
+[data-scheme="04"] .r dd{margin:0;font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--text-secondary);white-space:nowrap;}
+
+/* ============================================================
+   05 无框指标条
+   ============================================================ */
+[data-scheme="05"] .strip{
+  display:flex;flex-wrap:wrap;align-items:stretch;gap:0;overflow:hidden;
+  border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--bg-elevated);
+}
+[data-scheme="05"] .grp{display:flex;flex-wrap:wrap;align-items:stretch;flex:1 1 auto;min-width:0;}
+[data-scheme="05"] .grp + .grp{border-left:2px solid color-mix(in srgb,var(--eng) 22%,var(--border));}
+[data-scheme="05"] .gt{
+  display:flex;align-items:center;padding:0 10px 0 11px;
+  font-size:var(--fs-2xs);font-weight:700;letter-spacing:.08em;
+  color:color-mix(in srgb,var(--eng) 80%,var(--text-primary));
+  white-space:nowrap;
+}
+[data-scheme="05"] .sg{display:flex;flex-direction:column;justify-content:center;gap:1px;padding:7px 13px;min-width:0;border-left:1px solid var(--border);}
+[data-scheme="05"] .sg .k{font-size:var(--fs-2xs);color:var(--text-muted);white-space:nowrap;}
+[data-scheme="05"] .sg .v{font-family:var(--font-mono);font-size:13px;font-weight:600;white-space:nowrap;}
+
+/* ============================================================
+   06 引擎色左轨卡
+   ============================================================ */
+[data-scheme="06"] .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;}
+[data-scheme="06"] .card{
+  position:relative;padding:10px 12px 11px 15px;min-width:0;overflow:hidden;
+  border:1px solid color-mix(in srgb,var(--eng) 18%,var(--border));
+  border-radius:var(--radius-lg);
+  background:color-mix(in srgb,var(--eng) 5%,var(--bg-panel));
+}
+[data-scheme="06"] .card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--eng);}
+[data-scheme="06"] .t{margin:0 0 8px;gap:6px;font-size:var(--fs-md);font-weight:600;color:color-mix(in srgb,var(--eng) 60%,var(--text-primary));}
+[data-scheme="06"] .ic{color:var(--eng);opacity:.9;}
+[data-scheme="06"] .rows{margin:0;display:flex;flex-direction:column;gap:7px;}
+[data-scheme="06"] .r{display:flex;align-items:baseline;justify-content:space-between;gap:8px;min-width:0;}
+[data-scheme="06"] .r dt{font-size:var(--fs-sm);color:var(--text-secondary);white-space:nowrap;}
+[data-scheme="06"] .r dd{margin:0;font-family:var(--font-mono);font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+/* ============================================================
+   07 横向堆叠行卡
+   ============================================================ */
+[data-scheme="07"] .cards{display:flex;flex-direction:column;gap:6px;}
+[data-scheme="07"] .card{
+  display:grid;grid-template-columns:104px minmax(0,1fr);align-items:center;gap:10px;
+  padding:7px 12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-panel);
+}
+[data-scheme="07"] .t{margin:0;gap:6px;font-size:var(--fs-sm);font-weight:600;color:var(--text-secondary);white-space:nowrap;}
+[data-scheme="07"] .t .ic{color:var(--eng);opacity:.9;}
+[data-scheme="07"] .rows{margin:0;display:flex;align-items:stretch;justify-content:flex-end;flex-wrap:wrap;min-width:0;}
+[data-scheme="07"] .r{display:flex;flex-direction:column;align-items:flex-end;gap:0;padding:0 14px;border-left:1px solid var(--border);min-width:0;}
+[data-scheme="07"] .r:first-child{border-left:0;}
+[data-scheme="07"] .r dt{font-size:var(--fs-2xs);color:var(--text-muted);white-space:nowrap;}
+[data-scheme="07"] .r dd{margin:0;font-family:var(--font-mono);font-size:13px;font-weight:600;white-space:nowrap;}
+
+/* ============================================================
+   08 指标 + 进度
+   ============================================================ */
+[data-scheme="08"] .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:10px;}
+[data-scheme="08"] .card{padding:10px 12px 11px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--bg-panel);min-width:0;}
+[data-scheme="08"] .t{margin:0 0 6px;gap:6px;font-size:var(--fs-2xs);letter-spacing:.07em;font-weight:700;color:var(--text-muted);}
+[data-scheme="08"] .t .ic{color:var(--eng);opacity:.9;}
+[data-scheme="08"] .v{font-family:var(--font-mono);font-size:21px;font-weight:600;line-height:1.15;letter-spacing:-.4px;}
+[data-scheme="08"] .track{height:5px;border-radius:999px;background:color-mix(in srgb,var(--text-muted) 26%,var(--bg-panel));overflow:hidden;margin:7px 0 5px;}
+[data-scheme="08"] .fill{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,color-mix(in srgb,var(--eng) 58%,transparent),var(--eng));}
+[data-scheme="08"] .fill.good{background:linear-gradient(90deg,color-mix(in srgb,var(--green) 50%,transparent),var(--green));}
+[data-scheme="08"] .fill.hot{background:linear-gradient(90deg,color-mix(in srgb,var(--amber) 50%,transparent),var(--amber));}
+[data-scheme="08"] .cap{display:flex;justify-content:space-between;gap:8px;font-size:var(--fs-2xs);color:var(--text-muted);margin-bottom:7px;}
+[data-scheme="08"] .cap .mono{color:var(--text-secondary);}
+[data-scheme="08"] .srows{margin:0;display:flex;flex-direction:column;gap:3px;border-top:1px solid var(--border);padding-top:6px;}
+[data-scheme="08"] .r{display:flex;justify-content:space-between;gap:8px;align-items:baseline;}
+[data-scheme="08"] .r dt{font-size:var(--fs-2xs);color:var(--text-muted);}
+[data-scheme="08"] .r dd{margin:0;font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--text-secondary);white-space:nowrap;}
+[data-scheme="08"] .mini{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 8px;}
+[data-scheme="08"] .mini span{
+  font-size:var(--fs-2xs);padding:1px 7px;border-radius:999px;font-family:var(--font-mono);
+  background:var(--bg-elevated);border:1px solid var(--border);color:var(--text-secondary);
+}
+
+/* ============================================================
+   09 标题悬浮轻排版（无框）
+   ============================================================ */
+[data-scheme="09"] .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:16px 0;margin:0;}
+/* 列间虚线：用 padding 撑开留白、边框落在中线，比 gap 更能让线贯穿整列高度 */
+[data-scheme="09"] .col{min-width:0;padding:0 15px;}
+[data-scheme="09"] .col + .col{border-left:1px dashed color-mix(in srgb,var(--text-muted) 62%,transparent);}
+[data-scheme="09"] .hd{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+[data-scheme="09"] .hd .tt{font-size:var(--fs-2xs);letter-spacing:.14em;font-weight:700;color:var(--text-secondary);white-space:nowrap;text-transform:uppercase;}
+[data-scheme="09"] .hd .ln{flex:1;height:0;border-top:1px dashed color-mix(in srgb,var(--text-muted) 46%,transparent);}
+[data-scheme="09"] .hd .ic{color:var(--eng);opacity:.8;}
+[data-scheme="09"] .rows{margin:0;display:flex;flex-direction:column;}
+[data-scheme="09"] .r{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px dashed color-mix(in srgb,var(--text-muted) 50%,transparent);}
+[data-scheme="09"] .r:last-child{border-bottom:0;}
+[data-scheme="09"] .r dt{font-size:var(--fs-sm);color:var(--text-muted);white-space:nowrap;}
+[data-scheme="09"] .r dd{margin:0;font-family:var(--font-mono);font-size:15px;font-weight:600;letter-spacing:-.2px;white-space:nowrap;}
+
+/* ============================================================
+   10 渐变立体卡
+   ============================================================ */
+[data-scheme="10"] .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(182px,1fr));gap:11px;}
+[data-scheme="10"] .card{
+  position:relative;padding:11px 12px 12px;min-width:0;overflow:hidden;
+  border:1px solid color-mix(in srgb,var(--eng) 22%,var(--border));
+  border-radius:12px;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--eng) 10%,var(--bg-panel)),var(--bg-panel) 58%);
+  box-shadow:0 6px 18px rgba(0,0,0,.22);
+}
+:root[data-theme="light"] [data-scheme="10"] .card{box-shadow:0 8px 20px rgba(15,23,42,.07);}
+[data-scheme="10"] .card::after{
+  content:"";position:absolute;inset:0 0 auto 0;height:60%;
+  background:radial-gradient(70% 100% at 34% 100%,color-mix(in srgb,var(--eng) 20%,transparent),transparent 74%);
+  pointer-events:none;
+}
+[data-scheme="10"] .hd{display:flex;align-items:center;gap:7px;margin-bottom:8px;position:relative;}
+[data-scheme="10"] .hd .box{
+  width:22px;height:22px;border-radius:7px;display:grid;place-items:center;flex:0 0 auto;
+  background:color-mix(in srgb,var(--eng) 18%,transparent);
+  color:color-mix(in srgb,var(--eng) 92%,var(--text-primary));
+  border:1px solid color-mix(in srgb,var(--eng) 26%,transparent);
+}
+[data-scheme="10"] .hd .tt{font-size:var(--fs-md);font-weight:600;color:var(--text-primary);}
+[data-scheme="10"] .rows{margin:0;display:flex;flex-direction:column;gap:6px;position:relative;}
+[data-scheme="10"] .r{display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
+[data-scheme="10"] .r dt{font-size:var(--fs-sm);color:var(--text-muted);white-space:nowrap;}
+[data-scheme="10"] .r dd{margin:0;font-family:var(--font-mono);font-size:13px;font-weight:600;white-space:nowrap;}
+[data-scheme="10"] .r:first-child dd{font-size:15px;}
+
+/* ---------------------------------------------------------- 横向对比 */
+.compare{max-width:1440px;margin:26px auto 0;padding:0 26px;}
+.compare h2{font-size:15px;margin:0 0 10px;}
+.table-wrap{border:1px solid var(--border);border-radius:12px;background:var(--bg-panel);overflow:auto;}
+table{border-collapse:collapse;width:100%;font-size:11.5px;}
+th,td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;}
+th{color:var(--text-muted);font-weight:600;font-size:10.5px;letter-spacing:.05em;background:var(--bg-elevated);position:sticky;top:0;}
+tbody tr:last-child td{border-bottom:0;}
+td.name{color:var(--text-primary);font-weight:600;}
+.dots{letter-spacing:1px;color:var(--text-muted);}
+.dots b{color:var(--accent);font-weight:400;}
+.foot{color:var(--text-muted);font-size:11.5px;margin:10px 0 0;line-height:1.7;}
+.foot b{color:var(--text-primary);}
+.picks{max-width:1440px;margin:22px auto 0;padding:0 26px;}
+.picks .box{border:1px solid color-mix(in srgb,var(--green) 26%,var(--border));border-radius:12px;background:color-mix(in srgb,var(--green) 4%,var(--bg-panel));padding:14px 16px;}
+.picks h2{margin:0 0 8px;font-size:14px;}
+.picks ul{margin:0;padding-left:18px;color:var(--text-secondary);font-size:12px;line-height:1.8;}
+.picks b{color:var(--text-primary);}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="i-server" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></symbol>
+  <symbol id="i-memory" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M10 3v3M14 3v3M10 18v3M14 18v3M3 10h3M3 14h3M18 10h3M18 14h3"/></symbol>
+  <symbol id="i-activity" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h3.5l2.5-6 3.5 12 2.5-6H21"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.6h.01"/></symbol>
+  <symbol id="i-bolt" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4.5 13.5H11l-1 8.5 8.5-11.5H12l1-8.5Z"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.6 6.5"/><path d="M20 4.5V11h-6.2"/></symbol>
+</defs></svg>
+
+<header class="page-head">
+  <h1>连接详情页 · 顶部概览卡片 10 套方案</h1>
+  <p class="lead">
+    对象是 <code>ServerOverview</code>（Redis，3 张卡：服务器 / 内存 / 状态）与
+    <code>MemcachedOverview</code>（Memcached，4 张卡：服务 / 内存 / 命中 / 状态）顶部那一排卡片。
+    每套方案都同时给出两种引擎的真实数据形态，数据为演示值（<code>192.0.2.x</code>）。
+    评判重点：<strong>信息层级是否一眼抓住主指标</strong>、<strong>三卡 / 四卡是否都能撑住</strong>、
+    <strong>与下方「信息详情」表格是否视觉分层</strong>、<strong>多皮肤下对比度是否够</strong>。
+  </p>
+</header>
+
+<div class="toolbar">
+  <div class="seg-switch" role="group" aria-label="主题">
+    <button type="button" class="on" data-skin="dark">暗色</button>
+    <button type="button" data-skin="light">亮色</button>
+  </div>
+  <span class="hint">建议再切一次「灰度」：只靠引擎色区分的方案会立刻塌掉。</span>
+  <span class="spacer"></span>
+  <label class="check"><input type="checkbox" id="gray"> 灰度预览</label>
+  <label class="check"><input type="checkbox" id="narrow"> 窄窗（560px）</label>
+  <label class="check"><input type="checkbox" id="zoom"> 放大 1.18×</label>
+</div>
+
+<main class="board" id="board">
+
+  <!-- ============================================================ 01 现状 -->
+  <article class="scheme baseline">
+    <header class="scheme-head">
+      <span class="no">01</span>
+      <div>
+        <h2>现状（对照）：等宽三卡 · 标签左 / 数值右</h2>
+        <p class="mech">每卡 3 行，行高一致，数值 fs-lg 等宽体；标题 12px 灰 + 14px 中性图标</p>
+      </div>
+      <span class="kind">现状</span>
+    </header>
+    <div class="scheme-body">
+      <div>
+        <div class="stage" data-engine="redis" data-scheme="01">
+          <div class="stage-tag"><span class="dot"></span>Redis · 3 张卡</div>
+          <div class="ov-head"><div class="ov-ident"><span class="ov-name">本地开发</span><span class="ov-ep">192.0.2.10:6379</span></div><button class="ov-refresh"><svg class="ic" width="12" height="12"><use href="#i-refresh"/></svg>刷新</button></div>
+          <div class="cards">
+            <section class="card">
+              <h3 class="t"><svg class="ic" width="14" height="14"><use href="#i-server"/></svg><span>服务器</span></h3>
+              <dl class="rows"><div class="r"><dt>Redis 版本</dt><dd class="mono">7.2.4</dd></div><div class="r"><dt>运行模式</dt><dd class="mono">单机</dd></div><div class="r"><dt>进程 ID</dt><dd class="mono">10432</dd></div></dl>
+            </section>
+            <section class="card">
+              <h3 class="t"><svg class="ic" width="14" height="14"><use href="#i-memory"/></svg><span>内存</span></h3>
+              <dl class="rows"><div class="r"><dt>已用内存</dt><dd class="mono">1.24 GB</dd></div><div class="r"><dt>Lua 占用</dt><dd class="mono">3.8 MB</dd></div><div class="r"><dt>每秒操作数</dt><dd class="mono">2,431</dd></div></dl>
+            </section>
+            <section class="card">
+              <h3 class="t"><svg class="ic" width="14" height="14"><use href="#i-activity"/></svg><span>状态</span></h3>
+              <dl class="rows"><div class="r"><dt>客户端连接</dt><dd class="mono">12</dd></div><div class="r"><dt>键总数</dt><dd class="mono">48,213</dd></div><div class="r"><dt>命中率</dt><dd class="mono ok">98.2%</dd></div></dl>
+            </section>
+          </div>
+        </div>
+        <div class="stage" data-engine="memcached" data-scheme="01">
+          <div class="stage-tag"><span class="dot"></span>Memcached · 4 张卡</div>
+          <div class="ov-head"><div class="ov-ident"><span class="ov-name">会话缓存</span><span class="ov-ep">cache.example.com:11211</span><span class="chip-ssh">SSH</span></div><button class="ov-refresh"><svg class="ic" width="12" height="12"><use href="#i-refresh"/></svg>刷新</button></div>
+          <div class="cards">
+            <section class="card">
+              <h3 class="t"><svg class="ic" width="14" height="14"><use href="#i-info"/></svg><span>服务</span></h3>
+              <dl class="rows"><div class="r"><dt>版本</dt><dd class="mono">1.6.21</dd></div><div class="r"><dt>线程数</dt><dd class="mono">4</dd></div><div class="r"><dt>运行时长</dt><dd class="mono">12 天 4 时</dd></div></dl>
+            </section>
+            <section class="card">
+              <h3 class="t"><svg class="ic" width="14" height="14"><use href="#i-memory"/></svg><span>内存</span></h3>
+              <dl class="rows"><div class="r"><dt>已用</dt><dd class="mono">812 MB</dd></div><div class="r"><dt>上限</dt><dd class="mono">1.00 GB</dd></div><div class="r"><dt>占用率</dt><dd class="mono">79.3%</dd></div></dl>
+            </section>
+            <section class="card">
+              <h3 class="t"><svg class="ic" width="14" height="14"><use href="#i-bolt"/></svg><span>命中</span></h3>
+              <dl class="rows"><div class="r"><dt>命中率</dt><dd class="mono">96.4%</dd></div><div class="r"><dt>命中 / 未中</dt><dd class="mono">1.2M / 42.1K</dd></div><div class="r"><dt>条目数</dt><dd class="mono">24,108</dd></div></dl>
+            </section>
+            <section class="card">
+              <h3 class="t"><svg class="ic" width="14" height="14"><use href="#i-activity"/></svg><span>状态</span></h3>
+              <dl class="rows"><div class="r"><dt>当前连接</dt><dd class="mono">36</dd></div><div class="r"><dt>淘汰数</dt><dd class="mono">0</dd></div><div class="r"><dt>总条目</dt><dd class="mono">24,180</dd></div></dl>
+            </section>
+          </div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li><b>识别</b><span>卡框 + 卡内标题，三卡 / 四卡等分。</span></li>
+        <li class="bad"><b>问题 1</b><span>九到十二个数字字号完全一致，等于没有主指标 —— 用户要逐个读才知道哪个是重点。</span></li>
+        <li class="bad"><b>问题 2</b><span>卡片边框、下方详情表头、页签三处都是 1px 实线 + 同底色，层级糊在一起。</span></li>
+        <li class="warn"><b>问题 3</b><span>Memcached 四卡在窄窗被压到 150px 时，<code>1.2M / 42.1K</code> 会被 ellipsis 截断。</span></li>
+      </ul>
+    </div>
+  </article>
+
+  <!-- ============================================================ 02 -->
+  <article class="scheme">
+    <header class="scheme-head">
+      <span class="no">02</span>
+      <div>
+        <h2>单卡分区：一整块面板，内部竖线分栏</h2>
+        <p class="mech">去掉卡间距，三 / 四组用 1px 竖线切开，组标题升格为 10px 全大写小标</p>
+      </div>
+      <span class="kind pick">布局清爽</span>
+    </header>
+    <div class="scheme-body">
+      <div>
+        <div class="stage" data-engine="redis" data-scheme="02">
+          <div class="stage-tag"><span class="dot"></span>Redis · 3 段</div>
+          <div class="ov-head"><div class="ov-ident"><span class="ov-name">本地开发</span><span class="ov-ep">192.0.2.10:6379</span></div><button class="ov-refresh"><svg class="ic" width="12" height="12"><use href="#i-refresh"/></svg>刷新</button></div>
+          <div class="panel">
+            <div class="seg">
+              <h3 class="t"><svg class="ic" width="12" height="12"><use href="#i-server"/></svg>服务器</h3>
+              <dl class="rows"><div class="r"><dt>Redis 版本</dt><dd class="mono">7.2.4</dd></div><div class="r"><dt>运行模式</dt><dd class="mono">单机</dd></div><div class="r"><dt>进程 ID</dt><dd class="mono">10432</dd></div></dl>
+            </div>
+            <div class="seg">
+              <h3 class="t"><svg class="ic" width="12" height="12"><use href="#i-memory"/></svg>内存</h3>
+              <dl class="rows"><div class="r"><dt>已用内存</dt><dd class="mono">1.24 GB</dd></div><div class="r"><dt>Lua 占用</dt><dd class="mono">3.8 MB</dd></div><div class="r"><dt>每秒操作数</dt><dd class="mono">2,431</dd></div></dl>
+            </div>
+            <div class="seg">
+              <h3 class="t"><svg class="ic" width="12" height="12"><use href="#i-activity"/></svg>状态</h3>
+              <dl class="rows"><div class="r"><dt>客户端连接</dt><dd class="mono">12</dd></div><div class="r"><dt>键总数</dt><dd class="mono">48,213</dd></div><div class="r"><dt>命中率</dt><dd class="mono ok">98.2%</dd></div></dl>
+            </div>
+          </div>
+        </div>
+        <div class="stage" data-engine="memcached" data-scheme="02">
+          <div class="stage-tag"><span class="dot"></span>Memcached · 4 段</div>
+          <div class="ov-head"><div class="ov-ident"><span class="ov-name">会话缓存</span><span class="ov-ep">cache.example.com:11211</span><span class="chip-ssh">SSH</span></div><button class="ov-refresh"><svg class="ic" width="12" height="12"><use href="#i-refresh"/></svg>刷新</button></div>
+          <div class="panel">
+            <div class="seg">
+              <h3 class="t"><svg class="ic" width="12" height="12"><use href="#i-info"/></svg>服务</h3>
+              <dl class="rows"><div class="r"><dt>版本</dt><dd class="mono">1.6.21</dd></div><div class="r"><dt>线程数</dt><dd class="mono">4</dd></div><div class="r"><dt>运行时长</dt><dd class="mono">12 天 4 时</dd></div></dl>
+            </div>
+            <div class="seg">
+              <h3 class="t"><svg class="ic" width="12" height="12"><use href="#i-memory"/></svg>内存</h3>
+              <dl class="rows"><div class="r"><dt>已用</dt><dd class="mono">812 MB</dd></div><div class="r"><dt>上限</dt><dd class="mono">1.00 GB</dd></div><div class="r"><dt>占用率</dt><dd class="mono">79.3%</dd></div></dl>
+            </div>
+            <div class="seg">
+              <h3 class="t"><svg class="ic" width="12" height="12"><use href="#i-bolt"/></svg>命中</h3>
+              <dl class="rows"><div class="r"><dt>命中率</dt><dd class="mono">96.4%</dd></div><div class="r"><dt>命中 / 未中</dt><dd class="mono">1.2M / 42.1K</dd></div><div class="r"><dt>条目数</dt><dd class="mono">24,108</dd></div></dl>
+            </div>
+            <div class="seg">
+              <h3 class="t"><svg class="ic" width="12" height="12"><use href="#i-activity"/></svg>状态</h3>
+              <dl class="rows"><div class="r"><dt>当前连接</dt><dd class="mono">36</dd></div><div class="r"><dt>淘汰数</dt><dd class="mono">0</dd></div><div class="r"><dt>总条目</dt><dd class="mono">24,180</dd></div></dl>
+            </div>
+          </div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li class="good"><b>优点</b><span>视觉噪音最少：一条 1px 外框代替四个卡框 + 六个卡间距，页面立刻安静。</span></li>
+        <li class="good"><b>优点</b><span>四段在窄窗自动折成 2×2，竖线跟着变成上下分隔，不需要额外适配。</span></li>
+        <li class="warn"><b>代价</b><span>整块面板变成「一条」，纵向位置感变弱，指标之间界限依赖竖线，深色皮肤下 1px 可能偏淡。</span></li>
+      </ul>
+    </div>
+  </article>
+
+  <!-- ============================================================ 03 -->
+  <article class="scheme">
+    <header class="scheme-head">
+      <span class="no">03</span>
+      <div>
+        <h2>主卡 + 微指标网格</h2>
+        <p class="mech">左侧一张「本机」主卡放身份信息与版本芯片，右侧 6 格微指标铺成网格</p>
+      </div>
+      <span class="kind pick">信息密度最高</span>
+    </header>
+    <div class="scheme-body">
+      <div>
+        <div class="stage" data-engine="redis" data-scheme="03">
+          <div class="stage-tag"><span class="dot"></span>Redis</div>
+          <div class="ov-head"><div class="ov-ident"><span class="ov-name">本地开发</span><span class="ov-ep">192.0.2.10:6379</span></div><button class="ov-refresh"><svg class="ic" width="12" height="12"><use href="#i-refresh"/></svg>刷新</button></div>
+          <div class="c03">
+            <section class="hero">
+              <div class="hero-t"><svg class="ic" width="12" height="12"><use href="#i-server"/></svg>本机</div>
+              <div class="hero-v">7.2.4</div>
+              <div class="hero-sub">Redis · 单机 · PID 10432</div>
+              <div class="hero-chips"><span class="chip on">运行中</span><span class="chip">无密码</span><span class="chip">直连</span></div>
+            </section>
+            <div class="kpis">
+              <div class="kpi"><div class="k">已用内存</div><div class="v mono">1.24 GB</div></div>
+              <div class="kpi"><div class="k">内存峰值</div><div class="v mono">1.51 GB</div></div>
+              <div class="kpi"><div class="k">每秒操作</div><div class="v mono">2,431</div></div>
+              <div class="kpi"><div class="k">客户端连接</div><div class="v mono">12</div></div>
+              <div class="kpi"><div class="k">键总数</div><div class="v mono">48,213</div></div>
+              <div class="kpi"><div class="k">命中率</div><div class="v mono ok">98.2%</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="stage" data-engine="memcached" data-scheme="03">
+          <div class="stage-tag"><span class="dot"></span>Memcached</div>
+          <div class="ov-head"><div class="ov-ident"><span class="ov-name">会话缓存</span><span class="ov-ep">cache.example.com:11211</span><span class="chip-ssh">SSH</span></div><button class="ov-refresh"><svg class="ic" width="12" height="12"><use href="#i-refresh"/></svg>刷新</button></div>
+          <div class="c03">
+            <section class="hero">
+              <div class="hero-t"><svg class="ic" width="12" height="12"><use href="#i-info"/></svg>服务</div>
+              <div class="hero-v">1.6.21</div>
+              <div class="hero-sub">4 线程 · 已运行 12 天 4 时</div>
+              <div class="hero-chips"><span class="chip on">运行中</span><span class="chip">SSH 隧道</span></div>
+            </section>
+            <div class="kpis">
+              <div class="kpi"><div class="k">已用内存</div><div class="v mono">812 MB</div></div>
+              <div class="kpi"><div class="k">内存上限</div><div class="v mono">1.00 GB</div></div>
+              <div class="kpi"><div class="k">占用率</div><div class="v mono">79.3%</div></div>
+              <div class="kpi"><div class="k">命中率</div><div class="v mono">96.4%</div></div>
+              <div class="kpi"><div class="k">条目数</div><div class="v mono">24,108</div></div>
+              <div class="kpi"><div class="k">淘汰数</div><div class="v mono ok">0</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li class="good"><b>优点</b><span>主指标（版本 / 状态 / 运行时长）单独成卡，其余等权成格 —— 层级只有两层，扫读成本低。</span></li>
+        <li class="good"><b>优点</b><span>芯片区可容纳「无密码 / SSH / 集群」这类状态，补上了现在完全没有的即时状态位。</span></li>
+        <li class="warn"><b>代价</b><span>改动最大：需要先定"哪些指标进主卡"，且四卡变六格会改变信息数量，要确认不丢字段。</span></li>
+      </ul>
+    </div>
+  </article>
+
+  <!-- ============================================================ 04 -->
+  <article class="scheme">
+    <header class="scheme-head">
+      <span class="no">04</span>
+      <div>
+        <h2>大数字 KPI 卡：首行放大 25px，其余降为脚注</h2>
+        <p class="mech">保留三 / 四卡结构，但每卡只突出一项，其余两行缩小并加虚线分隔</p>
+      </div>
+      <span class="kind">最小改动</span>
+    </header>
+    <div class="scheme-body">
+      <div>
+        <div class="stage" data-engine="redis" data-scheme="04">
+          <div class="stage-tag"><span class="dot"></span>Redis</div>
+          <div class="ov-head"><div class="ov-ident"><span class="ov-name">本地开发</span><span class="ov-ep">192.0.2.10:6379</span></div><button class="ov-refresh"><svg class="ic" width="12" height="12"><use href="#i-refresh"/></svg>刷新</button></div>
+          <div class="cards">
+            <section class="card">
+              <div class="k"><svg class="ic" width="11" height="11"><use href="#i-server"/></svg>REDIS 版本</div>
+              <p class="v">7.2.4</p>
+              <dl class="subrows"><div class="r"><dt>运行模式</dt><dd>单机</dd></div><div class="r"><dt>进程 ID</dt><dd>10432</dd></div></dl>
+            </section>
+            <section class="card">
+              <div class="k"><svg class="ic" width="11" height="11"><use href="#i-memory"/></svg>已用内存</div>
+              <p class="v">1.24 GB</p>
+              <dl class="subrows"><div class="r"><dt>Lua 占用</dt><dd>3.8 MB</dd></div><div class="r"><dt>每秒操作</dt><dd>2,431</dd></div></dl>
+            </section>
+            <section class="card">
+              <div class="k"><svg class="ic" width="11" height="11"><use href="#i-activity"/></svg>命中率</div>
+              <p class="v ok">98.2%</p>
+              <dl class="subrows"><div class="r"><dt>客户端连接</dt><dd>12</dd></div><div class="r"><dt>键总数</dt><dd>48,213</dd></div></dl>
+            </section>
+          </div>
+        </div>
+        <div class="stage" data-engine="memcached" data-scheme="04">
+          <div class="stage-tag"><span class="dot"></span>Memcached</div>
+          <div class="ov-head"><div class="ov-ident"><span class="ov-name">会话缓存</span><span class="ov-ep">cache.example.com:11211</span><span class="chip-ssh">SSH</span></div><button class="ov-refresh"><svg class="ic" width="12" height="12"><use href="#i-refresh"/></svg>刷新</button></div>
+          <div class="cards">
+            <section class="card">
+              <div class="k"><svg class="ic" width="11" height="11"><use href="#i-info"/></svg>版本</div>
+              <p class="v">1.6.21</p>
+              <dl class="subrows"><div class="r"><dt>线程数</dt><dd>4</dd></div><div class="r"><dt>运行时长</dt><dd>12 天 4 时</dd></div></dl>
+            </section>
+            <section class="card">
+              <div class="k"><svg class="ic" width="11" height="11"><use href="#i-memory"/></svg>已用 / 上限</div>
+              <p class="v">812 MB</p>
+              <dl class="subrows"><div class="r"><dt>内存上限</dt><dd>1.00 GB</dd></div><div class="r"><dt>占用率</dt><dd>79.3%</dd></div></dl>
+            </section>
+            <section class="card">
+              <div class="k"><svg class="ic" width="11" height="11"><use href="#i-bolt"/></svg>命中率</div>
+              <p class="v">96.4%</p>
+              <dl class="subrows"><div class="r"><dt>命中 / 未中</dt><dd>1.2M / 42.1K</dd></div><div class="r"><dt>条目数</dt><dd>24,108</dd></div></dl>
+            </section>
+            <section class="card">
+              <div class="k"><svg class="ic" width="11" height="11"><use href="#i-activity"/></svg>淘汰数</div>
+              <p class="v ok">0</p>
+              <dl class="subrows"><div class="r"><dt>当前连接</dt><dd>36</dd></div><div class="r"><dt>总条目</dt><dd>24,180</dd></div></dl>
+            </section>
+          </div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li class="good"><b>优点</b><span>改动只在卡内排版：DOM 结构不动，样式换代成本最低，回退也容易。</span></li>
+        <li class="good"><b>优点</b><span>25px 主数字是全表最强视觉锚点，四卡并排时也能一眼抓到「1.24 GB」。</span></li>
+        <li class="warn"><b>代价</b><span>主指标选择带主观性：Redis 状态卡选命中率、Memcached 状态卡选淘汰数，是否符合用户预期要确认。</span></li>
+      </ul>
+    </div>
+  </article>
+
+  <!-- ============================================================ 05 -->
+  <article class="scheme">
+    <header class="scheme-head">
+      <span class="no">05</span>
+      <div>
+        <h2>无框指标条：一组一条，横向流式</h2>
+        <p class="mech">整条只留一个外框，组名常驻左侧，指标项横排；组与组之间用 2px 引擎色分隔</p>
+      </div>
+      <span class="kind">最省纵向空间</span>
+    </header>
+    <div class="scheme-body">
+      <div>
+        <div class="stage" data-engine="redis" data-scheme="05">
+          <div class="stage-tag"><span class="dot"></span>Redis</div>
+          <div class="ov-head"><div class="ov-ident"><span class="ov-name">本地开发</span><span class="ov-ep">192.0.2.10:6379</span></div><button class="ov-refresh"><svg class="ic" width="12" height="12"><use href="#i-refresh"/></svg>刷新</button></div>
+          <div class="strip">
+            <div class="grp"><div class="gt">服务器</div>
+              <div class="sg"><span class="k">版本</span><span class="v mono">7.2.4</span></div>
+              <div class="sg"><span class="k">模式</span><span class="v mono">单机</span></div>
+              <div class="sg"><span class="k">PID</span><span class="v mono">10432</span></div>
+            </div>
+            <div class="grp"><div class="gt">内存</div>
+              <div class="sg"><span class="k">已用</span><span class="v mono">1.24 GB</span></div>
+              <div class="sg"><span class="k">Lua</span><span class="v mono">3.8 MB</span></div>
+              <div class="sg"><span class="k">OPS</span><span class="v mono">2,431</span></div>
+            </div>
+            <div class="grp"><div class="gt">状态</div>
+              <div class="sg"><span class="k">连接</span><span class="v mono">12</span></div>
+              <div class="sg"><span class="k">键总数</span><span class="v mono">48,213</span></div>
+              <div class="sg"><span class="k">命中率</span><span class="v mono ok">98.2%</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="stage" data-engine="memcached" data-scheme="05">
+          <div class="stage-tag"><span class="dot"></span>Memcached</div>
+          <div class="ov-head"><div class="ov-ident"><span class="ov-name">会话缓存</span><span class="ov-ep">cache.example.com:11211</span><span class="chip-ssh">SSH</span></div><button class="ov-refresh"><svg class="ic" width="12" height="12"><use href="#i-refresh"/></svg>刷新</button></div>
+          <div class="strip">
+            <div class="grp"><div class="gt">服务</div>
+              <div class="sg"><span class="k">版本</span><span class="v mono">1.6.21</span></div>
+              <div class="sg"><span class="k">线程</span><span class="v mono">4</span></div>
+              <div class="sg"><span class="k">运行</span><span class="v mono">12 天 4 时</span></div>
+            </div>
+            <div class="grp"><div class="gt">内存</div>
+              <div class="sg"><span class="k">已用</span><span class="v mono">812 MB</span></div>
+              <div class="sg"><span class="k">上限</span><span class="v mono">1.00 GB</span></div>
+              <div class="sg"><span class="k">占用率</span><span class="v mono">79.3%</span></div>
+            </div>
+            <div class="grp"><div class="gt">命中</div>
+              <div class="sg"><span class="k">命中率</span><span class="v mono">96.4%</span></div>
+              <div class="sg"><span class="k">条目</span><span class="v mono">24,108</span></div>
+            </div>
+            <div class="grp"><div class="gt">状态</div>
+              <div class="sg"><span class="k">连接</span><span class="v mono">36</span></div>
+              <div class="sg"><span class="k">淘汰</span><span class="v mono">0</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li class="good"><b>优点</b><span>纵向只占一行（约 46px），把高度全让给下方「信息详情」——对长表格场景最友好。</span></li>
+        <li class="good"><b>优点</b><span>组名常驻，四卡折成四段横排也读得顺；窄窗自动换行且分隔线不会错位。</span></li>
+        <li class="warn"><b>代价</b><span>标签只能用短词（版本 / 模式 / 已用），标签语义要靠用户对 Redis 的熟悉度，新手上手成本略高。</span></li>
+      </ul>
+    </div>
+  </article>
+
+  <!-- ============================================================ 06 -->
+  <article class="scheme">
+    <header class="scheme-head">
+      <span class="no">06</span>
+      <div>
+        <h2>引擎色左轨卡：3px 色条 + 极淡同色底</h2>
+        <p class="mech">卡左缘 3px 引擎色轨，卡片底色掺 5% 引擎色，标题用引擎色与正文混合</p>
+      </div>
+      <span class="kind">引擎区分最强</span>
+    </header>
+    <div class="scheme-body">
+      <div>
+        <div class="stage" data-engine="redis" data-scheme="06">
+          <div class="stage-tag"><span class="dot"></span>Redis</div>
+          <div class="ov-head"><div class="ov-ident"><span class="ov-name">本地开发</span><span class="ov-ep">192.0.2.10:6379</span></div><button class="ov-refresh"><svg class="ic" width="12" height="12"><use href="#i-refresh"/></svg>刷新</button></div>
+          <div class="cards">
+            <section class="card">
+              <h3 class="t"><svg class="ic" width="13" height="13"><use href="#i-server"/></svg>服务器</h3>
+              <dl class="rows"><div class="r"><dt>Redis 版本</dt><dd>7.2.4</dd></div><div class="r"><dt>运行模式</dt><dd>单机</dd></div><div class="r"><dt>进程 ID</dt><dd>10432</dd></div></dl>
+            </section>
+            <section class="card">
+              <h3 class="t"><svg class="ic" width="13" height="13"><use href="#i-memory"/></svg>内存</h3>
+              <dl class="rows"><div class="r"><dt>已用内存</dt><dd>1.24 GB</dd></div><div class="r"><dt>Lua 占用</dt><dd>3.8 MB</dd></div><div class="r"><dt>每秒操作数</dt><dd>2,431</dd></div></dl>
+            </section>
+            <section class="card">
+              <h3 class="t"><svg class="ic" width="13" height="13"><use href="#i-activity"/></svg>状态</h3>
+              <dl class="rows"><div class="r"><dt>客户端连接</dt><dd>12</dd></div><div class="r"><dt>键总数</dt><dd>48,213</dd></div><div class="r"><dt>命中率</dt><dd class="ok">98.2%</dd></div></dl>
+            </section>
+          </div>
+        </div>
+        <div class="stage" data-engine="memcached" data-scheme="06">
+          <div class="stage-tag"><span class="dot"></span>Memcached</div>
+          <div class="ov-head"><div class="ov-ident"><span class="ov-name">会话缓存</span><span class="ov-ep">cache.example.com:11211</span><span class="chip-ssh">SSH</span></div><button class="ov-refresh"><svg class="ic" width="12" height="12"><use href="#i-refresh"/></svg>刷新</button></div>
+          <div class="cards">
+            <section class="card">
+              <h3 class="t"><svg class="ic" width="13" height="13"><use href="#i-info"/></svg>服务</h3>
+              <dl class="rows"><div class="r"><dt>版本</dt><dd>1.6.21</dd></div><div class="r"><dt>线程数</dt><dd>4</dd></div><div class="r"><dt>运行时长</dt><dd>12 天 4 时</dd></div></dl>
+            </section>
+            <section class="card">
+              <h3 class="t"><svg class="ic" width="13" height="13"><use href="#i-memory"/></svg>内存</h3>
+              <dl class="rows"><div class="r"><dt>已用</dt><dd>812 MB</dd></div><div class="r"><dt>上限</dt><dd>1.00 GB</dd></div><div class="r"><dt>占用率</dt><dd>79.3%</dd></div></dl>
+            </section>
+            <section class="card">
+              <h3 class="t"><svg class="ic" width="13" height="13"><use href="#i-bolt"/></svg>命中</h3>
+              <dl class="rows"><div class="r"><dt>命中率</dt><dd>96.4%</dd></div><div class="r"><dt>命中 / 未中</dt><dd>1.2M / 42K</dd></div><div class="r"><dt>条目数</dt><dd>24,108</dd></div></dl>
+            </section>
+            <section class="card">
+              <h3 class="t"><svg class="ic" width="13" height="13"><use href="#i-activity"/></svg>状态</h3>
+              <dl class="rows"><div class="r"><dt>当前连接</dt><dd>36</dd></div><div class="r"><dt>淘汰数</dt><dd>0</dd></div><div class="r"><dt>总条目</dt><dd>24,180</dd></div></dl>
+            </section>
+          </div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li class="good"><b>优点</b><span>色轨与左侧连接列表的引擎色同源，切 Redis / Memcached 时整页色调跟着变，位置感很强。</span></li>
+        <li class="good"><b>优点</b><span>结构零变化，只是给 <code>.ov-card</code> 加 <code>::before</code> 与一个颜色变量，落地最快。</span></li>
+        <li class="bad"><b>风险</b><span>唯一靠颜色承载语义的方案：切灰度后三卡 / 四卡与现状几乎一致，色弱用户拿不到额外信息。</span></li>
+      </ul>
+    </div>
+  </article>
+
+  <!-- ============================================================ 07 -->
+  <article class="scheme">
+    <header class="scheme-head">
+      <span class="no">07</span>
+      <div>
+        <h2>横向堆叠行卡：一组占一行，指标右对齐成列</h2>
+        <p class="mech">卡片从竖排改成横排，组名固定 104px 左列，指标按列右对齐，形成纵向对齐的"表"</p>
+      </div>
+      <span class="kind">对齐最好</span>
+    </header>
+    <div class="scheme-body">
+      <div>
+        <div class="stage" data-engine="redis" data-scheme="07">
+          <div class="stage-tag"><span class="dot"></span>Redis</div>
+          <div class="ov-head"><div class="ov-ident"><span class="ov-name">本地开发</span><span class="ov-ep">192.0.2.10:6379</span></div><button class="ov-refresh"><svg class="ic" width="12" height="12"><use href="#i-refresh"/></svg>刷新</button></div>
+          <div class="cards">
+            <section class="card">
+              <h3 class="t"><svg class="ic" width="13" height="13"><use href="#i-server"/></svg>服务器</h3>
+              <dl class="rows">
+                <div class="r"><dt>Redis 版本</dt><dd>7.2.4</dd></div>
+                <div class="r"><dt>运行模式</dt><dd>单机</dd></div>
+                <div class="r"><dt>进程 ID</dt><dd>10432</dd></div>
+              </dl>
+            </section>
+            <section class="card">
+              <h3 class="t"><svg class="ic" width="13" height="13"><use href="#i-memory"/></svg>内存</h3>
+              <dl class="rows">
+                <div class="r"><dt>已用内存</dt><dd>1.24 GB</dd></div>
+                <div class="r"><dt>Lua 占用</dt><dd>3.8 MB</dd></div>
+                <div class="r"><dt>每秒操作数</dt><dd>2,431</dd></div>
+              </dl>
+            </section>
+            <section class="card">
+              <h3 class="t"><svg class="ic" width="13" height="13"><use href="#i-activity"/></svg>状态</h3>
+              <dl class="rows">
+                <div class="r"><dt>客户端连接</dt><dd>12</dd></div>
+                <div class="r"><dt>键总数</dt><dd>48,213</dd></div>
+                <div class="r"><dt>命中率</dt><dd class="ok">98.2%</dd></div>
+              </dl>
+            </section>
+          </div>
+        </div>
+        <div class="stage" data-engine="memcached" data-scheme="07">
+          <div class="stage-tag"><span class="dot"></span>Memcached</div>
+          <div class="ov-head"><div class="ov-ident"><span class="ov-name">会话缓存</span><span class="ov-ep">cache.example.com:11211</span><span class="chip-ssh">SSH</span></div><button class="ov-refresh"><svg class="ic" width="12" height="12"><use href="#i-refresh"/></svg>刷新</button></div>
+          <div class="cards">
+            <section class="card">
+              <h3 class="t"><svg class="ic" width="13" height="13"><use href="#i-info"/></svg>服务</h3>
+              <dl class="rows">
+                <div class="r"><dt>版本</dt><dd>1.6.21</dd></div>
+                <div class="r"><dt>线程数</dt><dd>4</dd></div>
+                <div class="r"><dt>运行时长</dt><dd>12 天</dd></div>
+              </dl>
+            </section>
+            <section class="card">
+              <h3 class="t"><svg class="ic" width="13" height="13"><use href="#i-memory"/></svg>内存</h3>
+              <dl class="rows">
+                <div class="r"><dt>已用</dt><dd>812 MB</dd></div>
+                <div class="r"><dt>上限</dt><dd>1.00 GB</dd></div>
+                <div class="r"><dt>占用率</dt><dd>79.3%</dd></div>
+              </dl>
+            </section>
+            <section class="card">
+              <h3 class="t"><svg class="ic" width="13" height="13"><use href="#i-bolt"/></svg>命中</h3>
+              <dl class="rows">
+                <div class="r"><dt>命中率</dt><dd>96.4%</dd></div>
+                <div class="r"><dt>命中 / 未中</dt><dd>1.2M/42K</dd></div>
+                <div class="r"><dt>条目数</dt><dd>24,108</dd></div>
+              </dl>
+            </section>
+            <section class="card">
+              <h3 class="t"><svg class="ic" width="13" height="13"><use href="#i-activity"/></svg>状态</h3>
+              <dl class="rows">
+                <div class="r"><dt>当前连接</dt><dd>36</dd></div>
+                <div class="r"><dt>淘汰数</dt><dd>0</dd></div>
+                <div class="r"><dt>总条目</dt><dd>24,180</dd></div>
+              </dl>
+            </section>
+          </div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li class="good"><b>优点</b><span>三行指标在纵向上严格对齐，一行行扫下来像读表，比三卡并排更好比较（如内存 vs 键总数）。</span></li>
+        <li class="good"><b>优点</b><span>四卡场景最受益：从 4×3 网格变成 4 行，窄窗也不会挤成两列。</span></li>
+        <li class="warn"><b>代价</b><span>纵向占三 / 四行（约 108 / 144px），比现状高一些，会压缩下方详情表首屏可见行数。</span></li>
+      </ul>
+    </div>
+  </article>
+
+  <!-- ============================================================ 08 -->
+  <article class="scheme">
+    <header class="scheme-head">
+      <span class="no">08</span>
+      <div>
+        <h2>指标 + 进度条：把可量化项画成进度</h2>
+        <p class="mech">内存占用、命中率、缓存条数带 4px 进度轨；其余项以脚注行呈现</p>
+      </div>
+      <span class="kind pick">状态可读性最好</span>
+    </header>
+    <div class="scheme-body">
+      <div>
+        <div class="stage" data-engine="redis" data-scheme="08">
+          <div class="stage-tag"><span class="dot"></span>Redis</div>
+          <div class="ov-head"><div class="ov-ident"><span class="ov-name">本地开发</span><span class="ov-ep">192.0.2.10:6379</span></div><button class="ov-refresh"><svg class="ic" width="12" height="12"><use href="#i-refresh"/></svg>刷新</button></div>
+          <div class="cards">
+            <section class="card">
+              <div class="t"><svg class="ic" width="11" height="11"><use href="#i-server"/></svg>服务器</div>
+              <div class="v">7.2.4</div>
+              <div class="mini"><span>单机</span><span>PID 10432</span></div>
+              <dl class="srows"><div class="r"><dt>运行天数</dt><dd>26</dd></div></dl>
+            </section>
+            <section class="card">
+              <div class="t"><svg class="ic" width="11" height="11"><use href="#i-memory"/></svg>内存</div>
+              <div class="v">1.24 GB</div>
+              <div class="track"><span class="fill" style="width:62%"></span></div>
+              <div class="cap"><span>已用 / 上限 2.00 GB</span><span class="mono">62%</span></div>
+              <dl class="srows"><div class="r"><dt>OPS</dt><dd>2,431</dd></div></dl>
+            </section>
+            <section class="card">
+              <div class="t"><svg class="ic" width="11" height="11"><use href="#i-activity"/></svg>命中率</div>
+              <div class="v ok">98.2%</div>
+              <div class="track"><span class="fill good" style="width:98.2%"></span></div>
+              <div class="cap"><span>连接 12</span><span class="mono">键 48,213</span></div>
+            </section>
+          </div>
+        </div>
+        <div class="stage" data-engine="memcached" data-scheme="08">
+          <div class="stage-tag"><span class="dot"></span>Memcached</div>
+          <div class="ov-head"><div class="ov-ident"><span class="ov-name">会话缓存</span><span class="ov-ep">cache.example.com:11211</span><span class="chip-ssh">SSH</span></div><button class="ov-refresh"><svg class="ic" width="12" height="12"><use href="#i-refresh"/></svg>刷新</button></div>
+          <div class="cards">
+            <section class="card">
+              <div class="t"><svg class="ic" width="11" height="11"><use href="#i-info"/></svg>服务</div>
+              <div class="v">1.6.21</div>
+              <div class="mini"><span>4 线程</span><span>12 天 4 时</span></div>
+            </section>
+            <section class="card">
+              <div class="t"><svg class="ic" width="11" height="11"><use href="#i-memory"/></svg>内存</div>
+              <div class="v">812 MB</div>
+              <div class="track"><span class="fill hot" style="width:79.3%"></span></div>
+              <div class="cap"><span>上限 1.00 GB</span><span class="mono">79.3%</span></div>
+            </section>
+            <section class="card">
+              <div class="t"><svg class="ic" width="11" height="11"><use href="#i-bolt"/></svg>命中率</div>
+              <div class="v">96.4%</div>
+              <div class="track"><span class="fill good" style="width:96.4%"></span></div>
+              <div class="cap"><span>1.2M 命中</span><span class="mono">42.1K 未中</span></div>
+            </section>
+            <section class="card">
+              <div class="t"><svg class="ic" width="11" height="11"><use href="#i-activity"/></svg>状态</div>
+              <div class="v ok">0</div>
+              <div class="cap"><span>淘汰数</span><span class="mono">无淘汰</span></div>
+              <dl class="srows"><div class="r"><dt>当前连接</dt><dd>36</dd></div><div class="r"><dt>总条目</dt><dd>24,180</dd></div></dl>
+            </section>
+          </div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li class="good"><b>优点</b><span>占用率 79.3% 光看数字没感觉，画成条立刻知道"快满了"——这是现状最缺的可判断性。</span></li>
+        <li class="good"><b>优点</b><span>进度轨是纯 CSS（宽高 + 渐变），无额外依赖；颜色可绑语义变量，皮肤自动跟随。</span></li>
+        <li class="warn"><b>代价</b><span>需要为每个指标决定"是否有分子分母"；无法量化的项（版本 / 线程数）只能降级成芯片，视觉上不齐。</span></li>
+      </ul>
+    </div>
+  </article>
+
+  <!-- ============================================================ 09 -->
+  <article class="scheme">
+    <header class="scheme-head">
+      <span class="no">09</span>
+      <div>
+        <h2>无框轻排版：仅靠留白与细分隔线成组</h2>
+        <p class="mech">完全去掉卡框与卡底色，组名 + 延伸线做小标题，靠 18px 列间距分隔</p>
+      </div>
+      <span class="kind">最轻</span>
+    </header>
+    <div class="scheme-body">
+      <div>
+        <div class="stage" data-engine="redis" data-scheme="09">
+          <div class="stage-tag"><span class="dot"></span>Redis</div>
+          <div class="ov-head"><div class="ov-ident"><span class="ov-name">本地开发</span><span class="ov-ep">192.0.2.10:6379</span></div><button class="ov-refresh"><svg class="ic" width="12" height="12"><use href="#i-refresh"/></svg>刷新</button></div>
+          <div class="cards">
+            <div class="col">
+              <div class="hd"><svg class="ic" width="12" height="12"><use href="#i-server"/></svg><span class="tt">服务器</span><span class="ln"></span></div>
+              <dl class="rows"><div class="r"><dt>Redis 版本</dt><dd>7.2.4</dd></div><div class="r"><dt>运行模式</dt><dd>单机</dd></div><div class="r"><dt>进程 ID</dt><dd>10432</dd></div></dl>
+            </div>
+            <div class="col">
+              <div class="hd"><svg class="ic" width="12" height="12"><use href="#i-memory"/></svg><span class="tt">内存</span><span class="ln"></span></div>
+              <dl class="rows"><div class="r"><dt>已用内存</dt><dd>1.24 GB</dd></div><div class="r"><dt>Lua 占用</dt><dd>3.8 MB</dd></div><div class="r"><dt>每秒操作数</dt><dd>2,431</dd></div></dl>
+            </div>
+            <div class="col">
+              <div class="hd"><svg class="ic" width="12" height="12"><use href="#i-activity"/></svg><span class="tt">状态</span><span class="ln"></span></div>
+              <dl class="rows"><div class="r"><dt>客户端连接</dt><dd>12</dd></div><div class="r"><dt>键总数</dt><dd>48,213</dd></div><div class="r"><dt>命中率</dt><dd class="ok">98.2%</dd></div></dl>
+            </div>
+          </div>
+        </div>
+        <div class="stage" data-engine="memcached" data-scheme="09">
+          <div class="stage-tag"><span class="dot"></span>Memcached</div>
+          <div class="ov-head"><div class="ov-ident"><span class="ov-name">会话缓存</span><span class="ov-ep">cache.example.com:11211</span><span class="chip-ssh">SSH</span></div><button class="ov-refresh"><svg class="ic" width="12" height="12"><use href="#i-refresh"/></svg>刷新</button></div>
+          <div class="cards">
+            <div class="col">
+              <div class="hd"><svg class="ic" width="12" height="12"><use href="#i-info"/></svg><span class="tt">服务</span><span class="ln"></span></div>
+              <dl class="rows"><div class="r"><dt>版本</dt><dd>1.6.21</dd></div><div class="r"><dt>线程数</dt><dd>4</dd></div><div class="r"><dt>运行时长</dt><dd>12 天 4 时</dd></div></dl>
+            </div>
+            <div class="col">
+              <div class="hd"><svg class="ic" width="12" height="12"><use href="#i-memory"/></svg><span class="tt">内存</span><span class="ln"></span></div>
+              <dl class="rows"><div class="r"><dt>已用</dt><dd>812 MB</dd></div><div class="r"><dt>上限</dt><dd>1.00 GB</dd></div><div class="r"><dt>占用率</dt><dd>79.3%</dd></div></dl>
+            </div>
+            <div class="col">
+              <div class="hd"><svg class="ic" width="12" height="12"><use href="#i-bolt"/></svg><span class="tt">命中</span><span class="ln"></span></div>
+              <dl class="rows"><div class="r"><dt>命中率</dt><dd>96.4%</dd></div><div class="r"><dt>命中 / 未中</dt><dd>1.2M / 42.1K</dd></div><div class="r"><dt>条目数</dt><dd>24,108</dd></div></dl>
+            </div>
+            <div class="col">
+              <div class="hd"><svg class="ic" width="12" height="12"><use href="#i-activity"/></svg><span class="tt">状态</span><span class="ln"></span></div>
+              <dl class="rows"><div class="r"><dt>当前连接</dt><dd>36</dd></div><div class="r"><dt>淘汰数</dt><dd>0</dd></div><div class="r"><dt>总条目</dt><dd>24,180</dd></div></dl>
+            </div>
+          </div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li class="good"><b>优点</b><span>页面最"安静"：没有卡框，视觉重心自然落回数值本身，与下方详情表的框线冲突最小。</span></li>
+        <li class="good"><b>优点</b><span>数值升到 15px，是十套里数字最清晰的一版；指标行下细线给出扫读时的水平引导。</span></li>
+        <li class="bad"><b>风险</b><span>无框后与下方页签区之间只剩 12px 留白，容易"融成一片"，需要额外一条分隔或加大间距。</span></li>
+      </ul>
+    </div>
+  </article>
+
+  <!-- ============================================================ 10 -->
+  <article class="scheme">
+    <header class="scheme-head">
+      <span class="no">10</span>
+      <div>
+        <h2>渐变立体卡：顶部同色渐变 + 图标底片 + 投影</h2>
+        <p class="mech">卡片带 180° 渐变与轻投影，标题前置 22px 圆角图标底片，首行数值放大</p>
+      </div>
+      <span class="kind">视觉最强</span>
+    </header>
+    <div class="scheme-body">
+      <div>
+        <div class="stage" data-engine="redis" data-scheme="10">
+          <div class="stage-tag"><span class="dot"></span>Redis</div>
+          <div class="ov-head"><div class="ov-ident"><span class="ov-name">本地开发</span><span class="ov-ep">192.0.2.10:6379</span></div><button class="ov-refresh"><svg class="ic" width="12" height="12"><use href="#i-refresh"/></svg>刷新</button></div>
+          <div class="cards">
+            <section class="card">
+              <div class="hd"><span class="box"><svg width="12" height="12"><use href="#i-server"/></svg></span><span class="tt">服务器</span></div>
+              <dl class="rows"><div class="r"><dt>Redis 版本</dt><dd>7.2.4</dd></div><div class="r"><dt>运行模式</dt><dd>单机</dd></div><div class="r"><dt>进程 ID</dt><dd>10432</dd></div></dl>
+            </section>
+            <section class="card">
+              <div class="hd"><span class="box"><svg width="12" height="12"><use href="#i-memory"/></svg></span><span class="tt">内存</span></div>
+              <dl class="rows"><div class="r"><dt>已用内存</dt><dd>1.24 GB</dd></div><div class="r"><dt>Lua 占用</dt><dd>3.8 MB</dd></div><div class="r"><dt>每秒操作数</dt><dd>2,431</dd></div></dl>
+            </section>
+            <section class="card">
+              <div class="hd"><span class="box"><svg width="12" height="12"><use href="#i-activity"/></svg></span><span class="tt">状态</span></div>
+              <dl class="rows"><div class="r"><dt>客户端连接</dt><dd>12</dd></div><div class="r"><dt>键总数</dt><dd>48,213</dd></div><div class="r"><dt>命中率</dt><dd class="ok">98.2%</dd></div></dl>
+            </section>
+          </div>
+        </div>
+        <div class="stage" data-engine="memcached" data-scheme="10">
+          <div class="stage-tag"><span class="dot"></span>Memcached</div>
+          <div class="ov-head"><div class="ov-ident"><span class="ov-name">会话缓存</span><span class="ov-ep">cache.example.com:11211</span><span class="chip-ssh">SSH</span></div><button class="ov-refresh"><svg class="ic" width="12" height="12"><use href="#i-refresh"/></svg>刷新</button></div>
+          <div class="cards">
+            <section class="card">
+              <div class="hd"><span class="box"><svg width="12" height="12"><use href="#i-info"/></svg></span><span class="tt">服务</span></div>
+              <dl class="rows"><div class="r"><dt>版本</dt><dd>1.6.21</dd></div><div class="r"><dt>线程数</dt><dd>4</dd></div><div class="r"><dt>运行时长</dt><dd>12 天 4 时</dd></div></dl>
+            </section>
+            <section class="card">
+              <div class="hd"><span class="box"><svg width="12" height="12"><use href="#i-memory"/></svg></span><span class="tt">内存</span></div>
+              <dl class="rows"><div class="r"><dt>已用</dt><dd>812 MB</dd></div><div class="r"><dt>上限</dt><dd>1.00 GB</dd></div><div class="r"><dt>占用率</dt><dd>79.3%</dd></div></dl>
+            </section>
+            <section class="card">
+              <div class="hd"><span class="box"><svg width="12" height="12"><use href="#i-bolt"/></svg></span><span class="tt">命中</span></div>
+              <dl class="rows"><div class="r"><dt>命中率</dt><dd>96.4%</dd></div><div class="r"><dt>命中 / 未中</dt><dd>1.2M / 42K</dd></div><div class="r"><dt>条目数</dt><dd>24,108</dd></div></dl>
+            </section>
+            <section class="card">
+              <div class="hd"><span class="box"><svg width="12" height="12"><use href="#i-activity"/></svg></span><span class="tt">状态</span></div>
+              <dl class="rows"><div class="r"><dt>当前连接</dt><dd>36</dd></div><div class="r"><dt>淘汰数</dt><dd>0</dd></div><div class="r"><dt>总条目</dt><dd>24,180</dd></div></dl>
+            </section>
+          </div>
+        </div>
+      </div>
+      <ul class="notes">
+        <li class="good"><b>优点</b><span>视觉完成度最高，卡片有实体感；图标底片让三卡 / 四卡一眼能分出组别。</span></li>
+        <li class="warn"><b>代价</b><span>投影 + 渐变 + 色底三重叠加，与项目「克制的桌面工具」气质偏离，且最容易在 9 套皮肤下出现脏色。</span></li>
+        <li class="bad"><b>风险</b><span>深色皮肤里 <code>rgba</code> 叠加后对比度难控；浅色皮肤下投影容易显灰。需要逐皮肤实测。</span></li>
+      </ul>
+    </div>
+  </article>
+</main>
+
+<section class="compare">
+  <h2>横向对比</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>方案</th><th>主指标突出</th><th>四卡适配</th><th>纵向占用</th><th>改动量</th><th>皮肤安全</th><th>核心机制</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="name">01 现状</td><td><span class="dots">●○○○○</span></td><td><span class="dots">●●○○○</span></td><td><span class="dots">●●●○○</span></td><td><span class="dots">●●●●●</span></td><td><span class="dots">●●●○○</span></td><td>等权卡片</td></tr>
+        <tr><td class="name">02 单卡分区</td><td><span class="dots">●●○○○</span></td><td><span class="dots">●●●●●</span></td><td><span class="dots">●●●○○</span></td><td><span class="dots">●●●○○</span></td><td><span class="dots">●●○○○</span></td><td>竖线分栏</td></tr>
+        <tr><td class="name">03 主卡 + 网格</td><td><span class="dots">●●●●●</span></td><td><span class="dots">●●●●○</span></td><td><span class="dots">●●●○○</span></td><td><span class="dots">●○○○○</span></td><td><span class="dots">●●●●○</span></td><td>两层信息</td></tr>
+        <tr><td class="name">04 大数字 KPI</td><td><span class="dots">●●●●●</span></td><td><span class="dots">●●●○○</span></td><td><span class="dots">●●●●○</span></td><td><span class="dots">●●●●○</span></td><td><span class="dots">●●●●○</span></td><td>字号对比</td></tr>
+        <tr><td class="name">05 无框指标条</td><td><span class="dots">●●○○○</span></td><td><span class="dots">●●●●●</span></td><td><span class="dots">●●●●●</span></td><td><span class="dots">●●○○○</span></td><td><span class="dots">●●●○○</span></td><td>横向流式</td></tr>
+        <tr><td class="name">06 引擎色左轨</td><td><span class="dots">●●○○○</span></td><td><span class="dots">●●●○○</span></td><td><span class="dots">●●●○○</span></td><td><span class="dots">●●●●●</span></td><td><span class="dots">●●○○○</span></td><td>颜色编码</td></tr>
+        <tr><td class="name">07 横向堆叠行</td><td><span class="dots">●●●○○</span></td><td><span class="dots">●●●●●</span></td><td><span class="dots">●●○○○</span></td><td><span class="dots">●●●○○</span></td><td><span class="dots">●●●●○</span></td><td>列对齐</td></tr>
+        <tr><td class="name">08 指标 + 进度</td><td><span class="dots">●●●●●</span></td><td><span class="dots">●●●○○</span></td><td><span class="dots">●●○○○</span></td><td><span class="dots">●●○○○</span></td><td><span class="dots">●●●○○</span></td><td>可视化比例</td></tr>
+        <tr><td class="name">09 无框轻排版</td><td><span class="dots">●●●●○</span></td><td><span class="dots">●●●●○</span></td><td><span class="dots">●●●○○</span></td><td><span class="dots">●●●○○</span></td><td><span class="dots">●●●●●</span></td><td>留白分层</td></tr>
+        <tr><td class="name">10 渐变立体卡</td><td><span class="dots">●●●○○</span></td><td><span class="dots">●●○○○</span></td><td><span class="dots">●●○○○</span></td><td><span class="dots">●●○○○</span></td><td><span class="dots">●○○○○</span></td><td>材质感</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="foot">
+    满格 5 格；改动量越大格数越少。
+    若追求 <b>落地快、风险低</b>：04 或 06（几乎只改样式）。若追求 <b>可判断性</b>：08（进度条把"快满了"直接画出来）。
+    若要 <b>同时兼顾三卡与四卡</b>：02 / 05 / 07。若接受结构重排换信息层级：03。
+  </p>
+</section>
+
+<section class="picks">
+  <div class="box">
+    <h2>我的推荐顺序</h2>
+    <ul>
+      <li><b>首选 08（指标 + 进度）</b>：唯一把「79.3% 算不算危险」直接回答出来的方案，且改动集中在卡内。</li>
+      <li><b>次选 04（大数字 KPI）</b>：DOM 完全不动，只调字号与分隔，最稳，出问题也最容易回退。</li>
+      <li><b>如果更在意四卡整齐</b>：选 02（单卡分区）或 07（横向堆叠行），这两套在 Memcached 四卡时比现状明显更整齐。</li>
+      <li><b>不建议单独用 06 / 10</b>：06 只靠颜色、灰度即失效；10 的材质感与项目整体气质和其他 9 套皮肤冲突风险最高。</li>
+    </ul>
+  </div>
+</section>
+
+<script>
+  (function () {
+    var root = document.documentElement
+    var board = document.getElementById('board')
+    var skins = document.querySelectorAll('[data-skin]')
+    Array.prototype.forEach.call(skins, function (btn) {
+      btn.addEventListener('click', function () {
+        root.dataset.theme = btn.dataset.skin
+        Array.prototype.forEach.call(skins, function (b) { b.classList.toggle('on', b === btn) })
+      })
+    })
+    document.getElementById('gray').addEventListener('change', function (e) {
+      board.classList.toggle('gray', e.target.checked)
+    })
+    document.getElementById('narrow').addEventListener('change', function (e) {
+      board.classList.toggle('narrow', e.target.checked)
+    })
+    document.getElementById('zoom').addEventListener('change', function (e) {
+      board.classList.toggle('zoom', e.target.checked)
+    })
+  })()
+</script>
+</body>
+</html>

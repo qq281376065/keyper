@@ -13,6 +13,7 @@ import { BgAnimateButton } from '@/components/ui/bg-animate-button'
 import { UpdatePanel } from '@/components/UpdatePanel'
 import { useRedis } from '@/store/useRedis'
 import { APP_VERSION } from '@/services/errorReport'
+import { useI18n } from '@/i18n'
 import type { EnvInfo } from '@shared/types'
 
 /*
@@ -81,13 +82,14 @@ function ShellCard({
  * 圆角与阴影叠 9 层，视觉上变成"卡片里的卡片"。
  */
 function FeatItem({ item }: { item: (typeof FEATS)[number] }) {
+  const { t } = useI18n()
   return (
     <div className="feat-item">
       <div className="feat-head-row">
         <DialogIcon name={item.icon} size={17} className="feat-icon" />
-        <h3>{item.title}</h3>
+        <h3>{t(item.title)}</h3>
       </div>
-      <p className="feat-desc">{item.desc}</p>
+      <p className="feat-desc">{t(item.desc)}</p>
     </div>
   )
 }
@@ -102,6 +104,7 @@ export interface WelcomePanelProps {
 
 /** 主页标签：Hero + 操作区 + 功能清单卡 + 快捷键 / 兼容性卡 */
 export function WelcomePanel({ onNewConnection, onImportUri, onOpenLog }: WelcomePanelProps) {
+  const { t } = useI18n()
   const [env, setEnv] = useState<EnvInfo | null>(null)
   const { state } = useRedis()
 
@@ -164,10 +167,10 @@ export function WelcomePanel({ onNewConnection, onImportUri, onOpenLog }: Welcom
             Keyper
           </PixelHeading>
           <p className="subtitle">
-            Redis 桌面管理工具
+            {t('Redis 桌面管理工具')}
             <span className="dot">·</span>v{env?.appVersion ?? APP_VERSION}
             <span className="dot">·</span>
-            {isElectron ? 'Electron 运行时' : '浏览器预览模式'}
+            {isElectron ? t('Electron 运行时') : t('浏览器预览模式')}
           </p>
         </header>
 
@@ -196,7 +199,7 @@ export function WelcomePanel({ onNewConnection, onImportUri, onOpenLog }: Welcom
             onClick={onNewConnection}
           >
             <DialogIcon name="add" size={15} />
-            新建连接
+            {t('新建连接')}
           </BgAnimateButton>
 
           {/*
@@ -208,22 +211,22 @@ export function WelcomePanel({ onNewConnection, onImportUri, onOpenLog }: Welcom
             → 操作日志（连不上时第一时间来看）→ 检查更新。
           */}
           <div className="cta-secondary">
-            <button className="cta-sec-btn" onClick={onImportUri} title="粘贴 redis:// 连接串快速新建">
+            <button className="cta-sec-btn" onClick={onImportUri} title={t('粘贴 redis:// 连接串快速新建')}>
               <DialogIcon name="link" size={14} />
-              粘贴连接串
+              {t('粘贴连接串')}
             </button>
-            <button className="cta-sec-btn" onClick={onOpenLog} title="查看连接与操作日志">
+            <button className="cta-sec-btn" onClick={onOpenLog} title={t('查看连接与操作日志')}>
               <DialogIcon name="activity" size={14} />
-              操作日志
+              {t('操作日志')}
             </button>
             <button
               className={`cta-sec-btn${updateOpen ? ' is-open' : ''}`}
               onClick={() => setUpdateOpen((prev) => !prev)}
-              title="检查是否有新版本"
+              title={t('检查是否有新版本')}
               aria-expanded={updateOpen}
             >
               <DialogIcon name="refresh" size={14} />
-              检查更新
+              {t('检查更新')}
             </button>
             {updateOpen ? <UpdatePanel onClose={() => setUpdateOpen(false)} /> : null}
           </div>
@@ -233,7 +236,7 @@ export function WelcomePanel({ onNewConnection, onImportUri, onOpenLog }: Welcom
             自然知道去哪点；这句在常驻状态下反而是一直占位的噪音。
           */}
           {!hasConnections ? (
-            <span className="cta-hint">还没有任何连接配置，添加一个 Redis 实例即可开始</span>
+            <span className="cta-hint">{t('还没有任何连接配置，添加一个 Redis 实例即可开始')}</span>
           ) : null}
         </div>
 
@@ -250,8 +253,8 @@ export function WelcomePanel({ onNewConnection, onImportUri, onOpenLog }: Welcom
         <ShellCard className="feat-sheet-card">
           <ExpandableCardHeader className="feat-sheet-head">
             <div className="feat-sheet-title-row">
-              <h2 className="card-title">功能清单</h2>
-              <span className="feat-sheet-count">{FEATS.length} 项</span>
+              <h2 className="card-title">{t('功能清单')}</h2>
+              <span className="feat-sheet-count">{t('{count} 项', { count: FEATS.length })}</span>
             </div>
           </ExpandableCardHeader>
           <ExpandableContent preset="slide-up" stagger>
@@ -271,13 +274,13 @@ export function WelcomePanel({ onNewConnection, onImportUri, onOpenLog }: Welcom
           <div className="info-grid">
             {/* ------------------------------------------------ 快捷键速查 */}
             <section className="info-col">
-              <h2 className="card-title">快捷键速查</h2>
+              <h2 className="card-title">{t('快捷键速查')}</h2>
               <table className="keys-table">
                 <tbody>
                   {KEYS.map((item) => (
                     <tr key={item.key}>
-                      <td className="key-cell">{item.key}</td>
-                      <td className="desc">{item.desc}</td>
+                      <td className="key-cell">{t(item.key)}</td>
+                      <td className="desc">{t(item.desc)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -286,31 +289,32 @@ export function WelcomePanel({ onNewConnection, onImportUri, onOpenLog }: Welcom
 
             {/* ------------------------------------------------ 兼容与性能 */}
             <section className="info-col">
-              <h2 className="card-title">兼容与性能</h2>
+              <h2 className="card-title">{t('兼容与性能')}</h2>
               <ul className="compat-list">
                 <li>
                   <DialogIcon name="server" size={13} className="compat-item-icon" />
                   <span>
-                    支持单机 <strong>Redis 7.x</strong> 及以上版本
+                    {t('支持单机')} <strong>Redis 7.x</strong> {t('及以上版本')}
                   </span>
                 </li>
                 <li>
                   <DialogIcon name="memory" size={13} className="compat-item-icon" />
                   <span>
-                    同时支持 <strong>Memcached</strong>：命中率 / slab / 内存统计与单键查看编辑
+                    {t('同时支持')} <strong>Memcached</strong>
+                    {t('：命中率 / slab / 内存统计与单键查看编辑')}
                   </span>
                 </li>
                 <li>
                   <DialogIcon name="bolt" size={13} className="compat-item-icon" />
                   <span>
-                    Redis 键浏览采用 <strong>SCAN 渐进式遍历</strong>，不会阻塞服务端；
-                    Memcached 按 slab 限量取样，避免一次拉回整库
+                    {t('Redis 键浏览采用')} <strong>{t('SCAN 渐进式遍历')}</strong>
+                    {t('，不会阻塞服务端； Memcached 按 slab 限量取样，避免一次拉回整库')}
                   </span>
                 </li>
                 <li>
                   <DialogIcon name="eye-off" size={13} className="compat-item-icon" />
                   <span>
-                    连接凭据经系统钥匙串 <strong>加密存储</strong>
+                    {t('连接凭据经系统钥匙串')} <strong>{t('加密存储')}</strong>
                   </span>
                 </li>
               </ul>

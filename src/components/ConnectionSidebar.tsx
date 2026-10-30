@@ -10,6 +10,7 @@ import type { ConnectionItem } from '@/store/useRedis'
 import { useRedis } from '@/store/useRedis'
 import { useObservable } from '@/store/subscription'
 import { globalHolder } from '@/store/global'
+import { useI18n } from '@/i18n'
 
 export interface ConnectionSidebarProps {
   onNewConnection: () => void
@@ -38,6 +39,7 @@ export function ConnectionSidebar({
 }: ConnectionSidebarProps) {
   const { state, connect, selectConnection, moveConnection, removeConnections, askConfirm } = useRedis()
   const { settings, save: saveSettings } = useSettings()
+  const { t } = useI18n()
   const holder = useSettingsHolder()
   useObservable(globalHolder)
   useObservable(holder)
@@ -102,11 +104,11 @@ export function ConnectionSidebar({
 
     const ok = await askConfirm({
       force: true,
-      title: `批量删除 ${ids.length} 个连接`,
-      message: '即将删除以下连接配置（已连接的会先断开）：',
-      details: names.map((name) => ({ label: '连接', value: name })),
-      warning: '删除后不可恢复，相关标签页将一并关闭。',
-      confirmText: `删除 ${ids.length} 个连接`,
+      title: t('批量删除 {count} 个连接', { count: ids.length }),
+      message: t('即将删除以下连接配置（已连接的会先断开）：'),
+      details: names.map((name) => ({ label: t('连接'), value: name })),
+      warning: t('删除后不可恢复，相关标签页将一并关闭。'),
+      confirmText: t('删除 {count} 个连接', { count: ids.length }),
     })
     if (!ok) return
 
@@ -205,7 +207,7 @@ export function ConnectionSidebar({
       {collapsed ? (
         <>
           {/* 收起态：竖排窄条，只保留展开按钮、连接状态条与数量 */}
-          <button className="rail-toggle" {...tipProps('展开')} onClick={toggleCollapsed}>
+          <button className="rail-toggle" {...tipProps(t('展开'))} onClick={toggleCollapsed}>
             <DialogIcon name="sidebar-expand" size={14} />
           </button>
 
@@ -237,23 +239,23 @@ export function ConnectionSidebar({
       ) : (
         <>
           <div className="sidebar-head">
-            <span className="head-title">连接</span>
+            <span className="head-title">{t('连接')}</span>
             <div className="head-actions">
               {/* 批量删除入口：≥3 个连接才显示，点击进/出多选模式 */}
               {showBulkBtn ? (
                 <button
                   className={`add-btn${bulkMode ? ' bulk-on' : ''}`}
-                  {...tipProps(bulkMode ? '退出批量删除' : '批量删除连接')}
+                  {...tipProps(t(bulkMode ? '退出批量删除' : '批量删除连接'))}
                   onClick={toggleBulkMode}
                 >
                   <DialogIcon name="trash" size={13} />
                 </button>
               ) : null}
-              <button className="add-btn" {...tipProps('新建连接')} onClick={onNewConnection}>
+              <button className="add-btn" {...tipProps(t('新建连接'))} onClick={onNewConnection}>
                 {/* 用 SVG 而非全角 ＋：字符的字形重心与盒中心不一致，换成矢量线条可精确居中 */}
                 <DialogIcon name="add" size={13} />
               </button>
-              <button className="add-btn" {...tipProps('收起')} onClick={toggleCollapsed}>
+              <button className="add-btn" {...tipProps(t('收起'))} onClick={toggleCollapsed}>
                 <DialogIcon name="sidebar-collapse" size={14} />
               </button>
             </div>
@@ -313,7 +315,7 @@ export function ConnectionSidebar({
                     {/* 置顶标记：不加的话列表顺序变了却看不出谁被置顶 */}
                     {item.pinned ? <DialogIcon name="pin" size={12} className="pin-mark" /> : null}
                     {busyId === item.id ? (
-                      <span className="conn-tag">连接中…</span>
+                      <span className="conn-tag">{t('连接中…')}</span>
                     ) : item.status === 'connected' ? (
                       <span className="conn-tag ok">
                         {item.latency != null ? `${item.latency}ms` : 'ok'}
@@ -328,7 +330,11 @@ export function ConnectionSidebar({
                     {item.sshEnabled ? (
                       <span
                         className="ssh-chip"
-                        {...tipProps(item.sshHost ? `经 SSH 隧道：${item.sshHost}` : '经 SSH 隧道')}
+                        {...tipProps(
+                          item.sshHost
+                            ? t('经 SSH 隧道：{host}', { host: item.sshHost })
+                            : t('经 SSH 隧道'),
+                        )}
                       >
                         SSH
                       </span>
@@ -355,9 +361,9 @@ export function ConnectionSidebar({
 
             {state.ready && !state.connections.length ? (
               <p className="empty-tip">
-                暂无连接配置
+                {t('暂无连接配置')}
                 <br />
-                点击右上角 ＋ 添加一个 Redis 实例
+                {t('点击右上角 ＋ 添加一个 Redis 实例')}
               </p>
             ) : null}
           </div>
@@ -372,18 +378,18 @@ export function ConnectionSidebar({
             <div className="bulk-bar">
               <button
                 className="bulk-all"
-                {...tipProps(bulkAllChecked ? '取消全选' : '全选（不含置顶连接）')}
+                {...tipProps(t(bulkAllChecked ? '取消全选' : '全选（不含置顶连接）'))}
                 onClick={toggleBulkAll}
               >
                 <span className={`conn-check${bulkAllChecked ? ' on' : ''}`} role="checkbox" aria-checked={bulkAllChecked}>
                   {bulkAllChecked ? <DialogIcon name="check" size={11} /> : null}
                 </span>
-                <span>全选</span>
+                <span>{t('全选')}</span>
               </button>
               <span className="spacer" />
               <button className="btn tiny bulk-cancel" onClick={toggleBulkMode}>
                 <DialogIcon name="cancel" size={11} />
-                取消
+                {t('取消')}
               </button>
               <button
                 className="btn btn-primary tiny bulk-delete"
@@ -391,7 +397,7 @@ export function ConnectionSidebar({
                 onClick={() => void confirmBulkDelete()}
               >
                 <DialogIcon name="trash" size={11} />
-                删除
+                {t('删除')}
               </button>
             </div>
           ) : (

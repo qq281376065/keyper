@@ -1,5 +1,6 @@
 import { DialogIcon } from '@/components/DialogIcon'
 import { tipProps } from '@/components/tip'
+import { useI18n } from '@/i18n'
 
 /**
  * 值区通用的内容搜索框。
@@ -16,6 +17,8 @@ export interface FilterBoxProps {
 }
 
 export function FilterBox({ value, onChange, placeholder, className }: FilterBoxProps) {
+  const { t } = useI18n()
+
   return (
     <label className={`search-box${className ? ` ${className}` : ''}`}>
       <svg viewBox="0 0 16 16" className="s-icon" aria-hidden="true">
@@ -29,7 +32,7 @@ export function FilterBox({ value, onChange, placeholder, className }: FilterBox
         placeholder={placeholder}
       />
       {value ? (
-        <button className="s-clear" {...tipProps('清除搜索')} onClick={() => onChange('')}>
+        <button className="s-clear" {...tipProps(t('清除搜索'))} onClick={() => onChange('')}>
           <DialogIcon name="cancel" size={10} />
         </button>
       ) : null}

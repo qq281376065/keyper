@@ -38,7 +38,8 @@
     "src/**/*.tsx",
     "src/**/*.d.ts",
     "shared/**/*.ts",
-    "tests/unit/**/*.ts"
+    "tests/unit/**/*.ts",
+    "lang/**/*.ts"
   ],
   "exclude": [
     "tests/unit/credentialCrypto.spec.ts",

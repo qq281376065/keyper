@@ -5,6 +5,7 @@ import { MemoryCard } from '@/components/MemoryCard'
 import { PubsubCard } from '@/components/PubsubCard'
 import { SlowlogCard } from '@/components/SlowlogCard'
 import { tipProps } from '@/components/tip'
+import { useI18n } from '@/i18n'
 import { useSessionStore } from '@/hooks/useSessionStore'
 import { useRedis } from '@/store/useRedis'
 import { useObservable } from '@/store/subscription'
@@ -122,6 +123,7 @@ function hitRateTone(rate: number): 'ok' | 'warn' | 'idle' {
  * 连到了哪台实例、负载如何 —— 而不是面对一块空白。
  */
 export function ServerOverview() {
+  const { t } = useI18n()
   const { state, activeConnection, loadServerInfo } = useRedis()
   useObservable(useSessionStore())
 
@@ -149,7 +151,7 @@ export function ServerOverview() {
       if (!res.ok) throw new Error(res.error)
       setDetail(res.data)
     } catch (error) {
-      setDetailError(error instanceof Error ? error.message : '读取详情失败')
+      setDetailError(error instanceof Error ? error.message : t('读取详情失败'))
     } finally {
       setDetailLoading(false)
     }
@@ -227,34 +229,34 @@ export function ServerOverview() {
     ? [
         {
           key: 'server',
-          title: '服务器',
+          title: t('服务器'),
           icon: 'server',
           /* 版本与模式是这个实例"是什么"的身份信息，放在第一张卡片 */
           rows: [
-            { label: 'Redis 版本', value: info.version || '-', mono: true },
-            { label: '运行模式', value: MODE_LABEL[info.mode] ?? info.mode ?? '-', mono: true },
-            { label: '进程 ID', value: info.processId ? String(info.processId) : '-', mono: true },
+            { label: t('Redis 版本'), value: info.version || '-', mono: true },
+            { label: t('运行模式'), value: t(MODE_LABEL[info.mode] ?? info.mode ?? '-'), mono: true },
+            { label: t('进程 ID'), value: info.processId ? String(info.processId) : '-', mono: true },
           ],
         },
         {
           key: 'memory',
-          title: '内存',
+          title: t('内存'),
           icon: 'memory',
           rows: [
-            { label: '已用内存', value: info.usedMemoryHuman || '-', mono: true },
-            { label: 'Lua 占用', value: info.usedMemoryLua || '-', mono: true },
-            { label: '每秒操作数', value: info.opsPerSec != null ? String(info.opsPerSec) : '-', mono: true },
+            { label: t('已用内存'), value: info.usedMemoryHuman || '-', mono: true },
+            { label: t('Lua 占用'), value: info.usedMemoryLua || '-', mono: true },
+            { label: t('每秒操作数'), value: info.opsPerSec != null ? String(info.opsPerSec) : '-', mono: true },
           ],
         },
         {
           key: 'status',
-          title: '状态',
+          title: t('状态'),
           icon: 'activity',
           rows: [
-            { label: '客户端连接', value: String(info.connectedClients ?? '-'), mono: true },
-            { label: '键总数', value: String(info.totalKeys ?? '-'), mono: true },
+            { label: t('客户端连接'), value: String(info.connectedClients ?? '-'), mono: true },
+            { label: t('键总数'), value: String(info.totalKeys ?? '-'), mono: true },
             /* 命中率带单位并着色 */
-            { label: '命中率', value: `${info.hitRate}%`, mono: true, tone: hitRateTone(info.hitRate) },
+            { label: t('命中率'), value: `${info.hitRate}%`, mono: true, tone: hitRateTone(info.hitRate) },
           ],
         },
       ]
@@ -280,18 +282,18 @@ export function ServerOverview() {
     <div ref={rootRef} className="overview s-server-overview">
       <header className="ov-head">
         <div className="ov-ident">
-          <span className="ov-name">{activeConnection?.name ?? '当前实例'}</span>
+          <span className="ov-name">{activeConnection?.name ?? t('当前实例')}</span>
           <span className="ov-endpoint mono">{endpoint}</span>
           {sshLabel ? <span className="ov-ssh">{sshLabel}</span> : null}
         </div>
         <button
           className="ov-refresh"
           disabled={refreshing}
-          {...tipProps('刷新当前页面的全部信息（概览 + 详情）')}
+          {...tipProps(t('刷新当前页面的全部信息（概览 + 详情）'))}
           onClick={() => void refreshAll()}
         >
           <DialogIcon name="refresh" size={13} className={`ti${refreshing ? ' spin' : ''}`} />
-          {refreshing ? '刷新中…' : '刷新'}
+          {refreshing ? t('刷新中…') : t('刷新')}
         </button>
       </header>
 
@@ -300,7 +302,7 @@ export function ServerOverview() {
           {cards.map((card) => (
             <section key={card.key} className="ov-card">
               <h3 className="ov-card-title">
-                <DialogIcon name={card.icon} size={14} className="ov-card-icon" />
+                <DialogIcon name={card.icon} size={12} className="ov-card-icon" />
                 <span>{card.title}</span>
               </h3>
               <dl className="ov-rows">
@@ -317,8 +319,8 @@ export function ServerOverview() {
       ) : (
         <div className="ov-loading">
           <span className="ov-badge">Keyper</span>
-          <p>正在读取服务端指标…</p>
-          <p className="ov-hint">若长时间无响应，请检查连接是否仍然可用</p>
+          <p>{t('正在读取服务端指标…')}</p>
+          <p className="ov-hint">{t('若长时间无响应，请检查连接是否仍然可用')}</p>
         </div>
       )}
 
@@ -328,13 +330,13 @@ export function ServerOverview() {
         这里是嵌入式二级页签 —— 固定四项、只切换、不关闭，也不做溢出处理。
       */}
       <nav className="ov-tabs">
-        {TABS.map((t) => (
+        {TABS.map((item) => (
           <button
-            key={t.key}
-            className={`ov-tab${activeTab === t.key ? ' active' : ''}`}
-            onClick={() => switchTab(t.key)}
+            key={item.key}
+            className={`ov-tab${activeTab === item.key ? ' active' : ''}`}
+            onClick={() => switchTab(item.key)}
           >
-            {t.label}
+            {t(item.label)}
           </button>
         ))}
       </nav>
@@ -345,12 +347,12 @@ export function ServerOverview() {
           <header className="ov-detail-head">
             <h3 className="ov-detail-title">
               <DialogIcon name="document" size={14} className="ov-card-icon" />
-              <span>Redis信息详情</span>
+              <span>{t('Redis信息详情')}</span>
             </h3>
             {detailLoading ? (
-              <span className="ov-detail-state">读取中…</span>
+              <span className="ov-detail-state">{t('读取中…')}</span>
             ) : detail ? (
-              <span className="ov-detail-state mono">{detail.groups.length} 个段落</span>
+              <span className="ov-detail-state mono">{t('{count} 个段落', { count: detail.groups.length })}</span>
             ) : null}
           </header>
 
@@ -366,7 +368,7 @@ export function ServerOverview() {
                 <section key={group.section} className="ov-section">
                   <button className="ov-section-head" onClick={() => toggleSection(group.section)}>
                     <span className="ov-caret">{collapsedSections.has(group.section) ? '▸' : '▾'}</span>
-                    <span>{SECTION_LABELS[group.section] ?? group.section}</span>
+                    <span>{t(SECTION_LABELS[group.section] ?? group.section)}</span>
                     <span className="ov-section-count mono">{group.entries.length}</span>
                   </button>
                   <dl
@@ -375,7 +377,7 @@ export function ServerOverview() {
                   >
                     {group.entries.map((entry) => (
                       <div key={entry.key} className="ov-field">
-                        <dt {...tipProps(entry.key)}>{FIELD_LABELS[entry.key] ?? entry.key}</dt>
+                        <dt {...tipProps(entry.key)}>{t(FIELD_LABELS[entry.key] ?? entry.key)}</dt>
                         <dd className="mono" {...tipProps(entry.value)}>
                           {entry.value || '-'}
                         </dd>
@@ -386,7 +388,7 @@ export function ServerOverview() {
               ))}
             </div>
           ) : !detailError ? (
-            <div className="ov-detail-empty">暂无详情数据</div>
+            <div className="ov-detail-empty">{t('暂无详情数据')}</div>
           ) : null}
         </section>
       </div>

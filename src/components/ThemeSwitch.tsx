@@ -2,8 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { DialogIcon } from '@/components/DialogIcon'
 import { tipProps } from '@/components/tip'
 import { useTheme, SKIN_SCHEME, type SkinId, type ThemeMode } from '@/services/theme'
-import { useObservable } from '@/store/subscription'
-import { settingsHolder } from '@/services/settings'
+import { useI18n } from '@/i18n'
 
 const MENU_WIDTH = 168
 
@@ -39,7 +38,7 @@ const SKIN_OPTIONS: Array<{ value: SkinId; label: string; icon: ThemeIcon }> = [
 const ALL_OPTIONS = [...BASE_OPTIONS, ...SKIN_OPTIONS]
 
 export function ThemeSwitch() {
-  useObservable(settingsHolder)
+  const { t } = useI18n()
   const { mode, resolved, setMode } = useTheme()
 
   const [open, setOpen] = useState(false)
@@ -52,12 +51,13 @@ export function ThemeSwitch() {
   /* 菜单底部提示：皮肤报"皮肤名 + 明暗归属"，普通主题只报明暗 */
   const skin = SKIN_OPTIONS.find((item) => item.value === mode)
   const schemeHint = skin
-    ? `${skin.label} · ${SKIN_SCHEME[skin.value] === 'dark' ? '暗色系' : '亮色系'}`
+    ? t('{skin} · {scheme}', {
+        skin: t(skin.label),
+        scheme: t(SKIN_SCHEME[skin.value] === 'dark' ? '暗色系' : '亮色系'),
+      })
     : mode === 'system'
-      ? `跟随系统 · ${resolved === 'dark' ? '暗色' : '亮色'}`
-      : resolved === 'dark'
-        ? '暗色'
-        : '亮色'
+      ? t('跟随系统 · {mode}', { mode: t(resolved === 'dark' ? '暗色' : '亮色') })
+      : t(resolved === 'dark' ? '暗色' : '亮色')
 
   function toggle(): void {
     if (open) {
@@ -89,7 +89,7 @@ export function ThemeSwitch() {
 
   return (
     <div ref={anchorRef} className="theme-switch s-theme-switch">
-      <button className="trigger" {...tipProps(`主题：${currentLabel}`)} onClick={toggle}>
+      <button className="trigger" {...tipProps(t('主题：{name}', { name: t(currentLabel) }))} onClick={toggle}>
         <DialogIcon name={currentIcon} size={15} className="icon" />
       </button>
 
@@ -103,7 +103,7 @@ export function ThemeSwitch() {
             {BASE_OPTIONS.map((option) => (
               <button key={option.value} className="menu-item" onClick={() => pick(option.value)}>
                 <DialogIcon name={option.icon} size={13} className="opt-icon" />
-                <span>{option.label}</span>
+                <span>{t(option.label)}</span>
                 <span className="shortcut">{mode === option.value ? <DialogIcon name="check" size={12} /> : null}</span>
               </button>
             ))}
@@ -111,12 +111,12 @@ export function ThemeSwitch() {
             {SKIN_OPTIONS.map((option) => (
               <button key={option.value} className="menu-item" onClick={() => pick(option.value)}>
                 <DialogIcon name={option.icon} size={13} className="opt-icon" />
-                <span>{option.label}</span>
+                <span>{t(option.label)}</span>
                 <span className="shortcut">{mode === option.value ? <DialogIcon name="check" size={12} /> : null}</span>
               </button>
             ))}
             <div className="menu-sep" />
-            <div className="menu-hint">当前：{schemeHint}</div>
+            <div className="menu-hint">{t('当前：{value}', { value: schemeHint })}</div>
           </div>
         </>
       ) : null}

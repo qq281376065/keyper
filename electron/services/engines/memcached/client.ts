@@ -1,5 +1,6 @@
 import net from 'node:net'
 import { EventEmitter } from 'node:events'
+import { t } from '@shared/i18n'
 
 /**
  * Memcached 文本协议客户端（最小实现）。
@@ -10,7 +11,8 @@ import { EventEmitter } from 'node:events'
  *      连接池/重试策略与我们的"每连接独立池 + 可观测状态"模型对不上，
  *      套在外面反而更难控制生命周期。
  *   2. 需要的能力很窄：get / set / add / replace / delete / incr / stats /
- *      flush_all / version / quit。文本协议足够，SASL 与二进制协议用不到。
+ *      lru_crawler metadump / flush_all / version / quit。
+ *      文本协议足够，SASL 与二进制协议用不到。
  *   3. 需要把"每个命令的原始错误"透出给界面（例如 SERVER_ERROR out of memory），
  *      自己解析才能保住这些细节。
  *
@@ -121,7 +123,12 @@ export class MemcachedClient extends EventEmitter {
       const socket = net.createConnection({ host: this.options.host, port: this.options.port })
       const timeout = setTimeout(() => {
         socket.destroy()
-        reject(new MemcachedError('CONNECT_TIMEOUT', `连接 ${this.options.host}:${this.options.port} 超时`))
+        reject(
+          new MemcachedError(
+            'CONNECT_TIMEOUT',
+            t('连接 {host}:{port} 超时', { host: this.options.host, port: this.options.port }),
+          ),
+        )
       }, this.options.connectTimeoutMs ?? 5000)
 
       socket.once('connect', () => {
@@ -141,7 +148,7 @@ export class MemcachedClient extends EventEmitter {
 
       socket.on('close', () => {
         this.closed = true
-        this.failPending(new MemcachedError('SOCKET_CLOSED', '连接已关闭'))
+        this.failPending(new MemcachedError('SOCKET_CLOSED', t('连接已关闭')))
         this.emit('close')
       })
     })
@@ -154,7 +161,7 @@ export class MemcachedClient extends EventEmitter {
       this.socket.destroy()
       this.socket = null
     }
-    this.failPending(new MemcachedError('SOCKET_CLOSED', '连接已主动关闭'))
+    this.failPending(new MemcachedError('SOCKET_CLOSED', t('连接已主动关闭')))
   }
 
   private failPending(error: Error): void {
@@ -179,7 +186,7 @@ export class MemcachedClient extends EventEmitter {
     } catch (error) {
       clearTimeout(pending.timer)
       this.pending = null
-      pending.reject(error instanceof Error ? error : new MemcachedError('PROTOCOL_ERROR', '解析失败'))
+      pending.reject(error instanceof Error ? error : new MemcachedError('PROTOCOL_ERROR', t('解析失败')))
       this.drainQueue()
       return
     }
@@ -214,7 +221,7 @@ export class MemcachedClient extends EventEmitter {
     return new Promise<Buffer>((resolve, reject) => {
       const run = (): void => {
         if (!this.socket || this.closed) {
-          reject(new MemcachedError('SOCKET_CLOSED', '连接未建立'))
+          reject(new MemcachedError('SOCKET_CLOSED', t('连接未建立')))
           return
         }
         const limit = timeoutMs ?? this.options.commandTimeoutMs ?? 3000
@@ -225,7 +232,7 @@ export class MemcachedClient extends EventEmitter {
            * 后续命令会读到上一条的尾巴。直接断开，由池负责重连。
            */
           this.disconnect()
-          reject(new MemcachedError('COMMAND_TIMEOUT', `命令超时（${limit}ms）`))
+          reject(new MemcachedError('COMMAND_TIMEOUT', t('命令超时（{ms}ms）', { ms: limit })))
         }, limit)
 
         this.pending = { resolve, reject, until, timer }
@@ -257,11 +264,32 @@ export class MemcachedClient extends EventEmitter {
     return MemcachedClient.lineEnd(buffer)
   }
 
+  /**
+   * 直到遇到 `END` 收尾 —— 容忍 metadump 的行尾差异。
+   *
+   * 真实 memcached 的 `lru_crawler metadump all` 每条记录以 `\n` 结尾，
+   * 最后才是一个 `END\r\n`（实测 1.6.21 就是这样）；普通 stats 则是 `\r\n`。
+   * 若沿用只认 `\r\nEND\r\n` 的 untilEnd，metadump 会一直等到超时。
+   */
+  private static untilEndLoose(buffer: Buffer): number {
+    if (buffer.length >= 5 && buffer.subarray(0, 5).toString('latin1') === `END${CRLF}`) return 5
+    if (buffer.length >= 4 && buffer.subarray(0, 4).toString('latin1') === `END\n`) return 4
+
+    let end = -1
+    for (const marker of [Buffer.from(`\nEND${CRLF}`, 'latin1'), Buffer.from(`\nEND\n`, 'latin1')]) {
+      const idx = buffer.indexOf(marker)
+      if (idx < 0) continue
+      const candidate = idx + marker.length
+      if (end < 0 || candidate < end) end = candidate
+    }
+    return end
+  }
+
   /** 把单行响应转成字符串并检查是否为错误行 */
   private readLine(buffer: Buffer): string {
     const text = buffer.toString('utf8').replace(/\r\n$/, '')
     if (text.startsWith('ERROR')) {
-      throw new MemcachedError('PROTOCOL_ERROR', '服务端不认识这条命令')
+      throw new MemcachedError('PROTOCOL_ERROR', t('服务端不认识这条命令'))
     }
     if (text.startsWith('CLIENT_ERROR')) {
       throw new MemcachedError('PROTOCOL_ERROR', text.slice('CLIENT_ERROR '.length) || text)
@@ -296,11 +324,14 @@ export class MemcachedClient extends EventEmitter {
 
     /* 头行：VALUE <key> <flags> <bytes> */
     const headerEnd = text.indexOf(CRLF)
-    if (headerEnd < 0) throw new MemcachedError('PROTOCOL_ERROR', 'VALUE 行不完整')
+    if (headerEnd < 0) throw new MemcachedError('PROTOCOL_ERROR', t('VALUE 行不完整'))
     const header = text.slice(0, headerEnd)
     if (!header.startsWith('VALUE ')) {
       this.readLine(raw)
-      throw new MemcachedError('PROTOCOL_ERROR', `无法识别的响应：${header.slice(0, 40)}`)
+      throw new MemcachedError(
+        'PROTOCOL_ERROR',
+        t('无法识别的响应：{preview}', { preview: header.slice(0, 40) }),
+      )
     }
     const parts = header.split(' ')
     const flags = Number(parts[2] ?? 0) || 0
@@ -341,11 +372,14 @@ export class MemcachedClient extends EventEmitter {
     if (text.startsWith(`EN${CRLF}`) || text.startsWith(`NF${CRLF}`)) return null
 
     const headerEnd = text.indexOf(CRLF)
-    if (headerEnd < 0) throw new MemcachedError('PROTOCOL_ERROR', 'VA 行不完整')
+    if (headerEnd < 0) throw new MemcachedError('PROTOCOL_ERROR', t('VA 行不完整'))
     const header = text.slice(0, headerEnd)
     if (!header.startsWith('VA ')) {
       this.readLine(raw)
-      throw new MemcachedError('PROTOCOL_ERROR', `无法识别的 meta 响应：${header.slice(0, 40)}`)
+      throw new MemcachedError(
+        'PROTOCOL_ERROR',
+        t('无法识别的 meta 响应：{preview}', { preview: header.slice(0, 40) }),
+      )
     }
 
     const parts = header.split(' ')
@@ -402,9 +436,11 @@ export class MemcachedClient extends EventEmitter {
       MemcachedClient.untilLine,
     )
     const text = this.readLine(raw)
-    if (text === 'NOT_FOUND') throw new MemcachedError('NOT_FOUND', `键 ${key} 不存在`)
+    if (text === 'NOT_FOUND') throw new MemcachedError('NOT_FOUND', t('键 {key} 不存在', { key }))
     const value = Number(text)
-    if (!Number.isFinite(value)) throw new MemcachedError('PROTOCOL_ERROR', `非预期的数值响应：${text}`)
+    if (!Number.isFinite(value)) {
+      throw new MemcachedError('PROTOCOL_ERROR', t('非预期的数值响应：{response}', { response: text }))
+    }
     return value
   }
 
@@ -430,13 +466,109 @@ export class MemcachedClient extends EventEmitter {
   }
 
   /**
+   * `lru_crawler metadump all` —— 枚举实例中的**全部**缓存项。
+   *
+   * 为什么必须用它而不是 cachedump：
+   *   cachedump 只遍历 COLD 分段，刚写入或最近访问过的键留在 HOT/WARM 段里，
+   *   结果就是"库里明明有这个键，键栏里却没有"（真实案例：group:yufei:2030）。
+   *   metadump 走完整条 LRU 链，三个分段都能覆盖，也不受 slab 上限影响。
+   *
+   * 代价与限制：
+   *   · 大实例上输出行数多、耗时长，因此单独放宽超时；
+   *   · 1.4.31 以下或禁用 lru_crawler 的服务端会回 ERROR / CLIENT_ERROR，
+   *     由上层回退 cachedump 并如实提示；
+   *   · 爬取期间并发写入的键仍可能漏掉，但不会再整段丢失。
+   *
+   * 行格式：
+   *   `key=<urlencoded> exp=<绝对时间戳|-1> la=<n> cas=<n> fetch=<yes|no> cls=<n> size=<n>`
+   *   `END`
+   * 返回：`[{ key, bytes, expiresAt, slab }]`，expiresAt 为 0 表示永不过期。
+   */
+  async metadump(
+    timeoutMs = 20000,
+  ): Promise<Array<{ key: string; bytes: number; expiresAt: number; slab: number }>> {
+    const raw = await this.exec(
+      Buffer.from(`lru_crawler metadump all${CRLF}`, 'latin1'),
+      (buffer) => {
+        /*
+         * 与 cachedump 同理：被禁用 / 版本不支持 / 已有爬取任务在跑时，
+         * 服务端可能只回一行错误（ERROR / CLIENT_ERROR / SERVER_ERROR / BUSY），
+         * 不跟 END。若仍等 END 会一直挂到超时。
+         */
+        const head = buffer.subarray(0, Math.min(buffer.length, 32)).toString('latin1')
+        if (
+          head.startsWith('ERROR') ||
+          head.startsWith('CLIENT_ERROR') ||
+          head.startsWith('SERVER_ERROR') ||
+          head.startsWith('BUSY')
+        ) {
+          return MemcachedClient.lineEnd(buffer)
+        }
+        return MemcachedClient.untilEndLoose(buffer)
+      },
+      timeoutMs,
+    )
+
+    const text = raw.toString('utf8')
+    /* metadump 每行以 \n 结尾（见 untilEndLoose），不能只按 \r\n 切分 */
+    const lines = text.split(/\r?\n/)
+    const firstLine = lines[0] ?? ''
+    if (/^(ERROR|CLIENT_ERROR|SERVER_ERROR|BUSY)/.test(firstLine)) {
+      /*
+       * 统一抛 SERVER_ERROR：上层据此判断"服务端不支持 metadump"并回退，
+       * 而不是把原始协议行直接甩给用户。
+       */
+      throw new MemcachedError(
+        'SERVER_ERROR',
+        firstLine.replace(/^(CLIENT_ERROR|SERVER_ERROR|ERROR)\s*/, '') || firstLine,
+      )
+    }
+
+    const out: Array<{ key: string; bytes: number; expiresAt: number; slab: number }> = []
+    for (const line of lines) {
+      /* 每行以 key= 开头；END 行自然被跳过 */
+      if (!line.startsWith('key=')) continue
+      let key = ''
+      let bytes = 0
+      let expiresAt = 0
+      let slab = 0
+      for (const token of line.split(' ')) {
+        const eq = token.indexOf('=')
+        if (eq <= 0) continue
+        const name = token.slice(0, eq)
+        const value = token.slice(eq + 1)
+        if (name === 'key') {
+          /* metadump 对键名做 URL 编码（冒号会变成 %3A），必须还原后才能命中 */
+          try {
+            key = decodeURIComponent(value)
+          } catch {
+            key = value
+          }
+        } else if (name === 'exp') {
+          /* exp 是绝对 Unix 时间戳；-1 表示永不过期 */
+          const exp = Number(value)
+          expiresAt = Number.isFinite(exp) && exp > 0 ? exp : 0
+        } else if (name === 'size') {
+          bytes = Number(value) || 0
+        } else if (name === 'cls') {
+          slab = Number(value) || 0
+        }
+      }
+      if (key) out.push({ key, bytes, expiresAt, slab })
+    }
+    return out
+  }
+
+  /**
    * `stats cachedump <slab> <limit>` —— 列出某个 slab class 里的键。
    *
-   * ⚠️ 这是调试命令，不是稳定 API：
+   * ⚠️ 这是调试命令，不是稳定 API，而且**只遍历 COLD 分段**：
+   *   刚写入 / 最近访问的键在 HOT/WARM 段，cachedump 看不到 ——
+   *   它只作为 metadump 不可用时的回退，且上层必须标注"结果可能不完整"。
+   * 其他限制：
    *   · 部分发行版/托管服务会禁用（返回 CLIENT_ERROR）；
    *   · 大实例上可能很慢，因此 limit 必须给（0 表示不限，绝对不要用 0）；
    *   · 结果不一定完整（内部哈希遍历，且并发写入会导致遗漏）。
-   * 上层必须在界面明确标注这些限制，否则用户会以为"键就是这些"。
    *
    * 返回：`[{ key, bytes, expiresAt }]`，expiresAt 为 0 表示永不过期。
    */

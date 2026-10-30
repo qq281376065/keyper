@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { DialogIcon } from '@/components/DialogIcon'
 import { SortIcon } from '@/components/SortIcon'
 import { tipProps } from '@/components/tip'
+import { useI18n } from '@/i18n'
 import { renamedKey } from '@/store/session'
 import { useRedis } from '@/store/useRedis'
 import { useObservable } from '@/store/subscription'
@@ -76,6 +77,7 @@ const TTL_PRESETS = [
 type SortKey = 'type' | 'key' | 'ttl' | 'state'
 
 export function BulkOpsPanel() {
+  const { t } = useI18n()
   const { state, runBulkTask, cancelBulkTask, closeBulkTask, notify } = useRedis()
   useObservable(useSessionStore())
 
@@ -133,10 +135,13 @@ export function BulkOpsPanel() {
   const renameValid = fromText !== toText
 
   const renameHint = !renameValid
-    ? '替换前后一致，请调整前缀'
+    ? t('替换前后一致，请调整前缀')
     : !renameChangeCount
-      ? '没有键命中该前缀'
-      : `将重命名 ${renameChangeCount} / ${task.items.length} 个键，其余保持不变`
+      ? t('没有键命中该前缀')
+      : t('将重命名 {changed} / {total} 个键，其余保持不变', {
+          changed: renameChangeCount,
+          total: task.items.length,
+        })
 
   const canRun =
     task.action === 'ttl' ? ttlValid : task.action === 'rename' ? renameValid && renameChangeCount > 0 : true
@@ -240,7 +245,7 @@ export function BulkOpsPanel() {
   /** 复制键名：清单里的键名可能很长，被 ellipsis 截断后看不全 */
   async function copyKey(key: string): Promise<void> {
     const done = await copyText(key)
-    notify(done ? 'ok' : 'err', done ? '已复制键名' : '复制失败，请检查剪贴板权限')
+    notify(done ? 'ok' : 'err', done ? t('已复制键名') : t('复制失败，请检查剪贴板权限'))
   }
 
   /**
@@ -255,24 +260,24 @@ export function BulkOpsPanel() {
     task.action === 'rename' ? `${key} → ${renamedKey(key, task.renameFrom, task.renameTo)}` : key
 
   /** 底栏的目标说明：「永久」比「-1 秒」更像人话 */
-  const ttlTargetText = task.ttlSeconds < 0 ? '永久' : `${task.ttlSeconds} 秒`
+  const ttlTargetText = task.ttlSeconds < 0 ? t('永久') : t('{seconds} 秒', { seconds: task.ttlSeconds })
 
   return (
     <div className="bulk s-bulk-ops-panel">
       <header className="bulk-head">
         <div className="bulk-title-row">
-          <h2 className="bulk-title">{labels.title}</h2>
-          <span className="bulk-count mono">{total} 个</span>
+          <h2 className="bulk-title">{t(labels.title)}</h2>
+          <span className="bulk-count mono">{t('{count} 个', { count: total })}</span>
           <span className="spacer" />
           {!started ? (
             <button className="btn tiny" onClick={closeBulkTask}>
               <DialogIcon name="cancel" size={13} />
-              取消
+              {t('取消')}
             </button>
           ) : null}
         </div>
 
-        <p className="bulk-warn">{labels.warn}</p>
+        <p className="bulk-warn">{t(labels.warn)}</p>
 
         {/* 类型分布：执行前先看清这批里都是什么 */}
         <div className="type-stats">
@@ -288,19 +293,19 @@ export function BulkOpsPanel() {
         {/* 重命名参数：原前缀 → 新前缀（只在未开始时出现） */}
         {!started && task.action === 'rename' ? (
           <div className="param-box">
-            <span className="param-label">替换前缀</span>
+            <span className="param-label">{t('替换前缀')}</span>
             <input
               value={fromText}
               onChange={(event) => syncRename(event.target.value, toText)}
               className="param-input mono"
-              placeholder="原前缀（留空 = 添加前缀）"
+              placeholder={t('原前缀（留空 = 添加前缀）')}
             />
             <span className="param-arrow">→</span>
             <input
               value={toText}
               onChange={(event) => syncRename(fromText, event.target.value)}
               className="param-input mono"
-              placeholder="新前缀"
+              placeholder={t('新前缀')}
             />
             <span className={`param-hint${canRun ? '' : ' warn'}`}>{renameHint}</span>
           </div>
@@ -319,7 +324,7 @@ export function BulkOpsPanel() {
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
             className="filter-input"
-            placeholder="在清单中搜索键名"
+            placeholder={t('在清单中搜索键名')}
           />
         </div>
         <span className="mono filter-count">
@@ -332,11 +337,11 @@ export function BulkOpsPanel() {
         <div className="bulk-table-head">
           <span className="col-idx">#</span>
           <button className={`col-type th-sort${sortKey === 'type' ? ' on' : ''}`} onClick={() => toggleSort('type')}>
-            类型
+            {t('类型')}
             <SortIcon direction={sortKey === 'type' ? (sortAsc ? 'asc' : 'desc') : null} />
           </button>
           <button className={`col-key th-sort${sortKey === 'key' ? ' on' : ''}`} onClick={() => toggleSort('key')}>
-            键名
+            {t('键名')}
             <SortIcon direction={sortKey === 'key' ? (sortAsc ? 'asc' : 'desc') : null} />
           </button>
           <button className={`col-ttl th-sort${sortKey === 'ttl' ? ' on' : ''}`} onClick={() => toggleSort('ttl')}>
@@ -344,10 +349,10 @@ export function BulkOpsPanel() {
             <SortIcon direction={sortKey === 'ttl' ? (sortAsc ? 'asc' : 'desc') : null} />
           </button>
           <button className={`col-state th-sort${sortKey === 'state' ? ' on' : ''}`} onClick={() => toggleSort('state')}>
-            状态
+            {t('状态')}
             <SortIcon direction={sortKey === 'state' ? (sortAsc ? 'asc' : 'desc') : null} />
           </button>
-          <span className="col-ops">操作</span>
+          <span className="col-ops">{t('操作')}</span>
         </div>
 
         <div className="bulk-list">
@@ -366,27 +371,27 @@ export function BulkOpsPanel() {
               <span className={`col-ttl ${ttlTone(item.ttl)}`.trim()}>
                 {task.action === 'ttl' ? (
                   <>
-                    {formatTtl(item.ttl)} → {formatTtl(task.ttlSeconds)}
+                    {t(formatTtl(item.ttl))} → {t(formatTtl(task.ttlSeconds))}
                   </>
                 ) : (
-                  formatTtl(item.ttl)
+                  t(formatTtl(item.ttl))
                 )}
               </span>
               <span className="col-state">
                 {isDone(item.key) ? (
-                  <span className="state-ok">{labels.done}</span>
+                  <span className="state-ok">{t(labels.done)}</span>
                 ) : isFailed(item.key) ? (
                   <span className="state-fail" {...tipProps(failReason(item.key) ?? '')}>
-                    失败
+                    {t('失败')}
                   </span>
                 ) : (
-                  labels.pending
+                  t(labels.pending)
                 )}
               </span>
               <span className="col-ops">
                 <button
                   className="row-act"
-                  {...tipProps('复制键名')}
+                  {...tipProps(t('复制键名'))}
                   onClick={(event) => {
                     event.stopPropagation()
                     void copyKey(item.key)
@@ -400,7 +405,7 @@ export function BulkOpsPanel() {
                 {canOperate(item.key) && !started ? (
                   <button
                     className="row-act danger"
-                    {...tipProps('从清单中移除')}
+                    {...tipProps(t('从清单中移除'))}
                     onClick={(event) => {
                       event.stopPropagation()
                       removeItem(item.key)
@@ -415,7 +420,7 @@ export function BulkOpsPanel() {
             </div>
           ))}
 
-          {!visible.length ? <p className="bulk-empty">没有匹配的键名</p> : null}
+          {!visible.length ? <p className="bulk-empty">{t('没有匹配的键名')}</p> : null}
         </div>
       </div>
 
@@ -423,17 +428,23 @@ export function BulkOpsPanel() {
       <footer className="bulk-foot">
         {!started && task.action === 'ttl' ? (
           <p className="foot-hint">
-            目标 {ttlTargetText}。{labels.footHint}
+            {t('目标 {target}。', { target: ttlTargetText })}
+            {t(labels.footHint)}
           </p>
         ) : !started ? (
-          <p className="foot-hint">{labels.footHint}</p>
+          <p className="foot-hint">{t(labels.footHint)}</p>
         ) : finished ? (
           <p className="foot-hint">
-            已处理 {doneCount} 个键：成功 {okCount}
-            {failedCount ? `，失败 ${failedCount}` : ''}。
+            {failedCount
+              ? t('已处理 {count} 个键：成功 {ok}，失败 {failed}。', {
+                  count: doneCount,
+                  ok: okCount,
+                  failed: failedCount,
+                })
+              : t('已处理 {count} 个键：成功 {ok}。', { count: doneCount, ok: okCount })}
           </p>
         ) : (
-          <p className="foot-hint">正在处理，请勿关闭面板…</p>
+          <p className="foot-hint">{t('正在处理，请勿关闭面板…')}</p>
         )}
 
         <span className="spacer" />
@@ -442,22 +453,22 @@ export function BulkOpsPanel() {
           <>
             <button className="btn" onClick={closeBulkTask}>
               <DialogIcon name="cancel" size={13} />
-              取消
+              {t('取消')}
             </button>
             <button className={execClass} disabled={!canRun} onClick={() => void runBulkTask()}>
               <DialogIcon name={execIcon} size={13} />
-              {labels.exec}
+              {t(labels.exec)}
             </button>
           </>
         ) : task.running ? (
           <button className="btn" onClick={cancelBulkTask}>
             <DialogIcon name="stop" size={13} />
-            中止
+            {t('中止')}
           </button>
         ) : (
           <button className="btn btn-primary" onClick={closeBulkTask}>
             <DialogIcon name="check" size={13} />
-            完成
+            {t('完成')}
           </button>
         )}
       </footer>

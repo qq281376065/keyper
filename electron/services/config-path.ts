@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { app } from 'electron'
+import { t } from '@shared/i18n'
 
 /**
  * 配置目录解析（便携模式优先）。
@@ -67,7 +68,7 @@ export function configDir(): string {
       cachedDir = override
       return cachedDir
     }
-    fallbackReason = `环境变量指定的目录不可写：${override}`
+    fallbackReason = t('环境变量指定的目录不可写：{dir}', { dir: override })
   }
 
   const portable = path.join(appDir(), PORTABLE_DIR_NAME)
@@ -77,7 +78,7 @@ export function configDir(): string {
   }
 
   if (!fallbackReason) {
-    fallbackReason = `程序目录不可写：${portable}（常见于安装在 Program Files 下）`
+    fallbackReason = t('程序目录不可写：{dir}（常见于安装在 Program Files 下）', { dir: portable })
   }
   cachedDir = app.getPath('userData')
   return cachedDir

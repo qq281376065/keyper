@@ -25,6 +25,7 @@ import { useSetEditor } from '@/hooks/valueEditor/set'
 import { useStreamEditor } from '@/hooks/valueEditor/stream'
 import { useStringEditor } from '@/hooks/valueEditor/string'
 import { useZsetEditor } from '@/hooks/valueEditor/zset'
+import { useI18n } from '@/i18n'
 import { useRedis } from '@/store/useRedis'
 import { useObservable } from '@/store/subscription'
 import { useSessionStore } from '@/hooks/useSessionStore'
@@ -89,12 +90,17 @@ const ICON_EYE = (
  * Redis 键的唯一性通常落在尾部（租户 / endpoint / 版本号），只截尾部会切掉
  * 区分度最高的那一段；截断标记单独用三个点并着色，一眼能看出名字没显示全。
  */
-function tabLabel(text: string, head = 12, tail = 8): React.ReactNode {
+function tabLabel(
+  text: string,
+  t: (key: string) => string,
+  head = 12,
+  tail = 8,
+): React.ReactNode {
   if (text.length <= head + tail + 1) return text
   return (
     <>
       {text.slice(0, head)}
-      <span className="vt-ell" aria-label="名称已截断">
+      <span className="vt-ell" aria-label={t('名称已截断')}>
         ...
       </span>
       {text.slice(-tail)}
@@ -118,6 +124,7 @@ export function ValueViewer() {
   const { state, activeConnection, selectKey, markSelected } = useRedis()
   /* 订阅：书签条、键列表与选中值都来自会话 store */
   useObservable(useSessionStore())
+  const { t } = useI18n()
 
   /* ---------------- 底部键书签（方案 05） ----------------
    * 每个连接各自一套书签：切走时把集合存进 tabStoreRef，切回时恢复。
@@ -536,25 +543,27 @@ export function ValueViewer() {
         <div className="blank">
           <div className="blank-inner">
             <span className="blank-badge">Keyper</span>
-            <p>从中间列表选择一个键，查看其内容</p>
-            <p className="blank-hint">支持 string / hash / list / set / zset / stream 六种类型的浏览</p>
+            <p>{t('从中间列表选择一个键，查看其内容')}</p>
+            <p className="blank-hint">
+              {t('支持 string / hash / list / set / zset / stream 六种类型的浏览')}
+            </p>
           </div>
         </div>
       ) : null}
 
       {/* ---------------- 底部键书签（方案 05）：固定详情 + 横向书签 + 更多 ---------------- */}
       {activeConnection && !bulkActive ? (
-        <div className="viewer-tabs" role="tablist" aria-label="已打开的键">
+        <div className="viewer-tabs" role="tablist" aria-label={t('已打开的键')}>
           <button
             type="button"
             role="tab"
             aria-selected={shownActive === 'detail'}
             className={`vt-home${shownActive === 'detail' ? ' active' : ''}`}
             onClick={showDetailTab}
-            {...tipProps('当前连接详情')}
+            {...tipProps(t('当前连接详情'))}
           >
             <DialogIcon name="home" size={13} />
-            <span>详情</span>
+            <span>{t('详情')}</span>
           </button>
 
           <button
@@ -562,8 +571,8 @@ export function ValueViewer() {
             className="vt-arrow"
             disabled={!tabArrows.left}
             onClick={() => scrollTabs(-1)}
-            aria-label="向左滚动"
-            title="向左滚动"
+            aria-label={t('向左滚动')}
+            title={t('向左滚动')}
           >
             ‹
           </button>
@@ -575,7 +584,7 @@ export function ValueViewer() {
             onMouseLeave={cancelTabHover}
           >
             {shownTabs.length === 0 ? (
-              <span className="vt-empty">还没有打开键 · 从左侧选择</span>
+              <span className="vt-empty">{t('还没有打开键 · 从左侧选择')}</span>
             ) : (
               shownTabs.map((key) => {
                 const meta = tabMeta(key)
@@ -611,13 +620,13 @@ export function ValueViewer() {
                   >
                     <span className={`vt-dot${meta ? '' : ' unknown'}`} />
                     <span className="vt-name" title={key}>
-                      {tabLabel(key)}
+                      {tabLabel(key, t)}
                     </span>
                     <button
                       type="button"
                       className="vt-x"
-                      title="关闭"
-                      aria-label={`关闭 ${key}`}
+                      title={t('关闭')}
+                      aria-label={t('关闭 {key}', { key })}
                       onClick={(event) => {
                         event.stopPropagation()
                         closeTab(key)
@@ -636,8 +645,8 @@ export function ValueViewer() {
             className="vt-arrow"
             disabled={!tabArrows.right}
             onClick={() => scrollTabs(1)}
-            aria-label="向右滚动"
-            title="向右滚动"
+            aria-label={t('向右滚动')}
+            title={t('向右滚动')}
           >
             ›
           </button>
@@ -651,7 +660,7 @@ export function ValueViewer() {
               setTabMenuOpen((prev) => !prev)
               setTabQuery('')
             }}
-            {...tipProps('更多操作')}
+            {...tipProps(t('更多操作'))}
           >
             ⋯
           </button>
@@ -670,12 +679,12 @@ export function ValueViewer() {
                   <b className="mono">
                     {tabKeyword ? `${visibleTabs.length} / ${shownTabs.length}` : shownTabs.length}
                   </b>
-                  <span>个已打开的键</span>
+                  <span>{t('个已打开的键')}</span>
                   <button
                     type="button"
                     className="vt-menu-x"
-                    title="关闭 (Esc)"
-                    aria-label="关闭"
+                    title={t('关闭 (Esc)')}
+                    aria-label={t('关闭')}
                     onClick={() => {
                       setTabMenuOpen(false)
                       setTabQuery('')
@@ -701,8 +710,8 @@ export function ValueViewer() {
                     className="mono"
                     value={tabQuery}
                     spellCheck={false}
-                    placeholder="搜索已打开的键"
-                    aria-label="搜索已打开的键"
+                    placeholder={t('搜索已打开的键')}
+                    aria-label={t('搜索已打开的键')}
                     onChange={(event) => setTabQuery(event.target.value)}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter') {
@@ -750,13 +759,13 @@ export function ValueViewer() {
                             {meta ? meta.type.charAt(0).toUpperCase() : '?'}
                           </span>
                           <span className="vt-mi-k mono" title={key}>
-                            {tabLabel(key, 20, 10)}
+                            {tabLabel(key, t, 20, 10)}
                           </span>
                           <button
                             type="button"
                             className="vt-mi-x"
-                            title="关闭"
-                            aria-label={`关闭 ${key}`}
+                            title={t('关闭')}
+                            aria-label={t('关闭 {key}', { key })}
                             onClick={(event) => {
                               event.stopPropagation()
                               closeTab(key)
@@ -768,7 +777,7 @@ export function ValueViewer() {
                       )
                     })
                   ) : (
-                    <div className="vt-menu-empty">没有匹配的键</div>
+                    <div className="vt-menu-empty">{t('没有匹配的键')}</div>
                   )}
                 </div>
 
@@ -780,7 +789,7 @@ export function ValueViewer() {
                     onClick={() => runTabBulk('others')}
                   >
                     <DialogIcon name="clone" size={11} />
-                    <span>关闭其他</span>
+                    <span>{t('关闭其他')}</span>
                   </button>
                   <button
                     type="button"
@@ -792,7 +801,7 @@ export function ValueViewer() {
                     onClick={() => runTabBulk('right')}
                   >
                     <DialogIcon name="expand" size={11} />
-                    <span>关闭右侧</span>
+                    <span>{t('关闭右侧')}</span>
                   </button>
                   <button
                     type="button"
@@ -800,7 +809,7 @@ export function ValueViewer() {
                     onClick={() => runTabBulk('all')}
                   >
                     <DialogIcon name="trash" size={11} />
-                    <span>全部关闭</span>
+                    <span>{t('全部关闭')}</span>
                   </button>
                 </div>
               </div>
@@ -836,24 +845,24 @@ export function ValueViewer() {
               <div className="vp-row">
                 <i>TTL</i>
                 <b className={`mono ${ttlTone(hoverMeta.ttl)}`}>
-                  {formatTtl(hoverMeta.ttl)}
-                  {ttlTone(hoverMeta.ttl) === 'urgent' ? <span className="vp-chip">即将过期</span> : null}
+                  {t(formatTtl(hoverMeta.ttl))}
+                  {ttlTone(hoverMeta.ttl) === 'urgent' ? <span className="vp-chip">{t('即将过期')}</span> : null}
                 </b>
               </div>
 
               <div className="vp-row">
-                <i>内存</i>
+                <i>{t('内存')}</i>
                 <b className="mono">{hoverMeta.size != null ? formatBytes(hoverMeta.size) : '—'}</b>
               </div>
 
               {hoverValue ? (
                 <>
                   <div className="vp-row">
-                    <i>编码</i>
+                    <i>{t('编码')}</i>
                     <b className="mono">{hoverValue.encoding ?? '—'}</b>
                   </div>
                   <div className="vp-row">
-                    <i>长度</i>
+                    <i>{t('长度')}</i>
                     <b className="mono">
                       {hoverValue.length != null ? hoverValue.length : '—'}
                       {hoverValue.size != null ? ` · ${formatBytes(hoverValue.size)}` : ''}
@@ -862,7 +871,7 @@ export function ValueViewer() {
                 </>
               ) : null}
 
-              <div className="vp-hint">点击切换 · × 关闭 · 滚轮 / ‹ › 横向滚动</div>
+              <div className="vp-hint">{t('点击切换 · × 关闭 · 滚轮 / ‹ › 横向滚动')}</div>
             </div>,
             document.body,
           )
@@ -895,6 +904,7 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
   const { activeConnection, renameKey, setTtl, notify, refreshSelected } = useRedis()
   /* 订阅：本标签的会话（或全局）任一写入都重渲染 —— 与 Vue 的响应式粒度一致 */
   useObservable(useSessionStore())
+  const { t } = useI18n()
 
   /**
    * 服务端能力：由当前连接的 redis_version 推导。
@@ -1225,12 +1235,12 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
   /* ---------------------------------------------------------------- 值级操作 */
   const searchPlaceholder =
     value?.type === 'hash'
-      ? '搜索 field 或 value'
+      ? t('搜索 field 或 value')
       : value?.type === 'zset'
-        ? '搜索 member'
+        ? t('搜索 member')
         : value?.type === 'stream'
-          ? '搜索 ID 或字段内容'
-          : '搜索元素内容'
+          ? t('搜索 ID 或字段内容')
+          : t('搜索元素内容')
 
   /** 点击表头排序：同列再次点击切换升降序，换列则重置为升序 */
   function toggleSort(key: 'field' | 'value' | 'member'): void {
@@ -1245,17 +1255,20 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
 
   const matchedCount = !value ? 0 : value.type === 'string' ? 0 : value.type === 'hash' ? hashEditor.hashView.rows.length : lineView.rows.length
   const totalCount = !value ? 0 : value.type === 'hash' ? hashEditor.hashView.total : lineView.total
-  const ttlLabel = formatTtl(value?.ttl ?? -2)
+  const ttlLabel = t(formatTtl(value?.ttl ?? -2))
   const searchable = !!value && SEARCHABLE_TYPES.includes(value.type)
 
   async function copyValue(): Promise<void> {
     const text = stringEditor.stringView.text
     if (!text) {
-      notify('err', '内容为空')
+      notify('err', t('内容为空'))
       return
     }
     const done = await copyText(text)
-    notify(done ? 'ok' : 'err', done ? `已复制（${text.length} 字符）` : '复制失败，请检查剪贴板权限')
+    notify(
+      done ? 'ok' : 'err',
+      done ? t('已复制（{count} 字符）', { count: text.length }) : t('复制失败，请检查剪贴板权限'),
+    )
   }
 
   async function exportValue(): Promise<void> {
@@ -1269,10 +1282,10 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
       return
     }
     if (!res.data.saved) {
-      notify('ok', '已取消导出')
+      notify('ok', t('已取消导出'))
       return
     }
-    notify('ok', `已导出到 ${res.data.path ?? '本地文件'}`)
+    notify('ok', t('已导出到 {path}', { path: res.data.path ?? t('本地文件') }))
   }
 
   /**
@@ -1298,7 +1311,7 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
     setTtlVisible(false)
     const seconds = Number(next)
     if (Number.isNaN(seconds)) {
-      notify('err', 'TTL 需为数字（秒）')
+      notify('err', t('TTL 需为数字（秒）'))
       return
     }
     await setTtl(value!.key, seconds)
@@ -1349,15 +1362,15 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
 
               <div className="meta-line">
                 <span>
-                  TTL：<b className="mono">{ttlLabel}</b>
+                  {t('TTL：')}<b className="mono">{ttlLabel}</b>
                 </span>
                 <span className="sep">|</span>
                 <span>
-                  encoding：<b className="mono">{value.encoding ?? '-'}</b>
+                  {t('encoding：')}<b className="mono">{value.encoding ?? '-'}</b>
                 </span>
                 <span className="sep">|</span>
                 <span>
-                  大小：<b className="mono">{value.length ?? '-'}</b>
+                  {t('大小：')}<b className="mono">{value.length ?? '-'}</b>
                 </span>
               </div>
             </div>
@@ -1376,65 +1389,65 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                 这两个块是浮起的，动作块是平的，一眼能分辨两类。
               */}
               <div className="seg-group">
-                <button className="tool" {...tipProps('进入编辑（也可双击值区域）')} onClick={stringEditor.enterStringEditExplicit}>
+                <button className="tool" {...tipProps(t('进入编辑（也可双击值区域）'))} onClick={stringEditor.enterStringEditExplicit}>
                   <DialogIcon name="edit" size={12} className="ti" />
-                  编辑
+                  {t('编辑')}
                 </button>
-                <button className="tool" {...tipProps('复制全部内容')} onClick={copyValue}>
+                <button className="tool" {...tipProps(t('复制全部内容'))} onClick={copyValue}>
                   <DialogIcon name="copy" size={12} className="ti" />
-                  复制
+                  {t('复制')}
                 </button>
                 <button
                   className={`tool${pretty ? ' on' : ''}`}
-                  {...tipProps(pretty ? '已开启 JSON 美化，点击查看原始内容' : '点击按 JSON 缩进重排')}
+                  {...tipProps(pretty ? t('已开启 JSON 美化，点击查看原始内容') : t('点击按 JSON 缩进重排'))}
                   onClick={() => setPretty((prev) => !prev)}
                 >
                   <DialogIcon name="info" size={12} className="ti" />
-                  JSON 美化
+                  {t('JSON 美化')}
                 </button>
                 <button
                   className={`tool${wrap ? ' on' : ''}`}
-                  {...tipProps(wrap ? '已开启自动换行，点击改为横向滚动' : '点击恢复自动换行')}
+                  {...tipProps(wrap ? t('已开启自动换行，点击改为横向滚动') : t('点击恢复自动换行'))}
                   onClick={() => setWrap((prev) => !prev)}
                 >
                   <DialogIcon name="text" size={12} className="ti" />
-                  自动换行
+                  {t('自动换行')}
                 </button>
-                <button className="tool" {...tipProps('导出为本地文件')} onClick={exportValue}>
+                <button className="tool" {...tipProps(t('导出为本地文件'))} onClick={exportValue}>
                   <DialogIcon name="export" size={12} className="ti" />
-                  导出
+                  {t('导出')}
                 </button>
-                <button className="tool" {...tipProps('重新读取该键')} onClick={refreshValue}>
+                <button className="tool" {...tipProps(t('重新读取该键'))} onClick={refreshValue}>
                   <DialogIcon name="refresh" size={12} className="ti" />
-                  刷新
+                  {t('刷新')}
                 </button>
               </div>
               <span className="spacer" />
-              <FilterBox value={filter} onChange={setFilter} placeholder="搜索值内容" className="string-filter" />
+              <FilterBox value={filter} onChange={setFilter} placeholder={t('搜索值内容')} className="string-filter" />
             </div>
           ) : value.type === 'hash' ? (
             <div className="value-toolbar">
               {/* 操作合成一个分段控件，与 string 类型同一套视觉 */}
               <div className="seg-group">
-              <button className="tool" {...tipProps('以 JSON 格式复制全部字段')} onClick={hashEditor.copyHashAll}>
+              <button className="tool" {...tipProps(t('以 JSON 格式复制全部字段'))} onClick={hashEditor.copyHashAll}>
                 <DialogIcon name="copy" size={12} className="ti" />
-                复制
+                {t('复制')}
               </button>
-              <button className="tool" {...tipProps('导出为 JSON 文件')} onClick={hashEditor.exportHash}>
+              <button className="tool" {...tipProps(t('导出为 JSON 文件'))} onClick={hashEditor.exportHash}>
                 <DialogIcon name="export" size={12} className="ti" />
-                导出
+                {t('导出')}
               </button>
               <button
                 className="tool"
-                {...tipProps('新增字段（已存在则覆盖其值）')}
+                {...tipProps(t('新增字段（已存在则覆盖其值）'))}
                 onClick={() => hashEditor.setAddingField(true)}
               >
                 <DialogIcon name="add" size={12} className="ti" />
-                新增
+                {t('新增')}
               </button>
-              <button className="tool" {...tipProps('重新读取该键')} onClick={refreshValue}>
+              <button className="tool" {...tipProps(t('重新读取该键'))} onClick={refreshValue}>
                 <DialogIcon name="refresh" size={12} className="ti" />
-                刷新
+                {t('刷新')}
               </button>
               {/* 分隔线：动作按钮与「自动刷新」开关语义不同，用一条竖线分组 */}
               <span className="seg-divider" aria-hidden="true" />
@@ -1442,31 +1455,31 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
               </div>
 
               <span className="spacer" />
-              <FilterBox value={filter} onChange={setFilter} placeholder="搜索 field" className="field-filter" />
+              <FilterBox value={filter} onChange={setFilter} placeholder={t('搜索 field')} className="field-filter" />
             </div>
           ) : value.type === 'list' ? (
             <div className="value-toolbar">
               {/* 操作合成一个分段控件，与 string 类型同一套视觉 */}
               <div className="seg-group">
-              <button className="tool" {...tipProps('复制全部元素（每行一项）')} onClick={listEditor.copyListAll}>
+              <button className="tool" {...tipProps(t('复制全部元素（每行一项）'))} onClick={listEditor.copyListAll}>
                 <DialogIcon name="copy" size={12} className="ti" />
-                复制
+                {t('复制')}
               </button>
-              <button className="tool" {...tipProps('导出为文本文件')} onClick={listEditor.exportList}>
+              <button className="tool" {...tipProps(t('导出为文本文件'))} onClick={listEditor.exportList}>
                 <DialogIcon name="export" size={12} className="ti" />
-                导出
+                {t('导出')}
               </button>
               <button
                 className="tool"
-                {...tipProps('在末尾追加元素')}
+                {...tipProps(t('在末尾追加元素'))}
                 onClick={() => listEditor.openInsertDialog({ index: listStats.total - 1, text: '' }, 'after')}
               >
                 <DialogIcon name="add" size={12} className="ti" />
-                追加
+                {t('追加')}
               </button>
-              <button className="tool" {...tipProps('重新读取该键')} onClick={refreshValue}>
+              <button className="tool" {...tipProps(t('重新读取该键'))} onClick={refreshValue}>
                 <DialogIcon name="refresh" size={12} className="ti" />
-                刷新
+                {t('刷新')}
               </button>
               {/* 分隔线：动作按钮与「自动刷新」开关语义不同，用一条竖线分组 */}
               <span className="seg-divider" aria-hidden="true" />
@@ -1474,31 +1487,31 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
               </div>
 
               <span className="spacer" />
-              <FilterBox value={filter} onChange={setFilter} placeholder="搜索元素" className="list-filter" />
+              <FilterBox value={filter} onChange={setFilter} placeholder={t('搜索元素')} className="list-filter" />
             </div>
           ) : value.type === 'set' ? (
             <div className="value-toolbar">
               {/* 操作合成一个分段控件，与 string 类型同一套视觉 */}
               <div className="seg-group">
-              <button className="tool" {...tipProps('复制全部成员（每行一个）')} onClick={setEditor.copySetAll}>
+              <button className="tool" {...tipProps(t('复制全部成员（每行一个）'))} onClick={setEditor.copySetAll}>
                 <DialogIcon name="copy" size={12} className="ti" />
-                复制
+                {t('复制')}
               </button>
-              <button className="tool" {...tipProps('导出为文本文件')} onClick={setEditor.exportSet}>
+              <button className="tool" {...tipProps(t('导出为文本文件'))} onClick={setEditor.exportSet}>
                 <DialogIcon name="export" size={12} className="ti" />
-                导出
+                {t('导出')}
               </button>
               <button
                 className="tool"
-                {...tipProps('新增成员（已存在则不会重复添加）')}
+                {...tipProps(t('新增成员（已存在则不会重复添加）'))}
                 onClick={() => setEditor.setAddingMember(true)}
               >
                 <DialogIcon name="add" size={12} className="ti" />
-                新增
+                {t('新增')}
               </button>
-              <button className="tool" {...tipProps('重新读取该键')} onClick={refreshValue}>
+              <button className="tool" {...tipProps(t('重新读取该键'))} onClick={refreshValue}>
                 <DialogIcon name="refresh" size={12} className="ti" />
-                刷新
+                {t('刷新')}
               </button>
               {/* 分隔线：动作按钮与「自动刷新」开关语义不同，用一条竖线分组 */}
               <span className="seg-divider" aria-hidden="true" />
@@ -1506,7 +1519,7 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
               </div>
 
               <span className="spacer" />
-              <FilterBox value={filter} onChange={setFilter} placeholder="搜索成员" className="list-filter" />
+              <FilterBox value={filter} onChange={setFilter} placeholder={t('搜索成员')} className="list-filter" />
             </div>
           ) : value.type === 'zset' ? (
             <div className="value-toolbar">
@@ -1514,27 +1527,27 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
               <div className="seg-group">
               <button
                 className="tool"
-                {...tipProps('复制全部成员（member :: score，每行一个）')}
+                {...tipProps(t('复制全部成员（member :: score，每行一个）'))}
                 onClick={zsetEditor.copyZsetAll}
               >
                 <DialogIcon name="copy" size={12} className="ti" />
-                复制
+                {t('复制')}
               </button>
-              <button className="tool" {...tipProps('导出为文本文件')} onClick={zsetEditor.exportZset}>
+              <button className="tool" {...tipProps(t('导出为文本文件'))} onClick={zsetEditor.exportZset}>
                 <DialogIcon name="export" size={12} className="ti" />
-                导出
+                {t('导出')}
               </button>
               <button
                 className="tool"
-                {...tipProps('新增成员（已存在则更新 score）')}
+                {...tipProps(t('新增成员（已存在则更新 score）'))}
                 onClick={() => zsetEditor.setAddingZset(true)}
               >
                 <DialogIcon name="add" size={12} className="ti" />
-                新增
+                {t('新增')}
               </button>
-              <button className="tool" {...tipProps('重新读取该键')} onClick={refreshValue}>
+              <button className="tool" {...tipProps(t('重新读取该键'))} onClick={refreshValue}>
                 <DialogIcon name="refresh" size={12} className="ti" />
-                刷新
+                {t('刷新')}
               </button>
               {/* 分隔线：动作按钮与「自动刷新」开关语义不同，用一条竖线分组 */}
               <span className="seg-divider" aria-hidden="true" />
@@ -1542,7 +1555,7 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
               </div>
 
               <span className="spacer" />
-              <FilterBox value={filter} onChange={setFilter} placeholder="搜索 member" className="list-filter" />
+              <FilterBox value={filter} onChange={setFilter} placeholder={t('搜索 member')} className="list-filter" />
             </div>
           ) : value.type === 'stream' ? (
             /* stream 为只读日志：历史 entry 只读，但提供 XADD 追加新消息 */
@@ -1551,27 +1564,27 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
               <div className="seg-group">
               <button
                 className="tool"
-                {...tipProps('复制全部 entry（entry ID + 字段，每行一条）')}
+                {...tipProps(t('复制全部 entry（entry ID + 字段，每行一条）'))}
                 onClick={streamEditor.copyStreamAll}
               >
                 <DialogIcon name="copy" size={12} className="ti" />
-                复制
+                {t('复制')}
               </button>
-              <button className="tool" {...tipProps('导出为文本文件')} onClick={streamEditor.exportStream}>
+              <button className="tool" {...tipProps(t('导出为文本文件'))} onClick={streamEditor.exportStream}>
                 <DialogIcon name="export" size={12} className="ti" />
-                导出
+                {t('导出')}
               </button>
               <button
                 className="tool"
-                {...tipProps('追加一条消息（XADD，ID 自动生成）')}
+                {...tipProps(t('追加一条消息（XADD，ID 自动生成）'))}
                 onClick={() => streamEditor.setAddingEntry(true)}
               >
                 <DialogIcon name="add" size={12} className="ti" />
-                追加
+                {t('追加')}
               </button>
-              <button className="tool" {...tipProps('重新读取该键')} onClick={refreshValue}>
+              <button className="tool" {...tipProps(t('重新读取该键'))} onClick={refreshValue}>
                 <DialogIcon name="refresh" size={12} className="ti" />
-                刷新
+                {t('刷新')}
               </button>
               {/* 分隔线：动作按钮与「自动刷新」开关语义不同，用一条竖线分组 */}
               <span className="seg-divider" aria-hidden="true" />
@@ -1579,7 +1592,7 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
               </div>
 
               <span className="spacer" />
-              <FilterBox value={filter} onChange={setFilter} placeholder="搜索 entry" className="list-filter" />
+              <FilterBox value={filter} onChange={setFilter} placeholder={t('搜索 entry')} className="list-filter" />
             </div>
           ) : searchable ? (
             <div className="value-toolbar">
@@ -1597,11 +1610,11 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                 /* string 行内编辑态：取消/保存按钮置于文本框上方 */
                 <div className="text-edit-area">
                   <div className="edit-actions">
-                    <span className="edit-hint">编辑中 · Esc 取消，Ctrl+Enter 保存</span>
+                    <span className="edit-hint">{t('编辑中 · Esc 取消，Ctrl+Enter 保存')}</span>
                     <span className="spacer" />
                     <button className="tool" disabled={stringEditor.stringSaving} onClick={stringEditor.cancelStringEdit}>
                       <DialogIcon name="cancel" size={12} className="ti" />
-                      取消
+                      {t('取消')}
                     </button>
                     <button
                       className="tool primary"
@@ -1609,7 +1622,7 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                       onClick={() => void stringEditor.saveStringEdit()}
                     >
                       <DialogIcon name="save" size={12} className="ti" />
-                      {stringEditor.stringSaving ? '保存中…' : '保存'}
+                      {stringEditor.stringSaving ? t('保存中…') : t('保存')}
                     </button>
                   </div>
                   <textarea
@@ -1655,12 +1668,12 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                     不用每换一种类型就重新找一遍。
                   */}
                   <p className="row-tip text-row-tip">
-                    <span className="tip-text">双击文本可进入编辑 · 或用操作栏「编辑」</span>
+                    <span className="tip-text">{t('双击文本可进入编辑 · 或用操作栏「编辑」')}</span>
                     <span
                       className="readonly-tag"
-                      {...tipProps('值区域仅作只读展示，修改请用操作栏「编辑」或双击文本')}
+                      {...tipProps(t('值区域仅作只读展示，修改请用操作栏「编辑」或双击文本'))}
                     >
-                      只读
+                      {t('只读')}
                     </span>
                   </p>
                 </>
@@ -1683,7 +1696,7 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                     }
                   />
                 ) : (
-                  <p className="lines-empty">没有匹配的行，清除搜索条件可查看完整内容</p>
+                  <p className="lines-empty">{t('没有匹配的行，清除搜索条件可查看完整内容')}</p>
                 )
               ) : value.type === 'hash' ? (
                 /* hash：field / value 两列 */
@@ -1697,7 +1710,7 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                       </button>
                       <span
                         className="col-handle"
-                        {...tipProps('拖动调整列宽，双击恢复默认')}
+                        {...tipProps(t('拖动调整列宽，双击恢复默认'))}
                         onMouseDown={(event) => startColResize(event, 'field')}
                         onDoubleClick={(event) => {
                           event.stopPropagation()
@@ -1712,7 +1725,7 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                       </button>
                       <span
                         className="col-handle"
-                        {...tipProps('拖动调整列宽，双击恢复默认')}
+                        {...tipProps(t('拖动调整列宽，双击恢复默认'))}
                         onMouseDown={(event) => startColResize(event, 'value')}
                         onDoubleClick={(event) => {
                           event.stopPropagation()
@@ -1722,11 +1735,11 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                     </div>
                     {/* 字段级 TTL 列仅在服务端支持时渲染（Redis 7.4+） */}
                     {capabilities.hashFieldTtl ? (
-                      <span className="th ttl-head" {...tipProps('字段级 TTL（Redis 7.4+）')}>
+                      <span className="th ttl-head" {...tipProps(t('字段级 TTL（Redis 7.4+）'))}>
                         TTL
                       </span>
                     ) : null}
-                    <span className="th ops-head">操作</span>
+                    <span className="th ops-head">{t('操作')}</span>
                   </div>
                   {hashEditor.hashView.rows.map((row) => (
                     <div
@@ -1759,27 +1772,27 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                         <span className="pair-ttl">
                           <button
                             className={`ttl-chip mono ${ttlTone(hashEditor.fieldTtls?.[row.field] ?? -1)}`}
-                            {...tipProps(`设置 ${row.field} 的过期时间`)}
+                            {...tipProps(t('设置 {field} 的过期时间', { field: row.field }))}
                             onClick={() =>
                               hashEditor.setTtlField({ field: row.field, ttl: hashEditor.fieldTtls?.[row.field] ?? -1 })
                             }
                           >
-                            {hashEditor.loadingTtls ? '…' : formatTtl(hashEditor.fieldTtls?.[row.field] ?? -1)}
+                            {hashEditor.loadingTtls ? '…' : t(formatTtl(hashEditor.fieldTtls?.[row.field] ?? -1))}
                           </button>
                         </span>
                       ) : null}
                       <span className="pair-ops">
-                        <button className="op" {...tipProps('复制字段名与值')} onClick={() => void hashEditor.copyFieldRow(row)}>
+                        <button className="op" {...tipProps(t('复制字段名与值'))} onClick={() => void hashEditor.copyFieldRow(row)}>
                           <svg viewBox="0 0 16 16" className="ico" aria-hidden="true">
                             {ICON_COPY}
                           </svg>
                         </button>
-                        <button className="op" {...tipProps('修改该字段（field / value）')} onClick={() => hashEditor.openFieldEditor(row)}>
+                        <button className="op" {...tipProps(t('修改该字段（field / value）'))} onClick={() => hashEditor.openFieldEditor(row)}>
                           <svg viewBox="0 0 16 16" className="ico" aria-hidden="true">
                             {ICON_EDIT}
                           </svg>
                         </button>
-                        <button className="op danger" {...tipProps('删除该字段')} onClick={() => void hashEditor.removeField(row.field)}>
+                        <button className="op danger" {...tipProps(t('删除该字段'))} onClick={() => void hashEditor.removeField(row.field)}>
                           <svg viewBox="0 0 16 16" className="ico" aria-hidden="true">
                             {ICON_DELETE}
                           </svg>
@@ -1791,13 +1804,13 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                   <p className="row-tip">
                     <span className="tip-text">
                       {hashEditor.hashView.rows.length
-                        ? '双击行可修改字段 · 右键唤出更多操作'
+                        ? t('双击行可修改字段 · 右键唤出更多操作')
                         : totalCount
-                          ? '没有匹配的 field，清除搜索条件可查看全部'
-                          : '该 hash 暂无字段，可通过 ⋮ 菜单编辑值来添加'}
+                          ? t('没有匹配的 field，清除搜索条件可查看全部')
+                          : t('该 hash 暂无字段，可通过 ⋮ 菜单编辑值来添加')}
                     </span>
-                    <span className="readonly-tag" {...tipProps('表格仅作只读展示，修改请通过右键菜单或双击行')}>
-                      只读
+                    <span className="readonly-tag" {...tipProps(t('表格仅作只读展示，修改请通过右键菜单或双击行'))}>
+                      {t('只读')}
                     </span>
                   </p>
                 </div>
@@ -1809,7 +1822,7 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                       value
                       <SortIcon direction={sortKey === 'value' ? (sortAsc ? 'asc' : 'desc') : null} />
                     </button>
-                    <span className="th ops-head">操作</span>
+                    <span className="th ops-head">{t('操作')}</span>
                   </div>
                   {lineView.rows.map((row) => (
                     <div
@@ -1822,14 +1835,14 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                       }}
                       onDoubleClick={() => listEditor.openListEditor(row)}
                     >
-                      <span className="pair-idx mono" {...tipProps('列表中的真实位置')}>
+                      <span className="pair-idx mono" {...tipProps(t('列表中的真实位置'))}>
                         {row.index + 1}
                       </span>
                       <pre className="pair-value mono">{row.text}</pre>
                       <span className="pair-ops">
                         <button
                           className="op"
-                          {...tipProps('复制该项内容')}
+                          {...tipProps(t('复制该项内容'))}
                           onClick={(event) => {
                             event.stopPropagation()
                             void listEditor.copyListRow(row)
@@ -1841,7 +1854,7 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                         </button>
                         <button
                           className="op"
-                          {...tipProps('修改该项（双击）')}
+                          {...tipProps(t('修改该项（双击）'))}
                           onClick={(event) => {
                             event.stopPropagation()
                             listEditor.openListEditor(row)
@@ -1853,7 +1866,7 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                         </button>
                         <button
                           className="op danger"
-                          {...tipProps('删除该项')}
+                          {...tipProps(t('删除该项'))}
                           onClick={(event) => {
                             event.stopPropagation()
                             void listEditor.removeListElement(row)
@@ -1869,13 +1882,13 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                   <p className="row-tip">
                     <span className="tip-text">
                       {lineView.rows.length
-                        ? '双击行可修改元素 · 右键唤出更多操作'
+                        ? t('双击行可修改元素 · 右键唤出更多操作')
                         : totalCount
-                          ? '没有匹配的元素，清除搜索条件可查看全部'
-                          : '该 list 暂无元素'}
+                          ? t('没有匹配的元素，清除搜索条件可查看全部')
+                          : t('该 list 暂无元素')}
                     </span>
-                    <span className="readonly-tag" {...tipProps('表格仅作只读展示，修改请通过右键菜单或双击行')}>
-                      只读
+                    <span className="readonly-tag" {...tipProps(t('表格仅作只读展示，修改请通过右键菜单或双击行'))}>
+                      {t('只读')}
                     </span>
                   </p>
                 </div>
@@ -1885,7 +1898,7 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                   <div className="pair-head list-head">
                     <span className="th idx-head">#</span>
                     <span className="th">member</span>
-                    <span className="th ops-head">操作</span>
+                    <span className="th ops-head">{t('操作')}</span>
                   </div>
                   {lineView.rows.map((row) => (
                     <div
@@ -1898,14 +1911,14 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                       }}
                       onDoubleClick={() => setEditor.openSetEditor(row)}
                     >
-                      <span className="pair-idx mono" {...tipProps('仅作行计数，不代表存储顺序')}>
+                      <span className="pair-idx mono" {...tipProps(t('仅作行计数，不代表存储顺序'))}>
                         {row.position}
                       </span>
                       <pre className="pair-value mono">{row.text}</pre>
                       <span className="pair-ops">
                         <button
                           className="op"
-                          {...tipProps('复制成员')}
+                          {...tipProps(t('复制成员'))}
                           onClick={(event) => {
                             event.stopPropagation()
                             void setEditor.copySetMember(row)
@@ -1917,7 +1930,7 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                         </button>
                         <button
                           className="op"
-                          {...tipProps('修改成员（双击）')}
+                          {...tipProps(t('修改成员（双击）'))}
                           onClick={(event) => {
                             event.stopPropagation()
                             setEditor.openSetEditor(row)
@@ -1929,7 +1942,7 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                         </button>
                         <button
                           className="op danger"
-                          {...tipProps('删除成员')}
+                          {...tipProps(t('删除成员'))}
                           onClick={(event) => {
                             event.stopPropagation()
                             void setEditor.removeSetMember(row.text)
@@ -1945,13 +1958,13 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                   <p className="row-tip">
                     <span className="tip-text">
                       {lineView.rows.length
-                        ? '双击行可修改成员 · 右键唤出更多操作 · 集合无序，序号仅作计数'
+                        ? t('双击行可修改成员 · 右键唤出更多操作 · 集合无序，序号仅作计数')
                         : totalCount
-                          ? '没有匹配的成员，清除搜索条件可查看全部'
-                          : '该 set 暂无成员'}
+                          ? t('没有匹配的成员，清除搜索条件可查看全部')
+                          : t('该 set 暂无成员')}
                     </span>
-                    <span className="readonly-tag" {...tipProps('表格仅作只读展示，修改请通过右键菜单或双击行')}>
-                      只读
+                    <span className="readonly-tag" {...tipProps(t('表格仅作只读展示，修改请通过右键菜单或双击行'))}>
+                      {t('只读')}
                     </span>
                   </p>
                 </div>
@@ -1968,7 +1981,7 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                       {/* 仅 member 列可拖拽；score 列由余量驱动，不提供手柄 */}
                       <span
                         className="col-handle"
-                        {...tipProps('拖动调整列宽，双击恢复默认')}
+                        {...tipProps(t('拖动调整列宽，双击恢复默认'))}
                         onMouseDown={(event) => startColResize(event, 'field')}
                         onDoubleClick={(event) => {
                           event.stopPropagation()
@@ -1985,7 +1998,7 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                         <SortIcon direction={sortKey === 'value' ? (sortAsc ? 'asc' : 'desc') : null} />
                       </button>
                     </div>
-                    <span className="th ops-head">操作</span>
+                    <span className="th ops-head">{t('操作')}</span>
                   </div>
                   {lineView.rows.map((row) => (
                     <div
@@ -1998,7 +2011,7 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                       }}
                       onDoubleClick={() => zsetEditor.openZsetEditor(row)}
                     >
-                      <span className="pair-idx mono" {...tipProps('当前排名（按 score 降序）')}>
+                      <span className="pair-idx mono" {...tipProps(t('当前排名（按 score 降序）'))}>
                         {row.position}
                       </span>
                       <span className="pair-key mono ellipsis" {...tipProps(row.left)}>
@@ -2008,7 +2021,7 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                       <span className="pair-ops">
                         <button
                           className="op"
-                          {...tipProps('复制成员')}
+                          {...tipProps(t('复制成员'))}
                           onClick={(event) => {
                             event.stopPropagation()
                             void zsetEditor.copyZsetMember(row)
@@ -2020,7 +2033,7 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                         </button>
                         <button
                           className="op"
-                          {...tipProps('修改成员（双击）')}
+                          {...tipProps(t('修改成员（双击）'))}
                           onClick={(event) => {
                             event.stopPropagation()
                             zsetEditor.openZsetEditor(row)
@@ -2032,7 +2045,7 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                         </button>
                         <button
                           className="op danger"
-                          {...tipProps('删除成员')}
+                          {...tipProps(t('删除成员'))}
                           onClick={(event) => {
                             event.stopPropagation()
                             void zsetEditor.removeZsetMember(zsetEditor.zsetMemberOf(row))
@@ -2048,13 +2061,13 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                   <p className="row-tip">
                     <span className="tip-text">
                       {lineView.rows.length
-                        ? '双击行可修改成员 · 右键唤出更多操作 · 点表头可按 member / score 排序'
+                        ? t('双击行可修改成员 · 右键唤出更多操作 · 点表头可按 member / score 排序')
                         : totalCount
-                          ? '没有匹配的成员，清除搜索条件可查看全部'
-                          : '该 zset 暂无成员'}
+                          ? t('没有匹配的成员，清除搜索条件可查看全部')
+                          : t('该 zset 暂无成员')}
                     </span>
-                    <span className="readonly-tag" {...tipProps('表格仅作只读展示，修改请通过右键菜单或双击行')}>
-                      只读
+                    <span className="readonly-tag" {...tipProps(t('表格仅作只读展示，修改请通过右键菜单或双击行'))}>
+                      {t('只读')}
                     </span>
                   </p>
                 </div>
@@ -2068,10 +2081,10 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                       <SortIcon direction={sortKey === 'member' ? (sortAsc ? 'asc' : 'desc') : null} />
                     </button>
                     <div className="th-cell">
-                      <span className="th">字段</span>
+                      <span className="th">{t('字段')}</span>
                       {/* stream 只读，字段列不提供拖拽 */}
                     </div>
-                    <span className="th ops-head">操作</span>
+                    <span className="th ops-head">{t('操作')}</span>
                   </div>
                   {streamEditor.streamView.rows.map((row) => (
                     <div
@@ -2093,7 +2106,7 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                       <span className="pair-ops">
                         <button
                           className="op"
-                          {...tipProps('复制 entry ID')}
+                          {...tipProps(t('复制 entry ID'))}
                           onClick={(event) => {
                             event.stopPropagation()
                             void streamEditor.copyStreamId(row)
@@ -2105,7 +2118,7 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                         </button>
                         <button
                           className="op"
-                          {...tipProps('复制字段内容')}
+                          {...tipProps(t('复制字段内容'))}
                           onClick={(event) => {
                             event.stopPropagation()
                             void streamEditor.copyStreamFields(row)
@@ -2117,7 +2130,7 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                         </button>
                         <button
                           className="op"
-                          {...tipProps('查看完整内容')}
+                          {...tipProps(t('查看完整内容'))}
                           onClick={(event) => {
                             event.stopPropagation()
                             streamEditor.openStreamViewer(row)
@@ -2133,13 +2146,13 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                   <div className="row-tip">
                     <span className="tip-text">
                       {streamEditor.streamView.rows.length
-                        ? 'stream 为只读日志 · 右键唤出更多操作'
+                        ? t('stream 为只读日志 · 右键唤出更多操作')
                         : totalCount
-                          ? '没有匹配的 entry，清除搜索条件可查看全部'
-                          : '该 stream 暂无 entry'}
+                          ? t('没有匹配的 entry，清除搜索条件可查看全部')
+                          : t('该 stream 暂无 entry')}
                     </span>
-                    <span className="readonly-tag" {...tipProps('stream 为追加写日志，不支持修改历史 entry')}>
-                      只读
+                    <span className="readonly-tag" {...tipProps(t('stream 为追加写日志，不支持修改历史 entry'))}>
+                      {t('只读')}
                     </span>
                   </div>
                 </div>
@@ -2150,7 +2163,7 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
             {refreshing ? (
               <div className="value-refreshing">
                 <span className="spinner" />
-                <span className="refresh-text">正在刷新…</span>
+                <span className="refresh-text">{t('正在刷新…')}</span>
               </div>
             ) : null}
           </div>
@@ -2162,8 +2175,10 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
         <div className="blank">
           <div className="blank-inner">
             <span className="blank-badge">Keyper</span>
-            <p>从中间列表选择一个键，查看其内容</p>
-            <p className="blank-hint">支持 string / hash / list / set / zset / stream 六种类型的浏览</p>
+            <p>{t('从中间列表选择一个键，查看其内容')}</p>
+            <p className="blank-hint">
+              {t('支持 string / hash / list / set / zset / stream 六种类型的浏览')}
+            </p>
           </div>
         </div>
       )}
@@ -2190,29 +2205,29 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
             </div>
 
             {/* 分组一：复制字段本身 */}
-            <div className="rm-group">字段</div>
+            <div className="rm-group">{t('字段')}</div>
             <button className="rm-item" onClick={() => hashEditor.runRowMenuAction((row) => void hashEditor.copyFieldName(row.field))}>
               <DialogIcon name="copy" size={13} className="rm-icon" />
-              <span>复制字段名</span>
+              <span>{t('复制字段名')}</span>
             </button>
             <button className="rm-item" onClick={() => hashEditor.runRowMenuAction(hashEditor.copyFieldValue)}>
               <DialogIcon name="copy" size={13} className="rm-icon" />
-              <span>复制字段值</span>
+              <span>{t('复制字段值')}</span>
             </button>
             <button className="rm-item" onClick={() => hashEditor.runRowMenuAction(hashEditor.copyFieldRow)}>
               <DialogIcon name="copy" size={13} className="rm-icon" />
-              <span>复制名称与值</span>
+              <span>{t('复制名称与值')}</span>
             </button>
 
             {/* 分组二：复制为可直接执行的命令 / 结构 */}
-            <div className="rm-group">其他格式</div>
+            <div className="rm-group">{t('其他格式')}</div>
             <button className="rm-item" onClick={() => hashEditor.runRowMenuAction(hashEditor.copyAsCommand)}>
               <DialogIcon name="terminal" size={13} className="rm-icon" />
-              <span>复制为 HSET 命令</span>
+              <span>{t('复制为 HSET 命令')}</span>
             </button>
             <button className="rm-item" onClick={() => hashEditor.runRowMenuAction(hashEditor.copyAsJsonEntry)}>
               <DialogIcon name="document" size={13} className="rm-icon" />
-              <span>复制为 JSON 键值对</span>
+              <span>{t('复制为 JSON 键值对')}</span>
             </button>
           </div>
         </RowMenuMask>
@@ -2225,36 +2240,36 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
             style={{ top: `${listEditor.listMenu.top}px`, left: `${listEditor.listMenu.left}px` }}
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="rm-head mono">第 {listEditor.listMenu.row.index + 1} 项</div>
+            <div className="rm-head mono">{t('第 {index} 项', { index: listEditor.listMenu.row.index + 1 })}</div>
 
-            <div className="rm-group">复制</div>
+            <div className="rm-group">{t('复制')}</div>
             <button className="rm-item" onClick={() => listEditor.runListMenuAction(listEditor.copyListRow)}>
               <DialogIcon name="copy" size={13} className="rm-icon" />
-              <span>复制字段值</span>
+              <span>{t('复制字段值')}</span>
             </button>
             <button className="rm-item" onClick={() => listEditor.runListMenuAction(listEditor.copyListAsCommand)}>
               <DialogIcon name="terminal" size={13} className="rm-icon" />
-              <span>复制为 LSET 命令</span>
+              <span>{t('复制为 LSET 命令')}</span>
             </button>
             <button className="rm-item" onClick={() => listEditor.runListMenuAction(listEditor.copyListAsJson)}>
               <DialogIcon name="document" size={13} className="rm-icon" />
-              <span>复制为 JSON</span>
+              <span>{t('复制为 JSON')}</span>
             </button>
 
-            <div className="rm-group">位置</div>
+            <div className="rm-group">{t('位置')}</div>
             <button
               className="rm-item"
               onClick={() => listEditor.runListMenuAction((row) => listEditor.openInsertDialog(row, 'before'))}
             >
               <DialogIcon name="arrow-up" size={13} className="rm-icon" />
-              <span>在此项前插入</span>
+              <span>{t('在此项前插入')}</span>
             </button>
             <button
               className="rm-item"
               onClick={() => listEditor.runListMenuAction((row) => listEditor.openInsertDialog(row, 'after'))}
             >
               <DialogIcon name="arrow-down" size={13} className="rm-icon" />
-              <span>在此项后插入</span>
+              <span>{t('在此项后插入')}</span>
             </button>
           </div>
         </RowMenuMask>
@@ -2271,18 +2286,18 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
               {setEditor.setMenu.row.text}
             </div>
 
-            <div className="rm-group">复制</div>
+            <div className="rm-group">{t('复制')}</div>
             <button className="rm-item" onClick={() => setEditor.runSetMenuAction(setEditor.copySetMember)}>
               <DialogIcon name="copy" size={13} className="rm-icon" />
-              <span>复制成员内容</span>
+              <span>{t('复制成员内容')}</span>
             </button>
             <button className="rm-item" onClick={() => setEditor.runSetMenuAction(setEditor.copySetAsCommand)}>
               <DialogIcon name="terminal" size={13} className="rm-icon" />
-              <span>复制为 SADD 命令</span>
+              <span>{t('复制为 SADD 命令')}</span>
             </button>
             <button className="rm-item" onClick={() => setEditor.runSetMenuAction(setEditor.copySetAsJson)}>
               <DialogIcon name="document" size={13} className="rm-icon" />
-              <span>复制为 JSON</span>
+              <span>{t('复制为 JSON')}</span>
             </button>
           </div>
         </RowMenuMask>
@@ -2300,18 +2315,18 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
               <span className="rm-score">score {zsetEditor.zsetMenu.row.text}</span>
             </div>
 
-            <div className="rm-group">复制</div>
+            <div className="rm-group">{t('复制')}</div>
             <button className="rm-item" onClick={() => zsetEditor.runZsetMenuAction(zsetEditor.copyZsetMember)}>
               <DialogIcon name="copy" size={13} className="rm-icon" />
-              <span>复制成员</span>
+              <span>{t('复制成员')}</span>
             </button>
             <button className="rm-item" onClick={() => zsetEditor.runZsetMenuAction(zsetEditor.copyZsetScore)}>
               <DialogIcon name="text" size={13} className="rm-icon" />
-              <span>复制 score</span>
+              <span>{t('复制 score')}</span>
             </button>
             <button className="rm-item" onClick={() => zsetEditor.runZsetMenuAction(zsetEditor.copyZsetAsCommand)}>
               <DialogIcon name="terminal" size={13} className="rm-icon" />
-              <span>复制为 ZADD 命令</span>
+              <span>{t('复制为 ZADD 命令')}</span>
             </button>
           </div>
         </RowMenuMask>
@@ -2331,23 +2346,23 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
             {/* 查看排在最前：表格里的字段是截断的，右键的第一诉求通常是看全 */}
             <button className="rm-item" onClick={() => streamEditor.runStreamMenuAction(streamEditor.openStreamViewer)}>
               <DialogIcon name="eye" size={13} className="rm-icon" />
-              <span>查看完整内容</span>
+              <span>{t('查看完整内容')}</span>
             </button>
 
-            <div className="rm-group">复制</div>
+            <div className="rm-group">{t('复制')}</div>
             <button className="rm-item" onClick={() => streamEditor.runStreamMenuAction(streamEditor.copyStreamId)}>
               <DialogIcon name="copy" size={13} className="rm-icon" />
-              <span>复制 entry ID</span>
+              <span>{t('复制 entry ID')}</span>
             </button>
             <button className="rm-item" onClick={() => streamEditor.runStreamMenuAction(streamEditor.copyStreamFields)}>
               <DialogIcon name="copy" size={13} className="rm-icon" />
-              <span>复制字段内容</span>
+              <span>{t('复制字段内容')}</span>
             </button>
 
-            <div className="rm-group">其他格式</div>
+            <div className="rm-group">{t('其他格式')}</div>
             <button className="rm-item" onClick={() => streamEditor.runStreamMenuAction(streamEditor.copyStreamAsCommand)}>
               <DialogIcon name="terminal" size={13} className="rm-icon" />
-              <span>复制为 XADD 命令</span>
+              <span>{t('复制为 XADD 命令')}</span>
             </button>
           </div>
         </RowMenuMask>
@@ -2467,7 +2482,6 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
         <EditListElementDialog
           mode="edit"
           keyType="set"
-          itemLabel="成员"
           showPosition={false}
           keyName={value.key}
           index={0}
@@ -2483,7 +2497,6 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
         <EditListElementDialog
           mode="insert"
           keyType="set"
-          itemLabel="成员"
           showPosition={false}
           keyName={value.key}
           index={0}
@@ -2495,11 +2508,11 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
 
       {renameVisible && value ? (
         <PromptDialog
-          title="重命名键"
-          label="新的键名"
+          title={t('重命名键')}
+          label={t('新的键名')}
           initialValue={value.key}
-          hint="重命名会连同键的 TTL 一起迁移；若目标键已存在会被覆盖。"
-          confirmText="重命名"
+          hint={t('重命名会连同键的 TTL 一起迁移；若目标键已存在会被覆盖。')}
+          confirmText={t('重命名')}
           onConfirm={(next) => void handleRename(next)}
           onCancel={() => setRenameVisible(false)}
         />
@@ -2507,14 +2520,14 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
 
       {ttlVisible && value ? (
         <PromptDialog
-          title="设置 TTL"
-          label="存活时间（秒）"
+          title={t('设置 TTL')}
+          label={t('存活时间（秒）')}
           inputType="number"
           initialValue={value.ttl > 0 ? String(value.ttl) : ''}
-          placeholder="留空或 0 表示永久"
-          hint="输入 0 或留空即取消过期时间，设为永久键。"
-          confirmText="应用"
-          presets={TTL_PRESETS}
+          placeholder={t('留空或 0 表示永久')}
+          hint={t('输入 0 或留空即取消过期时间，设为永久键。')}
+          confirmText={t('应用')}
+          presets={TTL_PRESETS.map((preset) => ({ ...preset, label: t(preset.label) }))}
           onConfirm={(next) => void handleTtl(next)}
           onCancel={() => setTtlVisible(false)}
         />
@@ -2567,13 +2580,14 @@ function SkeletonValue() {
 
 /** 自动刷新开关（hash / list / set / zset / stream 共用） */
 function AutoRefreshSwitch({ value, onChange }: { value: boolean; onChange: (value: boolean) => void }) {
+  const { t } = useI18n()
   return (
-    <label className={`switch${value ? ' on' : ''}`} {...tipProps('开启后每 5 秒自动更新列表')}>
+    <label className={`switch${value ? ' on' : ''}`} {...tipProps(t('开启后每 5 秒自动更新列表'))}>
       <input type="checkbox" checked={value} onChange={(event) => onChange(event.target.checked)} />
       <span className="track">
         <span className="thumb" />
       </span>
-      <span className="switch-label">自动刷新</span>
+      <span className="switch-label">{t('自动刷新')}</span>
       {value ? <span className="switch-dot" /> : null}
     </label>
   )

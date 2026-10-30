@@ -4,6 +4,7 @@ import { DialogShell } from '@/components/DialogShell'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useI18n } from '@/i18n'
 import { formatBytes } from '@/utils/format'
 
 export interface EditZsetMemberDialogProps {
@@ -38,6 +39,7 @@ export function EditZsetMemberDialog({
   onConfirm,
   onCancel,
 }: EditZsetMemberDialogProps) {
+  const { t } = useI18n()
   const [memberDraft, setMemberDraft] = useState(initialMember)
   const [scoreDraft, setScoreDraft] = useState(initialScore)
 
@@ -66,19 +68,19 @@ export function EditZsetMemberDialog({
     memberBytes: new Blob([memberDraft]).size,
   }
 
-  const title = mode === 'add' ? '新增成员' : '修改成员'
+  const title = mode === 'add' ? t('新增成员') : t('修改成员')
 
   return (
     <DialogShell
       icon={mode === 'add' ? 'add' : 'edit'}
       title={title}
-      description="score 决定排序位置，可为小数或负数"
+      description={t('score 决定排序位置，可为小数或负数')}
       badge={<span className="dlg-badge mono">zset</span>}
       className="edit-zset-member-dialog"
       onClose={onCancel}
       footer={
         <>
-          <span className="stat mono">{memberDraft.length} 字符</span>
+          <span className="stat mono">{t('{count} 字符', { count: memberDraft.length })}</span>
           <span className="sep">·</span>
           <span className="stat mono">member {formatBytes(stats.memberBytes)}</span>
           <span className="sep">·</span>
@@ -88,7 +90,7 @@ export function EditZsetMemberDialog({
           <span className="spacer" />
           <Button type="button" variant="ghost" className="foot-btn foot-quiet" onClick={onCancel}>
             <DialogIcon name="cancel" size={13} />
-            取消
+            {t('取消')}
           </Button>
           <Button
             type="button"
@@ -97,7 +99,7 @@ export function EditZsetMemberDialog({
             onClick={() => onConfirm(memberDraft.trim(), scoreText.trim())}
           >
             <DialogIcon name="save" size={13} />
-            {mode === 'add' ? '添加' : '保存'}
+            {mode === 'add' ? t('添加') : t('保存')}
           </Button>
         </>
       }
@@ -108,7 +110,7 @@ export function EditZsetMemberDialog({
         <span className="key-name mono ellipsis" title={keyName}>
           {keyName}
         </span>
-        <span className="pos mono">{total} 个成员</span>
+        <span className="pos mono">{t('{count} 个成员', { count: total })}</span>
       </div>
 
       <div className="field">
@@ -120,7 +122,7 @@ export function EditZsetMemberDialog({
           value={memberDraft}
           onChange={(event) => setMemberDraft(event.target.value)}
           className="mono"
-          placeholder="成员内容"
+          placeholder={t('成员内容')}
           autoComplete="off"
           spellCheck={false}
           autoFocus
@@ -130,7 +132,7 @@ export function EditZsetMemberDialog({
       <div className="field">
         <Label htmlFor="ezm-score" className="field-label">
           score
-          <span className="hint-inline">（排序依据，可为小数或负数）</span>
+          <span className="hint-inline">{t('（排序依据，可为小数或负数）')}</span>
         </Label>
         {/* 不用 type="number"：inputmode="decimal" 保留数字输入法且不吞前导零 */}
         <Input
@@ -139,7 +141,7 @@ export function EditZsetMemberDialog({
           onChange={(event) => setScoreDraft(event.target.value)}
           className="mono"
           inputMode="decimal"
-          placeholder="如 9821 或 1.5"
+          placeholder={t('如 9821 或 1.5')}
           autoComplete="off"
         />
       </div>
@@ -148,12 +150,12 @@ export function EditZsetMemberDialog({
       {scoreText.trim() && !scoreValid ? (
         <div className="dlg-alert is-err" role="status">
           <DialogIcon name="warning" size={14} />
-          <span>score 必须是数字</span>
+          <span>{t('score 必须是数字')}</span>
         </div>
       ) : duplicatedScore ? (
         <div className="dlg-alert" role="status">
           <DialogIcon name="info" size={14} />
-          <span>修改 score 后会自动按新分数重排，同分数的成员共享排名。</span>
+          <span>{t('修改 score 后会自动按新分数重排，同分数的成员共享排名。')}</span>
         </div>
       ) : null}
     </DialogShell>

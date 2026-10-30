@@ -20,7 +20,12 @@ import type { MemcachedConnectionConfig } from '../../shared/types'
 
 const require = createRequire(import.meta.url)
 const { createServer } = require('../fixtures/memcached-server.cjs') as {
-  createServer: (options?: { disableCachedump?: boolean }) => {
+  createServer: (options?: {
+    disableCachedump?: boolean
+    disableMeta?: boolean
+    disableMetadump?: boolean
+    hideFromCachedump?: string[]
+  }) => {
     listen: (port?: number) => Promise<number>
     close: () => Promise<void>
     store: Map<string, { flags: number; data: Buffer; expiresAt: number }>
@@ -227,24 +232,34 @@ describe('Memcached 状态类型约束', () => {
 })
 
 describe('Memcached 键浏览限制', () => {
-  it('取样上限触发时 truncated 为真', async () => {
+  it('按页大小切片：total 为全量，hasMore / nextOffset 指向下一页', async () => {
     await memcachedManager.connect(configOf('trunc'))
     for (let i = 0; i < 8; i++) {
       await memcachedManager.set('trunc', `k${i}`, 'v')
     }
-    const small = await memcachedManager.keys('trunc', { perSlab: 2 })
-    expect(small.truncated).toBe(true)
-    expect(small.items.length).toBeLessThanOrEqual(2)
+    const first = await memcachedManager.keys('trunc', { offset: 0, limit: 2 })
+    expect(first.source).toBe('metadump')
+    expect(first.total).toBe(8)
+    expect(first.items).toHaveLength(2)
+    expect(first.hasMore).toBe(true)
+    expect(first.nextOffset).toBe(2)
+
+    const rest = await memcachedManager.keys('trunc', { offset: first.nextOffset, limit: 50 })
+    expect(rest.items).toHaveLength(6)
+    expect(rest.hasMore).toBe(false)
+    expect(rest.nextOffset).toBe(0)
     memcachedManager.disconnect('trunc')
   })
 
-  it('cachedump 被禁用时记为 deniedSlabs 而不是整体失败', async () => {
-    const denied = createServer({ disableCachedump: true })
+  it('metadump 与 cachedump 都不可用时记为 deniedSlabs 而不是整体失败', async () => {
+    const denied = createServer({ disableMetadump: true, disableCachedump: true })
     const deniedPort = await denied.listen()
     await memcachedManager.connect(configOf('denied', { port: deniedPort }))
     await memcachedManager.set('denied', 'k', 'v')
     const result = await memcachedManager.keys('denied')
-    /* 不抛错，items 为空，deniedSlabs 有值 —— 界面据此提示"部分不可读" */
+    /* 不抛错：回退 cachedump，items 为空，deniedSlabs 有值 —— 界面据此提示"部分不可读" */
+    expect(result.source).toBe('cachedump')
+    expect(result.truncated).toBe(true)
     expect(result.items.length).toBe(0)
     expect(result.deniedSlabs.length).toBeGreaterThan(0)
     memcachedManager.disconnect('denied')

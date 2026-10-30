@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { DialogIcon } from '@/components/DialogIcon'
+import { useI18n } from '@/i18n'
 
 export interface NoticeDrawerProps {
   /** 成功（绿）/ 失败（红） */
@@ -25,6 +26,7 @@ export interface NoticeDrawerProps {
  * 而 setTimeout(260) 会白等一段 —— 两者都靠事件，行为才一致。
  */
 export function NoticeDrawer({ ok, text, life = 4000, onDismiss }: NoticeDrawerProps) {
+  const { t } = useI18n()
   const [leaving, setLeaving] = useState(false)
 
   /** 剩余停留时间；悬停暂停时用它做续播 */
@@ -112,7 +114,7 @@ export function NoticeDrawer({ ok, text, life = 4000, onDismiss }: NoticeDrawerP
         <DialogIcon name={ok ? 'check' : 'warning'} size={14} />
       </span>
       <span className="flyout-text">{text}</span>
-      <button type="button" className="flyout-close" aria-label="关闭提示" onClick={beginLeave}>
+      <button type="button" className="flyout-close" aria-label={t('关闭提示')} onClick={beginLeave}>
         <DialogIcon name="cancel" size={11} />
       </button>
     </div>

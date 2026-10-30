@@ -15,13 +15,14 @@ import '@/styles/components.css'
 import '@/styles/tailwind.css'
 import { App } from '@/App'
 import { applyToDom } from '@/services/settings'
-import { applyTheme, migrateThemeFromStorage } from '@/services/theme'
 import { reportRendererError } from '@/services/errorReport'
 
-/** 先应用一次设置与主题：设置是异步读盘的，但首帧不能等 */
+/**
+ * 首帧先用默认值落一版字号/字体；主题由 index.html 的内联脚本按
+ * localStorage 快照决定。真正的主题必须等 App 里设置读盘完成后再
+ * applyTheme —— 这里用默认设置（system）应用主题会把用户选的皮肤覆盖掉。
+ */
 applyToDom()
-migrateThemeFromStorage()
-applyTheme()
 
 /*
  * 未捕获异常与未处理的 Promise 拒绝统一上报（与主进程 errors-yyyymmdd.log 同文件）。

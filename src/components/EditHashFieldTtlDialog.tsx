@@ -5,6 +5,7 @@ import { DialogShell } from '@/components/DialogShell'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useI18n } from '@/i18n'
 import { useRedis } from '@/store/useRedis'
 import { formatTtl } from '@/utils/format'
 
@@ -39,12 +40,13 @@ export function EditHashFieldTtlDialog({
   onSaved,
 }: EditHashFieldTtlDialogProps) {
   const { state, notify } = useRedis()
+  const { t } = useI18n()
   const [draft, setDraft] = useState(currentTtl > 0 ? String(currentTtl) : '')
   const [saving, setSaving] = useState(false)
 
   /* String() 归一：数字输入框可能给出数字，数字值上 .trim() 会炸渲染 */
   const draftText = String(draft ?? '')
-  const currentLabel = formatTtl(currentTtl)
+  const currentLabel = t(formatTtl(currentTtl))
   /** 输入为空或 0 表示清除过期时间（HPERSIST） */
   const willPersist = !draftText.trim() || Number(draftText) <= 0
 
@@ -55,7 +57,7 @@ export function EditHashFieldTtlDialog({
     const raw = draftText.trim()
     const seconds = raw ? Number(raw) : 0
     if (Number.isNaN(seconds)) {
-      notify('err', 'TTL 需为数字（秒）')
+      notify('err', t('TTL 需为数字（秒）'))
       return
     }
 
@@ -67,10 +69,10 @@ export function EditHashFieldTtlDialog({
         return
       }
       if (!res.data.ok) {
-        notify('err', res.data.message ?? '设置失败')
+        notify('err', res.data.message ?? t('设置失败'))
         return
       }
-      notify('ok', res.data.message ?? '已更新')
+      notify('ok', res.data.message ?? t('已更新'))
       onSaved()
     } finally {
       setSaving(false)
@@ -80,8 +82,8 @@ export function EditHashFieldTtlDialog({
   return (
     <DialogShell
       icon="clock"
-      title="设置字段 TTL"
-      description="字段级过期需要 Redis 7.4 及以上版本"
+      title={t('设置字段 TTL')}
+      description={t('字段级过期需要 Redis 7.4 及以上版本')}
       badge={<span className="dlg-badge mono">hash</span>}
       className="edit-hash-field-ttl-dialog"
       onClose={onClose}
@@ -90,7 +92,7 @@ export function EditHashFieldTtlDialog({
           <span className="spacer" />
           <Button type="button" variant="ghost" className="foot-btn foot-quiet" onClick={onClose}>
             <DialogIcon name="cancel" size={13} />
-            取消
+            {t('取消')}
           </Button>
           <Button
             type="button"
@@ -99,7 +101,7 @@ export function EditHashFieldTtlDialog({
             onClick={() => void submit()}
           >
             <DialogIcon name="save" size={13} />
-            {saving ? '保存中…' : willPersist ? '设为永久' : '保存'}
+            {saving ? t('保存中…') : willPersist ? t('设为永久') : t('保存')}
           </Button>
         </>
       }
@@ -107,26 +109,26 @@ export function EditHashFieldTtlDialog({
       {/* 目标信息：键 / 字段 / 当前 TTL。三行只读，让用户在改之前核对对象 */}
       <div className="target">
         <div className="target-row">
-          <span className="k">键</span>
+          <span className="k">{t('键')}</span>
           <span className="v mono ellipsis" title={keyName}>
             {keyName}
           </span>
         </div>
         <div className="target-row">
-          <span className="k">字段</span>
+          <span className="k">{t('字段')}</span>
           <span className="v mono ellipsis" title={field}>
             {field}
           </span>
         </div>
         <div className="target-row">
-          <span className="k">当前</span>
+          <span className="k">{t('当前')}</span>
           <span className={`v mono${currentTtl > 0 && currentTtl <= 60 ? ' urgent' : ''}`}>{currentLabel}</span>
         </div>
       </div>
 
       <div className="field">
         <Label htmlFor="ehfttl-input" className="field-label">
-          新的 TTL（秒）
+          {t('新的 TTL（秒）')}
         </Label>
         <Input
           id="ehfttl-input"
@@ -135,14 +137,14 @@ export function EditHashFieldTtlDialog({
           className="mono"
           inputMode="numeric"
           min="0"
-          placeholder="留空 = 永久"
+          placeholder={t('留空 = 永久')}
           autoFocus
         />
       </div>
 
       {/* 常用值：胶囊按钮组，一键填入 */}
       <div className="presets">
-        <span className="presets-label">常用值</span>
+        <span className="presets-label">{t('常用值')}</span>
         {PRESETS.map((item) => (
           <button
             key={item.value}
@@ -150,11 +152,11 @@ export function EditHashFieldTtlDialog({
             className={`preset${Number(draft) === item.value ? ' on' : ''}`}
             onClick={() => setDraft(String(item.value))}
           >
-            {item.label}
+            {t(item.label)}
           </button>
         ))}
         <button type="button" className={`preset${willPersist ? ' on' : ''}`} onClick={() => setDraft('')}>
-          永久
+          {t('永久')}
         </button>
       </div>
 
@@ -163,10 +165,12 @@ export function EditHashFieldTtlDialog({
         <DialogIcon name={willPersist ? 'check' : 'info'} size={14} />
         <span>
           {willPersist ? (
-            <>将清除该字段的过期时间，使其成为永久字段（HPERSIST）。</>
+            <>{t('将清除该字段的过期时间，使其成为永久字段（HPERSIST）。')}</>
           ) : (
             <>
-              到期后 Redis 会自动从 hash 中移除该字段。<b>注意</b>：字段级 TTL 需要 Redis 7.4 及以上版本。
+              {t('到期后 Redis 会自动从 hash 中移除该字段。')}
+              <b>{t('注意')}</b>
+              {t('：字段级 TTL 需要 Redis 7.4 及以上版本。')}
             </>
           )}
         </span>

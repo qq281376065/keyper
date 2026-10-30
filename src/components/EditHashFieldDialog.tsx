@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { useI18n } from '@/i18n'
 import { useRedis } from '@/store/useRedis'
 
 export interface EditHashFieldDialogProps {
@@ -38,13 +39,14 @@ export function EditHashFieldDialog({
   onClose,
   onSaved,
 }: EditHashFieldDialogProps) {
+  const { t } = useI18n()
   const { state, notify } = useRedis()
   const [fieldDraft, setFieldDraft] = useState(field)
   const [valueDraft, setValueDraft] = useState(value)
   const [saving, setSaving] = useState(false)
 
   const isAdd = mode === 'add'
-  const title = isAdd ? '新增字段' : '修改字段'
+  const title = isAdd ? t('新增字段') : t('修改字段')
   const renamed = !isAdd && fieldDraft.trim() !== field
   const canSubmit = fieldDraft.trim().length > 0 && !saving
 
@@ -63,10 +65,10 @@ export function EditHashFieldDialog({
           return
         }
         if (!res.data.ok) {
-          notify('err', res.data.message ?? '保存失败')
+          notify('err', res.data.message ?? t('保存失败'))
           return
         }
-        notify('ok', res.data.message ?? '已新增字段')
+        notify('ok', res.data.message ?? t('已新增字段'))
         onSaved({ field: name, value: valueDraft, renamedFrom: '' })
       } finally {
         setSaving(false)
@@ -94,10 +96,10 @@ export function EditHashFieldDialog({
         return
       }
       if (!res.data.ok) {
-        notify('err', res.data.message ?? '保存失败')
+        notify('err', res.data.message ?? t('保存失败'))
         return
       }
-      notify('ok', res.data.message ?? '已保存')
+      notify('ok', res.data.message ?? t('已保存'))
       // 透出新字段名与新值：调用方据此本地更新表格，避免整表重读
       onSaved({ field: name, value: valueDraft, renamedFrom: field })
     } finally {
@@ -109,17 +111,17 @@ export function EditHashFieldDialog({
     <DialogShell
       icon={isAdd ? 'add' : 'edit'}
       title={title}
-      description={isAdd ? '新增一个字段，已存在时会覆盖其值' : '修改字段名或字段值'}
+      description={isAdd ? t('新增一个字段，已存在时会覆盖其值') : t('修改字段名或字段值')}
       badge={<span className="dlg-badge mono ellipsis">{keyName}</span>}
       className="edit-hash-field-dialog"
       onClose={onClose}
       footer={
         <>
-          <span className="foot-hint">仅影响该字段，不会改动同键下的其他字段</span>
+          <span className="foot-hint">{t('仅影响该字段，不会改动同键下的其他字段')}</span>
           <span className="spacer" />
           <Button type="button" variant="ghost" className="foot-btn foot-quiet" onClick={onClose}>
             <DialogIcon name="cancel" size={13} />
-            取消
+            {t('取消')}
           </Button>
           <Button
             type="button"
@@ -128,7 +130,7 @@ export function EditHashFieldDialog({
             onClick={() => void submit()}
           >
             <DialogIcon name="save" size={13} />
-            {saving ? '保存中…' : isAdd ? '添加' : '保存'}
+            {saving ? t('保存中…') : isAdd ? t('添加') : t('保存')}
           </Button>
         </>
       }
@@ -142,7 +144,7 @@ export function EditHashFieldDialog({
           value={fieldDraft}
           onChange={(event) => setFieldDraft(event.target.value)}
           className="mono"
-          placeholder="字段名"
+          placeholder={t('字段名')}
           autoFocus
           autoComplete="off"
           spellCheck={false}
@@ -163,7 +165,7 @@ export function EditHashFieldDialog({
           className="mono dlg-content"
           autoGrow
           spellCheck={false}
-          placeholder="字段值，可多行"
+          placeholder={t('字段值，可多行')}
         />
       </div>
 
@@ -171,14 +173,16 @@ export function EditHashFieldDialog({
       {isAdd ? (
         <div className="dlg-alert" role="status">
           <DialogIcon name="info" size={14} />
-          <span>字段已存在时会覆盖其原有值（HSET 语义），不会影响同键下的其他字段。</span>
+          <span>{t('字段已存在时会覆盖其原有值（HSET 语义），不会影响同键下的其他字段。')}</span>
         </div>
       ) : renamed ? (
         <div className="dlg-alert" role="status">
           <DialogIcon name="warning" size={14} />
           <span>
-            字段名已变更：将删除原字段 <code className="mono">{field}</code> 并写入{' '}
-            <code className="mono">{fieldDraft.trim()}</code>。若目标字段已存在，其原有值会被覆盖。
+            {t('字段名已变更：将删除原字段')}{' '}
+            <code className="mono">{field}</code> {t('并写入')}{' '}
+            <code className="mono">{fieldDraft.trim()}</code>
+            {t('。若目标字段已存在，其原有值会被覆盖。')}
           </span>
         </div>
       ) : null}

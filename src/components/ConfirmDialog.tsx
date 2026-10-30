@@ -3,6 +3,7 @@ import { DialogShell } from '@/components/DialogShell'
 import { DialogIcon } from '@/components/DialogIcon'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useI18n } from '@/i18n'
 import { globalHolder } from '@/store/global'
 import { useRedis } from '@/store/useRedis'
 import { useObservable } from '@/store/subscription'
@@ -17,6 +18,7 @@ import { useObservable } from '@/store/subscription'
 export function ConfirmDialog() {
   const { state, resolveConfirm } = useRedis()
   useObservable(globalHolder)
+  const { t } = useI18n()
   const request = state.confirm
 
   const [phrase, setPhrase] = useState('')
@@ -47,7 +49,7 @@ export function ConfirmDialog() {
         但退出程序不是撤销问题 —— 它可能只是"待会儿再打开"。
         默认文案保持原样，退出这类请求自己传 description。
       */
-      description={request.description ?? '请确认以下内容，操作不可撤销'}
+      description={request.description ?? t('请确认以下内容，操作不可撤销')}
       className="confirm-dialog"
       /* 确认框允许点遮罩取消：它没有"填到一半"的状态，取消成本极低 */
       closeOnOverlay
@@ -67,7 +69,7 @@ export function ConfirmDialog() {
             onClick={() => resolveConfirm(false)}
           >
             <DialogIcon name="cancel" size={13} />
-            取消
+            {t('取消')}
           </Button>
           <Button
             type="button"
@@ -76,7 +78,7 @@ export function ConfirmDialog() {
             onClick={confirm}
           >
             <DialogIcon name="check" size={13} />
-            {request.confirmText ?? '确定'}
+            {request.confirmText ?? t('确定')}
           </Button>
         </>
       }
@@ -97,7 +99,7 @@ export function ConfirmDialog() {
         <div className="preview">
           <span className="preview-label">
             {request.preview.label}
-            {request.preview.truncated ? <span className="truncated">已截断</span> : null}
+            {request.preview.truncated ? <span className="truncated">{t('已截断')}</span> : null}
           </span>
           <pre className="preview-text mono">{request.preview.text}</pre>
         </div>
@@ -114,7 +116,7 @@ export function ConfirmDialog() {
       {request.requirePhrase ? (
         <div className="phrase-box">
           <span className="phrase-hint">
-            请输入 <code className="mono">{request.requirePhrase}</code> 以确认执行
+            {t('请输入')} <code className="mono">{request.requirePhrase}</code> {t('以确认执行')}
           </span>
           <Input
             value={phrase}

@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { Button } from '@/components/ui/button'
 import { DialogIcon, type DialogIconName } from '@/components/DialogIcon'
 import { useDialogDrag } from '@/hooks/useDialogDrag'
+import { useI18n } from '@/i18n'
 
 export interface DialogShellProps {
   /** 标题栏图标 */
@@ -52,6 +53,7 @@ export function DialogShell({
   describedById,
 }: DialogShellProps) {
   const { style, onDragStart } = useDialogDrag()
+  const { t } = useI18n()
   const descId = describedById ?? 'dlg-desc'
 
   return (
@@ -85,7 +87,7 @@ export function DialogShell({
               variant="ghost"
               size="icon"
               className="dlg-close"
-              aria-label="关闭"
+              aria-label={t('关闭')}
               onClick={onClose}
             >
               <DialogIcon name="cancel" size={13} />

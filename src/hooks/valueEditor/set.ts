@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { utf8Bytes } from '@/utils/format'
 import { api } from '@/api'
+import { t } from '@/i18n'
 import { useRedis } from '@/store/useRedis'
 import { copyText } from '@/utils/clipboard'
 import type { ValueEditorContext } from './shared'
@@ -33,18 +34,21 @@ export function useSetEditor(
 
   async function copySetMember(row: { index: number; text: string }): Promise<void> {
     const done = await copyText(row.text)
-    notify(done ? 'ok' : 'err', done ? `已复制成员 ${row.text}` : '复制失败，请检查剪贴板权限')
+    notify(
+      done ? 'ok' : 'err',
+      done ? t('已复制成员 {member}', { member: row.text }) : t('复制失败，请检查剪贴板权限'),
+    )
   }
 
   async function copySetAsCommand(row: { index: number; text: string }): Promise<void> {
     const key = getValue()?.key ?? ''
     const done = await copyText(`SADD ${key} "${row.text}"`)
-    notify(done ? 'ok' : 'err', done ? '已复制 SADD 命令' : '复制失败，请检查剪贴板权限')
+    notify(done ? 'ok' : 'err', done ? t('已复制 SADD 命令') : t('复制失败，请检查剪贴板权限'))
   }
 
   async function copySetAsJson(row: { index: number; text: string }): Promise<void> {
     const done = await copyText(JSON.stringify(row.text, null, 2))
-    notify(done ? 'ok' : 'err', done ? '已复制 JSON' : '复制失败，请检查剪贴板权限')
+    notify(done ? 'ok' : 'err', done ? t('已复制 JSON') : t('复制失败，请检查剪贴板权限'))
   }
 
   function openSetMenu(event: React.MouseEvent, row: { index: number; text: string }): void {
@@ -117,13 +121,15 @@ export function useSetEditor(
 
   async function copySetAll(): Promise<void> {
     if (!setStats.total) {
-      notify('err', '当前 set 没有成员')
+      notify('err', t('当前 set 没有成员'))
       return
     }
     const done = await copyText(setAsText())
     notify(
       done ? 'ok' : 'err',
-      done ? `已复制 ${setStats.total} 个成员` : '复制失败，请检查剪贴板权限',
+      done
+        ? t('已复制 {count} 个成员', { count: setStats.total })
+        : t('复制失败，请检查剪贴板权限'),
     )
   }
 
@@ -138,10 +144,10 @@ export function useSetEditor(
       return
     }
     if (!res.data.saved) {
-      notify('ok', '已取消导出')
+      notify('ok', t('已取消导出'))
       return
     }
-    notify('ok', `已导出到 ${res.data.path ?? '本地文件'}`)
+    notify('ok', t('已导出到 {path}', { path: res.data.path ?? t('本地文件') }))
   }
 
   /** 修改成员：set 成员本身即标识，改内容等价于删除旧成员 + 添加新成员 */
@@ -157,10 +163,10 @@ export function useSetEditor(
       return
     }
     if (!res.data.ok) {
-      notify('err', res.data.message ?? '修改失败')
+      notify('err', res.data.message ?? t('修改失败'))
       return
     }
-    notify('ok', res.data.message ?? '已修改')
+    notify('ok', res.data.message ?? t('已修改'))
     setEditingSetMember(null)
 
     // 本地更新：先移除旧成员，若新成员尚不存在则补上
@@ -179,17 +185,17 @@ export function useSetEditor(
     const wasLast = total <= 1
 
     const confirmed = await askConfirm({
-      title: '删除成员',
-      message: '即将从该集合中移除以下成员：',
+      title: t('删除成员'),
+      message: t('即将从该集合中移除以下成员：'),
       details: [
-        { label: '键名', value: key, mono: true },
-        { label: '成员', value: member, mono: true, tone: 'danger' },
-        { label: '成员数', value: `${total} → ${total - 1}`, mono: true },
+        { label: t('键名'), value: key, mono: true },
+        { label: t('成员'), value: member, mono: true, tone: 'danger' },
+        { label: t('成员数'), value: `${total} → ${total - 1}`, mono: true },
       ],
       warning: wasLast
-        ? '这是集合的最后一个成员，删除后整个键也会被移除。'
-        : '删除后无法恢复。',
-      confirmText: '删除',
+        ? t('这是集合的最后一个成员，删除后整个键也会被移除。')
+        : t('删除后无法恢复。'),
+      confirmText: t('删除'),
       danger: true,
     })
     if (!confirmed) return
@@ -200,10 +206,10 @@ export function useSetEditor(
       return
     }
     if (!res.data.ok) {
-      notify('err', res.data.message ?? '删除失败')
+      notify('err', res.data.message ?? t('删除失败'))
       return
     }
-    notify('ok', res.data.message ?? '已删除')
+    notify('ok', res.data.message ?? t('已删除'))
     dropElementLocally((item) => item === member)
     if (wasLast) state.selectedValue = null
   }
@@ -214,7 +220,7 @@ export function useSetEditor(
     if (!id || !key) return
 
     if (!next.trim()) {
-      notify('err', '成员内容不能为空')
+      notify('err', t('成员内容不能为空'))
       return
     }
 
@@ -225,10 +231,10 @@ export function useSetEditor(
       return
     }
     if (!res.data.ok) {
-      notify('err', res.data.message ?? '添加失败')
+      notify('err', res.data.message ?? t('添加失败'))
       return
     }
-    notify('ok', res.data.message ?? '已添加')
+    notify('ok', res.data.message ?? t('已添加'))
     setAddingMember(false)
 
     // 本地更新（SADD 幂等，已存在则不再插入）

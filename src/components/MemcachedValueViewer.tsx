@@ -6,6 +6,7 @@ import { MemcachedOverview } from '@/components/MemcachedOverview'
 import { PromptDialog } from '@/components/PromptDialog'
 import { VirtualStringLines } from '@/components/VirtualStringLines'
 import { tipProps } from '@/components/tip'
+import { useI18n } from '@/i18n'
 import { api } from '@/api'
 import { useRedis } from '@/store/useRedis'
 import { useSessionStore } from '@/hooks/useSessionStore'
@@ -14,6 +15,7 @@ import { useObservable } from '@/store/subscription'
 import { copyText } from '@/utils/clipboard'
 import { emitMcKeysChanged, onMcKeysChanged } from '@/utils/memcachedEvents'
 import { formatBytes, formatTtl, prettyJson, ttlTone } from '@/utils/format'
+import type { TParams } from '@shared/i18n'
 
 /**
  * Memcached 单个键的值查看器。
@@ -55,12 +57,12 @@ const MENU_WIDTH = 196
  * Memcached 键名常用于拼装命名空间 + 业务标识，区分度多在尾部；
  * 截断标记单独用三个点并着色，一眼能看出名字没显示全。
  */
-function tabLabel(text: string, head = 12, tail = 8): React.ReactNode {
+function tabLabel(text: string, t: (key: string, params?: TParams) => string, head = 12, tail = 8): React.ReactNode {
   if (text.length <= head + tail + 1) return text
   return (
     <>
       {text.slice(0, head)}
-      <span className="vt-ell" aria-label="名称已截断">
+      <span className="vt-ell" aria-label={t('名称已截断')}>
         ...
       </span>
       {text.slice(-tail)}
@@ -69,6 +71,7 @@ function tabLabel(text: string, head = 12, tail = 8): React.ReactNode {
 }
 
 export function MemcachedValueViewer({ connectionId }: { connectionId: string }) {
+  const { t } = useI18n()
   const { state, notify, askConfirm, markSelected } = useRedis()
   /*
    * 必须订阅本会话的 store，不能只靠 useRedis()。
@@ -145,7 +148,7 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
         if (!res.data.found) {
           /* 键可能在读列表与点开之间过期了 —— 明确说明，而不是显示空值 */
           setValue(null)
-          setError('该键已过期或被删除')
+          setError(t('该键已过期或被删除'))
           return
         }
         setValue({
@@ -156,7 +159,7 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
           ttl: res.data.ttl,
         })
       } catch (err) {
-        if (alive) setError(err instanceof Error ? err.message : '读取失败')
+        if (alive) setError(err instanceof Error ? err.message : t('读取失败'))
       } finally {
         if (alive) setLoading(false)
       }
@@ -171,7 +174,7 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
     if (!res.ok) throw new Error(res.error)
     if (!res.data.found) {
       setValue(null)
-      setError('该键已过期或被删除')
+      setError(t('该键已过期或被删除'))
       return
     }
     setError(null)
@@ -202,9 +205,9 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
     setReloading(true)
     try {
       await readValue(selectedKey)
-      if (!silent) notify('ok', '已刷新')
+      if (!silent) notify('ok', t('已刷新'))
     } catch (err) {
-      notify('err', err instanceof Error ? err.message : '刷新失败')
+      notify('err', err instanceof Error ? err.message : t('刷新失败'))
     } finally {
       setReloading(false)
     }
@@ -525,14 +528,14 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
         ...(value.ttl !== undefined ? { ttlSeconds: value.ttl } : {}),
       })
       if (!res.ok) throw new Error(res.error)
-      if (!res.data.ok) throw new Error(res.data.message ?? '写入失败')
-      notify('ok', value.ttl === undefined ? '已保存（未能读取原 TTL，已按永久写入）' : '已保存')
+      if (!res.data.ok) throw new Error(res.data.message ?? t('写入失败'))
+      notify('ok', value.ttl === undefined ? t('已保存（未能读取原 TTL，已按永久写入）') : t('已保存'))
       setEditing(false)
       setDraft('')
       emitMcKeysChanged()
       await refreshValue(true)
     } catch (err) {
-      notify('err', err instanceof Error ? err.message : '保存失败')
+      notify('err', err instanceof Error ? err.message : t('保存失败'))
     } finally {
       setSaving(false)
     }
@@ -542,17 +545,17 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
 
   async function copyValue(): Promise<void> {
     if (!displayText) {
-      notify('err', '内容为空')
+      notify('err', t('内容为空'))
       return
     }
     const done = await copyText(displayText)
-    notify(done ? 'ok' : 'err', done ? `已复制（${displayText.length} 字符）` : '复制失败，请检查剪贴板权限')
+    notify(done ? 'ok' : 'err', done ? t('已复制（{count} 字符）', { count: displayText.length }) : t('复制失败，请检查剪贴板权限'))
   }
 
   async function copyKeyName(): Promise<void> {
     if (!value) return
     const done = await copyText(value.key)
-    notify(done ? 'ok' : 'err', done ? '已复制键名' : '复制失败，请检查剪贴板权限')
+    notify(done ? 'ok' : 'err', done ? t('已复制键名') : t('复制失败，请检查剪贴板权限'))
   }
 
   async function exportValue(): Promise<void> {
@@ -565,10 +568,10 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
       return
     }
     if (!res.data.saved) {
-      notify('ok', '已取消导出')
+      notify('ok', t('已取消导出'))
       return
     }
-    notify('ok', `已导出到 ${res.data.path ?? '本地文件'}`)
+    notify('ok', t('已导出到 {path}', { path: res.data.path ?? t('本地文件') }))
   }
 
   /**
@@ -582,31 +585,31 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
     if (!value) return
     const key = value.key
     const details = [
-      { label: '键名', value: key, mono: true },
+      { label: t('键名'), value: key, mono: true },
       ...(value.ttl !== undefined
-        ? [{ label: '过期', value: formatTtl(value.ttl), mono: true, tone: 'muted' as const }]
+        ? [{ label: t('过期'), value: t(formatTtl(value.ttl)), mono: true, tone: 'muted' as const }]
         : []),
-      { label: '大小', value: formatBytes(value.bytes), mono: true, tone: 'muted' as const },
+      { label: t('大小'), value: formatBytes(value.bytes), mono: true, tone: 'muted' as const },
       { label: 'flags', value: String(value.flags), mono: true, tone: 'muted' as const },
     ]
     const ok = await askConfirm({
-      title: '删除键',
-      message: '即将从当前实例中移除该键：',
+      title: t('删除键'),
+      message: t('即将从当前实例中移除该键：'),
       details,
-      warning: '此操作不可撤销，键及其全部数据将被立即删除。',
-      confirmText: '删除',
+      warning: t('此操作不可撤销，键及其全部数据将被立即删除。'),
+      confirmText: t('删除'),
       danger: true,
     })
     if (!ok) return
     const res = await api.memcached.remove(connectionId, key)
     if (res.ok && res.data.ok) {
-      notify('ok', res.data.message ?? '已删除')
+      notify('ok', res.data.message ?? t('已删除'))
       setValue(null)
       /* 先把选中切走再广播：否则本组件的广播回调会去重读刚删掉的键 */
       closeTab(key)
       emitMcKeysChanged()
     } else {
-      notify('err', res.ok ? (res.data.message ?? '删除失败') : res.error)
+      notify('err', res.ok ? (res.data.message ?? t('删除失败')) : res.error)
     }
   }
 
@@ -627,10 +630,10 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
       return
     }
     if (!res.data.ok) {
-      notify('err', res.data.message ?? '重命名失败')
+      notify('err', res.data.message ?? t('重命名失败'))
       return
     }
-    notify('ok', res.data.message ?? '已重命名')
+    notify('ok', res.data.message ?? t('已重命名'))
     const from = value.key
     /* 书签原地改名，保留位置与激活态；统计快照跟着迁移 */
     setOpenTabs((prev) => Array.from(new Set(prev.map((key) => (key === from ? target : key)))))
@@ -660,7 +663,7 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
     <div
       className="viewer-tabs"
       role="tablist"
-      aria-label="已打开的键"
+      aria-label={t('已打开的键')}
       style={{ ['--vt-tc' as string]: 'var(--badge-string-fg)' }}
     >
       <button
@@ -669,10 +672,10 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
         aria-selected={activeTab === 'detail'}
         className={`vt-home${activeTab === 'detail' ? ' active' : ''}`}
         onClick={showDetailTab}
-        {...tipProps('当前连接详情')}
+        {...tipProps(t('当前连接详情'))}
       >
         <DialogIcon name="home" size={13} />
-        <span>详情</span>
+        <span>{t('详情')}</span>
       </button>
 
       <button
@@ -680,8 +683,8 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
         className="vt-arrow"
         disabled={!tabArrows.left}
         onClick={() => scrollTabs(-1)}
-        aria-label="向左滚动"
-        title="向左滚动"
+        aria-label={t('向左滚动')}
+        title={t('向左滚动')}
       >
         ‹
       </button>
@@ -693,7 +696,7 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
         onMouseLeave={cancelTabHover}
       >
         {openTabs.length === 0 ? (
-          <span className="vt-empty">还没有打开键 · 从左侧选择</span>
+          <span className="vt-empty">{t('还没有打开键 · 从左侧选择')}</span>
         ) : (
           openTabs.map((key) => {
             const isActive = activeTab === key
@@ -722,13 +725,13 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
               >
                 <span className="vt-dot" />
                 <span className="vt-name" title={key}>
-                  {tabLabel(key)}
+                  {tabLabel(key, t)}
                 </span>
                 <button
                   type="button"
                   className="vt-x"
-                  title="关闭"
-                  aria-label={`关闭 ${key}`}
+                  title={t('关闭')}
+                  aria-label={t('关闭 {key}', { key })}
                   onClick={(event) => {
                     event.stopPropagation()
                     closeTab(key)
@@ -747,8 +750,8 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
         className="vt-arrow"
         disabled={!tabArrows.right}
         onClick={() => scrollTabs(1)}
-        aria-label="向右滚动"
-        title="向右滚动"
+        aria-label={t('向右滚动')}
+        title={t('向右滚动')}
       >
         ›
       </button>
@@ -762,7 +765,7 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
           setTabMenuOpen((prev) => !prev)
           setTabQuery('')
         }}
-        {...tipProps('更多操作')}
+        {...tipProps(t('更多操作'))}
       >
         ⋯
       </button>
@@ -781,12 +784,12 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
               <b className="mono">
                 {tabKeyword ? `${visibleTabs.length} / ${openTabs.length}` : openTabs.length}
               </b>
-              <span>个已打开的键</span>
+              <span>{t('个已打开的键')}</span>
               <button
                 type="button"
                 className="vt-menu-x"
-                title="关闭 (Esc)"
-                aria-label="关闭"
+                title={t('关闭 (Esc)')}
+                aria-label={t('关闭')}
                 onClick={() => {
                   setTabMenuOpen(false)
                   setTabQuery('')
@@ -812,8 +815,8 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
                 className="mono"
                 value={tabQuery}
                 spellCheck={false}
-                placeholder="搜索已打开的键"
-                aria-label="搜索已打开的键"
+                placeholder={t('搜索已打开的键')}
+                aria-label={t('搜索已打开的键')}
                 onChange={(event) => setTabQuery(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') {
@@ -857,13 +860,13 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
                   >
                     <span className="vt-t type-string">M</span>
                     <span className="vt-mi-k mono" title={key}>
-                      {tabLabel(key, 20, 10)}
+                      {tabLabel(key, t, 20, 10)}
                     </span>
                     <button
                       type="button"
                       className="vt-mi-x"
-                      title="关闭"
-                      aria-label={`关闭 ${key}`}
+                      title={t('关闭')}
+                      aria-label={t('关闭 {key}', { key })}
                       onClick={(event) => {
                         event.stopPropagation()
                         closeTab(key)
@@ -874,7 +877,7 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
                   </div>
                 ))
               ) : (
-                <div className="vt-menu-empty">没有匹配的键</div>
+                <div className="vt-menu-empty">{t('没有匹配的键')}</div>
               )}
             </div>
 
@@ -886,7 +889,7 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
                 onClick={() => runTabBulk('others')}
               >
                 <DialogIcon name="clone" size={11} />
-                <span>关闭其他</span>
+                <span>{t('关闭其他')}</span>
               </button>
               <button
                 type="button"
@@ -897,11 +900,11 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
                 onClick={() => runTabBulk('right')}
               >
                 <DialogIcon name="expand" size={11} />
-                <span>关闭右侧</span>
+                <span>{t('关闭右侧')}</span>
               </button>
               <button type="button" className="vt-act danger" onClick={() => runTabBulk('all')}>
                 <DialogIcon name="trash" size={11} />
-                <span>全部关闭</span>
+                <span>{t('全部关闭')}</span>
               </button>
             </div>
           </div>
@@ -936,15 +939,15 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
             <div className="vp-row">
               <i>TTL</i>
               <b className={`mono ${hoverStat.ttl !== undefined ? ttlTone(hoverStat.ttl) : ''}`}>
-                {hoverStat.ttl !== undefined ? formatTtl(hoverStat.ttl) : '—'}
+                {hoverStat.ttl !== undefined ? t(formatTtl(hoverStat.ttl)) : '—'}
                 {hoverStat.ttl !== undefined && ttlTone(hoverStat.ttl) === 'urgent' ? (
-                  <span className="vp-chip">即将过期</span>
+                  <span className="vp-chip">{t('即将过期')}</span>
                 ) : null}
               </b>
             </div>
 
             <div className="vp-row">
-              <i>大小</i>
+              <i>{t('大小')}</i>
               <b className="mono">{hoverStat.bytes != null ? formatBytes(hoverStat.bytes) : '—'}</b>
             </div>
 
@@ -953,7 +956,7 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
               <b className="mono">{hoverStat.flags != null ? hoverStat.flags : '—'}</b>
             </div>
 
-            <div className="vp-hint">点击切换 · × 关闭 · 滚轮 / ‹ › 横向滚动</div>
+            <div className="vp-hint">{t('点击切换 · × 关闭 · 滚轮 / ‹ › 横向滚动')}</div>
           </div>,
           document.body,
         )
@@ -984,7 +987,7 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
         <div className="blank-inner">
           <span className="blank-badge">Memcached</span>
           <p>{error}</p>
-          <p className="blank-hint">键列表可能是取样结果，刷新后可确认它是否仍然存在</p>
+          <p className="blank-hint">{t('键列表可能是取样结果，刷新后可确认它是否仍然存在')}</p>
         </div>
       </div>,
     )
@@ -1021,12 +1024,12 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
           </div>
 
           <div className="meta-line">
-            <span {...tipProps(value.ttl === undefined ? '服务端不支持 meta 命令，无法读取剩余 TTL' : '剩余存活时间')}>
-              TTL：<b className="mono">{value.ttl === undefined ? '—' : formatTtl(value.ttl)}</b>
+            <span {...tipProps(value.ttl === undefined ? t('服务端不支持 meta 命令，无法读取剩余 TTL') : t('剩余存活时间'))}>
+              TTL：<b className="mono">{value.ttl === undefined ? '—' : t(formatTtl(value.ttl))}</b>
             </span>
             <span className="sep">|</span>
             <span>
-              大小：<b className="mono">{formatBytes(value.bytes)}</b>
+              {t('大小：')}<b className="mono">{formatBytes(value.bytes)}</b>
             </span>
             <span className="sep">|</span>
             <span>
@@ -1039,41 +1042,41 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
       {!editing ? (
         <div className="value-toolbar">
           <div className="seg-group">
-            <button className="tool" {...tipProps('进入编辑（也可双击值区域）')} onClick={enterEditExplicit}>
+            <button className="tool" {...tipProps(t('进入编辑（也可双击值区域）'))} onClick={enterEditExplicit}>
               <DialogIcon name="edit" size={12} className="ti" />
-              编辑
+              {t('编辑')}
             </button>
-            <button className="tool" {...tipProps('复制全部内容')} onClick={() => void copyValue()}>
+            <button className="tool" {...tipProps(t('复制全部内容'))} onClick={() => void copyValue()}>
               <DialogIcon name="copy" size={12} className="ti" />
-              复制
+              {t('复制')}
             </button>
             <button
               className={`tool${pretty ? ' on' : ''}`}
-              {...tipProps(pretty ? '已开启 JSON 美化，点击查看原始内容' : '点击按 JSON 缩进重排')}
+              {...tipProps(pretty ? t('已开启 JSON 美化，点击查看原始内容') : t('点击按 JSON 缩进重排'))}
               onClick={() => setPretty((prev) => !prev)}
             >
               <DialogIcon name="info" size={12} className="ti" />
-              JSON 美化
+              {t('JSON 美化')}
             </button>
             <button
               className={`tool${wrap ? ' on' : ''}`}
-              {...tipProps(wrap ? '已开启自动换行，点击改为横向滚动' : '点击恢复自动换行')}
+              {...tipProps(wrap ? t('已开启自动换行，点击改为横向滚动') : t('点击恢复自动换行'))}
               onClick={() => setWrap((prev) => !prev)}
             >
               <DialogIcon name="text" size={12} className="ti" />
-              自动换行
+              {t('自动换行')}
             </button>
-            <button className="tool" {...tipProps('导出为本地文件')} onClick={() => void exportValue()}>
+            <button className="tool" {...tipProps(t('导出为本地文件'))} onClick={() => void exportValue()}>
               <DialogIcon name="export" size={12} className="ti" />
-              导出
+              {t('导出')}
             </button>
-            <button className="tool" disabled={reloading} {...tipProps('重新读取该键')} onClick={() => void refreshValue()}>
+            <button className="tool" disabled={reloading} {...tipProps(t('重新读取该键'))} onClick={() => void refreshValue()}>
               <DialogIcon name="refresh" size={12} className="ti" />
-              刷新
+              {t('刷新')}
             </button>
           </div>
           <span className="spacer" />
-          <FilterBox value={filter} onChange={setFilter} placeholder="搜索值内容" className="string-filter" />
+          <FilterBox value={filter} onChange={setFilter} placeholder={t('搜索值内容')} className="string-filter" />
         </div>
       ) : null}
 
@@ -1083,17 +1086,17 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
             <div className="text-edit-area">
               <div className="edit-actions">
                 <span className="edit-hint">
-                  编辑中 · Esc 取消，Ctrl+Enter 保存
-                  {value.ttl === undefined ? ' · 未能读取原 TTL，保存后将按永久写入' : ''}
+                  {t('编辑中 · Esc 取消，Ctrl+Enter 保存')}
+                  {value.ttl === undefined ? ` · ${t('未能读取原 TTL，保存后将按永久写入')}` : ''}
                 </span>
                 <span className="spacer" />
                 <button className="tool" disabled={saving} onClick={cancelEdit}>
                   <DialogIcon name="cancel" size={12} className="ti" />
-                  取消
+                  {t('取消')}
                 </button>
                 <button className="tool primary" disabled={saving} onClick={() => void saveEdit()}>
                   <DialogIcon name="save" size={12} className="ti" />
-                  {saving ? '保存中…' : '保存'}
+                  {saving ? t('保存中…') : t('保存')}
                 </button>
               </div>
               <textarea
@@ -1122,7 +1125,7 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
                 renderLine={(line) => highlightSegments(line.text)}
               />
             ) : (
-              <p className="lines-empty">没有匹配的行，清除搜索条件可查看完整内容</p>
+              <p className="lines-empty">{t('没有匹配的行，清除搜索条件可查看完整内容')}</p>
             )
           ) : (
             <VirtualStringLines lines={lines} wrap={wrap} onDoubleClick={enterEditExplicit} />
@@ -1131,12 +1134,12 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
           {/* 搜索态下不显示提示行：与 Redis 一致，且此时双击不会进入编辑 */}
           {!editing && !keyword ? (
             <p className="row-tip text-row-tip">
-              <span className="tip-text">双击文本可进入编辑 · 或用操作栏「编辑」</span>
+              <span className="tip-text">{t('双击文本可进入编辑 · 或用操作栏「编辑」')}</span>
               <span
                 className="readonly-tag"
-                {...tipProps('值区域仅作只读展示，修改请用操作栏「编辑」或双击文本')}
+                {...tipProps(t('值区域仅作只读展示，修改请用操作栏「编辑」或双击文本'))}
               >
-                只读
+                {t('只读')}
               </span>
             </p>
           ) : null}
@@ -1146,19 +1149,19 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
         {reloading ? (
           <div className="value-refreshing">
             <span className="spinner" />
-            <span className="refresh-text">正在刷新…</span>
+            <span className="refresh-text">{t('正在刷新…')}</span>
           </div>
         ) : null}
       </div>
 
       {renaming ? (
         <PromptDialog
-          title="重命名键"
-          label="新的键名"
+          title={t('重命名键')}
+          label={t('新的键名')}
           initialValue={value.key}
-          placeholder="请输入新的键名"
-          hint="Memcached 没有 RENAME 命令：将读取原值写入新键后删除旧键；目标键已存在会被拒绝。服务端支持 meta 时会保留剩余 TTL。"
-          confirmText="重命名"
+          placeholder={t('请输入新的键名')}
+          hint={t('Memcached 没有 RENAME 命令：将读取原值写入新键后删除旧键；目标键已存在会被拒绝。服务端支持 meta 时会保留剩余 TTL。')}
+          confirmText={t('重命名')}
           onConfirm={(next) => void handleRename(next)}
           onCancel={() => setRenaming(false)}
         />
@@ -1213,6 +1216,7 @@ function McValueActions({
   onRefresh: () => void
   onDelete: () => Promise<void>
 }) {
+  const { t } = useI18n()
   const [open, setOpen] = useState(false)
   const anchorRef = useRef<HTMLDivElement | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
@@ -1257,7 +1261,7 @@ function McValueActions({
 
   return (
     <div ref={anchorRef} className="value-actions s-value-actions">
-      <button className="more-btn" {...tipProps('值操作')} onClick={toggleOpen}>
+      <button className="more-btn" {...tipProps(t('值操作'))} onClick={toggleOpen}>
         <DialogIcon name="more" size={15} />
       </button>
 
@@ -1272,26 +1276,26 @@ function McValueActions({
               >
                 <button className="menu-item" onClick={() => void run(onRename)}>
                   <DialogIcon name="refresh" size={13} className="mi-icon" />
-                  <span>重命名键…</span>
+                  <span>{t('重命名键…')}</span>
                 </button>
 
                 <div className="menu-sep" />
 
                 <button className="menu-item" onClick={() => void run(onCopyKey)}>
                   <DialogIcon name="copy" size={13} className="mi-icon" />
-                  <span>复制键名</span>
+                  <span>{t('复制键名')}</span>
                 </button>
 
                 <button className="menu-item" onClick={() => void run(onRefresh)}>
                   <DialogIcon name="refresh" size={13} className="mi-icon" />
-                  <span>刷新</span>
+                  <span>{t('刷新')}</span>
                 </button>
 
                 <div className="menu-sep" />
 
                 <button className="menu-item danger" onClick={() => void run(onDelete)}>
                   <DialogIcon name="cancel" size={13} className="mi-icon" />
-                  <span>删除键</span>
+                  <span>{t('删除键')}</span>
                 </button>
               </div>
             </>,

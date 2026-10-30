@@ -27,6 +27,7 @@ import type {
   VersionInfoGroup,
 } from '../../shared/types'
 import { memoryPrefixOf, MEMORY_BUCKET_LIMIT } from '../../shared/keyspace'
+import { t } from '@shared/i18n'
 
 /** 详情视图中单次返回的元素上限，避免大 key 把 UI 拖死 */
 const VALUE_PAGE_SIZE = 500
@@ -157,33 +158,35 @@ function pickFailureReason(closeError: unknown, first: Error | null): unknown {
 }
 
 /*
- * 已知错误 → 中文提示（原文保留在括号里）。
+ * 已知错误 → 提示文案（原文保留在括号里）。
  *
  * 面向的受众是「用过图形客户端的运维 / 开发」，不是 Redis 专家：
  * WRONGPASS / ECONNREFUSED 这类码能定位 90% 的连接失败，
  * 英文原文反而把用户的注意力引向「SSH？网络？」的猜测。
  * 末尾保留原始报错，专家仍可溯源。
+ *
+ * 文案用惰性函数持有：语言可能在运行期切换，不能把翻译结果缓存在模块常量里。
  */
-const ERROR_ZH: ReadonlyArray<readonly [RegExp, string]> = [
-  [/WRONGPASS/, 'Redis 认证失败：用户名或密码错误，或该用户已被禁用'],
-  [/NOAUTH/, 'Redis 需要认证：请在连接配置中填写密码'],
-  [/ECONNREFUSED/, '无法连接：目标地址拒绝连接（检查地址、端口、防火墙或服务是否启动）'],
-  [/ETIMEDOUT|connect timeout/i, '连接超时：目标无响应'],
-  [/ENOTFOUND/, '域名解析失败：找不到该主机（检查地址拼写或本机 DNS）'],
-  [/EHOSTUNREACH/, '网络不可达：本机没有到目标网络的路由'],
-  [/ECONNRESET/, '连接被重置：网络抖动或服务端主动断开'],
-  [/LOADING/, 'Redis 正在从磁盘加载数据，稍后重试即可'],
-  [/READONLY/, '只读副本：该实例为 slave / replica，不允许写入'],
-  [/OOM command not allowed/i, '内存已达上限（maxmemory），Redis 拒绝写入'],
-  [/All configured authentication methods failed/, 'SSH 认证失败：所有认证方式均被拒绝（检查用户名、密码或私钥）'],
-  [/Connection is closed/, '连接已关闭：连接通道（或 SSH 隧道）已断开'],
+const ERROR_ZH: ReadonlyArray<readonly [RegExp, () => string]> = [
+  [/WRONGPASS/, () => t('Redis 认证失败：用户名或密码错误，或该用户已被禁用')],
+  [/NOAUTH/, () => t('Redis 需要认证：请在连接配置中填写密码')],
+  [/ECONNREFUSED/, () => t('无法连接：目标地址拒绝连接（检查地址、端口、防火墙或服务是否启动）')],
+  [/ETIMEDOUT|connect timeout/i, () => t('连接超时：目标无响应')],
+  [/ENOTFOUND/, () => t('域名解析失败：找不到该主机（检查地址拼写或本机 DNS）')],
+  [/EHOSTUNREACH/, () => t('网络不可达：本机没有到目标网络的路由')],
+  [/ECONNRESET/, () => t('连接被重置：网络抖动或服务端主动断开')],
+  [/LOADING/, () => t('Redis 正在从磁盘加载数据，稍后重试即可')],
+  [/READONLY/, () => t('只读副本：该实例为 slave / replica，不允许写入')],
+  [/OOM command not allowed/i, () => t('内存已达上限（maxmemory），Redis 拒绝写入')],
+  [/All configured authentication methods failed/, () => t('SSH 认证失败：所有认证方式均被拒绝（检查用户名、密码或私钥）')],
+  [/Connection is closed/, () => t('连接已关闭：连接通道（或 SSH 隧道）已断开')],
 ]
 
-/** 失败原因 → 用户可读消息：命中映射表则中文化并附原文 */
+/** 失败原因 → 用户可读消息：命中映射表则本地化并附原文 */
 function friendlyMessage(error: unknown): string {
   const raw = toMessage(error)
-  for (const [pattern, zh] of ERROR_ZH) {
-    if (pattern.test(raw)) return `${zh}（${raw}）`
+  for (const [pattern, message] of ERROR_ZH) {
+    if (pattern.test(raw)) return t('{message}（{raw}）', { message: message(), raw })
   }
   return raw
 }
@@ -269,7 +272,7 @@ class ConnectionManager {
     const { client } = managed
     client.on('close', () => {
       if (managed.manualClose) return
-      this.emitStatus(managed.config.id, 'connecting', '连接中断，正在重连…')
+      this.emitStatus(managed.config.id, 'connecting', t('连接中断，正在重连…'))
     })
     client.on('ready', () => {
       if (managed.manualClose) return
@@ -278,7 +281,7 @@ class ConnectionManager {
     })
     client.on('end', () => {
       if (managed.manualClose) return
-      this.emitStatus(managed.config.id, 'error', '连接已断开，自动重连失败')
+      this.emitStatus(managed.config.id, 'error', t('连接已断开，自动重连失败'))
     })
 
     /*
@@ -307,7 +310,7 @@ class ConnectionManager {
         }
         managed.probeMisses += 1
         if (managed.probeMisses >= 2) {
-          this.emitStatus(managed.config.id, 'error', '连接无响应（心跳超时），正在重连…')
+          this.emitStatus(managed.config.id, 'error', t('连接无响应（心跳超时），正在重连…'))
           managed.probeMisses = 0
           client.disconnect()
         }
@@ -398,7 +401,12 @@ class ConnectionManager {
       if (pingErr) throw pingErr
       const latency = Date.now() - started
       const version = /redis_version:([^\r\n]+)/.exec(info)?.[1]?.trim()
-      return { ok: true, message: `连接成功${version ? ` · Redis ${version}` : ''} · ${latency}ms` }
+      return {
+        ok: true,
+        message: version
+          ? t('连接成功 · Redis {version} · {latency}ms', { version, latency })
+          : t('连接成功 · {latency}ms', { latency }),
+      }
     } catch (error) {
       const reason = pickFailureReason(error, firstHandshakeError())
       console.error(`[connection-manager] test(握手) 失败 [${config.name}]:`, reason)
@@ -550,7 +558,7 @@ class ConnectionManager {
 
   private mustGet(id: string): Redis {
     const managed = this.pool.get(id)
-    if (!managed) throw new Error('连接不存在或已断开，请先建立连接')
+    if (!managed) throw new Error(t('连接不存在或已断开，请先建立连接'))
     return managed.client
   }
 
@@ -708,7 +716,7 @@ class ConnectionManager {
    */
   async memoryAnalysis(id: string, depth = 1): Promise<MemoryAnalysis> {
     const managed = this.pool.get(id)
-    if (!managed) throw new Error('连接不存在或已断开，请先建立连接')
+    if (!managed) throw new Error(t('连接不存在或已断开，请先建立连接'))
     const client = managed.client
 
     const level = Math.min(Math.max(Math.floor(depth) || 1, 1), 4)
@@ -790,7 +798,7 @@ class ConnectionManager {
     if (existing) return existing
 
     const managed = this.pool.get(id)
-    if (!managed) throw new Error('连接不存在或已断开')
+    if (!managed) throw new Error(t('连接不存在或已断开'))
 
     const endpoint = await this.resolveEndpoint(managed.config)
     const client = this.buildClient(managed.config, endpoint)
@@ -909,7 +917,7 @@ class ConnectionManager {
 
   async scan(id: string, options: ScanOptions = {}): Promise<ScanResult> {
     const managed = this.pool.get(id)
-    if (!managed) throw new Error('连接不存在或已断开，请先建立连接')
+    if (!managed) throw new Error(t('连接不存在或已断开，请先建立连接'))
     const client = managed.client
 
     const db = options.db ?? managed.db
@@ -937,7 +945,7 @@ class ConnectionManager {
   /** 单键元信息查询（TYPE/TTL 一次 pipeline 往返）：精确搜索短路用，键不存在返回 null */
   async lookupKey(id: string, key: string, db?: number): Promise<RedisKeyItem | null> {
     const managed = this.pool.get(id)
-    if (!managed) throw new Error('连接不存在或已断开，请先建立连接')
+    if (!managed) throw new Error(t('连接不存在或已断开，请先建立连接'))
     const client = managed.client
 
     const target = db ?? managed.db
@@ -976,7 +984,7 @@ class ConnectionManager {
    */
   async searchAll(id: string, options: SearchAllOptions = {}): Promise<SearchAllResult> {
     const managed = this.pool.get(id)
-    if (!managed) throw new Error('连接不存在或已断开，请先建立连接')
+    if (!managed) throw new Error(t('连接不存在或已断开，请先建立连接'))
     const client = managed.client
 
     const db = options.db ?? managed.db
@@ -1185,18 +1193,18 @@ class ConnectionManager {
       }
 
       default:
-        return { ok: false, message: `暂不支持写入类型：${type}` }
+        return { ok: false, message: t('暂不支持写入类型：{type}', { type }) }
     }
 
     if (ttlSeconds && ttlSeconds > 0) await client.expire(key, ttlSeconds)
-    return { ok: true, message: '已保存' }
+    return { ok: true, message: t('已保存') }
   }
 
   async deleteKeys(id: string, keys: string[]): Promise<OperationResult> {
-    if (!keys.length) return { ok: true, message: '未选择任何键' }
+    if (!keys.length) return { ok: true, message: t('未选择任何键') }
     const client = this.mustGet(id)
     const removed = await client.del(...keys)
-    return { ok: true, message: `已删除 ${removed} 个键` }
+    return { ok: true, message: t('已删除 {count} 个键', { count: removed }) }
   }
 
   /**
@@ -1206,12 +1214,14 @@ class ConnectionManager {
   async deleteHashField(id: string, key: string, field: string): Promise<OperationResult> {
     const client = this.mustGet(id)
     const removed = await client.hdel(key, field)
-    if (!removed) return { ok: false, message: `字段 ${field} 不存在` }
+    if (!removed) return { ok: false, message: t('字段 {field} 不存在', { field }) }
 
     const left = await client.hlen(key)
     return {
       ok: true,
-      message: left ? `已删除字段 ${field}` : `已删除字段 ${field}（该 hash 已无字段，键随之移除）`,
+      message: left
+        ? t('已删除字段 {field}', { field })
+        : t('已删除字段 {field}（该 hash 已无字段，键随之移除）', { field }),
     }
   }
 
@@ -1262,28 +1272,28 @@ class ConnectionManager {
   ): Promise<OperationResult> {
     const client = this.mustGet(id)
 
-    if (!(await client.exists(key))) return { ok: false, message: `键 ${key} 已不存在` }
+    if (!(await client.exists(key))) return { ok: false, message: t('键 {key} 已不存在', { key }) }
 
     try {
       if (seconds <= 0) {
         const cleared = await this.raw(client, 'HPERSIST', key, 'FIELDS', 1, field)
         const code = Array.isArray(cleared) ? Number(cleared[0]) : Number(cleared)
-        if (code === -2) return { ok: false, message: `字段 ${field} 不存在` }
-        if (code === -1) return { ok: true, message: `字段 ${field} 本就是永久字段` }
-        return { ok: true, message: `已清除字段 ${field} 的过期时间` }
+        if (code === -2) return { ok: false, message: t('字段 {field} 不存在', { field }) }
+        if (code === -1) return { ok: true, message: t('字段 {field} 本就是永久字段', { field }) }
+        return { ok: true, message: t('已清除字段 {field} 的过期时间', { field }) }
       }
 
       const reply = await this.raw(client, 'HEXPIRE', key, seconds, 'FIELDS', 1, field)
       const code = Array.isArray(reply) ? Number(reply[0]) : Number(reply)
 
       // 返回值语义见 Redis 官方文档：-2 不存在 / 2 已过期被删除 / 1 设置成功
-      if (code === -2) return { ok: false, message: `字段 ${field} 不存在` }
-      if (code === 2) return { ok: true, message: `字段 ${field} 已过期并被移除` }
-      return { ok: true, message: `字段 ${field} 的 TTL 已设置为 ${seconds}s` }
+      if (code === -2) return { ok: false, message: t('字段 {field} 不存在', { field }) }
+      if (code === 2) return { ok: true, message: t('字段 {field} 已过期并被移除', { field }) }
+      return { ok: true, message: t('字段 {field} 的 TTL 已设置为 {seconds}s', { field, seconds }) }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       if (/unknown command/i.test(message)) {
-        return { ok: false, message: '当前服务端不支持字段级 TTL，需要 Redis 7.4 及以上版本' }
+        return { ok: false, message: t('当前服务端不支持字段级 TTL，需要 Redis 7.4 及以上版本') }
       }
       return { ok: false, message }
     }
@@ -1307,15 +1317,15 @@ class ConnectionManager {
   ): Promise<OperationResult> {
     const client = this.mustGet(id)
     const target = nextMember.trim()
-    if (!target) return { ok: false, message: '成员内容不能为空' }
-    if (!Number.isFinite(nextScore)) return { ok: false, message: 'score 必须是数字' }
-    if (!(await client.exists(key))) return { ok: false, message: `键 ${key} 已不存在` }
+    if (!target) return { ok: false, message: t('成员内容不能为空') }
+    if (!Number.isFinite(nextScore)) return { ok: false, message: t('score 必须是数字') }
+    if (!(await client.exists(key))) return { ok: false, message: t('键 {key} 已不存在', { key }) }
 
     const renamed = target !== member
 
     if (!renamed) {
       await client.zadd(key, nextScore, target)
-      return { ok: true, message: `已更新 ${target} 的 score 为 ${nextScore}` }
+      return { ok: true, message: t('已更新 {member} 的 score 为 {score}', { member: target, score: nextScore }) }
     }
 
     // 改名：旧成员可能与他人重名冲突，如实提示
@@ -1326,13 +1336,28 @@ class ConnectionManager {
     await pipeline.exec()
 
     const total = await client.zcard(key)
-    const tail = total ? '' : '（集合已空，键随之移除）'
     return {
       ok: true,
       message:
         existed !== null
-          ? `已移除 ${member}（${target} 原本已存在，score 已更新为 ${nextScore}）${tail}`
-          : `已将 ${member} 改为 ${target}（score ${nextScore}）${tail}`,
+          ? total
+            ? t('已移除 {member}（{target} 原本已存在，score 已更新为 {score}）', {
+                member,
+                target,
+                score: nextScore,
+              })
+            : t('已移除 {member}（{target} 原本已存在，score 已更新为 {score}）（集合已空，键随之移除）', {
+                member,
+                target,
+                score: nextScore,
+              })
+          : total
+            ? t('已将 {member} 改为 {target}（score {score}）', { member, target, score: nextScore })
+            : t('已将 {member} 改为 {target}（score {score}）（集合已空，键随之移除）', {
+                member,
+                target,
+                score: nextScore,
+              }),
     }
   }
 
@@ -1340,12 +1365,14 @@ class ConnectionManager {
   async deleteZsetMember(id: string, key: string, member: string): Promise<OperationResult> {
     const client = this.mustGet(id)
     const removed = await client.zrem(key, member)
-    if (!removed) return { ok: false, message: `成员 ${member} 不存在` }
+    if (!removed) return { ok: false, message: t('成员 {member} 不存在', { member }) }
 
     const left = await client.zcard(key)
     return {
       ok: true,
-      message: left ? `已删除成员 ${member}` : `已删除成员 ${member}（集合已空，键随之移除）`,
+      message: left
+        ? t('已删除成员 {member}', { member })
+        : t('已删除成员 {member}（集合已空，键随之移除）', { member }),
     }
   }
 
@@ -1358,8 +1385,8 @@ class ConnectionManager {
   ): Promise<OperationResult> {
     const client = this.mustGet(id)
     const target = member.trim()
-    if (!target) return { ok: false, message: '成员内容不能为空' }
-    if (!Number.isFinite(score)) return { ok: false, message: 'score 必须是数字' }
+    if (!target) return { ok: false, message: t('成员内容不能为空') }
+    if (!Number.isFinite(score)) return { ok: false, message: t('score 必须是数字') }
 
     const exists = await client.exists(key)
     const existingScore = await client.zscore(key, target)
@@ -1367,13 +1394,13 @@ class ConnectionManager {
     const total = await client.zcard(key)
 
     if (existingScore !== null) {
-      return { ok: true, message: `成员 ${target} 已存在，score 已更新为 ${score}` }
+      return { ok: true, message: t('成员 {member} 已存在，score 已更新为 {score}', { member: target, score }) }
     }
     return {
       ok: true,
       message: exists
-        ? `已添加成员 ${target}（共 ${total} 个）`
-        : `已创建有序集合并添加（共 ${total} 个）`,
+        ? t('已添加成员 {member}（共 {count} 个）', { member: target, count: total })
+        : t('已创建有序集合并添加（共 {count} 个）', { count: total }),
     }
   }
 
@@ -1387,13 +1414,15 @@ class ConnectionManager {
   async xaddEntry(id: string, key: string, field: string, value: string): Promise<OperationResult> {
     const client = this.mustGet(id)
     const target = field.trim()
-    if (!target) return { ok: false, message: '字段名不能为空' }
+    if (!target) return { ok: false, message: t('字段名不能为空') }
 
     const exists = await client.exists(key)
     const entryId = await client.xadd(key, '*', target, value)
     return {
       ok: true,
-      message: exists ? `已追加消息 ${entryId}` : `已创建流并追加消息 ${entryId}`,
+      message: exists
+        ? t('已追加消息 {id}', { id: String(entryId) })
+        : t('已创建流并追加消息 {id}', { id: String(entryId) }),
     }
   }
 
@@ -1413,11 +1442,11 @@ class ConnectionManager {
   ): Promise<OperationResult> {
     const client = this.mustGet(id)
     const target = next.trim()
-    if (!target) return { ok: false, message: '成员内容不能为空' }
-    if (!(await client.exists(key))) return { ok: false, message: `键 ${key} 已不存在` }
+    if (!target) return { ok: false, message: t('成员内容不能为空') }
+    if (!(await client.exists(key))) return { ok: false, message: t('键 {key} 已不存在', { key }) }
 
     if (target === member) {
-      return { ok: true, message: '内容未发生变化' }
+      return { ok: true, message: t('内容未发生变化') }
     }
 
     const existed = await client.sismember(key, target)
@@ -1427,12 +1456,15 @@ class ConnectionManager {
     await pipeline.exec()
 
     const left = await client.scard(key)
-    const tail = left ? '' : '（集合已空，键随之移除）'
     return {
       ok: true,
       message: existed
-        ? `已删除成员 ${member}（${target} 原本已存在）${tail}`
-        : `已将 ${member} 改为 ${target}${tail}`,
+        ? left
+          ? t('已删除成员 {member}（{target} 原本已存在）', { member, target })
+          : t('已删除成员 {member}（{target} 原本已存在）（集合已空，键随之移除）', { member, target })
+        : left
+          ? t('已将 {member} 改为 {target}', { member, target })
+          : t('已将 {member} 改为 {target}（集合已空，键随之移除）', { member, target }),
     }
   }
 
@@ -1440,12 +1472,14 @@ class ConnectionManager {
   async deleteSetMember(id: string, key: string, member: string): Promise<OperationResult> {
     const client = this.mustGet(id)
     const removed = await client.srem(key, member)
-    if (!removed) return { ok: false, message: `成员 ${member} 不存在` }
+    if (!removed) return { ok: false, message: t('成员 {member} 不存在', { member }) }
 
     const left = await client.scard(key)
     return {
       ok: true,
-      message: left ? `已删除成员 ${member}` : `已删除成员 ${member}（集合已空，键随之移除）`,
+      message: left
+        ? t('已删除成员 {member}', { member })
+        : t('已删除成员 {member}（集合已空，键随之移除）', { member }),
     }
   }
 
@@ -1453,16 +1487,18 @@ class ConnectionManager {
   async addSetMember(id: string, key: string, member: string): Promise<OperationResult> {
     const client = this.mustGet(id)
     const target = member.trim()
-    if (!target) return { ok: false, message: '成员内容不能为空' }
+    if (!target) return { ok: false, message: t('成员内容不能为空') }
 
     const exists = await client.exists(key)
     const added = await client.sadd(key, target)
     const total = await client.scard(key)
 
-    if (!added) return { ok: true, message: `成员 ${target} 已存在，未重复添加` }
+    if (!added) return { ok: true, message: t('成员 {member} 已存在，未重复添加', { member: target }) }
     return {
       ok: true,
-      message: exists ? `已添加成员 ${target}（共 ${total} 个）` : `已创建集合并添加（共 ${total} 个）`,
+      message: exists
+        ? t('已添加成员 {member}（共 {count} 个）', { member: target, count: total })
+        : t('已创建集合并添加（共 {count} 个）', { count: total }),
     }
   }
 
@@ -1476,10 +1512,12 @@ class ConnectionManager {
   async deleteListElement(id: string, key: string, index: number): Promise<OperationResult> {
     const client = this.mustGet(id)
     const length = await client.llen(key)
-    if (index < 0 || index >= length) return { ok: false, message: '该位置已不存在（列表长度已变化）' }
+    if (index < 0 || index >= length) {
+      return { ok: false, message: t('该位置已不存在（列表长度已变化）') }
+    }
 
     const current = await client.lindex(key, index)
-    if (current === null) return { ok: false, message: '该位置已不存在' }
+    if (current === null) return { ok: false, message: t('该位置已不存在') }
 
     // 先用哨兵替换目标位置，再用 LREM 精确删除，避免误删同值的其他元素
     const token = `__RDM_DEL_${Date.now()}_${Math.random().toString(36).slice(2)}__`
@@ -1489,7 +1527,9 @@ class ConnectionManager {
     const left = await client.llen(key)
     return {
       ok: true,
-      message: left ? `已删除第 ${index + 1} 项` : `已删除第 ${index + 1} 项（列表已空，键随之移除）`,
+      message: left
+        ? t('已删除第 {index} 项', { index: index + 1 })
+        : t('已删除第 {index} 项（列表已空，键随之移除）', { index: index + 1 }),
     }
   }
 
@@ -1505,10 +1545,12 @@ class ConnectionManager {
   ): Promise<OperationResult> {
     const client = this.mustGet(id)
     const length = await client.llen(key)
-    if (index < 0 || index >= length) return { ok: false, message: '该位置已不存在（列表长度已变化）' }
+    if (index < 0 || index >= length) {
+      return { ok: false, message: t('该位置已不存在（列表长度已变化）') }
+    }
 
     await client.lset(key, index, value)
-    return { ok: true, message: `已更新第 ${index + 1} 项` }
+    return { ok: true, message: t('已更新第 {index} 项', { index: index + 1 }) }
   }
 
   /**
@@ -1522,7 +1564,9 @@ class ConnectionManager {
     const length = await client.llen(key)
     return {
       ok: true,
-      message: exists ? `已追加到末尾（共 ${length} 项）` : `已创建列表并追加（共 ${length} 项）`,
+      message: exists
+        ? t('已追加到末尾（共 {count} 项）', { count: length })
+        : t('已创建列表并追加（共 {count} 项）', { count: length }),
     }
   }
 
@@ -1540,7 +1584,7 @@ class ConnectionManager {
   ): Promise<OperationResult> {
     const client = this.mustGet(id)
     const pivot = await client.lindex(key, index)
-    if (pivot === null) return { ok: false, message: '基准位置已不存在' }
+    if (pivot === null) return { ok: false, message: t('基准位置已不存在') }
 
     // LINSERT 以「值」为基准，遇到重复值会插错位置，因此同样用哨兵替换法
     const token = `__RDM_PIVOT_${Date.now()}_${Math.random().toString(36).slice(2)}__`
@@ -1551,7 +1595,13 @@ class ConnectionManager {
     // 把哨兵还原为原值
     await client.lset(key, index, pivot)
 
-    return { ok: true, message: `已在第 ${index + 1} 项${position === 'before' ? '前' : '后'}插入` }
+    return {
+      ok: true,
+      message:
+        position === 'before'
+          ? t('已在第 {index} 项前插入', { index: index + 1 })
+          : t('已在第 {index} 项后插入', { index: index + 1 }),
+    }
   }
 
   /**
@@ -1573,8 +1623,8 @@ class ConnectionManager {
     const client = this.mustGet(id)
     const target = (nextField ?? field).trim()
 
-    if (!target) return { ok: false, message: '字段名不能为空' }
-    if (!(await client.exists(key))) return { ok: false, message: `键 ${key} 已不存在` }
+    if (!target) return { ok: false, message: t('字段名不能为空') }
+    if (!(await client.exists(key))) return { ok: false, message: t('键 {key} 已不存在', { key }) }
 
     await client.hset(key, target, value)
 
@@ -1589,9 +1639,9 @@ class ConnectionManager {
 
     if (target !== field) {
       await client.hdel(key, field)
-      return { ok: true, message: `已重命名为 ${target}` }
+      return { ok: true, message: t('已重命名为 {name}', { name: target }) }
     }
-    return { ok: true, message: `已更新字段 ${target}` }
+    return { ok: true, message: t('已更新字段 {field}', { field: target }) }
   }
 
   async renameKey(id: string, key: string, newKey: string): Promise<OperationResult> {
@@ -1604,20 +1654,20 @@ class ConnectionManager {
      */
     const exists = await client.exists(newKey)
     if (exists) {
-      throw new Error(`目标键 ${newKey} 已存在，重命名会覆盖它，已拒绝执行`)
+      throw new Error(t('目标键 {key} 已存在，重命名会覆盖它，已拒绝执行', { key: newKey }))
     }
     await client.rename(key, newKey)
-    return { ok: true, message: '已重命名' }
+    return { ok: true, message: t('已重命名') }
   }
 
   async setTtl(id: string, key: string, seconds: number): Promise<OperationResult> {
     const client = this.mustGet(id)
     if (seconds <= 0) {
       await client.persist(key)
-      return { ok: true, message: '已设置为永久' }
+      return { ok: true, message: t('已设置为永久') }
     }
     await client.expire(key, seconds)
-    return { ok: true, message: `TTL 已设置为 ${seconds}s` }
+    return { ok: true, message: t('TTL 已设置为 {seconds}s', { seconds }) }
   }
 
   /**
@@ -1634,19 +1684,19 @@ class ConnectionManager {
     const client = this.mustGet(id)
     const name = key.trim()
 
-    if (!name) return { ok: false, message: '键名不能为空' }
-    if (await client.exists(name)) return { ok: false, message: `键 ${name} 已存在` }
+    if (!name) return { ok: false, message: t('键名不能为空') }
+    if (await client.exists(name)) return { ok: false, message: t('键 {key} 已存在', { key: name }) }
 
     if (type !== 'string') {
       const isEmpty =
         type === 'hash'
           ? Object.keys(payload as Record<string, string>).length === 0
           : (payload as string[]).length === 0
-      if (isEmpty) return { ok: false, message: `${type} 类型至少需要一个元素才能落库` }
+      if (isEmpty) return { ok: false, message: t('{type} 类型至少需要一个元素才能落库', { type }) }
     }
 
     const result = await this.setValue(id, name, type, payload, ttlSeconds, true)
-    return result.ok ? { ok: true, message: `已创建 ${name}` } : result
+    return result.ok ? { ok: true, message: t('已创建 {key}', { key: name }) } : result
   }
 
   // ---------------------------------------------------------------- CLI
@@ -1662,7 +1712,7 @@ class ConnectionManager {
      * CLI 敲 select 2 后，界面切库判断仍以为连接在 db0，键列表全部对不上。
      */
     const managed = this.pool.get(id)
-    if (!managed) throw new Error('连接不存在或已断开，请先建立连接')
+    if (!managed) throw new Error(t('连接不存在或已断开，请先建立连接'))
     const client = managed.client
 
     const started = Date.now()

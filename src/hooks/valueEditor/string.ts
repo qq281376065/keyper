@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { t } from '@/i18n'
 import { prettyJson, utf8Bytes } from '@/utils/format'
 import { useRedis } from '@/store/useRedis'
 import type { ValueEditorContext } from './shared'
@@ -128,23 +129,33 @@ export function useStringEditor(ctx: ValueEditorContext) {
   const statsLines = useMemo<string[]>(() => (text ? text.split('\n') : []), [text])
   const lineCount = statsLines.length
 
-  /** string 统计：字符数、行数、字节数、最长行 —— 集中显示在底部状态栏 */
-  const stringStats = useMemo(() => {
-    let longestNo = -1
-    let longestLen = -1
+  /** 最长行统计：行号（1 起）与字符数，-1 表示无内容 */
+  const longestLine = useMemo(() => {
+    let no = -1
+    let len = -1
     statsLines.forEach((line, i) => {
-      if (line.length > longestLen) {
-        longestLen = line.length
-        longestNo = i + 1
+      if (line.length > len) {
+        len = line.length
+        no = i + 1
       }
     })
-    return {
-      chars: text.length,
-      lines: statsLines.length,
-      bytes: utf8Bytes(stringParsed.raw),
-      longest: longestNo > 0 ? `#${longestNo}（${longestLen} 字符）` : '-',
-    }
-  }, [text, statsLines, stringParsed.raw])
+    return { no, len }
+  }, [statsLines])
+
+  /** string 统计：字符数、行数、字节数、最长行 —— 集中显示在底部状态栏 */
+  /*
+   * 最长行文案在渲染期翻译（不放进 useMemo）：
+   * t() 读取的是当前语言，若缓存进 memo，切换语言后不会随重渲染更新。
+   */
+  const stringStats = {
+    chars: text.length,
+    lines: statsLines.length,
+    bytes: utf8Bytes(stringParsed.raw),
+    longest:
+      longestLine.no > 0
+        ? t('#{no}（{chars} 字符）', { no: longestLine.no, chars: longestLine.len })
+        : '-',
+  }
 
   /**
    * string 搜索视图：按行过滤（保留原始行号，便于回到完整视图中定位）。

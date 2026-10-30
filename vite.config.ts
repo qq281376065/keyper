@@ -51,6 +51,10 @@ export default defineConfig(({ command, mode }) => {
               main: {
                 entry: 'electron/main.ts',
                 vite: {
+                  /* 主进程是独立构建，不继承顶层 resolve.alias */
+                  resolve: {
+                    alias: { '@shared': path.resolve(__dirname, 'shared') },
+                  },
                   build: {
                     outDir: 'dist-electron',
                     minify: isBuild,

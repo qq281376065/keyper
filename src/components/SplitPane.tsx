@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useI18n } from '@/i18n'
 
 /**
  * 竖向分隔条：拖动调整相邻两栏的宽度。
@@ -37,6 +38,7 @@ export function SplitPane({
   onChange,
   onCommit,
 }: SplitPaneProps) {
+  const { t } = useI18n()
   const [dragging, setDragging] = useState(false)
 
   const startX = useRef(0)
@@ -132,7 +134,7 @@ export function SplitPane({
       aria-valuenow={value}
       aria-valuemin={min}
       aria-valuemax={max}
-      title={`拖动调整宽度（${min}–${max}px），双击恢复 ${defaultValue}px`}
+      title={t('拖动调整宽度（{min}–{max}px），双击恢复 {defaultValue}px', { min, max, defaultValue })}
       onPointerDown={start}
       onDoubleClick={reset}
     >

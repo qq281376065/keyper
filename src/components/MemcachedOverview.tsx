@@ -1,37 +1,35 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { DialogIcon, type DialogIconName } from '@/components/DialogIcon'
-import { SearchFilterBox } from '@/components/SearchFilterBox'
 import { tipProps } from '@/components/tip'
+import { useI18n } from '@/i18n'
 import { api } from '@/api'
 import { useRedis } from '@/store/useRedis'
-import type { ConfirmRequest } from '@/store/session'
 import { formatBytes } from '@/utils/format'
 import { emitMcKeysChanged } from '@/utils/memcachedEvents'
-import type { MemcachedKeyList, MemcachedOverview, MemcachedSlab } from '@shared/types'
+import type { TParams } from '@shared/i18n'
+import type { MemcachedOverview, MemcachedSlab } from '@shared/types'
 
 /**
  * Memcached 服务端信息面板。
  *
  * 与 Redis 的 ServerOverview 是**两个独立组件**，不做成"一个组件里两套分支"：
  *   · 两者的页签语义完全不同（Redis 是 9 段落 INFO / 慢查询 / 内存 / Pub-Sub；
- *     Memcached 是 统计 / 键浏览 / 设置）；
+ *     Memcached 是 统计 / 设置）；
  *   · 合并会让单个文件膨胀到难以维护，且任一侧改动都要重新理解另一侧；
  *   · 隔离之后，Memcached 面板出错不会波及 Redis 面板的渲染路径。
  *
  * 设计取舍：
  *   1. Memcached 没有"库"的概念，因此不出现任何 db 相关 UI；
- *   2. 键浏览依赖 `stats cachedump`（调试命令），界面必须如实标注其限制，
- *      否则用户会以为"键就只有这些"；
+ *   2. 键浏览统一走左侧键栏（含 slab 分组、搜索、删除），详情页不再重复一份；
  *   3. 命中率、淘汰数是 Memcached 运维最关心的两个数，放在顶部卡片；
  *   4. 所有数值都可能因为服务端禁用而未提供，一律显示 `—` 而不是 0 ——
  *      0 会被读成"确实是零"，而 `—` 表示"没拿到"。
  */
 
-type Tab = 'stats' | 'keys' | 'settings'
+type Tab = 'stats' | 'settings'
 
 const TABS: Array<{ key: Tab; label: string; icon: DialogIconName }> = [
   { key: 'stats', label: '统计', icon: 'info' },
-  { key: 'keys', label: '键浏览', icon: 'tree' },
   { key: 'settings', label: '设置', icon: 'settings' },
 ]
 
@@ -50,6 +48,7 @@ function pct(hit: number | undefined, total: number | undefined): number | undef
 }
 
 export function MemcachedOverview() {
+  const { t } = useI18n()
   const { state, activateAndRefresh, askConfirm, notify } = useRedis()
   const connection = state.connections.find((item) => item.id === state.activeId)
   const id = state.activeId
@@ -61,15 +60,7 @@ export function MemcachedOverview() {
   const [error, setError] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
 
-  /** 键浏览：显式触发，避免大实例上一进面板就扫全库 */
-  const [keys, setKeys] = useState<MemcachedKeyList | null>(null)
-  const [keysLoading, setKeysLoading] = useState(false)
-  const [keysError, setKeysError] = useState<string | null>(null)
-  const [selected, setSelected] = useState<{ key: string; data: string; bytes: number; flags: number } | null>(null)
-  const [keyFilter, setKeyFilter] = useState('')
-  /** 键筛选的精确匹配：开启后按键名全等（区别于子串） */
-  const [keyExact, setKeyExact] = useState(false)
-  /** 统计项筛选：与键筛选分开 —— 一个筛 stats 的 key，一个筛缓存键名 */
+  /** 统计项筛选：与左栏键筛选分开 —— 这里筛的是 stats 的字段名 */
   const [statFilter, setStatFilter] = useState('')
   /** 统计项的精确匹配（全等）；关闭时为子串匹配 */
   const [statExact, setStatExact] = useState(false)
@@ -96,7 +87,7 @@ export function MemcachedOverview() {
         if (!aliveRef.current) return
         if (slabRes.ok) setSlabs(slabRes.data)
       } catch (err) {
-        if (aliveRef.current) setError(err instanceof Error ? err.message : '读取失败')
+        if (aliveRef.current) setError(err instanceof Error ? err.message : t('读取失败'))
       } finally {
         if (aliveRef.current) setLoading(false)
       }
@@ -105,10 +96,6 @@ export function MemcachedOverview() {
   )
 
   useEffect(() => {
-    setKeys(null)
-    setSelected(null)
-    setKeyFilter('')
-    setKeyExact(false)
     void load()
   }, [id, load])
 
@@ -122,96 +109,28 @@ export function MemcachedOverview() {
     }
   }
 
-  async function loadKeys(): Promise<void> {
-    if (!id) return
-    setKeysLoading(true)
-    setKeysError(null)
-    try {
-      const res = await api.memcached.keys(id, { perSlab: 500 })
-      if (!aliveRef.current) return
-      if (!res.ok) throw new Error(res.error)
-      setKeys(res.data)
-    } catch (err) {
-      if (aliveRef.current) setKeysError(err instanceof Error ? err.message : '读取失败')
-    } finally {
-      if (aliveRef.current) setKeysLoading(false)
-    }
-  }
-
-  async function openKey(key: string): Promise<void> {
-    if (!id) return
-    try {
-      const res = await api.memcached.get(id, key)
-      if (!res.ok) throw new Error(res.error)
-      if (!res.data.found) {
-        notify('err', '键已过期或被删除')
-        return
-      }
-      setSelected({ key, data: res.data.data, bytes: res.data.bytes, flags: res.data.flags })
-    } catch (err) {
-      notify('err', err instanceof Error ? err.message : '读取失败')
-    }
-  }
-
-  async function removeKey(key: string): Promise<void> {
-    if (!id) return
-    const target = keys?.items.find((item) => item.key === key)
-    const details: NonNullable<ConfirmRequest['details']> = [
-      { label: '键名', value: key, mono: true },
-    ]
-    if (target) {
-      details.push({
-        label: '过期',
-        value: target.expiresAt ? formatExpiry(target.expiresAt) : '永久',
-        mono: true,
-        tone: 'muted',
-      })
-      details.push({ label: '大小', value: formatBytes(target.bytes), mono: true, tone: 'muted' })
-    }
-    const ok = await askConfirm({
-      title: '删除键',
-      message: '即将从当前实例中移除该键：',
-      details,
-      warning: '此操作不可撤销，键及其全部数据将被立即删除；依赖该缓存的请求会回源。',
-      confirmText: '删除',
-      danger: true,
-    })
-    if (!ok) return
-    const res = await api.memcached.remove(id, key)
-    if (res.ok && res.data.ok) {
-      notify('ok', res.data.message ?? '已删除')
-      setSelected(null)
-      await loadKeys()
-      emitMcKeysChanged()
-    } else {
-      notify('err', res.ok ? (res.data.message ?? '删除失败') : res.error)
-    }
-  }
-
   async function flushAll(): Promise<void> {
     if (!id) return
     const ok = await askConfirm({
-      title: '清空全部数据',
-      message: '即将执行 flush_all，清空该 Memcached 实例的所有缓存项：',
+      title: t('清空全部数据'),
+      message: t('即将执行 flush_all，清空该 Memcached 实例的所有缓存项：'),
       details: [
-        { label: '实例', value: `${connection?.host ?? ''}:${connection?.port ?? ''}`, mono: true },
-        { label: '当前条目', value: String(num(overview?.stats ?? {}, 'curr_items') ?? '—'), mono: true },
+        { label: t('实例'), value: `${connection?.host ?? ''}:${connection?.port ?? ''}`, mono: true },
+        { label: t('当前条目'), value: String(num(overview?.stats ?? {}, 'curr_items') ?? '—'), mono: true },
       ],
-      warning: '这是不可撤销的整体操作，所有业务缓存会同时失效。',
-      confirmText: '清空',
+      warning: t('这是不可撤销的整体操作，所有业务缓存会同时失效。'),
+      confirmText: t('清空'),
       danger: true,
       force: true,
     })
     if (!ok) return
     const res = await api.memcached.flush(id)
     if (res.ok && res.data.ok) {
-      notify('ok', res.data.message ?? '已清空')
-      setKeys(null)
-      setSelected(null)
+      notify('ok', res.data.message ?? t('已清空'))
       await load()
       emitMcKeysChanged()
     } else {
-      notify('err', res.ok ? (res.data.message ?? '清空失败') : res.error)
+      notify('err', res.ok ? (res.data.message ?? t('清空失败')) : res.error)
     }
   }
 
@@ -230,56 +149,56 @@ export function MemcachedOverview() {
 
   const cards: Array<{ title: string; icon: DialogIconName; rows: Array<{ label: string; value: string; tone?: 'warn' | 'bad' }> }> = [
     {
-      title: '服务',
+      title: t('服务'),
       icon: 'info',
       rows: [
-        { label: '版本', value: version },
-        { label: '线程数', value: stats.threads ?? '—' },
-        { label: '运行时长', value: uptime === undefined ? '—' : formatUptime(uptime) },
+        { label: t('版本'), value: version },
+        { label: t('线程数'), value: stats.threads ?? '—' },
+        { label: t('运行时长'), value: uptime === undefined ? '—' : formatUptime(uptime, t) },
       ],
     },
     {
-      title: '内存',
+      title: t('内存'),
       icon: 'memory',
       rows: [
         {
-          label: '已用',
+          label: t('已用'),
           value: usedBytes === undefined ? '—' : formatBytes(usedBytes),
         },
         {
-          label: '上限',
+          label: t('上限'),
           value: limitBytes === undefined ? '—' : formatBytes(limitBytes),
           tone: usage !== undefined && usage > 90 ? 'warn' : undefined,
         },
-        { label: '占用率', value: usage === undefined ? '—' : `${usage.toFixed(1)}%` },
+        { label: t('占用率'), value: usage === undefined ? '—' : `${usage.toFixed(1)}%` },
       ],
     },
     {
-      title: '命中',
+      title: t('命中'),
       icon: 'bolt',
       rows: [
         {
-          label: '命中率',
+          label: t('命中率'),
           value: hitRate === undefined ? '—' : `${hitRate.toFixed(1)}%`,
           /* 低于 90% 用琥珀提醒：通常意味着缓存没起作用 */
           tone: hitRate !== undefined && hitRate < 90 ? 'warn' : undefined,
         },
-        { label: '命中/未中', value: getHits === undefined && getMisses === undefined ? '—' : `${getHits ?? 0} / ${getMisses ?? 0}` },
-        { label: '条目数', value: currItems === undefined ? '—' : String(currItems) },
+        { label: t('命中/未中'), value: getHits === undefined && getMisses === undefined ? '—' : `${getHits ?? 0} / ${getMisses ?? 0}` },
+        { label: t('条目数'), value: currItems === undefined ? '—' : String(currItems) },
       ],
     },
     {
-      title: '状态',
+      title: t('状态'),
       icon: 'activity',
       rows: [
-        { label: '当前连接', value: currConn === undefined ? '—' : String(currConn) },
+        { label: t('当前连接'), value: currConn === undefined ? '—' : String(currConn) },
         {
-          label: '淘汰数',
+          label: t('淘汰数'),
           value: evictions === undefined ? '—' : String(evictions),
           /* 有淘汰说明内存不够，是要处理的信号 */
           tone: evictions !== undefined && evictions > 0 ? 'bad' : undefined,
         },
-        { label: '总条目', value: stats.total_items ?? '—' },
+        { label: t('总条目'), value: stats.total_items ?? '—' },
       ],
     },
   ]
@@ -304,20 +223,11 @@ export function MemcachedOverview() {
       : all.filter(([key]) => key.toLowerCase().includes(kw.toLowerCase()))
   })()
 
-  /**
-   * 键筛选：模糊为子串、不区分大小写；精确为键名全等、区分大小写 ——
-   * 与左栏键浏览器的筛选语义保持一致，两处给出的结果不会互相矛盾。
-   */
-  const keyKw = keyFilter.trim()
-  const filteredKeys = (keys?.items ?? []).filter((item) =>
-    !keyKw ? true : keyExact ? item.key === keyKw : item.key.toLowerCase().includes(keyKw.toLowerCase()),
-  )
-
   return (
     <div className="overview s-mc-overview">
       <header className="ov-head">
         <div className="ov-ident">
-          <span className="ov-name">{connection?.name ?? '当前实例'}</span>
+          <span className="ov-name">{connection?.name ?? t('当前实例')}</span>
           <span className="ov-endpoint mono">
             {connection ? `${connection.host}:${connection.port}` : ''}
           </span>
@@ -332,11 +242,11 @@ export function MemcachedOverview() {
         <button
           className="ov-refresh"
           disabled={refreshing}
-          {...tipProps('刷新统计信息')}
+          {...tipProps(t('刷新统计信息'))}
           onClick={() => void refreshAll()}
         >
           <DialogIcon name="refresh" size={13} className={`ti${refreshing ? ' spin' : ''}`} />
-          {refreshing ? '刷新中…' : '刷新'}
+          {refreshing ? t('刷新中…') : t('刷新')}
         </button>
       </header>
 
@@ -345,7 +255,7 @@ export function MemcachedOverview() {
           <DialogIcon name="warning" size={14} />
           <span>{error}</span>
           <button className="mc-retry" onClick={() => void load()}>
-            重试
+            {t('重试')}
           </button>
         </div>
       ) : null}
@@ -353,8 +263,8 @@ export function MemcachedOverview() {
       {loading && !overview ? (
         <div className="ov-loading">
           <span className="ov-badge">Memcached</span>
-          <p>正在读取统计信息…</p>
-          <p className="ov-hint">若长时间无响应，请检查实例是否仍然可用</p>
+          <p>{t('正在读取统计信息…')}</p>
+          <p className="ov-hint">{t('若长时间无响应，请检查实例是否仍然可用')}</p>
         </div>
       ) : (
         <>
@@ -385,7 +295,7 @@ export function MemcachedOverview() {
                 className={`ov-tab${tab === item.key ? ' active' : ''}`}
                 onClick={() => setTab(item.key)}
               >
-                {item.label}
+                {t(item.label)}
               </button>
             ))}
           </nav>
@@ -394,10 +304,10 @@ export function MemcachedOverview() {
             <div className="ov-tab-pane">
               <section className="mc-pane-card">
                 <header className="mc-pane-head">
-                  <h4 className="mc-pane-title">全部统计项</h4>
+                  <h4 className="mc-pane-title">{t('全部统计项')}</h4>
                   <span className="mc-pane-count mono">
                     {statRows.length === Object.keys(stats).length
-                      ? `${statRows.length} 项`
+                      ? t('{count} 项', { count: statRows.length })
                       : `${statRows.length} / ${Object.keys(stats).length}`}
                   </span>
                   <span className="spacer" />
@@ -412,13 +322,13 @@ export function MemcachedOverview() {
                       value={statFilter}
                       onChange={(event) => setStatFilter(event.target.value)}
                       className="mc-search-input mono"
-                      placeholder={statExact ? '完整字段名' : '搜索字段名'}
+                      placeholder={statExact ? t('完整字段名') : t('搜索字段名')}
                       spellCheck={false}
                     />
                     {statFilter ? (
                       <button
                         className="mc-search-clear"
-                        {...tipProps('清除')}
+                        {...tipProps(t('清除'))}
                         onClick={() => setStatFilter('')}
                       >
                         <DialogIcon name="cancel" size={10} />
@@ -428,7 +338,7 @@ export function MemcachedOverview() {
                       className={`mc-search-exact${statExact ? ' on' : ''}`}
                       role="checkbox"
                       aria-checked={statExact}
-                      {...tipProps(statExact ? '精确匹配（点击切换为模糊）' : '模糊匹配（点击切换为精确）')}
+                      {...tipProps(statExact ? t('精确匹配（点击切换为模糊）') : t('模糊匹配（点击切换为精确）'))}
                       onClick={() => setStatExact((v) => !v)}
                     >
                       Aa
@@ -450,25 +360,25 @@ export function MemcachedOverview() {
                   </div>
                 ) : (
                   <p className="mc-empty">
-                    没有匹配「{statFilter}」的统计项
-                    {statExact ? '（当前为精确匹配，试试切换为模糊）' : ''}
+                    {t('没有匹配「{filter}」的统计项', { filter: statFilter })}
+                    {statExact ? t('（当前为精确匹配，试试切换为模糊）') : ''}
                   </p>
                 )}
               </section>
 
               <section className="mc-pane-card">
                 <header className="mc-pane-head">
-                  <h4 className="mc-pane-title">slab 分布</h4>
-                  <span className="mc-pane-count mono">{slabs.length} 个 class</span>
+                  <h4 className="mc-pane-title">{t('slab 分布')}</h4>
+                  <span className="mc-pane-count mono">{t('{count} 个 class', { count: slabs.length })}</span>
                 </header>
                 {slabs.length ? (
                   <table className="mc-table">
                     <thead>
                       <tr>
                         <th>slab</th>
-                        <th>条目数</th>
-                        <th>最老条目</th>
-                        <th>淘汰数</th>
+                        <th>{t('条目数')}</th>
+                        <th>{t('最老条目')}</th>
+                        <th>{t('淘汰数')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -476,127 +386,16 @@ export function MemcachedOverview() {
                         <tr key={slab.slab}>
                           <td className="mono">{slab.slab}</td>
                           <td className="mono">{slab.count}</td>
-                          <td className="mono">{formatUptime(slab.age)}</td>
+                          <td className="mono">{formatUptime(slab.age, t)}</td>
                           <td className={`mono${slab.evicted > 0 ? ' bad' : ''}`.trim()}>{slab.evicted}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 ) : (
-                  <p className="mc-empty">当前实例没有缓存条目</p>
+                  <p className="mc-empty">{t('当前实例没有缓存条目')}</p>
                 )}
               </section>
-            </div>
-          ) : null}
-
-          {tab === 'keys' ? (
-            <div className="ov-tab-pane">
-              <section className="mc-pane-card mc-keys-card">
-                <header className="mc-pane-head">
-                  <h4 className="mc-pane-title">键列表</h4>
-                  <span className="spacer" />
-                  <button className="mc-run" disabled={keysLoading} onClick={() => void loadKeys()}>
-                    <DialogIcon name="search" size={12} className="ti" />
-                    {keysLoading ? '读取中…' : keys ? '重新读取' : '读取键列表'}
-                  </button>
-                </header>
-
-                {/*
-                  键搜索：直接复用左栏的 SearchFilterBox（历史 + 幽灵补全 +
-                  精确匹配 + 回车重读）。外面这层 s-key-browser 只是它的
-                  样式作用域；历史按「连接 @ 0」分桶，与左栏搜索共用同一份记录。
-                */}
-                <div className="s-key-browser mc-ov-search">
-                  <SearchFilterBox
-                    value={keyFilter}
-                    onChange={setKeyFilter}
-                    exact={keyExact}
-                    onToggleExact={() => setKeyExact((v) => !v)}
-                    onSearch={() => void loadKeys()}
-                    connectionId={id}
-                    historyDb={0}
-                    scopeLabel="Memcached"
-                    placeholder={keyExact ? '输入完整键名' : '输入即筛，回车重新读取'}
-                  />
-                </div>
-
-                {/*
-                  限制说明必须常驻，而不是折叠进 tooltip：
-                  cachedump 是调试命令，结果可能不完整，
-                  用户拿它做"有没有这个键"的判断会出错。
-                */}
-                <p className="mc-warn-line">
-                  <DialogIcon name="warning" size={12} className="ti" />
-                  Memcached 没有 KEYS/SCAN，此处通过 <code className="mono">stats cachedump</code> 按 slab
-                  取样（每个 slab 最多 500 条）。结果可能不完整，仅供排查参考；不会影响服务端数据。
-                </p>
-
-                {keysError ? <p className="mc-error-line">{keysError}</p> : null}
-
-                {keys ? (
-                  <>
-                    {keys.truncated ? (
-                      <p className="mc-note-line">取样已达上限，列表中可能缺少部分键。</p>
-                    ) : null}
-                    {keys.deniedSlabs.length ? (
-                      <p className="mc-note-line">
-                        以下 slab 拒绝返回数据（服务端可能禁用了 cachedump）：{keys.deniedSlabs.join('、')}
-                      </p>
-                    ) : null}
-                    {filteredKeys.length ? (
-                      <div className="mc-key-list">
-                        {filteredKeys.map((item) => (
-                          <div
-                            key={`${item.slab}:${item.key}`}
-                            className={`mc-key-row${selected?.key === item.key ? ' active' : ''}`}
-                            onClick={() => void openKey(item.key)}
-                          >
-                            <span className="mc-key-slab mono">{item.slab}</span>
-                            <span className="mc-key-name mono ellipsis">{item.key}</span>
-                            <span className="mc-key-bytes mono">{formatBytes(item.bytes)}</span>
-                            <span className="mc-key-exp mono">
-                              {item.expiresAt ? formatExpiry(item.expiresAt) : '永久'}
-                            </span>
-                            <button
-                              className="mc-key-del"
-                              {...tipProps('删除该键')}
-                              onClick={(event) => {
-                                event.stopPropagation()
-                                void removeKey(item.key)
-                              }}
-                            >
-                              {/* 与键栏、值区同一个删除图标（×），三处语义一致 */}
-                              <DialogIcon name="cancel" size={11} />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="mc-empty">
-                        {keyFilter ? '没有匹配的键' : '没有取到键。可能实例为空，或服务端禁用了 cachedump。'}
-                      </p>
-                    )}
-                  </>
-                ) : (
-                  <p className="mc-empty">点击「读取键列表」开始浏览</p>
-                )}
-              </section>
-
-              {selected ? (
-                <section className="mc-pane-card">
-                  <header className="mc-pane-head">
-                    <h4 className="mc-pane-title">值内容</h4>
-                    <span className="mc-pane-count mono">
-                      {formatBytes(selected.bytes)} · flags {selected.flags}
-                    </span>
-                    <span className="spacer" />
-                    <button className="mc-run" onClick={() => setSelected(null)}>
-                      关闭
-                    </button>
-                  </header>
-                  <pre className="mc-value mono">{selected.data || '(空值)'}</pre>
-                </section>
-              ) : null}
             </div>
           ) : null}
 
@@ -604,12 +403,12 @@ export function MemcachedOverview() {
             <div className="ov-tab-pane">
               <section className="mc-pane-card">
                 <header className="mc-pane-head">
-                  <h4 className="mc-pane-title">运行参数</h4>
-                  <span className="mc-pane-count mono">{Object.keys(overview?.settings ?? {}).length} 项</span>
+                  <h4 className="mc-pane-title">{t('运行参数')}</h4>
+                  <span className="mc-pane-count mono">{t('{count} 项', { count: Object.keys(overview?.settings ?? {}).length })}</span>
                   <span className="spacer" />
                   <button className="mc-run danger" onClick={() => void flushAll()}>
                     <DialogIcon name="trash" size={12} className="ti" />
-                    清空全部数据
+                    {t('清空全部数据')}
                   </button>
                 </header>
                 {Object.keys(overview?.settings ?? {}).length ? (
@@ -623,7 +422,7 @@ export function MemcachedOverview() {
                   </div>
                 ) : (
                   <p className="mc-empty">
-                    该实例没有返回 settings（部分托管服务会禁用该命令），因此无法展示运行参数。
+                    {t('该实例没有返回 settings（部分托管服务会禁用该命令），因此无法展示运行参数。')}
                   </p>
                 )}
               </section>
@@ -636,25 +435,15 @@ export function MemcachedOverview() {
 }
 
 /** 运行时长：86400 这类秒数对人类不直观，转成「1 天 2 小时」 */
-function formatUptime(seconds: number): string {
+function formatUptime(seconds: number, t: (key: string, params?: TParams) => string): string {
   if (!Number.isFinite(seconds) || seconds < 0) return '—'
-  if (seconds < 60) return `${Math.floor(seconds)} 秒`
+  if (seconds < 60) return t('{seconds} 秒', { seconds: Math.floor(seconds) })
   const days = Math.floor(seconds / 86400)
   const hours = Math.floor((seconds % 86400) / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)
-  if (days > 0) return `${days} 天 ${hours} 小时`
-  if (hours > 0) return `${hours} 小时 ${minutes} 分`
-  return `${minutes} 分`
-}
-
-/** 过期时间：显示剩余时长，比绝对时间戳更直观 */
-function formatExpiry(expiresAt: number): string {
-  const remain = expiresAt - Math.floor(Date.now() / 1000)
-  if (remain <= 0) return '已过期'
-  if (remain < 60) return `${remain} 秒后`
-  if (remain < 3600) return `${Math.floor(remain / 60)} 分后`
-  if (remain < 86400) return `${Math.floor(remain / 3600)} 时后`
-  return `${Math.floor(remain / 86400)} 天后`
+  if (days > 0) return t('{days} 天 {hours} 小时', { days, hours })
+  if (hours > 0) return t('{hours} 小时 {minutes} 分', { hours, minutes })
+  return t('{minutes} 分', { minutes })
 }
 
 export default MemcachedOverview

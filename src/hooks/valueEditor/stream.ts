@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { api } from '@/api'
+import { t } from '@/i18n'
 import { useRedis } from '@/store/useRedis'
 import { copyText } from '@/utils/clipboard'
 import { prettyJson, utf8Bytes } from '@/utils/format'
@@ -64,19 +65,22 @@ export function useStreamEditor(
   async function copyStreamId(row: { left?: string }): Promise<void> {
     const id = streamIdOf(row)
     const done = await copyText(id)
-    notify(done ? 'ok' : 'err', done ? `已复制 entry ID ${id}` : '复制失败，请检查剪贴板权限')
+    notify(
+      done ? 'ok' : 'err',
+      done ? t('已复制 entry ID {id}', { id }) : t('复制失败，请检查剪贴板权限'),
+    )
   }
 
   async function copyStreamFields(row: { text: string }): Promise<void> {
     const done = await copyText(row.text)
-    notify(done ? 'ok' : 'err', done ? '已复制字段内容' : '复制失败，请检查剪贴板权限')
+    notify(done ? 'ok' : 'err', done ? t('已复制字段内容') : t('复制失败，请检查剪贴板权限'))
   }
 
   /** 复制为 XADD 命令：排障时可直接粘进 redis-cli 复现这条消息 */
   async function copyStreamAsCommand(row: { text: string; left?: string }): Promise<void> {
     const key = getValue()?.key ?? ''
     const done = await copyText(`XADD ${key} ${streamIdOf(row)} ${streamToCommandFields(row.text)}`)
-    notify(done ? 'ok' : 'err', done ? '已复制 XADD 命令' : '复制失败，请检查剪贴板权限')
+    notify(done ? 'ok' : 'err', done ? t('已复制 XADD 命令') : t('复制失败，请检查剪贴板权限'))
   }
 
   /**
@@ -165,20 +169,22 @@ export function useStreamEditor(
 
   async function copyStreamAll(): Promise<void> {
     if (!streamStats.total) {
-      notify('err', '当前 stream 没有 entry')
+      notify('err', t('当前 stream 没有 entry'))
       return
     }
     const done = await copyText(streamAsText())
     notify(
       done ? 'ok' : 'err',
-      done ? `已复制 ${streamStats.total} 条 entry` : '复制失败，请检查剪贴板权限',
+      done
+        ? t('已复制 {count} 条 entry', { count: streamStats.total })
+        : t('复制失败，请检查剪贴板权限'),
     )
   }
 
   /** 导出为本地文件（主进程保存对话框；浏览器预览走 Blob 下载） */
   async function exportStream(): Promise<void> {
     if (!streamStats.total) {
-      notify('err', '当前 stream 没有 entry')
+      notify('err', t('当前 stream 没有 entry'))
       return
     }
     const key = getValue()?.key ?? 'stream'
@@ -192,7 +198,7 @@ export function useStreamEditor(
     }
     // 用户取消保存时 saved 为 false，不提示成功
     if (!res.data.saved) return
-    notify('ok', `已导出到 ${res.data.path ?? key}`)
+    notify('ok', t('已导出到 {path}', { path: res.data.path ?? key }))
   }
 
   /**
@@ -213,10 +219,10 @@ export function useStreamEditor(
       return
     }
     if (!res.data.ok) {
-      notify('err', res.data.message ?? '追加失败')
+      notify('err', res.data.message ?? t('追加失败'))
       return
     }
-    notify('ok', res.data.message ?? '已追加消息')
+    notify('ok', res.data.message ?? t('已追加消息'))
 
     setAddingEntry(false)
     await refreshSelected({ silent: true })

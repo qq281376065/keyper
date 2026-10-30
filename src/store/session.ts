@@ -1,4 +1,5 @@
 import { api } from '@/api'
+import { t } from '@/i18n'
 import { settings } from '@/services/settings'
 import { defineStore, type AppStore } from '@/store'
 import { renamedKey } from '@/utils/renamedKey'
@@ -387,7 +388,10 @@ export function createSession(
     refreshingValue: false,
     serverInfo: null,
     cliEntries: [
-      { kind: 'output', text: 'Keyper CLI 就绪。输入命令后回车执行，例如 PING / DBSIZE / GET key' },
+      {
+        kind: 'output',
+        text: t('Keyper CLI 就绪。输入命令后回车执行，例如 PING / DBSIZE / GET key'),
+      },
     ],
     cliRunning: false,
     cliHistory: [],
@@ -406,14 +410,14 @@ export function createSession(
   async function loadDatabases(): Promise<void> {
     if (!state.activeId) return
     const res = await api.redis.databases(state.activeId)
-    if (!res.ok) return failure(res.error, '读取数据库列表失败')
+    if (!res.ok) return failure(res.error, t('读取数据库列表失败'))
     state.databases = res.data
   }
 
   async function loadServerInfo(): Promise<void> {
     if (!state.activeId) return
     const res = await api.redis.info(state.activeId)
-    if (!res.ok) return failure(res.error, '读取服务端信息失败')
+    if (!res.ok) return failure(res.error, t('读取服务端信息失败'))
     state.serverInfo = res.data
   }
 
@@ -485,7 +489,7 @@ export function createSession(
         state.selectedValue = null
       }
     } catch (error) {
-      failure(error, '扫描键失败')
+      failure(error, t('扫描键失败'))
     } finally {
       state.loadingKeys = false
     }
@@ -534,7 +538,7 @@ export function createSession(
         state.cursor = cursor
       }
     } catch (error) {
-      failure(error, '加载全部失败')
+      failure(error, t('加载全部失败'))
     } finally {
       state.loadingKeys = false
     }
@@ -599,7 +603,7 @@ export function createSession(
     } catch (error) {
       if (seq !== valueLoadSeq) return
       state.selectedValue = null
-      failure(error, '读取键值失败')
+      failure(error, t('读取键值失败'))
     } finally {
       // 过期请求不得动 loading —— 它属于最新一次 selectKey
       if (seq === valueLoadSeq) {
@@ -845,21 +849,25 @@ export function createSession(
     const truncated = keys.length > PREVIEW_LIMIT
 
     const details: NonNullable<ConfirmRequest['details']> = [
-      { label: single ? '键名' : '数量', value: single ? keys[0]! : `${keys.length} 个键`, mono: true },
+      {
+        label: single ? t('键名') : t('数量'),
+        value: single ? keys[0]! : t('{count} 个键', { count: keys.length }),
+        mono: true,
+      },
     ]
     if (target) {
-      details.push({ label: '类型', value: target.type, mono: true })
+      details.push({ label: t('类型'), value: target.type, mono: true })
       details.push({
-        label: '过期',
-        value: target.ttl > 0 ? `${target.ttl} 秒后` : '永久',
+        label: t('过期'),
+        value: target.ttl > 0 ? t('{seconds} 秒后', { seconds: target.ttl }) : t('永久'),
         mono: true,
         tone: 'muted',
       })
     }
 
     const confirmed = await askConfirm({
-      title: single ? '删除键' : `批量删除 ${keys.length} 个键`,
-      message: single ? '即将从当前库中移除该键：' : '即将从当前库中移除以下键：',
+      title: single ? t('删除键') : t('批量删除 {count} 个键', { count: keys.length }),
+      message: single ? t('即将从当前库中移除该键：') : t('即将从当前库中移除以下键：'),
       details,
       /*
        * 单键不展示 preview：键名已在 details 中给出，
@@ -868,14 +876,14 @@ export function createSession(
       preview: single
         ? undefined
         : {
-            label: '待删除的键名',
+            label: t('待删除的键名'),
             text: shown.join('\n'),
             truncated,
           },
       warning: single
-        ? '此操作不可撤销，键及其全部数据将被立即删除。'
-        : '此操作不可撤销，这些键及其全部数据将被立即删除。',
-      confirmText: single ? '删除' : `删除 ${keys.length} 个键`,
+        ? t('此操作不可撤销，键及其全部数据将被立即删除。')
+        : t('此操作不可撤销，这些键及其全部数据将被立即删除。'),
+      confirmText: single ? t('删除') : t('删除 {count} 个键', { count: keys.length }),
       danger: true,
     })
     if (!confirmed) return
@@ -883,7 +891,7 @@ export function createSession(
     try {
       const res = await api.redis.remove(state.activeId, keys)
       if (!res.ok) throw new Error(res.error)
-      notify('ok', res.data.message ?? '已删除')
+      notify('ok', res.data.message ?? t('已删除'))
       syncRemove(keys)
       if (state.selectedKey && keys.includes(state.selectedKey)) {
         state.selectedKey = null
@@ -891,7 +899,7 @@ export function createSession(
       }
       await loadDatabases()
     } catch (error) {
-      failure(error, '删除失败')
+      failure(error, t('删除失败'))
     }
   }
 
@@ -985,26 +993,33 @@ export function createSession(
     }
 
     if (task.failed.length) {
-      notify('err', `${task.failed.length} 个键${verbOf(task.action)}失败，可在面板中查看原因`)
+      notify('err', bulkFailureSummary(task.action, task.failed.length))
     } else if (!task.cancelled) {
       notify('ok', resultSummary(task))
     }
   }
 
-  /** 操作动词（用于通知文案）：删除 / 设置 TTL / 重命名 */
-  function verbOf(action: BulkAction): string {
-    if (action === 'delete') return '删除'
-    if (action === 'ttl') return '设置'
-    return '重命名'
+  /**
+   * 批量失败通知：按操作类型给出**整句**文案。
+   *
+   * 不能先翻一个动词片段再拼进句子 —— 中英文里动词与名词的语序不同，
+   * 拼出来的英文句子会错位。三种操作各写一整句，翻译才有完整上下文。
+   */
+  function bulkFailureSummary(action: BulkAction, count: number): string {
+    if (action === 'delete') return t('{count} 个键删除失败，可在面板中查看原因', { count })
+    if (action === 'ttl') return t('{count} 个键设置失败，可在面板中查看原因', { count })
+    return t('{count} 个键重命名失败，可在面板中查看原因', { count })
   }
 
   /** 完成通知：按操作类型给出结果数量 */
   function resultSummary(task: BulkTask): string {
     const count = task.succeeded.length
-    if (task.action === 'delete') return `已删除 ${count} 个键`
+    if (task.action === 'delete') return t('已删除 {count} 个键', { count })
     if (task.action === 'ttl')
-      return task.ttlSeconds < 0 ? `已将 ${count} 个键设为永久` : `已为 ${count} 个键设置 TTL`
-    return `已重命名 ${count} 个键`
+      return task.ttlSeconds < 0
+        ? t('已将 {count} 个键设为永久', { count })
+        : t('已为 {count} 个键设置 TTL', { count })
+    return t('已重命名 {count} 个键', { count })
   }
 
   /** 中止批量操作（已开始的那一个会执行完） */
@@ -1030,12 +1045,12 @@ export function createSession(
     try {
       const res = await api.redis.setValue(state.activeId, key, type, payload, ttlSeconds, isNew)
       if (!res.ok) throw new Error(res.error)
-      notify('ok', res.data.message ?? '已保存')
+      notify('ok', res.data.message ?? t('已保存'))
       await Promise.all([loadKeys(true), loadDatabases()])
       await selectKey(key)
       return true
     } catch (error) {
-      failure(error, '保存失败')
+      failure(error, t('保存失败'))
       return false
     }
   }
@@ -1045,10 +1060,10 @@ export function createSession(
     try {
       const res = await api.redis.setTtl(state.activeId, key, seconds)
       if (!res.ok) throw new Error(res.error)
-      notify('ok', res.data.message ?? 'TTL 已更新')
+      notify('ok', res.data.message ?? t('TTL 已更新'))
       await selectKey(key)
     } catch (error) {
-      failure(error, '设置 TTL 失败')
+      failure(error, t('设置 TTL 失败'))
     }
   }
 
@@ -1057,11 +1072,11 @@ export function createSession(
     try {
       const res = await api.redis.rename(state.activeId, key, newKey)
       if (!res.ok) throw new Error(res.error)
-      notify('ok', '已重命名')
+      notify('ok', t('已重命名'))
       await loadKeys(true)
       await selectKey(newKey)
     } catch (error) {
-      failure(error, '重命名失败')
+      failure(error, t('重命名失败'))
     }
   }
 
@@ -1094,7 +1109,7 @@ export function createSession(
         void loadDatabases()
       }
     } catch (error) {
-      state.cliEntries.push({ kind: 'error', text: error instanceof Error ? error.message : '执行失败' })
+      state.cliEntries.push({ kind: 'error', text: error instanceof Error ? error.message : t('执行失败') })
     } finally {
       state.cliRunning = false
     }
@@ -1174,7 +1189,7 @@ export function createSession(
       if (seq !== remoteSearchSeq) return
       state.remoteSearch = null
       state.remoteKeys = []
-      failure(error, '全库搜索失败')
+      failure(error, t('全库搜索失败'))
     }
   }
 

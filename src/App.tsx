@@ -12,16 +12,18 @@ import { LogPanel } from '@/components/LogPanel'
 import { SettingsDialog } from '@/components/SettingsDialog'
 import { TabBar } from '@/components/TabBar'
 import { ThemeSwitch } from '@/components/ThemeSwitch'
+import { LanguageSwitch } from '@/components/LanguageSwitch'
 import { VersionInfoDialog } from '@/components/VersionInfoDialog'
 import { WelcomePanel } from '@/components/WelcomePanel'
 import { Workspace } from '@/components/Workspace'
 import { APP_VERSION } from '@/services/errorReport'
-import { migrateThemeFromStorage } from '@/services/theme'
+import { applyTheme, migrateThemeFromStorage } from '@/services/theme'
 import { useSettings } from '@/services/settings'
 import { globalActions, globalHolder, globalState, type ConnectionItem } from '@/store/global'
 import { useActiveApi } from '@/store/useRedis'
 import { useObservable } from '@/store/subscription'
 import { tipProps } from '@/components/tip'
+import { t, useI18n } from '@/i18n'
 import { toConfig } from '@/utils/engine'
 import type { CacheConnectionConfig, RedisConnectionConfig } from '@shared/types'
 
@@ -37,6 +39,7 @@ export function App() {
   const state = api.state
   const global = globalHolder.store
   useObservable(globalHolder)
+  const { t: tr } = useI18n()
   const { load: loadSettings } = useSettings()
 
   const [dialogVisible, setDialogVisible] = useState(false)
@@ -114,10 +117,10 @@ export function App() {
          * 尾部信息也按引擎给：Redis 显示 db，Memcached 显示连接池。
          */
         const details = online.map((c) => ({
-          label: '连接中',
+          label: t('连接中'),
           value:
             c.engine === 'memcached'
-              ? `[Memcached] ${c.name} · ${c.host}:${c.port} · 池 ${c.poolSize ?? 4}`
+              ? `[Memcached] ${c.name} · ${c.host}:${c.port} · ${t('池 {size}', { size: c.poolSize ?? 4 })}`
               : `[Redis] ${c.name} · ${c.host}:${c.port} · db${c.db}`,
           mono: false,
         }))
@@ -131,14 +134,22 @@ export function App() {
           .askConfirm({
             force: true,
             danger: true,
-            title: '退出 Keyper',
-            description: online.length ? '退出前会先断开连接' : '退出后可以再次打开，连接配置不会丢失',
+            title: t('退出 Keyper'),
+            description: online.length ? t('退出前会先断开连接') : t('退出后可以再次打开，连接配置不会丢失'),
             message: online.length
-              ? `当前有 ${online.length} 个连接处于连接状态，退出会连同${many ? '这些' : '该'}会话一起断开。`
-              : '当前没有处于连接状态的实例。未保存的编辑内容会丢失。',
+              ? many
+                ? t('当前有 {count} 个连接处于连接状态，退出会连同这些会话一起断开。', {
+                    count: online.length,
+                  })
+                : t('当前有 1 个连接处于连接状态，退出会连同该会话一起断开。')
+              : t('当前没有处于连接状态的实例。未保存的编辑内容会丢失。'),
             details,
-            warning: online.length ? `退出时将自动断开${many ? '以上连接' : '该连接'}。` : undefined,
-            confirmText: online.length ? '断开并退出' : '退出',
+            warning: online.length
+              ? many
+                ? t('退出时将自动断开以上连接。')
+                : t('退出时将自动断开该连接。')
+              : undefined,
+            confirmText: online.length ? t('断开并退出') : t('退出'),
           })
           .then(async (ok) => {
             if (!ok) return
@@ -158,6 +169,13 @@ export function App() {
       await loadSettings()
       // 设置就绪后迁移旧版主题偏好（localStorage → settings.json）
       migrateThemeFromStorage()
+      /*
+       * 必须等设置落盘读完后再应用到 DOM。
+       * 启动早期（main.tsx）用的是默认设置，此时 applyTheme 会把
+       * data-theme 落到 system 的明暗档，并覆盖 localStorage 里的皮肤值 ——
+       * 用户选了「极光」却看到暗色的原因就在这里。
+       */
+      applyTheme()
       await api.bootstrap()
 
       // 无边框窗口：拉取最大化初始状态并订阅后续变化（浏览器预览为 no-op）
@@ -276,26 +294,27 @@ export function App() {
         */}
 
         <div className="topbar-actions">
-          <button className="bar-btn" {...tipProps('操作日志')} onClick={openLog}>
+          <button className="bar-btn" {...tipProps(tr('操作日志'))} onClick={openLog}>
             <DialogIcon name="activity" size={14} />
           </button>
-          <button className="bar-btn" {...tipProps('全局设置')} onClick={() => setSettingsVisible(true)}>
+          <button className="bar-btn" {...tipProps(tr('全局设置'))} onClick={() => setSettingsVisible(true)}>
             <DialogIcon name="hamburger" size={14} />
           </button>
+          <LanguageSwitch />
           <ThemeSwitch />
           {/* 自绘窗口控制：系统标题栏已隐藏（titleBarStyle: hidden） */}
           <div className="win-controls">
-            <button className="win-btn" {...tipProps('最小化')} onClick={minimizeWindow}>
+            <button className="win-btn" {...tipProps(tr('最小化'))} onClick={minimizeWindow}>
               <DialogIcon name="win-min" size={12} />
             </button>
             <button
               className="win-btn"
-              {...tipProps(windowMaximized ? '向下还原' : '最大化')}
+              {...tipProps(tr(windowMaximized ? '向下还原' : '最大化'))}
               onClick={toggleMaximize}
             >
               <DialogIcon name={windowMaximized ? 'win-restore' : 'win-max'} size={12} />
             </button>
-            <button className="win-btn win-close" {...tipProps('关闭')} onClick={closeWindow}>
+            <button className="win-btn win-close" {...tipProps(tr('关闭'))} onClick={closeWindow}>
               <DialogIcon name="cancel" size={13} />
             </button>
           </div>

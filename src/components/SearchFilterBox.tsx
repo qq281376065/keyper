@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { DialogIcon } from '@/components/DialogIcon'
 import { tipProps } from '@/components/tip'
+import { useI18n } from '@/i18n'
 import { formatHistoryTime, SEARCH_HISTORY_LIMIT, useSearchHistory } from '@/hooks/useSearchHistory'
 
 /**
@@ -57,6 +58,7 @@ export function SearchFilterBox({
   onRecord,
   trailing,
 }: SearchFilterBoxProps) {
+  const { t } = useI18n()
   const searchHist = useSearchHistory(connectionId, historyDb)
   const [histOpen, setHistOpen] = useState(false)
   const [histSel, setHistSel] = useState(-1)
@@ -199,7 +201,7 @@ export function SearchFilterBox({
   }
 
   const placeholderText =
-    placeholder ?? (exact ? '输入完整键名，回车搜索' : '输入即筛列表，回车搜索')
+    placeholder ?? (exact ? t('输入完整键名，回车搜索') : t('输入即筛列表，回车搜索'))
 
   return (
     <div className="filter-row">
@@ -226,7 +228,7 @@ export function SearchFilterBox({
         {value ? (
           <button
             className="f-clear"
-            {...tipProps('清除')}
+            {...tipProps(t('清除'))}
             onClick={() => {
               onChange('')
               inputEl.current?.focus()
@@ -241,7 +243,7 @@ export function SearchFilterBox({
             className={`f-caret${histOpen ? ' on' : ''}`}
             role="button"
             aria-expanded={histOpen}
-            {...tipProps('历史候选（↓）')}
+            {...tipProps(t('历史候选（↓）'))}
             onMouseDown={(event) => {
               event.preventDefault()
               toggleHist()
@@ -256,7 +258,7 @@ export function SearchFilterBox({
         <button
           className="f-search"
           disabled={disabled || !value.trim()}
-          {...tipProps('查询')}
+          {...tipProps(t('查询'))}
           onClick={runSearch}
         >
           <svg viewBox="0 0 16 16" aria-hidden="true">
@@ -271,7 +273,7 @@ export function SearchFilterBox({
             role="checkbox"
             aria-checked={exact}
             disabled={disabled}
-            {...tipProps('精确匹配')}
+            {...tipProps(t('精确匹配'))}
             onClick={onToggleExact}
           >
             <span className="ex-box">
@@ -285,7 +287,7 @@ export function SearchFilterBox({
         {histOpen ? (
           <div className="hist-pop">
             <div className="hp-head">
-              <span>仅当前连接</span>
+              <span>{t('仅当前连接')}</span>
               {scopeLabel ? <span className="hp-db">· {scopeLabel}</span> : null}
               <span className={`hp-count${histCount >= SEARCH_HISTORY_LIMIT ? ' full' : ''}`}>
                 {histCount}/{SEARCH_HISTORY_LIMIT}
@@ -294,9 +296,9 @@ export function SearchFilterBox({
             <div className="hp-body">
               {!histRowParts.length ? (
                 <div className="hp-empty">
-                  {value.trim() ? '没有匹配的历史' : '当前连接还没有搜索历史'}
+                  {value.trim() ? t('没有匹配的历史') : t('当前连接还没有搜索历史')}
                   <br />
-                  执行一次查询（回车）就会记录到这里
+                  {t('执行一次查询（回车）就会记录到这里')}
                 </div>
               ) : null}
               {histRowParts.map((row, i) => (
@@ -318,7 +320,7 @@ export function SearchFilterBox({
                     <span className="hp-time">{formatHistoryTime(row.e.at)}</span>
                     <button
                       className="hp-del"
-                      {...tipProps('从历史中移除')}
+                      {...tipProps(t('从历史中移除'))}
                       onMouseDown={(event) => {
                         event.preventDefault()
                         event.stopPropagation()
@@ -340,9 +342,9 @@ export function SearchFilterBox({
                     void searchHist.clear()
                   }}
                 >
-                  清空历史
+                  {t('清空历史')}
                 </button>
-                <span className="hp-tip">Tab 补全 · ↓ 选择 · 回车搜索</span>
+                <span className="hp-tip">{t('Tab 补全 · ↓ 选择 · 回车搜索')}</span>
               </div>
             ) : null}
           </div>

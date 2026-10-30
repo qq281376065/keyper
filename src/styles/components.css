@@ -4995,44 +4995,83 @@
     transform: rotate(360deg);
   }
 }
-/* ---------------------------------------------------------- 卡片 */
+/* ---------------------------------------------------------- 卡片（方案 09：无框轻排版） */
 /*
- * 自适应折行：宽度够时三列并排，挤压到一定阈值后自动减少每行数量。
+ * 单张卡片去掉卡框、卡底色和圆角，改用「组名 + 延伸虚线 + 列间虚线」成组：
+ * 视觉重心回到数值本身，也不会和下方页签里的卡片轮廓互相抢戏。
+ * 整组再套一层白色圆角面板（与方案 02 的单卡分区同一套外壳），
+ * 让顶部信息在页面底色上有一个明确的承载面。
  *
- * auto-fit + minmax(200px,
-.s-server-overview 1fr) 的含义：
- * - 200px 是每张卡的最小可用宽度，低于它就把卡片挪到下一行
- * - 1fr 让同一行的卡片平分剩余空间，始终等宽
- *
- * 相比固定 repeat(3,
-.s-server-overview 1fr)，这里优先保证可读性 ——
- * 卡片被挤到文字省略时，信息本身已经失效了，不如让它换行。
+ * 列数仍交给 auto-fit：宽度不足时自动换行。
+ * 换行后行首卡片不能再画左侧竖线 —— 容器查询按实际列数把行首的竖线去掉，
+ * 纯 CSS 无法在换行时识别行首，所以用与 minmax(178px) 对应的宽度阈值判断。
+ * 面板只加纵向内边距，横向留白继续由卡片的 15px 内边距提供，
+ * 容器查询量的是内容盒，列数阈值不受影响。
  */
 .ov-cards{
+  container-type: inline-size;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 12px;
-  align-items: start;
+  /* min(178px, 100%)：容器比单列还窄时让轨道跟随容器，避免卡片顶出圆角面板 */
+  grid-template-columns: repeat(auto-fit, minmax(min(178px, 100%), 1fr));
+  gap: 16px 0;
+  padding: 12px 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
 }
 .s-server-overview.ov-card, .s-server-overview .ov-card{
-  padding: 12px 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--bg-panel);
+  min-width: 0;
+  padding: 0 15px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+.s-server-overview .ov-card + .ov-card{
+  border-left: 1px dashed color-mix(in srgb, var(--border-strong) 92%, transparent);
+}
+/* 2 列：行首是奇数项（356px ≤ 容器宽 < 534px） */
+@container (min-width: 356px) and (max-width: 533.9px) {
+  .s-server-overview .ov-cards .ov-card:nth-child(odd) {
+    border-left: 0;
+  }
+}
+/* 1 列：全部不画竖线 */
+@container (max-width: 355.9px) {
+  .s-server-overview .ov-cards .ov-card {
+    border-left: 0;
+  }
 }
 .s-server-overview.ov-card-title, .s-server-overview .ov-card-title{
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin: 0 0 10px;
-  font-size: var(--fs-md);
-  font-weight: 600;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: var(--fs-xs);
+  font-weight: 700;
   color: var(--text-secondary);
-  letter-spacing: 0.3px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+/* 组名右侧的延伸虚线：把并排几组的标题串成同一条基线 */
+.s-server-overview .ov-card-title::after{
+  content: '';
+  flex: 1;
+  height: 0;
+  border-top: 1px dashed var(--border);
 }
 /*
- * 标题图标：固定在标签左侧，用 muted 色而非强调色 ——
- * 图标的作用是加快"这是哪一组"的识别，不该抢走数值的注意力。
+ * 标题图标：用实例引擎色（Redis 红），但压暗到与文字同一层级 ——
+ * 图标只负责加快「这是哪一组」的识别，不该抢走数值的注意力。
+ */
+.s-server-overview .ov-card-title .ov-card-icon{
+  flex: 0 0 auto;
+  color: color-mix(in srgb, var(--accent) 82%, var(--text-primary));
+  opacity: 0.85;
+}
+/*
+ * 详情卡片的标题图标沿用 ov-card-icon 类，但不在本次改造范围内，
+ * 保持原来的 muted 色（上面的规则只作用于顶部卡片的标题）。
  */
 .ov-card-icon{
   flex: 0 0 auto;
@@ -5042,29 +5081,33 @@
   margin: 0;
   display: flex;
   flex-direction: column;
-  /*
-   * 行距随字号同步放宽（8px → 10px）：
-   * 数值升到 fs-lg 后，8px 会让相邻两行的基线几乎挨在一起，
-   * 三行数据看起来像挤成一团。
-   */
-  gap: 10px;
+  gap: 0;
 }
-/* 标签左、数值右：数值用等宽字体，纵向对齐便于扫读 */
+/* 标签左、数值右：细虚线提供水平扫读引导，最后一行收尾不画线 */
 .s-server-overview.ov-row, .s-server-overview .ov-row{
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 10px;
   min-width: 0;
+  padding: 5px 0;
+  border-bottom: 1px dashed color-mix(in srgb, var(--border-strong) 62%, transparent);
+}
+.s-server-overview .ov-row:last-child{
+  border-bottom: 0;
 }
 .s-server-overview .ov-row dt{
-  font-size: var(--fs-md);
+  font-size: var(--fs-sm);
   color: var(--text-muted);
   flex: 0 0 auto;
+  white-space: nowrap;
 }
 .s-server-overview .ov-row dd{
   margin: 0;
-  font-size: var(--fs-lg);
+  /* 15px（基准 13px 时）：方案 09 的核心 —— 数值是页面的主角 */
+  font-size: calc(var(--fs-base) + 2px);
+  font-weight: 600;
+  letter-spacing: -0.2px;
   color: var(--text-primary);
   text-align: right;
   overflow: hidden;
@@ -6100,6 +6143,16 @@
   padding: 6px 10px 4px;
   font-size: var(--fs-xs);
   color: var(--text-muted);
+}
+
+/* 语言切换：沿用主题菜单的弹出层，仅把前置图标换成语言缩写 */
+.s-lang-switch .lang-code{
+  flex: 0 0 14px;
+  width: 14px;
+  text-align: center;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  letter-spacing: 0;
 }
 
 
@@ -9898,45 +9951,85 @@ body.col-resizing .col-handle::after{
   overflow: hidden;
 }
 
-/* 概览卡：四列自适应，窄窗自动折成两列 */
+/*
+ * 概览卡：方案 09 无框轻排版 —— 与 Redis 顶部卡片同一套语言，
+ * 单卡只靠留白与虚线成组，整组套一层白色圆角面板（四列自适应，窄窗自动折行）。
+ */
 .mc-cards{
+  container-type: inline-size;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 8px;
-  padding: 10px 12px 4px;
+  /*
+   * 187px 而不是 178px：四张卡里「Hits/misses」这一行在英文下最宽，
+   * 列再窄就会把数值截断。187px 是「标签 + 数值」刚好放得下的下限，
+   * 同时保证 1440 宽窗口下四列仍能并排（不折成 3+1）。
+   */
+  grid-template-columns: repeat(auto-fit, minmax(min(187px, 100%), 1fr));
+  gap: 16px 0;
+  /*
+   * 面板改为 margin + 纵向内边距：横向留白仍由卡片的 12px 内边距提供。
+   * 左右 margin 取 12px 与页头、页签对齐；1px 边框会让内容盒比原来少 2px，
+   * 1440 宽时仍有 749px（四列下限 748px），四列布局不受影响。
+   */
+  margin: 10px 12px 0;
+  padding: 12px 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
   flex: 0 0 auto;
 }
 .mc-card{
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--bg-elevated);
-  padding: 9px 10px 8px;
   min-width: 0;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+.mc-card + .mc-card{
+  border-left: 1px dashed color-mix(in srgb, var(--border-strong) 92%, transparent);
+}
+/* 换行后行首不画竖线：3 列 / 2 列 / 1 列的阈值与 minmax(187px) 对应 */
+@container (min-width: 561px) and (max-width: 747.9px) {
+  .mc-cards .mc-card:nth-child(3n + 1) {
+    border-left: 0;
+  }
+}
+@container (min-width: 374px) and (max-width: 560.9px) {
+  .mc-cards .mc-card:nth-child(odd) {
+    border-left: 0;
+  }
+}
+@container (max-width: 373.9px) {
+  .mc-cards .mc-card {
+    border-left: 0;
+  }
 }
 .mc-card-title{
   display: flex;
   align-items: center;
-  gap: 5px;
-  margin: 0 0 6px;
+  gap: 8px;
+  margin: 0 0 8px;
   font-size: var(--fs-xs);
-  font-weight: 600;
-  /*
-   * 用 --text-secondary 而不是 --text-muted：
-   * 实测 9 套皮肤里 muted 在 7 套上与卡片底的对比度只有 2.2~3.3，
-   * 低于小字 4.5:1 的 AA 门限（浅色皮肤最差，2.27）。
-   * secondary 最低 3.64（solarized）、多数在 5~7，是这一档字号的下限选择。
-   */
+  font-weight: 700;
   color: var(--text-secondary);
-  letter-spacing: 0.3px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.mc-card-title::after{
+  content: '';
+  flex: 1;
+  height: 0;
+  border-top: 1px dashed var(--border);
 }
 .mc-card-title .mc-card-icon{
-  color: var(--text-secondary);
+  color: color-mix(in srgb, var(--purple) 78%, var(--text-primary));
+  opacity: 0.85;
   flex: 0 0 auto;
 }
 .mc-rows{
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0;
   margin: 0;
 }
 .mc-row{
@@ -9945,17 +10038,24 @@ body.col-resizing .col-handle::after{
   justify-content: space-between;
   gap: 8px;
   min-width: 0;
+  padding: 5px 0;
+  border-bottom: 1px dashed color-mix(in srgb, var(--border-strong) 62%, transparent);
+}
+.mc-row:last-child{
+  border-bottom: 0;
 }
 .mc-row dt{
-  font-size: var(--fs-xs);
-  /* 同上：小字标签必须过 4.5:1，muted 在多数皮肤下达不到 */
-  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
   flex: 0 0 auto;
+  white-space: nowrap;
 }
 .mc-row dd{
   margin: 0;
-  font-size: var(--fs-sm);
+  /* 与 Redis 顶部卡片一致：数值 15px，是这组信息的主角 */
+  font-size: calc(var(--fs-base) + 2px);
   font-weight: 600;
+  letter-spacing: -0.2px;
   color: var(--text-primary);
   font-family: var(--font-mono);
   overflow: hidden;
@@ -9999,24 +10099,6 @@ body.col-resizing .col-handle::after{
   font-size: var(--fs-sm);
   font-weight: 600;
   color: var(--text-secondary);
-}
-/*
- * 键浏览卡承载的搜索框带历史浮层（.hist-pop，绝对定位）。
- * 卡片默认 overflow: hidden 会把浮层裁掉，所以这一张卡必须放开裁剪；
- * 卡头与列表各自补上内圆角，避免方角戳出卡片的圆角轮廓。
- */
-.s-mc-overview .mc-keys-card{
-  overflow: visible;
-}
-.s-mc-overview .mc-keys-card > .mc-pane-head{
-  border-radius: 9px 9px 0 0;
-}
-.s-mc-overview .mc-keys-card .filter-row{
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--border);
-}
-.s-mc-overview .mc-keys-card .mc-key-list{
-  border-radius: 0 0 9px 9px;
 }
 .mc-pane-count{
   font-size: var(--fs-2xs);
@@ -10080,22 +10162,6 @@ body.col-resizing .col-handle::after{
 .mc-table tbody tr:hover td{ background: var(--bg-hover); }
 .mc-table td.bad{ color: var(--accent); }
 
-/* 键筛选输入 */
-.mc-key-filter{
-  width: 130px;
-  height: 24px;
-  padding: 0 8px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--bg-panel);
-  color: var(--text-primary);
-  font-size: var(--fs-xs);
-  outline: none;
-}
-.mc-key-filter:focus{
-  border-color: var(--accent);
-}
-
 /* 面板内的动作按钮：与工具条 .tool 同一规格与胶囊语言 */
 .mc-run{
   display: inline-flex;
@@ -10128,42 +10194,6 @@ body.col-resizing .col-handle::after{
 }
 .mc-run .ti{ display: inline-block; }
 
-/* 限制说明：常驻而非 tooltip —— 用户可能不会去悬停 */
-.mc-warn-line{
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  margin: 0;
-  padding: 7px 10px;
-  font-size: var(--fs-xs);
-  line-height: 1.55;
-  color: var(--text-secondary);
-  background: color-mix(in srgb, var(--amber) 8%, transparent);
-  border-bottom: 1px solid var(--border);
-}
-.mc-warn-line .ti{
-  flex: 0 0 auto;
-  margin-top: 2px;
-  color: var(--amber);
-}
-.mc-warn-line code{
-  font-family: var(--font-mono);
-  font-size: 0.95em;
-  color: var(--text-secondary);
-}
-.mc-note-line{
-  margin: 0;
-  padding: 6px 10px;
-  font-size: var(--fs-xs);
-  color: var(--amber);
-  border-bottom: 1px solid var(--border);
-}
-.mc-error-line{
-  margin: 0;
-  padding: 8px 10px;
-  font-size: var(--fs-sm);
-  color: var(--accent);
-}
 .mc-empty{
   margin: 0;
   padding: 16px 12px;
@@ -10171,92 +10201,6 @@ body.col-resizing .col-handle::after{
   font-size: var(--fs-sm);
   color: var(--text-muted);
   line-height: 1.7;
-}
-
-/* 键列表：一行一条，列宽固定，名字占剩余空间 */
-.mc-key-list{
-  display: flex;
-  flex-direction: column;
-  max-height: 340px;
-  overflow-y: auto;
-}
-.mc-key-row{
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 10px;
-  border-bottom: 1px solid var(--border);
-  cursor: pointer;
-  min-width: 0;
-}
-.mc-key-row:last-child{ border-bottom: none; }
-.mc-key-row:hover{ background: var(--bg-hover); }
-.mc-key-row.active{
-  background: var(--accent-soft);
-  box-shadow: inset 2px 0 0 var(--accent);
-}
-.mc-key-slab{
-  flex: 0 0 26px;
-  font-size: var(--fs-2xs);
-  color: var(--text-secondary);
-  text-align: center;
-  border-radius: 4px;
-  background: var(--bg-elevated);
-  padding: 1px 0;
-}
-.mc-key-name{
-  flex: 1 1 auto;
-  min-width: 0;
-  font-size: var(--fs-sm);
-  color: var(--text-primary);
-}
-.mc-key-bytes{
-  flex: 0 0 auto;
-  width: 62px;
-  text-align: right;
-  font-size: var(--fs-xs);
-  color: var(--text-secondary);
-}
-.mc-key-exp{
-  flex: 0 0 auto;
-  width: 64px;
-  text-align: right;
-  font-size: var(--fs-2xs);
-  color: var(--text-secondary);
-}
-.mc-key-del{
-  flex: 0 0 auto;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  /* 常态隐藏：键行本身是"点开看值"的主操作，删除是次要且危险的 */
-  opacity: 0;
-  transition: opacity 0.12s, background 0.12s, color 0.12s;
-}
-.mc-key-row:hover .mc-key-del{ opacity: 1; }
-.mc-key-del:hover{
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
-/* 值预览 */
-.mc-value{
-  margin: 0;
-  padding: 10px;
-  max-height: 260px;
-  overflow: auto;
-  font-family: var(--font-mono);
-  font-size: var(--fs-sm);
-  line-height: 1.6;
-  color: var(--text-primary);
-  white-space: pre-wrap;
-  word-break: break-all;
 }
 
 /* 面板级错误条 */

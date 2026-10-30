@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { DialogIcon } from '@/components/DialogIcon'
 import { tipProps } from '@/components/tip'
+import { useI18n } from '@/i18n'
 import { useRedis } from '@/store/useRedis'
 import { copyText } from '@/utils/clipboard'
 
@@ -14,6 +15,7 @@ export interface ValueActionsProps {
 
 /** 值区右上角「值操作」菜单：重命名键 / 设置 TTL / 复制键名 / 刷新 / 删除键 */
 export function ValueActions({ onRename, onSetTtl }: ValueActionsProps) {
+  const { t } = useI18n()
   const { state, notify, deleteKeys, refreshSelected } = useRedis()
 
   const [open, setOpen] = useState(false)
@@ -65,12 +67,12 @@ export function ValueActions({ onRename, onSetTtl }: ValueActionsProps) {
     const key = current?.key
     if (!key) return
     const done = await copyText(key)
-    notify(done ? 'ok' : 'err', done ? '已复制键名' : '复制失败，请检查剪贴板权限')
+    notify(done ? 'ok' : 'err', done ? t('已复制键名') : t('复制失败，请检查剪贴板权限'))
   }
 
   async function refresh(): Promise<void> {
     await refreshSelected()
-    notify('ok', '已刷新')
+    notify('ok', t('已刷新'))
   }
 
   async function remove(): Promise<void> {
@@ -80,7 +82,7 @@ export function ValueActions({ onRename, onSetTtl }: ValueActionsProps) {
 
   return (
     <div ref={anchorRef} className="value-actions s-value-actions">
-      <button className="more-btn" {...tipProps('值操作')} onClick={toggleOpen}>
+      <button className="more-btn" {...tipProps(t('值操作'))} onClick={toggleOpen}>
         <DialogIcon name="more" size={15} />
       </button>
 
@@ -95,31 +97,31 @@ export function ValueActions({ onRename, onSetTtl }: ValueActionsProps) {
               >
                 <button className="menu-item" onClick={() => void run(onRename)}>
                   <DialogIcon name="refresh" size={13} className="mi-icon" />
-                  <span>重命名键…</span>
+                  <span>{t('重命名键…')}</span>
                 </button>
 
                 <button className="menu-item" onClick={() => void run(onSetTtl)}>
                   <DialogIcon name="clock" size={13} className="mi-icon" />
-                  <span>设置 TTL…</span>
+                  <span>{t('设置 TTL…')}</span>
                 </button>
 
                 <div className="menu-sep" />
 
                 <button className="menu-item" onClick={() => void run(copyKey)}>
                   <DialogIcon name="copy" size={13} className="mi-icon" />
-                  <span>复制键名</span>
+                  <span>{t('复制键名')}</span>
                 </button>
 
                 <button className="menu-item" onClick={() => void run(refresh)}>
                   <DialogIcon name="refresh" size={13} className="mi-icon" />
-                  <span>刷新</span>
+                  <span>{t('刷新')}</span>
                 </button>
 
                 <div className="menu-sep" />
 
                 <button className="menu-item danger" onClick={() => void run(remove)}>
                   <DialogIcon name="cancel" size={13} className="mi-icon" />
-                  <span>删除键</span>
+                  <span>{t('删除键')}</span>
                 </button>
               </div>
             </>,

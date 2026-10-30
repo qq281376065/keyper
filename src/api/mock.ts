@@ -1,4 +1,5 @@
 import type { RedisDesktopApi } from '@shared/api'
+import { detectLocale } from '@shared/i18n'
 import { APP_VERSION } from '@/services/errorReport'
 import { memoryPrefixOf, MEMORY_BUCKET_LIMIT } from '@shared/keyspace'
 import type {
@@ -468,6 +469,8 @@ const MOCK_SETTINGS_KEY = 'redisdesktop:mock:settings'
 
 const DEFAULT_MOCK_SETTINGS: AppSettings = {
   fontSize: 13,
+  /* 与桌面端一致：没有历史设置时跟随系统语言 */
+  locale: detectLocale(typeof navigator === 'undefined' ? undefined : navigator.language),
   uiFont: 'system',
   monoFont: 'jetbrains-mono',
   density: 'compact',
@@ -1539,20 +1542,34 @@ export const mockApi: RedisDesktopApi = {
       return ok([...bySlab.values()].filter((item) => item.count > 0).sort((a, b) => a.slab - b.slab))
     },
 
-    keys: async (id: string, options?: { perSlab?: number }): Promise<ApiResponse<MemcachedKeyList>> => {
+    keys: async (
+      id: string,
+      options?: { offset?: number; limit?: number; refresh?: boolean },
+    ): Promise<ApiResponse<MemcachedKeyList>> => {
       await delay(320)
       if (!MOCK_MC_KEYS[id]) MOCK_MC_KEYS[id] = seedMemcached()
       const store = MOCK_MC_KEYS[id]!
-      const perSlab = options?.perSlab ?? 500
-      const items = [...store.entries()].map(([key, item]) => ({
-        key,
-        bytes: utf8Bytes(item.data),
-        expiresAt: item.expiresAt,
-        slab: 1,
-      }))
+      const offset = Math.max(0, options?.offset ?? 0)
+      const limit = Math.max(1, options?.limit ?? 200)
+      /* 顺序固定，翻页按 offset 切片，与主进程 metadump 快照的行为一致 */
+      const items = [...store.entries()]
+        .map(([key, item]) => ({
+          key,
+          bytes: utf8Bytes(item.data),
+          expiresAt: item.expiresAt,
+          slab: 1,
+        }))
+        .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
+      const page = items.slice(offset, offset + limit)
+      const nextOffset = offset + page.length
+      const hasMore = nextOffset < items.length
       return ok({
-        items: items.slice(0, perSlab),
-        truncated: items.length > perSlab,
+        items: page,
+        total: items.length,
+        hasMore,
+        nextOffset: hasMore ? nextOffset : 0,
+        source: 'metadump',
+        truncated: false,
         deniedSlabs: [],
       })
     },

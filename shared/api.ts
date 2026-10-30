@@ -316,13 +316,17 @@ export interface RedisDesktopApi {
     /** 按 slab class 的条目分布 */
     slabs: (id: string) => Promise<ApiResponse<MemcachedSlab[]>>
     /**
-     * 列出键（cachedump）。
-     * perSlab 控制每个 slab 的取样上限；结果可能不完整，
-     * 界面必须把 truncated / deniedSlabs 如实告知用户。
+     * 分页列出键。
+     *
+     * 主进程优先用 `lru_crawler metadump all` 取全量快照（覆盖 HOT/WARM/COLD），
+     * 再按 offset/limit 切片；limit 由界面的全局「每页加载键数」传入。
+     * 老服务端不支持 metadump 时回退 cachedump（仅 COLD 分段），
+     * 此时 truncated 为真，界面必须如实告知用户。
+     * 传入 refresh=true 或 offset=0 时重建快照，后续翻页复用同一份快照。
      */
     keys: (
       id: string,
-      options?: { perSlab?: number; maxSlabs?: number },
+      options?: { offset?: number; limit?: number; refresh?: boolean },
     ) => Promise<ApiResponse<MemcachedKeyList>>
     get: (id: string, key: string) => Promise<ApiResponse<MemcachedValue>>
     set: (
