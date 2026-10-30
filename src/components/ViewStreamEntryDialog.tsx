@@ -133,33 +133,33 @@ export function ViewStreamEntryDialog({
    */
   async function copyEntryId(): Promise<void> {
     if (!entryId) {
-      notify('err', t('内容为空，无可复制'))
+      notify('err', t('viewStreamEntryDialog.contentEmptyNothingCopy'))
       return
     }
     const done = await copyText(entryId)
-    notify(done ? 'ok' : 'err', done ? t('已复制 entry ID') : t('复制失败，请检查剪贴板权限'))
+    notify(done ? 'ok' : 'err', done ? t('viewStreamEntryDialog.copiedEntryId') : t('common.copyFailedCheckClipboardPermissions'))
   }
 
   return (
     <DialogShell
       icon="document"
-      title={t('查看 entry')}
-      description={t('只读视图，stream 条目不可原地修改')}
+      title={t('viewStreamEntryDialog.viewEntry')}
+      description={t('viewStreamEntryDialog.readOnlyViewStreamEntries')}
       badge={<span className="dlg-badge mono">stream</span>}
       className="view-stream-entry-dialog"
       closeOnOverlay
       onClose={onClose}
       footer={
         <>
-          <span className="stat mono">{t('{count} 字符', { count: stats.chars })}</span>
+          <span className="stat mono">{t('common.countCharacters', { count: stats.chars })}</span>
           <span className="sep">·</span>
-          <span className="stat mono">{t('{count} 行', { count: stats.lines })}</span>
+          <span className="stat mono">{t('editListElementDialog.countLines', { count: stats.lines })}</span>
           <span className="sep">·</span>
           <span className="stat mono">{formatBytes(stats.bytes)}</span>
           <span className="spacer" />
           <Button type="button" variant="ghost" className="foot-btn foot-quiet" onClick={onClose}>
             <DialogIcon name="cancel" size={13} />
-            {t('关闭')}
+            {t('common.close')}
           </Button>
         </>
       }
@@ -185,7 +185,7 @@ export function ViewStreamEntryDialog({
             variant="ghost"
             size="icon"
             className="mini-copy"
-            aria-label={t('复制 entry ID')}
+            aria-label={t('valueViewer.copyEntryId')}
             onClick={() => void copyEntryId()}
           >
             <DialogIcon name="copy" size={11} />
@@ -194,19 +194,19 @@ export function ViewStreamEntryDialog({
 
         {timestamp ? (
           <>
-            <dt>{t('时间')}</dt>
+            <dt>{t('logPanel.time')}</dt>
             <dd className="mono">{timestamp}</dd>
           </>
         ) : null}
 
-        <dt>{t('字段数')}</dt>
+        <dt>{t('viewStreamEntryDialog.fields')}</dt>
         <dd className="mono">{stats.fieldCount || '—'}</dd>
       </dl>
 
       {/* 字段区：可切换「字段明细」与「JSON 明细」 */}
       <section className="stream-section">
         <div className="stream-section-head">
-          <span className="stream-section-title">{t('字段')}</span>
+          <span className="stream-section-title">{t('common.field')}</span>
 
           {/* 视图切换固定在最右：位置稳定，切换时不会因文案长短左右跳动 */}
           {parsedFields || jsonAvailable ? (
@@ -216,7 +216,7 @@ export function ViewStreamEntryDialog({
                 className={view === 'fields' ? 'on' : ''}
                 onClick={() => setView('fields')}
               >
-                {t('字段明细')}
+                {t('viewStreamEntryDialog.fieldDetails')}
               </button>
               {jsonAvailable ? (
                 <button
@@ -224,7 +224,7 @@ export function ViewStreamEntryDialog({
                   className={view === 'json' ? 'on' : ''}
                   onClick={() => setView('json')}
                 >
-                  {t('JSON 明细')}
+                  {t('viewStreamEntryDialog.jsonDetails')}
                 </button>
               ) : null}
             </div>
@@ -246,9 +246,9 @@ export function ViewStreamEntryDialog({
           <pre className="raw json mono">{jsonText}</pre>
         ) : (
           <>
-            <pre className="raw mono">{fields || t('（空）')}</pre>
+            <pre className="raw mono">{fields || t('importUriDialog.empty')}</pre>
             {/* 仅在「内容可拆成字段、但当前停在 JSON 视图」时给出回切引导 */}
-            {parsedFields ? <p className="note">{t('切换到「字段明细」可按字段逐项查看。')}</p> : null}
+            {parsedFields ? <p className="note">{t('viewStreamEntryDialog.switchFieldDetailsInspect')}</p> : null}
           </>
         )}
       </section>

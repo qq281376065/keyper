@@ -875,7 +875,7 @@ export function KeyBrowser() {
 
   async function menuCopyName(item: RedisKeyItem): Promise<void> {
     const done = await copyText(item.key)
-    notify(done ? 'ok' : 'err', done ? t('已复制键名') : t('复制失败，请检查剪贴板权限'))
+    notify(done ? 'ok' : 'err', done ? t('common.copiedKeyName') : t('common.copyFailedCheckClipboardPermissions'))
   }
 
   /**
@@ -886,16 +886,16 @@ export function KeyBrowser() {
     if (!state.activeId) return
     const res = await api.redis.value(state.activeId, item.key)
     if (!res.ok) {
-      notify('err', t('读取键值失败：{error}', { error: res.error }))
+      notify('err', t('keyBrowser.failedLoadKeyValue', { error: res.error }))
       return
     }
     const text = valueAsText(res.data.value, res.data.type)
     if (!text) {
-      notify('err', t('该键没有可复制的内容'))
+      notify('err', t('keyBrowser.keyNothingCopy'))
       return
     }
     const done = await copyText(text)
-    notify(done ? 'ok' : 'err', done ? t('已复制键值（{count} 字符）', { count: text.length }) : t('复制失败，请检查剪贴板权限'))
+    notify(done ? 'ok' : 'err', done ? t('keyBrowser.copiedKeyValue', { count: text.length }) : t('common.copyFailedCheckClipboardPermissions'))
   }
 
   /** 把各类值序列化为可粘贴文本 */
@@ -921,7 +921,7 @@ export function KeyBrowser() {
   async function menuCopyCommand(item: RedisKeyItem): Promise<void> {
     const command = buildRedisCommand(item)
     const done = await copyText(command)
-    notify(done ? 'ok' : 'err', done ? t('已复制命令') : t('复制失败，请检查剪贴板权限'))
+    notify(done ? 'ok' : 'err', done ? t('keyBrowser.copiedCommand') : t('common.copyFailedCheckClipboardPermissions'))
   }
 
   /**
@@ -969,18 +969,18 @@ export function KeyBrowser() {
   /** 复制前缀本身（便于粘贴到命令行或脚本里做前缀匹配） */
   async function menuCopyPrefix(node: KeyTreeNodeModel): Promise<void> {
     const done = await copyText(node.path)
-    notify(done ? 'ok' : 'err', done ? t('已复制前缀 {prefix}', { prefix: node.path }) : t('复制失败，请检查剪贴板权限'))
+    notify(done ? 'ok' : 'err', done ? t('keyBrowser.copiedPrefix', { prefix: node.path }) : t('common.copyFailedCheckClipboardPermissions'))
   }
 
   /** 复制该前缀下的全部键名，每行一个 */
   async function menuCopySubtreeKeys(node: KeyTreeNodeModel): Promise<void> {
     const keys = collectSubtreeKeys(node)
     if (!keys.length) {
-      notify('err', t('该前缀下没有键'))
+      notify('err', t('keyBrowser.noKeysUnderPrefix'))
       return
     }
     const done = await copyText(keys.join('\n'))
-    notify(done ? 'ok' : 'err', done ? t('已复制 {count} 个键名', { count: keys.length }) : t('复制失败，请检查剪贴板权限'))
+    notify(done ? 'ok' : 'err', done ? t('keyBrowser.copiedCountKeyNames', { count: keys.length }) : t('common.copyFailedCheckClipboardPermissions'))
   }
 
   function handleCreateClose(): void {
@@ -1022,7 +1022,7 @@ export function KeyBrowser() {
    */
   async function menuDelete(target: KeyMenuTarget): Promise<void> {
     if (!target.keys.length) {
-      notify('err', t('该前缀下没有可删除的键'))
+      notify('err', t('keyBrowser.noDeletableKeysUnderPrefix'))
       return
     }
     await deleteKeys(target.keys)
@@ -1074,17 +1074,17 @@ export function KeyBrowser() {
           value={draftPattern}
           onChange={(event) => setDraftPattern(event.target.value)}
           className="pattern mono"
-          placeholder={t('匹配模式，如 user:*')}
+          placeholder={t('keyBrowser.matchPatternExample')}
           disabled={!connected}
           onKeyUp={(event) => {
             if (event.key === 'Enter') applyPattern()
           }}
         />
 
-        <button className="btn-ghost icon" {...tipProps(t('重新扫描'))} disabled={!connected} onClick={applyPattern}>
+        <button className="btn-ghost icon" {...tipProps(t('keyBrowser.rescan'))} disabled={!connected} onClick={applyPattern}>
           <DialogIcon name="refresh" size={13} className={state.loadingKeys ? 'spin' : undefined} />
         </button>
-        <button className="btn-ghost icon add" {...tipProps(t('新建键'))} disabled={!connected} onClick={openCreateRoot}>
+        <button className="btn-ghost icon add" {...tipProps(t('common.newKey'))} disabled={!connected} onClick={openCreateRoot}>
           <DialogIcon name="add" size={14} />
         </button>
       </div>
@@ -1093,11 +1093,11 @@ export function KeyBrowser() {
         <div className="view-switch">
           <button className={viewMode === 'tree' ? 'on' : ''} onClick={() => setViewModeAndPersist('tree')}>
             <DialogIcon name="tree" size={12} />
-            {t('树形')}
+            {t('keyBrowser.tree')}
           </button>
           <button className={viewMode === 'flat' ? 'on' : ''} onClick={() => setViewModeAndPersist('flat')}>
             <DialogIcon name="list" size={12} />
-            {t('平铺')}
+            {t('keyBrowser.flat')}
           </button>
         </div>
 
@@ -1116,7 +1116,7 @@ export function KeyBrowser() {
             }}
             className="sep-input mono"
             maxLength={2}
-            {...tipProps(t('键名分隔符，例如 a:aa:1 使用 :'))}
+            {...tipProps(t('keyBrowser.keySeparatorExample'))}
           />
         ) : null}
 
@@ -1127,24 +1127,24 @@ export function KeyBrowser() {
             {/* 层级展开：L1 只展开顶层目录、L2 到第二层 —— 大库下「全部展开」的安全版 */}
             <button
               className={`mini${expandState === 'L1' ? ' on' : ''}`}
-              {...tipProps(t('展开至第 1 层'))}
+              {...tipProps(t('keyBrowser.expandLevel1'))}
               onClick={() => expandToLevel(1)}
             >
               L1
             </button>
             <button
               className={`mini${expandState === 'L2' ? ' on' : ''}`}
-              {...tipProps(t('展开至第 2 层'))}
+              {...tipProps(t('keyBrowser.expandLevel2'))}
               onClick={() => expandToLevel(2)}
             >
               L2
             </button>
-            <button className={`mini${expandState === 'all' ? ' on' : ''}`} {...tipProps(t('全部展开'))} onClick={expandAll}>
+            <button className={`mini${expandState === 'all' ? ' on' : ''}`} {...tipProps(t('keyBrowser.expandAll'))} onClick={expandAll}>
               <DialogIcon name="expand" size={13} />
             </button>
             <button
               className={`mini${expandState === 'none' ? ' on' : ''}`}
-              {...tipProps(t('全部折叠'))}
+              {...tipProps(t('keyBrowser.collapseAll'))}
               onClick={collapseAll}
             >
               <DialogIcon name="collapse" size={13} />
@@ -1159,7 +1159,7 @@ export function KeyBrowser() {
         {connected ? (
           <button
             className={`mini${selecting ? ' on' : ''}`}
-            {...tipProps(selecting ? t('退出勾选') : t('批量操作键'))}
+            {...tipProps(selecting ? t('keyBrowser.exitSelection') : t('keyBrowser.bulkKeyOperations'))}
             onClick={toggleSelecting}
           >
             <DialogIcon name="check" size={13} />
@@ -1171,24 +1171,24 @@ export function KeyBrowser() {
       {selecting ? (
         <div className={`pick-bar${pickedCount > 0 ? ' active' : ''}`}>
           <span className="pick-text">
-            {t('已选')} <b className="mono">{pickedCount}</b> {t('个键')}
+            {t('keyBrowser.selected')} <b className="mono">{pickedCount}</b> {t('keyBrowser.keys')}
           </span>
           <span className="spacer" />
           <button className="btn tiny" onClick={toggleSelecting}>
             <DialogIcon name="cancel" size={11} />
-            {t('取消')}
+            {t('common.cancel')}
           </button>
           <button className="btn tiny" disabled={!pickedCount} onClick={() => confirmPickedAction('ttl')}>
             <DialogIcon name="clock" size={12} />
-            {t('设置 TTL')}
+            {t('common.setTtl')}
           </button>
           <button className="btn tiny" disabled={!pickedCount} onClick={() => confirmPickedAction('rename')}>
             <DialogIcon name="edit" size={12} />
-            {t('重命名')}
+            {t('common.rename')}
           </button>
           <button className="btn tiny btn-danger" disabled={!pickedCount} onClick={() => confirmPickedAction('delete')}>
             <DialogIcon name="trash" size={12} />
-            {t('删除选中')}
+            {t('keyBrowser.deleteSelected')}
           </button>
         </div>
       ) : null}
@@ -1203,7 +1203,7 @@ export function KeyBrowser() {
               state.keyFilter = event.target.value
             }}
             className="filter"
-            placeholder={state.keyFilterExact ? t('输入完整键名，回车全库查询') : t('输入即筛列表，回车全库搜索')}
+            placeholder={state.keyFilterExact ? t('keyBrowser.enterFullKeyNameSearchAllDatabases') : t('keyBrowser.typeToFilterEnterSearchAllDatabases')}
             disabled={!connected}
             onKeyDown={onFilterKeydown}
             onBlur={() => {
@@ -1220,7 +1220,7 @@ export function KeyBrowser() {
           {state.keyFilter ? (
             <button
               className="f-clear"
-              {...tipProps(t('清除筛选'))}
+              {...tipProps(t('keyBrowser.clearFilter'))}
               onClick={() => {
                 state.keyFilter = ''
               }}
@@ -1234,7 +1234,7 @@ export function KeyBrowser() {
               className={`f-caret${histOpen ? ' on' : ''}`}
               role="button"
               aria-expanded={histOpen}
-              {...tipProps(t('历史候选（↓）'))}
+              {...tipProps(t('keyBrowser.historySuggestions'))}
               onMouseDown={(event) => {
                 event.preventDefault()
                 toggleHist()
@@ -1249,7 +1249,7 @@ export function KeyBrowser() {
           <button
             className="f-search"
             disabled={!connected || !state.keyFilter.trim()}
-            {...tipProps(t('查询'))}
+            {...tipProps(t('keyBrowser.query'))}
             onClick={runSearch}
           >
             <svg viewBox="0 0 16 16" aria-hidden="true">
@@ -1263,7 +1263,7 @@ export function KeyBrowser() {
             role="checkbox"
             aria-checked={state.keyFilterExact}
             disabled={!connected}
-            {...tipProps(t('精确匹配'))}
+            {...tipProps(t('keyBrowser.exactMatch'))}
             onClick={() => {
               const next = !state.keyFilterExact
               state.keyFilterExact = next
@@ -1285,7 +1285,7 @@ export function KeyBrowser() {
           {histOpen ? (
             <div className="hist-pop">
               <div className="hp-head">
-                <span>{t('仅当前连接')}</span>
+                <span>{t('keyBrowser.currentConnectionOnly')}</span>
                 <span className="hp-name">{histConnName}</span>
                 <span className="hp-db">· DB {state.activeDb}</span>
                 <span className={`hp-count${histCount >= SEARCH_HISTORY_LIMIT ? ' full' : ''}`}>
@@ -1295,9 +1295,9 @@ export function KeyBrowser() {
               <div className="hp-body">
                 {!histRowParts.length ? (
                   <div className="hp-empty">
-                    {state.keyFilter.trim() ? t('没有匹配的历史') : t('当前连接还没有搜索历史')}
+                    {state.keyFilter.trim() ? t('keyBrowser.noMatchingHistory') : t('keyBrowser.noSearchHistoryForConnection')}
                     <br />
-                    {t('执行一次查询（回车）就会记录到这里')}
+                    {t('keyBrowser.runQuery')}
                   </div>
                 ) : null}
                 {histRowParts.map((row, i) => (
@@ -1319,7 +1319,7 @@ export function KeyBrowser() {
                     </span>
                     <button
                       className="hp-del"
-                      {...tipProps(t('删除该条历史'))}
+                      {...tipProps(t('keyBrowser.deleteHistoryEntry'))}
                       onMouseDown={(event) => {
                         event.stopPropagation()
                         event.preventDefault()
@@ -1333,8 +1333,8 @@ export function KeyBrowser() {
               </div>
               <div className="hp-foot">
                 <span className="hp-keys">
-                  <kbd>Tab</kbd>{t('采纳')} <kbd>↑</kbd>
-                  <kbd>↓</kbd>{t('选择')} <kbd>Enter</kbd>{t('填入')}
+                  <kbd>Tab</kbd>{t('keyBrowser.acceptGhost')} <kbd>↑</kbd>
+                  <kbd>↓</kbd>{t('keyBrowser.selectHistoryEntry')} <kbd>Enter</kbd>{t('keyBrowser.fillHistoryEntry')}
                 </span>
                 <button
                   className="hp-clear"
@@ -1344,14 +1344,14 @@ export function KeyBrowser() {
                   }}
                 >
                   <DialogIcon name="trash" size={12} />
-                  {t('清空本连接历史')}
+                  {t('keyBrowser.clearConnectionHistory')}
                 </button>
               </div>
             </div>
           ) : null}
         </label>
         <span className="counter mono">
-          {remoteActive ? t('全库 {count}', { count: displayKeys.length }) : `${filteredKeys.length} / ${state.keys.length}`}
+          {remoteActive ? t('keyBrowser.allDatabasesCount', { count: displayKeys.length }) : `${filteredKeys.length} / ${state.keys.length}`}
         </span>
       </div>
 
@@ -1371,23 +1371,23 @@ export function KeyBrowser() {
         {remoteActive && state.remoteSearch ? (
           <div className={`remote-bar${state.remoteSearch.scanning ? ' scanning' : ''}`}>
             <span className="rb-text">
-              {t('全库搜索「{keyword}」： 已找到 {count} 条', {
+              {t('keyBrowser.allDatabasesSearchFound', {
                 keyword: state.remoteSearch.keyword,
                 count: state.remoteSearch.scanning ? state.remoteSearch.found : state.remoteKeys.length,
               })}
               {state.remoteSearch.scanning ? (
-                <> · {t('扫描中…')}</>
+                <> · {t('keyBrowser.scanning')}</>
               ) : state.remoteSearch.capped ? (
-                <> · {t('已达上限，请细化关键词')}</>
+                <> · {t('keyBrowser.limitReachedRefineKeyword')}</>
               ) : (
-                <> · {t('已扫完当前库')}</>
+                <> · {t('keyBrowser.finishedScanningCurrentDb')}</>
               )}
             </span>
             <span className="spacer" />
             {state.remoteSearch.scanning ? (
               <button className="btn tiny" onClick={stopRemoteSearch}>
                 <DialogIcon name="stop" size={11} />
-                {t('停止')}
+                {t('keyBrowser.stop')}
               </button>
             ) : null}
           </div>
@@ -1397,7 +1397,7 @@ export function KeyBrowser() {
         {switchingDataset ? (
           <div className="loading-state">
             <span className="spinner" />
-            <span className="loading-text">{t('正在加载键列表…')}</span>
+            <span className="loading-text">{t('keyBrowser.loadingKeyList')}</span>
           </div>
         ) : connected && viewMode === 'tree' ? (
           <>
@@ -1424,22 +1424,22 @@ export function KeyBrowser() {
               <p className="placeholder">
                 {remoteActive ? (
                   <>
-                    {t('全库搜索没有匹配的键')}
+                    {t('keyBrowser.noMatchesAllDatabases')}
                     <br />
-                    <span className="hint">{t('换个关键词，或清除筛选查看已加载列表')}</span>
+                    <span className="hint">{t('keyBrowser.tryAnotherKeywordOrClearFilter')}</span>
                   </>
                 ) : (
                   <>
-                    {t('当前库没有匹配的键')}
+                    {t('keyBrowser.noMatchesCurrentDb')}
                     <br />
-                    <span className="hint">{t('可尝试放宽匹配模式，例如 *')}</span>
+                    <span className="hint">{t('keyBrowser.tryBroaderPattern')}</span>
                   </>
                 )}
               </p>
             ) : remoteScanning && !treeNodes.length ? (
               <p className="placeholder scan-state">
                 <span className="spinner" />
-                <span>{t('正在全库扫描…')}</span>
+                <span>{t('keyBrowser.scanningAllDatabases')}</span>
               </p>
             ) : null}
           </>
@@ -1463,16 +1463,16 @@ export function KeyBrowser() {
                     <input type="checkbox" checked={isPicked(item.key)} onChange={() => togglePick(item.key)} />
                   </label>
                 ) : null}
-                <span className={`type-badge type-${item.type}`} {...tipProps(t(typeLabel(item.type)))}>
+                <span className={`type-badge type-${item.type}`} {...tipProps(typeLabel(item.type))}>
                   {typeAbbr(item.type)}
                 </span>
                 <span className="key-name mono ellipsis" {...tipProps(item.key)}>
                   {item.key}
                 </span>
-                <span className={`ttl mono ${ttlTone(item.ttl)}`.trim()}>{t(formatTtl(item.ttl))}</span>
+                <span className={`ttl mono ${ttlTone(item.ttl)}`.trim()}>{formatTtl(item.ttl)}</span>
                 <button
                   className="del-btn"
-                  {...tipProps(t('删除该键'))}
+                  {...tipProps(t('common.deleteThisKey'))}
                   onClick={(event) => {
                     event.stopPropagation()
                     void deleteKeys([item.key])
@@ -1494,57 +1494,57 @@ export function KeyBrowser() {
               <p className="placeholder">
                 {remoteActive ? (
                   <>
-                    {t('全库搜索没有匹配的键')}
+                    {t('keyBrowser.noMatchesAllDatabases')}
                     <br />
-                    <span className="hint">{t('换个关键词，或清除筛选查看已加载列表')}</span>
+                    <span className="hint">{t('keyBrowser.tryAnotherKeywordOrClearFilter')}</span>
                   </>
                 ) : (
                   <>
-                    {t('当前库没有匹配的键')}
+                    {t('keyBrowser.noMatchesCurrentDb')}
                     <br />
-                    <span className="hint">{t('可尝试放宽匹配模式，例如 *')}</span>
+                    <span className="hint">{t('keyBrowser.tryBroaderPattern')}</span>
                   </>
                 )}
               </p>
             ) : remoteScanning && !displayKeys.length ? (
               <p className="placeholder scan-state">
                 <span className="spinner" />
-                <span>{t('正在全库扫描…')}</span>
+                <span>{t('keyBrowser.scanningAllDatabases')}</span>
               </p>
             ) : null}
           </>
         ) : (
-          <p className="placeholder">{t('请先在左侧选择一个连接并建立会话')}</p>
+          <p className="placeholder">{t('keyBrowser.selectConnectionFirst')}</p>
         )}
       </div>
 
       <footer className="list-foot">
         <span className="mono loaded">
-          {t('已加载 {count}', { count: state.keys.length })}
+          {t('keyBrowser.loadedCount', { count: state.keys.length })}
           {currentDbKeys ? <> / {currentDbKeys}</> : null}
         </span>
         <span className="spacer" />
         {state.loadingKeys ? (
-          <span className="mono scanning">{t('扫描中…')}</span>
+          <span className="mono scanning">{t('keyBrowser.scanning')}</span>
         ) : remoteActive ? (
           state.remoteSearch?.scanning ? (
-            <span className="mono scanning">{t('全库扫描中…')}</span>
+            <span className="mono scanning">{t('keyBrowser.scanningAllDatabasesShort')}</span>
           ) : (
-            <span className="mono done">{t('搜索结果 {count} 条', { count: state.remoteKeys.length })}</span>
+            <span className="mono done">{t('keyBrowser.searchResultsCount', { count: state.remoteKeys.length })}</span>
           )
         ) : connected && state.cursor !== '0' ? (
           <>
-            <button className="btn-ghost more" {...tipProps(t('再加载一页'))} onClick={() => void loadMore()}>
+            <button className="btn-ghost more" {...tipProps(t('keyBrowser.loadAnotherPage'))} onClick={() => void loadMore()}>
               <DialogIcon name="add" size={12} />
-              {t('加载更多')}
+              {t('keyBrowser.loadMore')}
             </button>
-            <button className="btn-ghost more" {...tipProps(t('连续加载直到当前库遍历结束'))} onClick={() => void loadAll()}>
+            <button className="btn-ghost more" {...tipProps(t('keyBrowser.keepLoadingUntilEnd'))} onClick={() => void loadAll()}>
               <DialogIcon name="arrow-down" size={12} />
-              {t('加载全部')}
+              {t('keyBrowser.loadAll')}
             </button>
           </>
         ) : connected && state.keys.length ? (
-          <span className="mono done">{t('已全部加载')}</span>
+          <span className="mono done">{t('keyBrowser.allLoaded')}</span>
         ) : null}
       </footer>
 
@@ -1576,7 +1576,7 @@ export function KeyBrowser() {
               >
                 <div className="km-head">
                   {menuHead && !menuHead.isSubtree ? (
-                    <span className={`type-badge type-${menuHead.type}`} {...tipProps(t(typeLabel(menuHead.type)))}>
+                    <span className={`type-badge type-${menuHead.type}`} {...tipProps(typeLabel(menuHead.type))}>
                       {typeAbbr(menuHead.type)}
                     </span>
                   ) : (
@@ -1591,48 +1591,48 @@ export function KeyBrowser() {
                   <>
                     <button className="km-item" onClick={() => runSingleKeyAction(menuViewValue)}>
                       <DialogIcon name="eye" size={14} className="km-icon" />
-                      <span>{t('查看值')}</span>
+                      <span>{t('keyBrowser.viewValue')}</span>
                     </button>
 
-                    <div className="km-group">{t('复制')}</div>
+                    <div className="km-group">{t('common.copy')}</div>
                     <button className="km-item" onClick={() => runSingleKeyAction((item) => void menuCopyName(item))}>
                       <DialogIcon name="text" size={14} className="km-icon" />
-                      <span>{t('复制键名')}</span>
+                      <span>{t('common.copyKeyName')}</span>
                     </button>
                     <button className="km-item" onClick={() => runSingleKeyAction((item) => void menuCopyValue(item))}>
                       <DialogIcon name="copy" size={14} className="km-icon" />
-                      <span>{t('复制键值')}</span>
+                      <span>{t('keyBrowser.copyKeyValue')}</span>
                     </button>
                     <button className="km-item" onClick={() => runSingleKeyAction((item) => void menuCopyCommand(item))}>
                       <DialogIcon name="terminal" size={14} className="km-icon" />
-                      <span>{t('复制为命令')}</span>
+                      <span>{t('keyBrowser.copyCommand')}</span>
                     </button>
 
-                    <div className="km-group">{t('管理')}</div>
+                    <div className="km-group">{t('keyBrowser.manage')}</div>
                     <button className="km-item" onClick={() => runSingleKeyAction(menuRename)}>
                       <DialogIcon name="edit" size={14} className="km-icon" />
-                      <span>{t('重命名键')}</span>
+                      <span>{t('common.renameKey')}</span>
                     </button>
                     <button className="km-item" onClick={() => runSingleKeyAction(menuSetTtl)}>
                       <DialogIcon name="clock" size={14} className="km-icon" />
-                      <span>{t('设置 TTL')}</span>
+                      <span>{t('common.setTtl')}</span>
                     </button>
                   </>
                 ) : (
                   <>
                     <button className="km-item" onClick={() => runPrefixAction(menuCreateUnder)}>
                       <DialogIcon name="add" size={14} className="km-icon" />
-                      <span>{t('添加新键')}</span>
+                      <span>{t('keyBrowser.addNewKey')}</span>
                     </button>
 
-                    <div className="km-group">{t('复制')}</div>
+                    <div className="km-group">{t('common.copy')}</div>
                     <button className="km-item" onClick={() => runPrefixAction((node) => void menuCopyPrefix(node))}>
                       <DialogIcon name="text" size={14} className="km-icon" />
-                      <span>{t('复制前缀')}</span>
+                      <span>{t('keyBrowser.copyPrefix')}</span>
                     </button>
                     <button className="km-item" onClick={() => runPrefixAction((node) => void menuCopySubtreeKeys(node))}>
                       <DialogIcon name="copy" size={14} className="km-icon" />
-                      <span>{t('复制全部键名')}</span>
+                      <span>{t('keyBrowser.copyAllKeyNames')}</span>
                     </button>
                   </>
                 )}
@@ -1643,8 +1643,8 @@ export function KeyBrowser() {
                   <DialogIcon name="trash" size={14} className="km-icon" />
                   <span>
                     {menuHead?.isSubtree
-                      ? t('批量删除 {count} 个键', { count: menuHead.count })
-                      : t('删除键')}
+                      ? t('common.bulkDeleteCountKeys', { count: menuHead.count })
+                      : t('common.deleteKey')}
                   </span>
                 </button>
               </div>
@@ -1656,12 +1656,12 @@ export function KeyBrowser() {
       {/* 重命名键 */}
       {renameTarget ? (
         <PromptDialog
-          title={t('重命名键')}
-          label={t('新的键名')}
+          title={t('common.renameKey')}
+          label={t('common.newKeyName')}
           initialValue={renameTarget.key}
-          placeholder={t('请输入新的键名')}
-          hint={t('重命名会保留原 TTL 与值内容。')}
-          confirmText={t('重命名')}
+          placeholder={t('common.enterNewKeyName')}
+          hint={t('keyBrowser.renamingPreservesOriginalTtlValue')}
+          confirmText={t('common.rename')}
           onConfirm={(next) => void handleRenameConfirm(next)}
           onCancel={() => setRenameTarget(null)}
         />
@@ -1670,12 +1670,12 @@ export function KeyBrowser() {
       {/* 设置 TTL */}
       {ttlTarget ? (
         <PromptDialog
-          title={t('设置 TTL')}
-          label={t('存活时间（秒）')}
+          title={t('common.setTtl')}
+          label={t('keyBrowser.timeLive')}
           initialValue={ttlTarget.ttl > 0 ? String(ttlTarget.ttl) : ''}
-          placeholder={t('留空或 0 表示永久')}
-          hint={t('输入 0 或留空即取消过期时间，设为永久键。')}
-          confirmText={t('应用')}
+          placeholder={t('keyBrowser.blank0MeansNoExpiration')}
+          hint={t('keyBrowser.enter0LeaveBlankRemove')}
+          confirmText={t('keyBrowser.apply')}
           onConfirm={(next) => void handleTtlConfirm(next)}
           onCancel={() => setTtlTarget(null)}
         />

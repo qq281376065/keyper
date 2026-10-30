@@ -37,20 +37,20 @@ export function StreamAddEntryDialog({ keyName, total, onConfirm, onCancel }: St
   return (
     <DialogShell
       icon="add"
-      title={t('追加消息')}
-      description={t('消息 ID 由服务端自动生成，总是追加在流末尾')}
+      title={t('streamAddEntryDialog.appendMessage')}
+      description={t('streamAddEntryDialog.messageIdsBrief')}
       badge={<span className="dlg-badge mono">stream</span>}
       className="stream-add-entry-dialog"
       onClose={onCancel}
       footer={
         <>
-          <span className="stat mono">{t('{count} 字符', { count: fieldDraft.length })}</span>
+          <span className="stat mono">{t('common.countCharacters', { count: fieldDraft.length })}</span>
           <span className="sep">·</span>
           <span className="stat mono">value {valueBytes} B</span>
           <span className="spacer" />
           <Button type="button" variant="ghost" className="foot-btn foot-quiet" onClick={onCancel}>
             <DialogIcon name="cancel" size={13} />
-            {t('取消')}
+            {t('common.cancel')}
           </Button>
           <Button
             type="button"
@@ -59,7 +59,7 @@ export function StreamAddEntryDialog({ keyName, total, onConfirm, onCancel }: St
             onClick={() => onConfirm(fieldDraft.trim(), valueDraft)}
           >
             <DialogIcon name="add" size={13} />
-            {t('追加')}
+            {t('valueViewer.append')}
           </Button>
         </>
       }
@@ -70,20 +70,20 @@ export function StreamAddEntryDialog({ keyName, total, onConfirm, onCancel }: St
         <span className="key-name mono ellipsis" title={keyName}>
           {keyName}
         </span>
-        <span className="pos mono">{t('{count} 条消息', { count: total })}</span>
+        <span className="pos mono">{t('streamAddEntryDialog.countMessages', { count: total })}</span>
       </div>
 
       <div className="field">
         <Label htmlFor="sae-field" className="field-label">
           field
-          <span className="hint-inline">{t('（消息的字段名，如 event / user_id）')}</span>
+          <span className="hint-inline">{t('streamAddEntryDialog.fieldNameHint')}</span>
         </Label>
         <Input
           id="sae-field"
           value={fieldDraft}
           onChange={(event) => setFieldDraft(event.target.value)}
           className="mono"
-          placeholder={t('如 order_paid')}
+          placeholder={t('streamAddEntryDialog.e')}
           autoComplete="off"
           spellCheck={false}
           autoFocus
@@ -104,13 +104,13 @@ export function StreamAddEntryDialog({ keyName, total, onConfirm, onCancel }: St
           className="mono dlg-content"
           autoGrow
           spellCheck={false}
-          placeholder={t('消息内容，可多行')}
+          placeholder={t('streamAddEntryDialog.messageContentMultiple')}
         />
       </div>
 
       <div className="dlg-alert" role="status">
         <DialogIcon name="info" size={14} />
-        <span>{t('消息 ID 由服务端自动生成（XADD *），总是追加在流的末尾、不影响历史消息。')}</span>
+        <span>{t('streamAddEntryDialog.messageIdsServerGenerated')}</span>
       </div>
     </DialogShell>
   )

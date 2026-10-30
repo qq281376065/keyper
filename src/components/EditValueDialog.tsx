@@ -41,14 +41,14 @@ export function EditValueDialog({ initial, onClose }: { initial: KeyValue; onClo
 
   const placeholder =
     type === 'hash'
-      ? t('每行一个字段，格式 field=value')
+      ? t('editValueDialog.oneFieldPerLineValue')
       : type === 'zset'
-        ? t('每行格式 member::score')
+        ? t('editValueDialog.memberScoreFormat')
         : type === 'list'
-          ? t('每行一个元素')
+          ? t('editValueDialog.oneElementPerLine')
           : type === 'set'
-            ? t('每行一个成员')
-            : t('字符串内容，可多行')
+            ? t('editValueDialog.oneMemberPerLine')
+            : t('createKeyDialog.stringContentSpanMultipleLines')
 
   function parseLines(): string[] {
     return linesDraft
@@ -85,7 +85,7 @@ export function EditValueDialog({ initial, onClose }: { initial: KeyValue; onClo
   async function submit(): Promise<void> {
     const payload = buildPayload()
     if (payload === null) {
-      notify('err', t('暂不支持编辑 {type} 类型', { type }))
+      notify('err', t('editValueDialog.editingTypeTypesNotSupported', { type }))
       return
     }
 
@@ -93,7 +93,7 @@ export function EditValueDialog({ initial, onClose }: { initial: KeyValue; onClo
     if (ttlText.trim()) {
       const parsed = Number(ttlText)
       if (!Number.isInteger(parsed) || parsed < 0) {
-        notify('err', t('TTL 需为不小于 0 的整数秒'))
+        notify('err', t('createKeyDialog.ttlIntegerNumberSeconds'))
         return
       }
       ttl = parsed
@@ -112,8 +112,8 @@ export function EditValueDialog({ initial, onClose }: { initial: KeyValue; onClo
   return (
     <DialogShell
       icon="edit"
-      title={t('编辑值')}
-      description={t('保存会以表单内容整体覆盖该键')}
+      title={t('editValueDialog.editValue')}
+      description={t('editValueDialog.savingOverwritesWholeKeyForm')}
       badge={
         <>
           <span className={`type-badge type-${type}`}>{type}</span>
@@ -127,7 +127,7 @@ export function EditValueDialog({ initial, onClose }: { initial: KeyValue; onClo
           <span className="spacer" />
           <Button type="button" variant="ghost" className="foot-btn foot-quiet" onClick={onClose}>
             <DialogIcon name="cancel" size={13} />
-            {t('取消')}
+            {t('common.cancel')}
           </Button>
           <Button
             type="button"
@@ -136,7 +136,7 @@ export function EditValueDialog({ initial, onClose }: { initial: KeyValue; onClo
             onClick={() => void submit()}
           >
             <DialogIcon name="save" size={13} />
-            {saving ? t('保存中…') : t('保存')}
+            {saving ? t('common.saving') : t('common.save')}
           </Button>
         </>
       }
@@ -144,7 +144,7 @@ export function EditValueDialog({ initial, onClose }: { initial: KeyValue; onClo
       {/* TTL 放在最前：整键重建时必须记住过期时间，否则保存一次就变永久 */}
       <div className="field">
         <Label htmlFor="ev-ttl" className="field-label">
-          {t('TTL（秒，留空表示永久）')}
+          {t('editValueDialog.ttl')}
         </Label>
         <Input
           id="ev-ttl"
@@ -153,7 +153,7 @@ export function EditValueDialog({ initial, onClose }: { initial: KeyValue; onClo
           className="mono ttl-input"
           inputMode="numeric"
           min="0"
-          placeholder={t('永久')}
+          placeholder={t('common.noExpiration')}
         />
       </div>
 
@@ -194,7 +194,7 @@ export function EditValueDialog({ initial, onClose }: { initial: KeyValue; onClo
                 variant="ghost"
                 size="icon"
                 className="del-btn"
-                aria-label={t('删除字段')}
+                aria-label={t('common.deleteField')}
                 onClick={() => removeHashRow(index)}
               >
                 <DialogIcon name="cancel" size={11} />
@@ -203,7 +203,7 @@ export function EditValueDialog({ initial, onClose }: { initial: KeyValue; onClo
           ))}
           <button type="button" className="btn-ghost add-row" onClick={addHashRow}>
             <DialogIcon name="add" size={12} />
-            {t('新增字段')}
+            {t('editHashFieldDialog.addField')}
           </button>
         </div>
       ) : (
@@ -223,7 +223,7 @@ export function EditValueDialog({ initial, onClose }: { initial: KeyValue; onClo
       {/* 覆盖式保存的风险提示：用 warning 色条，位置在内容之后、页脚之前 */}
       <div className="dlg-alert" role="status">
         <DialogIcon name="warning" size={14} />
-        <span>{t('保存会以当前表单内容整体覆盖该键，请确认内容完整。')}</span>
+        <span>{t('editValueDialog.savingOverwritesWholeKeyCurrent')}</span>
       </div>
     </DialogShell>
   )

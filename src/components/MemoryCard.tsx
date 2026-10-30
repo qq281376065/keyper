@@ -45,7 +45,7 @@ export function MemoryCard() {
       /* 新结果从第一页看起（切粒度自动重算同样走这里） */
       setVisibleCount(PAGE_SIZE)
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('键内存分析失败'))
+      setError(err instanceof Error ? err.message : t('memoryCard.keyMemoryAnalysisFailed'))
     } finally {
       setLoading(false)
     }
@@ -98,7 +98,7 @@ export function MemoryCard() {
       <header className="mem-head">
         <h3 className="mem-title">
           <DialogIcon name="memory" size={14} className="mem-icon" />
-          <span>{t('键内存分析')}</span>
+          <span>{t('common.keyMemoryAnalysis')}</span>
         </h3>
         {/* 前缀粒度：并列选项组，选中态高亮（分段选择器，按约定不加图标） */}
         {connected ? (
@@ -107,10 +107,10 @@ export function MemoryCard() {
               <button
                 key={n}
                 className={`mem-depth-btn${depth === n ? ' on' : ''}`}
-                {...tipProps(t('按键名前 {count} 段聚合', { count: n }))}
+                {...tipProps(t('memoryCard.aggregateFirstCountSegmentsKey', { count: n }))}
                 onClick={() => setDepth(n)}
               >
-                {t('{count} 段', { count: n })}
+                {t('memoryCard.countSections', { count: n })}
               </button>
             ))}
           </div>
@@ -118,13 +118,13 @@ export function MemoryCard() {
         {connected ? (
           <button className="mem-run" disabled={loading} onClick={() => void runAnalysis()}>
             <DialogIcon name="memory" size={12} className="ti" />
-            {loading ? t('分析中…') : analysis ? t('重新分析') : t('开始分析')}
+            {loading ? t('memoryCard.analyzingAction') : analysis ? t('memoryCard.reAnalyze') : t('memoryCard.startAnalysis')}
           </button>
         ) : null}
       </header>
 
       <p className="mem-hint">
-        {t('按前缀聚合各键组的内存占用（MEMORY USAGE，集合类为采样近似值）；逐键探测较重，扫描上限 10000 个键，结果保留内存前 200 的前缀')}
+        {t('memoryCard.aggregatesMemoryUsageKeyGroup')}
       </p>
 
       {error ? (
@@ -132,18 +132,18 @@ export function MemoryCard() {
       ) : analysis ? (
         <>
           {analysis.truncated ? (
-            <p className="mem-trunc">{t('键数超过扫描上限，仅统计前 {count} 个键 —— 结果为近似分布', { count: analysis.scanned })}</p>
+            <p className="mem-trunc">{t('memoryCard.keyCountExceedsScanLimit', { count: analysis.scanned })}</p>
           ) : null}
-          {analysis.bucketsTruncated ? <p className="mem-trunc">{t('前缀超过 200 个，仅保留内存占用前 200 的前缀')}</p> : null}
+          {analysis.bucketsTruncated ? <p className="mem-trunc">{t('memoryCard.moreThan200PrefixesOnly')}</p> : null}
 
           {analysis.buckets.length ? (
             <table className="mem-table">
               <thead>
                 <tr>
-                  <th className="col-prefix">{t('前缀')}</th>
-                  <th className="col-keys">{t('键数')}</th>
-                  <th className="col-bytes">{t('内存')}</th>
-                  <th className="col-pct">{t('占比')}</th>
+                  <th className="col-prefix">{t('memoryCard.prefix')}</th>
+                  <th className="col-keys">{t('memoryCard.keys')}</th>
+                  <th className="col-bytes">{t('common.memory')}</th>
+                  <th className="col-pct">{t('memoryCard.share')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -165,23 +165,23 @@ export function MemoryCard() {
               </tbody>
             </table>
           ) : (
-            <div className="mem-empty">{t('当前库没有键')}</div>
+            <div className="mem-empty">{t('memoryCard.currentDatabaseNoKeys')}</div>
           )}
 
           {remaining > 0 ? (
             <button
               className="mem-more"
-              {...tipProps(t('再显示 {count} 行', { count: Math.min(PAGE_SIZE, remaining) }))}
+              {...tipProps(t('memoryCard.showCountMoreLines', { count: Math.min(PAGE_SIZE, remaining) }))}
               onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
             >
               <DialogIcon name="arrow-down" size={12} className="ti" />
-              {t('加载更多（还有 {count} 个前缀）', { count: remaining })}
+              {t('memoryCard.loadMore', { count: remaining })}
             </button>
           ) : null}
 
           {analysis.buckets.length ? (
             <p className="mem-summary mono">
-              {t('共 {prefixes} 个前缀 · {keys} 个键 · 总内存 {bytes}', {
+              {t('memoryCard.prefixesKeysBytesTotalMemory', {
                 prefixes: analysis.buckets.length,
                 keys: analysis.scanned,
                 bytes: formatBytes(analysis.totalBytes),
@@ -190,7 +190,7 @@ export function MemoryCard() {
           ) : null}
         </>
       ) : (
-        <div className="mem-empty">{loading ? t('正在分析…') : t('点击「开始分析」统计当前库的内存分布')}</div>
+        <div className="mem-empty">{loading ? t('memoryCard.analyzingHint') : t('memoryCard.clickStartAnalysisProfileMemory')}</div>
       )}
     </section>
   )

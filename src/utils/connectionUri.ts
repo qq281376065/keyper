@@ -13,6 +13,7 @@
  * （命令行、配置文件、聊天记录、Docker inspect 输出），解析错了会连到
  * 完全无关的实例上，必须用测试把边界固定住。
  */
+import type { MsgKey, TParams } from '@shared/i18n'
 
 export interface ParsedConnectionUri {
   host: string
@@ -23,9 +24,14 @@ export interface ParsedConnectionUri {
   tls: boolean
 }
 
+export interface ParseError {
+  key: MsgKey
+  params?: TParams
+}
+
 export type ParseResult =
   | { ok: true; value: ParsedConnectionUri }
-  | { ok: false; error: string }
+  | { ok: false; error: ParseError }
 
 const DEFAULT_PORT = 6379
 const MAX_DB = 15
@@ -38,7 +44,7 @@ const MAX_DB = 15
  */
 export function parseConnectionUri(raw: string): ParseResult {
   let text = (raw ?? '').trim()
-  if (!text) return { ok: false, error: '请粘贴连接串' }
+  if (!text) return { ok: false, error: { key: 'uri.pasteConnectionString' } }
 
   /*
    * 清洗顺序：先剥 `export REDIS_URL=` 前缀，再剥外层引号。
@@ -68,22 +74,22 @@ export function parseConnectionUri(raw: string): ParseResult {
   try {
     url = new URL(normalized)
   } catch {
-    return { ok: false, error: '连接串格式无法识别' }
+    return { ok: false, error: { key: 'uri.unrecognizedConnectionStringFormat' } }
   }
 
   const scheme = url.protocol.replace(':', '').toLowerCase()
   if (scheme !== 'redis' && scheme !== 'rediss') {
-    return { ok: false, error: `不支持的协议 ${scheme}://，仅支持 redis:// 与 rediss://` }
+    return { ok: false, error: { key: 'uri.unsupportedProtocol', params: { scheme } } }
   }
 
   const host = url.hostname.trim()
-  if (!host) return { ok: false, error: '连接串里缺少主机地址' }
+  if (!host) return { ok: false, error: { key: 'uri.connectionStringMissingHostAddress' } }
 
   // 端口：URL 会把非法端口解析成空字符串，这里统一回到默认值
   const portRaw = url.port
   const port = portRaw ? Number(portRaw) : DEFAULT_PORT
   if (!Number.isInteger(port) || port <= 0 || port > 65535) {
-    return { ok: false, error: `端口 ${portRaw} 不在 1-65535 范围内` }
+    return { ok: false, error: { key: 'uri.portOutOfRange', params: { port: portRaw } } }
   }
 
   // 库号：取 pathname 的第一段；允许末尾带多余斜杠
@@ -91,11 +97,17 @@ export function parseConnectionUri(raw: string): ParseResult {
   let db = 0
   if (url.pathname && url.pathname !== '/') {
     if (!pathMatch) {
-      return { ok: false, error: `库号 "${url.pathname.slice(1)}" 不是有效数字（0-${MAX_DB}）` }
+      return {
+        ok: false,
+        error: {
+          key: 'uri.invalidDatabaseNumber',
+          params: { db: url.pathname.slice(1), max: MAX_DB },
+        },
+      }
     }
     db = Number(pathMatch[1])
     if (db < 0 || db > MAX_DB) {
-      return { ok: false, error: `库号 ${db} 超出范围（0-${MAX_DB}）` }
+      return { ok: false, error: { key: 'uri.databaseOutOfRange', params: { db, max: MAX_DB } } }
     }
   }
 

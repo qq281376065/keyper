@@ -179,7 +179,7 @@ export function MemcachedKeyBrowser() {
       setKeys(data)
     } catch (err) {
       if (aliveRef.current) {
-        setError(err instanceof Error ? err.message : t('读取失败'))
+        setError(err instanceof Error ? err.message : t('common.loadFailed'))
         setKeys(null)
       }
     } finally {
@@ -197,7 +197,7 @@ export function MemcachedKeyBrowser() {
       setKeys((current) => (current ? appendKeys(current, page) : page))
     } catch (err) {
       if (aliveRef.current) {
-        notify('err', t('加载更多失败：{error}', { error: err instanceof Error ? err.message : String(err) }))
+        notify('err', t('memcachedKeyBrowser.failedLoadMore', { error: err instanceof Error ? err.message : String(err) }))
       }
     } finally {
       if (aliveRef.current) setLoadingMore(false)
@@ -227,7 +227,7 @@ export function MemcachedKeyBrowser() {
       if (aliveRef.current) setKeys(merged)
     } catch (err) {
       if (aliveRef.current) {
-        notify('err', t('加载全部失败：{error}', { error: err instanceof Error ? err.message : String(err) }))
+        notify('err', t('memcachedKeyBrowser.failedLoadAll', { error: err instanceof Error ? err.message : String(err) }))
       }
     } finally {
       if (aliveRef.current) setLoadingMore(false)
@@ -406,31 +406,31 @@ export function MemcachedKeyBrowser() {
 
     const details: NonNullable<ConfirmRequest['details']> = [
       {
-        label: single ? t('键名') : t('数量'),
-        value: single ? list[0]! : t('{count} 个键', { count: list.length }),
+        label: single ? t('common.keyName') : t('memcachedKeyBrowser.count'),
+        value: single ? list[0]! : t('memcachedKeyBrowser.countKeys', { count: list.length }),
         mono: true,
       },
     ]
     if (target) {
-      details.push({ label: t('过期'), value: t(formatTtl(ttlOf(target))), mono: true, tone: 'muted' })
-      details.push({ label: t('大小'), value: formatBytes(target.bytes), mono: true, tone: 'muted' })
+      details.push({ label: t('common.expiration'), value: formatTtl(ttlOf(target)), mono: true, tone: 'muted' })
+      details.push({ label: t('common.size'), value: formatBytes(target.bytes), mono: true, tone: 'muted' })
     }
 
     const ok = await askConfirm({
-      title: single ? t('删除键') : t('批量删除 {count} 个键', { count: list.length }),
-      message: single ? t('即将从当前实例中移除该键：') : t('即将从当前实例中移除以下键：'),
+      title: single ? t('common.deleteKey') : t('common.bulkDeleteCountKeys', { count: list.length }),
+      message: single ? t('memcachedKeyBrowser.keyRemovedCurrentInstance') : t('memcachedKeyBrowser.keysRemovedCurrentInstance'),
       details,
       preview: single
         ? undefined
         : {
-            label: t('待删除的键名'),
+            label: t('memcachedKeyBrowser.keyNamesDelete'),
             text: shown.join('\n'),
             truncated: list.length > shown.length,
           },
       warning: single
-        ? t('此操作不可撤销，键及其全部数据将被立即删除。')
-        : t('此操作不可撤销，这些键及其全部数据将被立即删除。'),
-      confirmText: single ? t('删除') : t('删除 {count} 个键', { count: list.length }),
+        ? t('common.actionCannotUndoneKeyAll')
+        : t('memcachedKeyBrowser.actionCannotUndoneKeysAll'),
+      confirmText: single ? t('common.delete') : t('memcachedKeyBrowser.deleteCountKeys', { count: list.length }),
       danger: true,
     })
     if (!ok) return
@@ -457,8 +457,8 @@ export function MemcachedKeyBrowser() {
     })
     if (fromSelection && list.length >= picked.size) setSelecting(false)
 
-    if (failed) notify('err', t('已删除 {done} 个，失败 {failed} 个', { done, failed }))
-    else notify('ok', single ? t('已删除') : t('已删除 {count} 个缓存项', { count: done }))
+    if (failed) notify('err', t('memcachedKeyBrowser.deletedDoneFailed', { done, failed }))
+    else notify('ok', single ? t('common.deleted') : t('memcachedKeyBrowser.deletedCountCachedItems', { count: done }))
     await load()
   }
 
@@ -539,45 +539,45 @@ export function MemcachedKeyBrowser() {
 
   async function menuCopyName(key: string): Promise<void> {
     const done = await copyText(key)
-    notify(done ? 'ok' : 'err', done ? t('已复制键名') : t('复制失败，请检查剪贴板权限'))
+    notify(done ? 'ok' : 'err', done ? t('common.copiedKeyName') : t('common.copyFailedCheckClipboardPermissions'))
   }
 
   async function menuCopyValue(key: string): Promise<void> {
     if (!id) return
     const res = await api.memcached.get(id, key)
     if (!res.ok) {
-      notify('err', t('读取键值失败：{error}', { error: res.error }))
+      notify('err', t('keyBrowser.failedLoadKeyValue', { error: res.error }))
       return
     }
     if (!res.data.found) {
-      notify('err', t('键已过期或被删除'))
+      notify('err', t('memcachedKeyBrowser.keyExpiredDeleted'))
       return
     }
     const done = await copyText(res.data.data)
     notify(
       done ? 'ok' : 'err',
-      done ? t('已复制键值（{count} 字符）', { count: res.data.data.length }) : t('复制失败，请检查剪贴板权限'),
+      done ? t('keyBrowser.copiedKeyValue', { count: res.data.data.length }) : t('common.copyFailedCheckClipboardPermissions'),
     )
   }
 
   /** Memcached 文本协议里对应的读取命令；只生成读取类命令 */
   async function menuCopyCommand(key: string): Promise<void> {
     const done = await copyText(`get ${key}`)
-    notify(done ? 'ok' : 'err', done ? t('已复制命令') : t('复制失败，请检查剪贴板权限'))
+    notify(done ? 'ok' : 'err', done ? t('keyBrowser.copiedCommand') : t('common.copyFailedCheckClipboardPermissions'))
   }
 
   async function menuCopyPrefix(path: string): Promise<void> {
     const done = await copyText(path)
-    notify(done ? 'ok' : 'err', done ? t('已复制前缀 {prefix}', { prefix: path }) : t('复制失败，请检查剪贴板权限'))
+    notify(done ? 'ok' : 'err', done ? t('keyBrowser.copiedPrefix', { prefix: path }) : t('common.copyFailedCheckClipboardPermissions'))
   }
 
   async function menuCopySubtreeKeys(keys: string[]): Promise<void> {
     if (!keys.length) {
-      notify('err', t('该前缀下没有键'))
+      notify('err', t('keyBrowser.noKeysUnderPrefix'))
       return
     }
     const done = await copyText(keys.join('\n'))
-    notify(done ? 'ok' : 'err', done ? t('已复制 {count} 个键名', { count: keys.length }) : t('复制失败，请检查剪贴板权限'))
+    notify(done ? 'ok' : 'err', done ? t('keyBrowser.copiedCountKeyNames', { count: keys.length }) : t('common.copyFailedCheckClipboardPermissions'))
   }
 
   function menuCreateUnder(path: string): void {
@@ -605,11 +605,11 @@ export function MemcachedKeyBrowser() {
       return
     }
     if (!res.data.ok) {
-      notify('err', res.data.message ?? t('重命名失败'))
+      notify('err', res.data.message ?? t('common.renameFailed'))
       return
     }
 
-    notify('ok', res.data.message ?? t('已重命名'))
+    notify('ok', res.data.message ?? t('common.renamed'))
     if (state.selectedKey === source) markSelected(target)
     expandAncestors(target)
     emitMcKeysChanged()
@@ -654,10 +654,10 @@ export function MemcachedKeyBrowser() {
   const truncated = keys?.truncated ?? false
   const incompleteHint = truncated
     ? keys?.deniedSlabs.length
-      ? t('{count} 个 slab 不可读，且仅能读取 COLD 分段，结果可能不完整', {
+      ? t('memcachedKeyBrowser.countSlabsUnreadableOnly', {
           count: keys.deniedSlabs.length,
         })
-      : t('服务端不支持 lru_crawler metadump，已回退 cachedump：仅能读取 COLD 分段，刚写入的键可能缺失')
+      : t('memcachedKeyBrowser.serverNotSupportLruCrawler')
     : ''
 
   return (
@@ -670,8 +670,8 @@ export function MemcachedKeyBrowser() {
         可见 / 总数计数放回筛选框右侧（纯文字），与 Redis 键栏同位置。
       */}
       <div className="toolbar">
-        <span className="mc-browser-title">{t('缓存项')}</span>
-        <span className="mc-endpoint" {...tipProps(t('已连接 · {endpoint}', { endpoint: endpointLabel }))}>
+        <span className="mc-browser-title">{t('memcachedKeyBrowser.cacheItem')}</span>
+        <span className="mc-endpoint" {...tipProps(t('memcachedKeyBrowser.connectedEndpoint', { endpoint: endpointLabel }))}>
           <i className="mc-endpoint-dot" aria-hidden="true" />
           <span className="mono ellipsis">{endpointLabel}</span>
         </span>
@@ -679,7 +679,7 @@ export function MemcachedKeyBrowser() {
         <button
           className="btn-ghost icon"
           disabled={loading || !id}
-          {...tipProps(t('重新读取缓存项（lru_crawler metadump）'))}
+          {...tipProps(t('memcachedKeyBrowser.reloadCacheItems'))}
           onClick={() => void load()}
         >
           <DialogIcon name="refresh" size={13} className={loading ? 'spin' : undefined} />
@@ -687,7 +687,7 @@ export function MemcachedKeyBrowser() {
         <button
           className="btn-ghost icon add"
           disabled={!id}
-          {...tipProps(t('新建缓存项'))}
+          {...tipProps(t('memcachedKeyBrowser.newCachedItem'))}
           onClick={() => {
             setCreatePrefix('')
             setDialogOpen(true)
@@ -707,11 +707,11 @@ export function MemcachedKeyBrowser() {
         <div className="view-switch">
           <button className={viewMode === 'tree' ? 'on' : ''} onClick={() => setViewMode('tree')}>
             <DialogIcon name="tree" size={12} />
-            {t('树形')}
+            {t('keyBrowser.tree')}
           </button>
           <button className={viewMode === 'flat' ? 'on' : ''} onClick={() => setViewMode('flat')}>
             <DialogIcon name="list" size={12} />
-            {t('平铺')}
+            {t('keyBrowser.flat')}
           </button>
         </div>
 
@@ -729,7 +729,7 @@ export function MemcachedKeyBrowser() {
             }}
             className="sep-input mono"
             maxLength={2}
-            {...tipProps(t('层级分隔符，例如 a:b:c 使用 :'))}
+            {...tipProps(t('memcachedKeyBrowser.hierarchySeparatorE'))}
           />
         ) : null}
 
@@ -740,21 +740,21 @@ export function MemcachedKeyBrowser() {
             {/* 层级展开：与 Redis 版同一组按钮，L1/L2 是大库下的"安全展开" */}
             <button
               className={`mini${expandState === 'L1' ? ' on' : ''}`}
-              {...tipProps(t('展开至第 1 层'))}
+              {...tipProps(t('keyBrowser.expandLevel1'))}
               onClick={() => expandToLevel(1)}
             >
               L1
             </button>
             <button
               className={`mini${expandState === 'L2' ? ' on' : ''}`}
-              {...tipProps(t('展开至第 2 层'))}
+              {...tipProps(t('keyBrowser.expandLevel2'))}
               onClick={() => expandToLevel(2)}
             >
               L2
             </button>
             <button
               className={`mini${expandState === 'all' ? ' on' : ''}`}
-              {...tipProps(t('全部展开'))}
+              {...tipProps(t('keyBrowser.expandAll'))}
               onClick={() => {
                 setCollapsed(new Set())
                 setExpandState('all')
@@ -764,7 +764,7 @@ export function MemcachedKeyBrowser() {
             </button>
             <button
               className={`mini${expandState === 'none' ? ' on' : ''}`}
-              {...tipProps(t('全部折叠'))}
+              {...tipProps(t('keyBrowser.collapseAll'))}
               onClick={() => {
                 setCollapsed(new Set(allPaths))
                 setExpandState('none')
@@ -780,7 +780,7 @@ export function MemcachedKeyBrowser() {
         {id ? (
           <button
             className={`mini${selecting ? ' on' : ''}`}
-            {...tipProps(selecting ? t('退出勾选') : t('批量删除缓存项'))}
+            {...tipProps(selecting ? t('keyBrowser.exitSelection') : t('memcachedKeyBrowser.bulkDeleteCachedItems'))}
             onClick={toggleSelecting}
           >
             <DialogIcon name="check" size={13} />
@@ -792,12 +792,12 @@ export function MemcachedKeyBrowser() {
       {selecting ? (
         <div className={`pick-bar${picked.size > 0 ? ' active' : ''}`}>
           <span className="pick-text">
-            {t('已选')} <b className="mono">{picked.size}</b> {t('个键')}
+            {t('keyBrowser.selected')} <b className="mono">{picked.size}</b> {t('keyBrowser.keys')}
           </span>
           <span className="spacer" />
           <button className="btn tiny" onClick={toggleSelecting}>
             <DialogIcon name="cancel" size={11} />
-            {t('取消')}
+            {t('common.cancel')}
           </button>
           <button
             className="btn tiny btn-danger"
@@ -805,7 +805,7 @@ export function MemcachedKeyBrowser() {
             onClick={() => void confirmBulkDelete()}
           >
             <DialogIcon name="trash" size={12} />
-            {t('删除选中')}
+            {t('keyBrowser.deleteSelected')}
           </button>
         </div>
       ) : null}
@@ -822,12 +822,12 @@ export function MemcachedKeyBrowser() {
         /* Memcached 无库概念，历史桶统一记在 db 0，避免出现"db5 的历史"这种不存在的分组 */
         historyDb={0}
         scopeLabel="Memcached"
-        placeholder={exact ? t('输入完整键名') : t('输入即筛，回车重新读取')}
+        placeholder={exact ? t('memcachedKeyBrowser.enterFullKeyName') : t('memcachedKeyBrowser.typingFiltersPressEnter')}
         /* 可见 / 总数计数：纯文字，紧跟在筛选框右侧，与 Redis 键栏同款 */
         trailing={
           <span
             className="counter mono"
-            {...tipProps(t('可见 {visible} 项 / 共 {total} 项', { visible: rows.length, total }))}
+            {...tipProps(t('memcachedKeyBrowser.visibleTotal', { visible: rows.length, total }))}
           >
             {rows.length} / {total}
           </span>
@@ -838,15 +838,15 @@ export function MemcachedKeyBrowser() {
         <p className="mc-browser-error">{error}</p>
       ) : !keys ? (
         <p className="empty-tip mc-browser-empty">
-          {loading ? t('正在读取缓存项…') : t('暂无键数据')}
+          {loading ? t('memcachedKeyBrowser.readingCacheItems') : t('memcachedKeyBrowser.noKeyData')}
           <br />
           <span className="mc-browser-sub">
-            {t('Memcached 无 KEYS/SCAN，将通过 lru_crawler 枚举全部缓存项')}
+            {t('memcachedKeyBrowser.memcachedNoKeysScanAll')}
           </span>
         </p>
       ) : rows.length === 0 ? (
         <p className="empty-tip mc-browser-empty">
-          {filter ? t('没有匹配的键') : t('实例中没有缓存项')}
+          {filter ? t('common.noMatchingKeys') : t('memcachedKeyBrowser.noCachedItemsInstance')}
         </p>
       ) : viewMode === 'tree' ? (
         <div className="key-list">
@@ -896,17 +896,17 @@ export function MemcachedKeyBrowser() {
                   </label>
                 ) : null}
                 {/* 平铺视图同样保留类型徽标位，与 Redis 平铺列表的列结构一致 */}
-                <span className="type-badge type-string" {...tipProps(t('Memcached 值（不透明字节串）'))}>
+                <span className="type-badge type-string" {...tipProps(t('memcachedKeyBrowser.memcachedValue'))}>
                   M
                 </span>
                 <span className="key-name mono ellipsis" {...tipProps(row.key)}>
                   {row.key}
                 </span>
                 {/* 平铺行同样显示 TTL，而不是大小 —— 与 Redis 键列表同一列语义 */}
-                <span className={`ttl mono ${ttlTone(ttl)}`.trim()}>{t(formatTtl(ttl))}</span>
+                <span className={`ttl mono ${ttlTone(ttl)}`.trim()}>{formatTtl(ttl)}</span>
                 <button
                   className="del-btn"
-                  {...tipProps(t('删除该键'))}
+                  {...tipProps(t('common.deleteThisKey'))}
                   onClick={(event) => {
                     event.stopPropagation()
                     void removeKeys([row.key])
@@ -927,38 +927,38 @@ export function MemcachedKeyBrowser() {
             结果不完整时只追加短标记，完整原因放 tooltip，避免窄栏被撑爆。
           */}
           <span className="mono loaded" {...(truncated ? tipProps(incompleteHint) : {})}>
-            {t('已加载 {count}', { count: loaded })}
+            {t('keyBrowser.loadedCount', { count: loaded })}
             {total > loaded ? <> / {total}</> : null}
-            {truncated ? ` · ${t('可能不完整')}` : ''}
+            {truncated ? ` · ${t('memcachedKeyBrowser.mayBeIncomplete')}` : ''}
           </span>
           <span className="spacer" />
           {loading ? (
-            <span className="mono scanning">{t('读取中…')}</span>
+            <span className="mono scanning">{t('common.loading')}</span>
           ) : loadingMore ? (
-            <span className="mono scanning">{t('加载中…')}</span>
+            <span className="mono scanning">{t('memcachedKeyBrowser.loading')}</span>
           ) : keys.hasMore ? (
             <>
               <button
                 className="btn-ghost more"
                 disabled={loadingMore}
-                {...tipProps(t('再加载一页'))}
+                {...tipProps(t('keyBrowser.loadAnotherPage'))}
                 onClick={() => void loadMore()}
               >
                 <DialogIcon name="add" size={12} />
-                {t('加载更多')}
+                {t('keyBrowser.loadMore')}
               </button>
               <button
                 className="btn-ghost more"
                 disabled={loadingMore}
-                {...tipProps(t('连续加载直到全部读取完成'))}
+                {...tipProps(t('memcachedKeyBrowser.keepLoadingUntilEverything'))}
                 onClick={() => void loadAll()}
               >
                 <DialogIcon name="arrow-down" size={12} />
-                {t('加载全部')}
+                {t('keyBrowser.loadAll')}
               </button>
             </>
           ) : loaded ? (
-            <span className="mono done">{t('已全部加载')}</span>
+            <span className="mono done">{t('keyBrowser.allLoaded')}</span>
           ) : null}
         </footer>
       ) : null}
@@ -1000,7 +1000,7 @@ export function MemcachedKeyBrowser() {
               >
                 <div className="km-head">
                   {keyMenu.target.kind === 'key' ? (
-                    <span className="type-badge type-string" {...tipProps(t('Memcached 值（不透明字节串）'))}>
+                    <span className="type-badge type-string" {...tipProps(t('memcachedKeyBrowser.memcachedValue'))}>
                       M
                     </span>
                   ) : (
@@ -1020,35 +1020,35 @@ export function MemcachedKeyBrowser() {
                       if (target.kind === 'key') markSelected(target.key)
                     })}>
                       <DialogIcon name="eye" size={14} className="km-icon" />
-                      <span>{t('查看值')}</span>
+                      <span>{t('keyBrowser.viewValue')}</span>
                     </button>
 
-                    <div className="km-group">{t('复制')}</div>
+                    <div className="km-group">{t('common.copy')}</div>
                     <button className="km-item" onClick={() => runMenuAction((target) => {
                       if (target.kind === 'key') void menuCopyName(target.key)
                     })}>
                       <DialogIcon name="text" size={14} className="km-icon" />
-                      <span>{t('复制键名')}</span>
+                      <span>{t('common.copyKeyName')}</span>
                     </button>
                     <button className="km-item" onClick={() => runMenuAction((target) => {
                       if (target.kind === 'key') void menuCopyValue(target.key)
                     })}>
                       <DialogIcon name="copy" size={14} className="km-icon" />
-                      <span>{t('复制键值')}</span>
+                      <span>{t('keyBrowser.copyKeyValue')}</span>
                     </button>
                     <button className="km-item" onClick={() => runMenuAction((target) => {
                       if (target.kind === 'key') void menuCopyCommand(target.key)
                     })}>
                       <DialogIcon name="terminal" size={14} className="km-icon" />
-                      <span>{t('复制为命令')}</span>
+                      <span>{t('keyBrowser.copyCommand')}</span>
                     </button>
 
-                    <div className="km-group">{t('管理')}</div>
+                    <div className="km-group">{t('keyBrowser.manage')}</div>
                     <button className="km-item" onClick={() => runMenuAction((target) => {
                       if (target.kind === 'key') setRenameTarget(target.key)
                     })}>
                       <DialogIcon name="edit" size={14} className="km-icon" />
-                      <span>{t('重命名键')}</span>
+                      <span>{t('common.renameKey')}</span>
                     </button>
                   </>
                 ) : (
@@ -1057,21 +1057,21 @@ export function MemcachedKeyBrowser() {
                       if (target.kind === 'subtree') menuCreateUnder(target.path)
                     })}>
                       <DialogIcon name="add" size={14} className="km-icon" />
-                      <span>{t('添加新键')}</span>
+                      <span>{t('keyBrowser.addNewKey')}</span>
                     </button>
 
-                    <div className="km-group">{t('复制')}</div>
+                    <div className="km-group">{t('common.copy')}</div>
                     <button className="km-item" onClick={() => runMenuAction((target) => {
                       if (target.kind === 'subtree') void menuCopyPrefix(target.path)
                     })}>
                       <DialogIcon name="text" size={14} className="km-icon" />
-                      <span>{t('复制前缀')}</span>
+                      <span>{t('keyBrowser.copyPrefix')}</span>
                     </button>
                     <button className="km-item" onClick={() => runMenuAction((target) => {
                       if (target.kind === 'subtree') void menuCopySubtreeKeys(target.keys)
                     })}>
                       <DialogIcon name="copy" size={14} className="km-icon" />
-                      <span>{t('复制全部键名')}</span>
+                      <span>{t('keyBrowser.copyAllKeyNames')}</span>
                     </button>
                   </>
                 )}
@@ -1085,8 +1085,8 @@ export function MemcachedKeyBrowser() {
                   <DialogIcon name="trash" size={14} className="km-icon" />
                   <span>
                     {keyMenu.target.kind === 'subtree'
-                      ? t('批量删除 {count} 个键', { count: keyMenu.target.keys.length })
-                      : t('删除键')}
+                      ? t('common.bulkDeleteCountKeys', { count: keyMenu.target.keys.length })
+                      : t('common.deleteKey')}
                   </span>
                 </button>
               </div>
@@ -1098,12 +1098,12 @@ export function MemcachedKeyBrowser() {
       {/* 重命名键：与 Redis 键栏同一个 PromptDialog，提示里说明组合实现的限制 */}
       {renameTarget ? (
         <PromptDialog
-          title={t('重命名键')}
-          label={t('新的键名')}
+          title={t('common.renameKey')}
+          label={t('common.newKeyName')}
           initialValue={renameTarget}
-          placeholder={t('请输入新的键名')}
-          hint={t('Memcached 没有 RENAME 命令：将读取原值写入新键后删除旧键；目标键已存在会被拒绝。服务端支持 meta 时会保留剩余 TTL 与 flags。')}
-          confirmText={t('重命名')}
+          placeholder={t('common.enterNewKeyName')}
+          hint={t('memcachedKeyBrowser.memcachedNoRenameCommand')}
+          confirmText={t('common.rename')}
           onConfirm={(next) => void handleRenameConfirm(next)}
           onCancel={() => setRenameTarget(null)}
         />
@@ -1249,7 +1249,7 @@ function McTreeRow({
             两边键栏的徽标规格、颜色语义保持一致，切换引擎不产生"这套 UI 没做完"的感觉。
           */}
           {node.leaf && !isDir ? (
-            <span className="type-badge type-string" {...tipProps(t('Memcached 值（不透明字节串）'))}>
+            <span className="type-badge type-string" {...tipProps(t('memcachedKeyBrowser.memcachedValue'))}>
               M
             </span>
           ) : null}
@@ -1262,13 +1262,13 @@ function McTreeRow({
 
           {/* 叶子右侧显示 TTL（与 Redis 同列、同格式）：永久键弱化、≤60s 用琥珀提醒 */}
           {node.leaf && !isDir ? (
-            <span className={`ttl mono ${ttlTone(node.leaf.ttl)}`.trim()}>{t(formatTtl(node.leaf.ttl))}</span>
+            <span className={`ttl mono ${ttlTone(node.leaf.ttl)}`.trim()}>{formatTtl(node.leaf.ttl)}</span>
           ) : null}
 
           {node.leaf && !isDir && !selecting ? (
             <button
               className="del-btn"
-              {...tipProps(t('删除该键'))}
+              {...tipProps(t('common.deleteThisKey'))}
               onClick={(event) => {
                 event.stopPropagation()
                 onRemove(node.leaf!.key)

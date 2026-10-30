@@ -153,7 +153,7 @@ export function useStringEditor(ctx: ValueEditorContext) {
     bytes: utf8Bytes(stringParsed.raw),
     longest:
       longestLine.no > 0
-        ? t('#{no}（{chars} 字符）', { no: longestLine.no, chars: longestLine.len })
+        ? t('valueEditorString.lineNumberChars', { no: longestLine.no, chars: longestLine.len })
         : '-',
   }
 

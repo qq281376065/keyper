@@ -32,7 +32,7 @@ export function FilterBox({ value, onChange, placeholder, className }: FilterBox
         placeholder={placeholder}
       />
       {value ? (
-        <button className="s-clear" {...tipProps(t('清除搜索'))} onClick={() => onChange('')}>
+        <button className="s-clear" {...tipProps(t('filterBox.clearSearch'))} onClick={() => onChange('')}>
           <DialogIcon name="cancel" size={10} />
         </button>
       ) : null}

@@ -134,7 +134,7 @@ export function SplitPane({
       aria-valuenow={value}
       aria-valuemin={min}
       aria-valuemax={max}
-      title={t('拖动调整宽度（{min}–{max}px），双击恢复 {defaultValue}px', { min, max, defaultValue })}
+      title={t('splitPane.dragResize', { min, max, defaultValue })}
       onPointerDown={start}
       onDoubleClick={reset}
     >

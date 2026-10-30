@@ -56,7 +56,7 @@ export function LanguageSwitch() {
     <div ref={anchorRef} className="theme-switch s-theme-switch s-lang-switch">
       <button
         className="trigger"
-        {...tipProps(t('语言：{name}', { name: LOCALE_NAMES[locale] }))}
+        {...tipProps(t('languageSwitch.language', { name: LOCALE_NAMES[locale] }))}
         onClick={toggle}
       >
         <DialogIcon name="globe" size={15} className="icon" />
@@ -79,7 +79,7 @@ export function LanguageSwitch() {
               </button>
             ))}
             <div className="menu-sep" />
-            <div className="menu-hint">{t('当前：{name}', { name: LOCALE_NAMES[locale] })}</div>
+            <div className="menu-hint">{t('languageSwitch.current', { name: LOCALE_NAMES[locale] })}</div>
           </div>
         </>
       ) : null}

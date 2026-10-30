@@ -137,7 +137,7 @@ export function KeyTreeNode({
 
         {/* 单字符圆形徽标：全称走 tooltip，避免在 450px 键栏里吃掉键名空间 */}
         {node.leaf ? (
-          <span className={`type-badge type-${node.leaf.type}`} {...tipProps(t(typeLabel(node.leaf.type)))}>
+          <span className={`type-badge type-${node.leaf.type}`} {...tipProps(typeLabel(node.leaf.type))}>
             {typeAbbr(node.leaf.type)}
           </span>
         ) : null}
@@ -149,13 +149,13 @@ export function KeyTreeNode({
         {hasChildren ? <span className="count mono">{node.leafCount}</span> : null}
 
         {node.leaf ? (
-          <span className={`ttl mono ${ttlTone(node.leaf.ttl)}`.trim()}>{t(formatTtl(node.leaf.ttl))}</span>
+          <span className={`ttl mono ${ttlTone(node.leaf.ttl)}`.trim()}>{formatTtl(node.leaf.ttl)}</span>
         ) : null}
 
         {node.leaf ? (
           <button
             className="del-btn"
-            {...tipProps(t('删除该键'))}
+            {...tipProps(t('common.deleteThisKey'))}
             onClick={(event) => {
               event.stopPropagation()
               onRemove(node.leaf!.key)

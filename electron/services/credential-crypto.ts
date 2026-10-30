@@ -169,7 +169,7 @@ function masterKey(): Buffer {
       return readKeyFile()
     } catch (error) {
       throw new Error(
-        t('读取密钥文件失败：{error}', {
+        t('credentialCrypto.failedReadKeyFile', {
           error: error instanceof Error ? error.message : String(error),
         }),
       )
@@ -184,7 +184,7 @@ function masterKey(): Buffer {
   /* 文件存在但解不开 → 不覆盖，报错（换 Windows 账户 / 文件损坏） */
   if (fs.existsSync(keyFilePath())) {
     throw new Error(
-      t('密钥文件无法解析（可能来自其他 Windows 账户，或文件已损坏）。请重新输入密码并保存。'),
+      t('credentialCrypto.keyFileNotParsed'),
     )
   }
 
@@ -205,7 +205,7 @@ function encryptV2(plain: string): string {
 
 function decryptV2(stored: string): string {
   const buf = Buffer.from(stored.slice(PREFIX_V2.length), 'base64')
-  if (buf.length <= IV_BYTES + TAG_BYTES) throw new Error(t('密文长度异常（可能已截断）'))
+  if (buf.length <= IV_BYTES + TAG_BYTES) throw new Error(t('credentialCrypto.ciphertextLengthInvalid'))
   const iv = buf.subarray(0, IV_BYTES)
   const tag = buf.subarray(IV_BYTES, IV_BYTES + TAG_BYTES)
   const body = buf.subarray(IV_BYTES + TAG_BYTES)
@@ -239,7 +239,7 @@ export function unsealSecret(stored?: string): string | undefined {
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error)
       throw new Error(
-        t('已保存的密码无法解密。请重新输入密码并保存。原因：{error}', { error: detail }),
+        t('credentialCrypto.passwordDecryptFailed', { error: detail }),
       )
     }
   }
@@ -251,7 +251,7 @@ export function unsealSecret(stored?: string): string | undefined {
       const detail = error instanceof Error ? error.message : String(error)
       throw new Error(
         t(
-          '已保存的密码无法解密（旧格式密文，与应用数据目录绑定；换过安装位置或 Windows 账户后会失效）。请重新输入密码并保存。原因：{error}',
+          'credentialCrypto.legacyPasswordDecryptFailed',
           { error: detail },
         ),
       )

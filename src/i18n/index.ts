@@ -5,6 +5,7 @@ import {
   translate,
   setActiveLocale,
   type LocaleCode,
+  type MsgKey,
   type TParams,
 } from '@shared/i18n'
 
@@ -17,7 +18,7 @@ import {
  * 事件回调、store action、工具函数里用模块级 `t()`：这些字符串在任何
  * 一次渲染之外生成（toast / 日志 / 错误提示），按当前语言即时翻译即可。
  */
-export function t(key: string, params?: TParams): string {
+export function t(key: MsgKey, params?: TParams): string {
   return translate(normalizeLocale(settings.locale), key, params)
 }
 
@@ -41,10 +42,10 @@ export function useI18n() {
    */
   const locale = useSyncExternalStore(settingsHolder.subscribe, snapshotLocale, snapshotLocale)
   const tr = useCallback(
-    (key: string, params?: TParams) => translate(locale, key, params),
+    (key: MsgKey, params?: TParams) => translate(locale, key, params),
     [locale],
   )
   return { locale, t: tr, setLocale }
 }
 
-export { LOCALES, LOCALE_NAMES, type LocaleCode } from '@shared/i18n'
+export { LOCALES, LOCALE_NAMES, type LocaleCode, type MsgKey } from '@shared/i18n'

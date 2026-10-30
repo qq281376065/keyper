@@ -6,7 +6,7 @@ import { useRedis } from '@/store/useRedis'
 import { useObservable } from '@/store/subscription'
 import { globalHolder } from '@/store/global'
 import { copyText } from '@/utils/clipboard'
-import { isMutation, logSeverity } from '@/utils/log'
+import { isMutation, logActionKey, logSeverity } from '@/utils/log'
 import type { CacheEngine, LogEntry, LogFileInfo } from '@shared/types'
 import { engineMeta } from '@/utils/engine'
 import { useI18n } from '@/i18n'
@@ -219,16 +219,16 @@ export function LogPanel({ closing, onClose, onClosed }: LogPanelProps) {
    */
   async function copyDetail(detail: string): Promise<void> {
     if (!detail) {
-      notify('err', t('该行没有详情可复制'))
+      notify('err', t('logPanel.noDetailsCopyForRow'))
       return
     }
     const done = await copyText(detail)
-    notify(done ? 'ok' : 'err', done ? t('已复制详情') : t('复制失败，请检查剪贴板权限'))
+    notify(done ? 'ok' : 'err', done ? t('logPanel.copiedDetails') : t('common.copyFailedCheckClipboardPermissions'))
   }
 
   async function openDir(): Promise<void> {
     const res = await api.log.openDir()
-    if (res.ok) notify('ok', res.data.message ?? t('已打开日志目录'))
+    if (res.ok) notify('ok', res.data.message ?? t('common.openedLogDirectory'))
     else notify('err', res.error)
   }
 
@@ -257,7 +257,7 @@ export function LogPanel({ closing, onClose, onClosed }: LogPanelProps) {
         抽屉边缘是一条窄竖条，竖排文字会把它撑宽、挤压抽屉本体；
         而 `→` 本身就表达了"往右收起"的方向。
       */}
-      <button className="drawer-handle" {...tipProps(t('收起面板'))} onClick={onClose}>
+      <button className="drawer-handle" {...tipProps(t('logPanel.collapsePanel'))} onClick={onClose}>
         <DialogIcon name="arrow-right" size={14} className="handle-chevron" />
       </button>
 
@@ -265,12 +265,12 @@ export function LogPanel({ closing, onClose, onClosed }: LogPanelProps) {
         ref={drawerRef}
         className="log-drawer"
         role="dialog"
-        aria-label={t('操作日志')}
+        aria-label={t('common.activityLog')}
         onAnimationEnd={handleDrawerAnimationEnd}
       >
         <div className="drawer-head">
-          <span className="title">{t('操作日志')}</span>
-          <span className="sub">{t('仅记录手动操作')}</span>
+          <span className="title">{t('common.activityLog')}</span>
+          <span className="sub">{t('logPanel.logManualActionsOnly')}</span>
           <span className="spacer" />
         </div>
 
@@ -280,7 +280,7 @@ export function LogPanel({ closing, onClose, onClosed }: LogPanelProps) {
             value={activeDate}
             onChange={(event) => void handleDateChange(event.target.value)}
           >
-            {!dates.length ? <option value="">{t('暂无日志')}</option> : null}
+            {!dates.length ? <option value="">{t('logPanel.noLogsYet')}</option> : null}
             {dates.map((item) => (
               <option key={item.date} value={item.date}>
                 {formatDay(item.date)} · {formatSize(item.size)}
@@ -297,7 +297,7 @@ export function LogPanel({ closing, onClose, onClosed }: LogPanelProps) {
               void loadEntries({ engine: next })
             }}
           >
-            <option value="">{t('全部模块')}</option>
+            <option value="">{t('logPanel.allModules')}</option>
             <option value="redis">Redis</option>
             <option value="memcached">Memcached</option>
           </select>
@@ -310,7 +310,7 @@ export function LogPanel({ closing, onClose, onClosed }: LogPanelProps) {
               void loadEntries({ connection: event.target.value })
             }}
           >
-            <option value="">{t('全部连接')}</option>
+            <option value="">{t('logPanel.allConnections')}</option>
             {connectionOptions.map((name) => (
               <option key={name} value={name}>
                 {name}
@@ -328,7 +328,7 @@ export function LogPanel({ closing, onClose, onClosed }: LogPanelProps) {
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}
               className="keyword"
-              placeholder={t('按操作 / 详情 / 结果过滤')}
+              placeholder={t('logPanel.filterOperationDetailsResult')}
               onKeyUp={(event) => {
                 if (event.key === 'Enter') void loadEntries()
               }}
@@ -338,19 +338,19 @@ export function LogPanel({ closing, onClose, onClosed }: LogPanelProps) {
           <button
             className={`btn-ghost toggle${changesOnly ? ' on' : ''}`}
             {...tipProps(
-              changesOnly ? t('当前仅显示变更操作，点击查看全部') : t('只看删除与改数据的操作'),
+              changesOnly ? t('logPanel.showingChangeOperationsOnlyClick') : t('logPanel.showOnlyDeletesDataEdits'),
             )}
             onClick={() => setChangesOnly((prev) => !prev)}
           >
             <DialogIcon name="activity" size={12} />
-            {t('仅看变更')}
+            {t('logPanel.changesOnly')}
             {mutationCount ? <span className="badge mono">{mutationCount}</span> : null}
           </button>
 
-          <button className="btn-ghost icon" {...tipProps(t('刷新'))} onClick={() => void refresh()}>
+          <button className="btn-ghost icon" {...tipProps(t('common.refresh'))} onClick={() => void refresh()}>
             <DialogIcon name="refresh" size={13} />
           </button>
-          <button className="btn-ghost icon" {...tipProps(t('打开日志目录'))} onClick={() => void openDir()}>
+          <button className="btn-ghost icon" {...tipProps(t('logPanel.openLogDirectory'))} onClick={() => void openDir()}>
             <DialogIcon name="folder-open" size={13} />
           </button>
         </div>
@@ -367,42 +367,43 @@ export function LogPanel({ closing, onClose, onClosed }: LogPanelProps) {
                 className={`col-conn log-sort${sortKey === 'connection' ? ' on' : ''}`}
                 onClick={() => toggleSort('connection')}
               >
-                {t('连接')}
+                {t('connectionSidebar.connect')}
                 <LogSortIcon direction={sortKey === 'connection' ? (sortAsc ? 'asc' : 'desc') : null} />
               </button>
               <button
                 className={`col-time log-sort${sortKey === 'time' ? ' on' : ''}`}
                 onClick={() => toggleSort('time')}
               >
-                {t('时间')}
+                {t('logPanel.time')}
                 <LogSortIcon direction={sortKey === 'time' ? (sortAsc ? 'asc' : 'desc') : null} />
               </button>
               <button
                 className={`col-action log-sort${sortKey === 'action' ? ' on' : ''}`}
                 onClick={() => toggleSort('action')}
               >
-                {t('操作')}
+                {t('common.operation')}
                 <LogSortIcon direction={sortKey === 'action' ? (sortAsc ? 'asc' : 'desc') : null} />
               </button>
               <button
                 className={`col-detail log-sort${sortKey === 'detail' ? ' on' : ''}`}
                 onClick={() => toggleSort('detail')}
               >
-                {t('详情')}
+                {t('common.details')}
                 <LogSortIcon direction={sortKey === 'detail' ? (sortAsc ? 'asc' : 'desc') : null} />
               </button>
               <button
                 className={`col-result log-sort${sortKey === 'result' ? ' on' : ''}`}
                 onClick={() => toggleSort('result')}
               >
-                {t('结果')}
+                {t('logPanel.result')}
                 <LogSortIcon direction={sortKey === 'result' ? (sortAsc ? 'asc' : 'desc') : null} />
               </button>
-              <span className="col-ops">{t('操作')}</span>
+              <span className="col-ops">{t('common.operation')}</span>
             </div>
 
             {visibleEntries.map((entry, index) => {
               const severity = logSeverity(entry.action, entry.detail)
+              const actionKey = logActionKey(entry.action)
               return (
                 <div key={index} className={`log-row ${severity}${entry.ok ? '' : ' fail'}`}>
                   {/*
@@ -424,7 +425,7 @@ export function LogPanel({ closing, onClose, onClosed }: LogPanelProps) {
                   <span className="col-time mono">{formatTime(entry.timestamp)}</span>
                   <span className="col-action">
                     <span className={`sev-dot ${severity}`} />
-                    {t(entry.action)}
+                    {actionKey ? t(actionKey) : entry.action}
                   </span>
                   <span className="col-detail mono ellipsis" {...tipProps(entry.detail)}>
                     {entry.detail}
@@ -437,7 +438,7 @@ export function LogPanel({ closing, onClose, onClosed }: LogPanelProps) {
                   <span className="col-ops">
                     <button
                       className="row-copy"
-                      {...tipProps(t('复制详情'))}
+                      {...tipProps(t('error.copyDetails'))}
                       onClick={(event) => {
                         event.stopPropagation()
                         void copyDetail(entry.detail)
@@ -460,16 +461,16 @@ export function LogPanel({ closing, onClose, onClosed }: LogPanelProps) {
             {loading ? (
               <div className="loading-state">
                 <span className="spinner" />
-                <span className="loading-text">{t('正在加载日志…')}</span>
+                <span className="loading-text">{t('logPanel.loadingLogs')}</span>
               </div>
             ) : !visibleEntries.length ? (
               <p className="placeholder">
-                {changesOnly ? t('当天没有变更类操作') : t('该日期暂无日志记录')}
+                {changesOnly ? t('logPanel.noChangeOperationsToday') : t('logPanel.noLogEntriesForDate')}
                 <br />
                 <span className="hint">
                   {changesOnly
-                    ? t('关闭「仅看变更」可查看全部记录')
-                    : t('执行命令或修改键之后，日志会出现在这里')}
+                    ? t('logPanel.turnOffChangesOnlySee')
+                    : t('logPanel.logsAppearHereAfterYou')}
                 </span>
               </p>
             ) : null}
@@ -483,12 +484,12 @@ export function LogPanel({ closing, onClose, onClosed }: LogPanelProps) {
           <span className="spacer" />
           <span className="legend">
             <span className="sev-dot danger" />
-            {t('删除')}
+            {t('common.delete')}
             <span className="sev-dot change" />
-            {t('变更')}
+            {t('logPanel.changes')}
           </span>
           <span className="mono">
-            {t('{count} 条', {
+            {t('logPanel.countEntries', {
               count: changesOnly ? `${visibleEntries.length} / ${entries.length}` : entries.length,
             })}
           </span>

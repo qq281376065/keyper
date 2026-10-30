@@ -77,18 +77,18 @@ export function CliConsole() {
     const head = command.split(/\s+/)[0]?.toUpperCase() ?? ''
     if (DESTRUCTIVE_COMMANDS.includes(head)) {
       const confirmed = await askConfirm({
-        title: t('{command} · 高危操作', { command: head }),
+        title: t('cliConsole.commandHighRiskOperation', { command: head }),
         message:
-          t('{command} 会清空当前实例或当前库的全部数据，且无法撤销。', { command: head }) +
+          t('cliConsole.commandWipesAllDataCurrent', { command: head }) +
           '\n\n' +
-          t('若确认要继续执行，请在下方输入框内完整输入 {command}。', { command: head }),
-        confirmText: t('执行 {command}', { command: head }),
+          t('cliConsole.continueTypeCommandFullBox', { command: head }),
+        confirmText: t('cliConsole.executeCommand', { command: head }),
         requirePhrase: head,
         danger: true,
       })
 
       if (!confirmed) {
-        state.cliEntries.push({ kind: 'output', text: t('已取消执行 {command}', { command: head }) })
+        state.cliEntries.push({ kind: 'output', text: t('cliConsole.cancelledRunningCommand', { command: head }) })
         return
       }
     }
@@ -117,8 +117,8 @@ export function CliConsole() {
     <section className={`cli${collapsed ? ' collapsed' : ''} s-cli-console`}>
       <header className="cli-head" onClick={onToggle}>
         <span className="chevron">{collapsed ? '▲' : '▼'}</span>
-        <span className="title">{t('CLI 控制台')}</span>
-        <span className="hint">{connected ? prompt : t('未连接')}</span>
+        <span className="title">{t('cliConsole.cliConsole')}</span>
+        <span className="hint">{connected ? prompt : t('cliConsole.notConnected')}</span>
         <span className="spacer" />
         {/* 收起时隐藏「清空」：此时看不到日志，清空是个没有反馈的盲操作 */}
         {!collapsed ? (
@@ -130,7 +130,7 @@ export function CliConsole() {
             }}
           >
             <DialogIcon name="clear" size={12} />
-            {t('清空')}
+            {t('common.clear')}
           </button>
         ) : null}
       </header>
@@ -153,7 +153,7 @@ export function CliConsole() {
             onChange={(event) => setInput(event.target.value)}
             className="mono"
             disabled={!connected || state.cliRunning}
-            placeholder={connected ? t('输入 Redis 命令，↑↓ 浏览历史') : t('请先建立连接')}
+            placeholder={connected ? t('cliConsole.enterRedisCommandBrowseHistory') : t('cliConsole.connectFirst')}
             onKeyUp={(event) => {
               if (event.key === 'Enter') void submit()
             }}
@@ -162,7 +162,7 @@ export function CliConsole() {
           {/* btn 基类不可省：flex 居中只在 .btn 上 —— 只写 btn-primary 会让图标坐在文字 baseline 上 */}
           <button className="btn btn-primary tiny" disabled={!connected || !input.trim()} onClick={() => void submit()}>
             <DialogIcon name="play" size={12} />
-            {t('执行')}
+            {t('cliConsole.execute')}
           </button>
         </div>
       </div>

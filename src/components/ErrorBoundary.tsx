@@ -129,10 +129,10 @@ function RenderErrorBar({
     }
     if (!copied) copied = copyViaExecCommand(detail)
     if (copied) {
-      flashToast('ok', t('错误详情已复制'))
+      flashToast('ok', t('error.errorDetailsCopied'))
       onDismiss()
     } else {
-      flashToast('err', t('复制失败，请展开详情手动选择'))
+      flashToast('err', t('error.copyFailedExpandDetailsSelect'))
     }
   }
 
@@ -140,15 +140,15 @@ function RenderErrorBar({
     <div className="render-error-bar">
       <DialogIcon name="warning" size={14} className="bar-icon" />
       <span className="render-error-text" title={detail}>
-        {t('界面发生错误：{message}', { message })}
+        {t('error.uiError', { message })}
       </span>
       <button className="btn btn-ghost tiny" onClick={copyRenderError}>
         <DialogIcon name="copy" size={12} />
-        {t('复制详情')}
+        {t('error.copyDetails')}
       </button>
       <button className="btn btn-ghost tiny" onClick={onDismiss}>
         <DialogIcon name="cancel" size={12} />
-        {t('关闭')}
+        {t('common.close')}
       </button>
     </div>
   )

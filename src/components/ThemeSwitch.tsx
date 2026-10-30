@@ -3,6 +3,7 @@ import { DialogIcon } from '@/components/DialogIcon'
 import { tipProps } from '@/components/tip'
 import { useTheme, SKIN_SCHEME, type SkinId, type ThemeMode } from '@/services/theme'
 import { useI18n } from '@/i18n'
+import type { MsgKey } from '@shared/i18n'
 
 const MENU_WIDTH = 168
 
@@ -14,10 +15,10 @@ const MENU_WIDTH = 168
  */
 type ThemeIcon = 'theme' | 'sun' | 'moon' | SkinId
 
-const BASE_OPTIONS: Array<{ value: ThemeMode; label: string; icon: ThemeIcon }> = [
-  { value: 'system', label: '跟随系统', icon: 'theme' },
-  { value: 'light', label: '亮色', icon: 'sun' },
-  { value: 'dark', label: '暗色', icon: 'moon' },
+const BASE_OPTIONS: Array<{ value: ThemeMode; label: MsgKey; icon: ThemeIcon }> = [
+  { value: 'system', label: 'theme.followSystem', icon: 'theme' },
+  { value: 'light', label: 'theme.light', icon: 'sun' },
+  { value: 'dark', label: 'theme.dark', icon: 'moon' },
 ]
 
 /*
@@ -25,14 +26,14 @@ const BASE_OPTIONS: Array<{ value: ThemeMode; label: string; icon: ThemeIcon }> 
  * 中间用分隔线区分「明暗档位」与「配色皮肤」两组。
  * 顺序：暗色系在前（深海/墨林），亮色系在后（暖纸/樱花/薄荷/雾蓝/极光）。
  */
-const SKIN_OPTIONS: Array<{ value: SkinId; label: string; icon: ThemeIcon }> = [
-  { value: 'ocean', label: '深海', icon: 'ocean' },
-  { value: 'forest', label: '墨林', icon: 'forest' },
-  { value: 'solarized', label: '暖纸', icon: 'solarized' },
-  { value: 'sakura', label: '樱花', icon: 'sakura' },
-  { value: 'mint', label: '薄荷', icon: 'mint' },
-  { value: 'mist', label: '雾蓝', icon: 'mist' },
-  { value: 'aurora', label: '极光', icon: 'aurora' },
+const SKIN_OPTIONS: Array<{ value: SkinId; label: MsgKey; icon: ThemeIcon }> = [
+  { value: 'ocean', label: 'theme.ocean', icon: 'ocean' },
+  { value: 'forest', label: 'theme.forest', icon: 'forest' },
+  { value: 'solarized', label: 'theme.solarized', icon: 'solarized' },
+  { value: 'sakura', label: 'theme.sakura', icon: 'sakura' },
+  { value: 'mint', label: 'theme.mint', icon: 'mint' },
+  { value: 'mist', label: 'theme.mist', icon: 'mist' },
+  { value: 'aurora', label: 'theme.aurora', icon: 'aurora' },
 ]
 
 const ALL_OPTIONS = [...BASE_OPTIONS, ...SKIN_OPTIONS]
@@ -46,18 +47,18 @@ export function ThemeSwitch() {
   const [position, setPosition] = useState({ top: 0, left: 0 })
 
   const currentIcon: ThemeIcon = ALL_OPTIONS.find((item) => item.value === mode)?.icon ?? 'theme'
-  const currentLabel = ALL_OPTIONS.find((item) => item.value === mode)?.label ?? '主题'
+  const currentLabel = ALL_OPTIONS.find((item) => item.value === mode)?.label ?? 'settingsDialog.theme'
 
   /* 菜单底部提示：皮肤报"皮肤名 + 明暗归属"，普通主题只报明暗 */
   const skin = SKIN_OPTIONS.find((item) => item.value === mode)
   const schemeHint = skin
-    ? t('{skin} · {scheme}', {
+    ? t('themeSwitch.skinScheme', {
         skin: t(skin.label),
-        scheme: t(SKIN_SCHEME[skin.value] === 'dark' ? '暗色系' : '亮色系'),
+        scheme: t(SKIN_SCHEME[skin.value] === 'dark' ? 'theme.darkScheme' : 'theme.lightScheme'),
       })
     : mode === 'system'
-      ? t('跟随系统 · {mode}', { mode: t(resolved === 'dark' ? '暗色' : '亮色') })
-      : t(resolved === 'dark' ? '暗色' : '亮色')
+      ? t('themeSwitch.followSystemMode', { mode: t(resolved === 'dark' ? 'theme.dark' : 'theme.light') })
+      : t(resolved === 'dark' ? 'theme.dark' : 'theme.light')
 
   function toggle(): void {
     if (open) {
@@ -89,7 +90,7 @@ export function ThemeSwitch() {
 
   return (
     <div ref={anchorRef} className="theme-switch s-theme-switch">
-      <button className="trigger" {...tipProps(t('主题：{name}', { name: t(currentLabel) }))} onClick={toggle}>
+      <button className="trigger" {...tipProps(t('themeSwitch.theme', { name: t(currentLabel) }))} onClick={toggle}>
         <DialogIcon name={currentIcon} size={15} className="icon" />
       </button>
 
@@ -116,7 +117,7 @@ export function ThemeSwitch() {
               </button>
             ))}
             <div className="menu-sep" />
-            <div className="menu-hint">{t('当前：{value}', { value: schemeHint })}</div>
+            <div className="menu-hint">{t('themeSwitch.current', { value: schemeHint })}</div>
           </div>
         </>
       ) : null}

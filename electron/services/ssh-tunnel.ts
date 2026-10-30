@@ -82,30 +82,30 @@ export function validateSshConfig(ssh: SshConfig): string | null {
     const hop = hopList[i]
     const index = i + 1
     const host = hop.host?.trim() ?? ''
-    if (!host) return t('跳板 {index}：SSH 地址不能为空', { index })
+    if (!host) return t('sshTunnel.jumpHostAddressRequired', { index })
     if (!hop.username?.trim()) {
-      return t('跳板 {index}（{host}）：SSH 用户名不能为空', { index, host })
+      return t('sshTunnel.jumpHostUsernameRequired', { index, host })
     }
     if (!Number.isFinite(hop.port) || hop.port <= 0 || hop.port > 65535) {
-      return t('跳板 {index}（{host}）：SSH 端口无效', { index, host })
+      return t('sshTunnel.jumpHostPortInvalid', { index, host })
     }
     if (hop.authMethod === 'password' && !hop.password) {
-      return t('跳板 {index}（{host}）：密码认证需要填写 SSH 密码', { index, host })
+      return t('sshTunnel.jumpHostPasswordRequired', { index, host })
     }
     if (hop.authMethod === 'key' && !hop.privateKey?.trim()) {
-      return t('跳板 {index}（{host}）：私钥认证需要粘贴私钥内容', { index, host })
+      return t('sshTunnel.jumpHostPrivateKeyRequired', { index, host })
     }
   }
-  if (!ssh.host?.trim()) return t('SSH 跳板机地址不能为空')
-  if (!ssh.username?.trim()) return t('SSH 用户名不能为空')
+  if (!ssh.host?.trim()) return t('sshTunnel.sshBastionAddressCannotEmpty')
+  if (!ssh.username?.trim()) return t('sshTunnel.sshUsernameCannotEmpty')
   if (!Number.isFinite(ssh.port) || ssh.port <= 0 || ssh.port > 65535) {
-    return t('SSH 端口无效')
+    return t('connectionDialog.invalidSshPort')
   }
   if (ssh.authMethod === 'password' && !ssh.password) {
-    return t('密码认证需要填写 SSH 密码')
+    return t('sshTunnel.passwordAuthenticationRequiresSsh')
   }
   if (ssh.authMethod === 'key' && !ssh.privateKey?.trim()) {
-    return t('私钥认证需要粘贴私钥内容')
+    return t('sshTunnel.privateKeyAuthenticationRequires')
   }
   return null
 }
@@ -154,7 +154,7 @@ function connectOne(
    * ssh2 的 connect 只要求一个 Duplex，两类流对它等价。
    */
   sock?: ClientChannel,
-  label = t('SSH 登录失败'),
+  label = t('sshTunnel.loginFailed'),
 ): Promise<Client> {
   const client = new Client()
   const t0 = Date.now()
@@ -192,14 +192,14 @@ function connectOne(
       }
       resolve(client)
     })
-    client.once('error', (error) => fail(t('{label}：{error}', { label, error: toMessage(error) })))
-    client.once('timeout', () => fail(t('{label}：连接超时', { label })))
+    client.once('error', (error) => fail(t('sshTunnel.labelWithError', { label, error: toMessage(error) })))
+    client.once('timeout', () => fail(t('sshTunnel.label', { label })))
 
     try {
       const config = buildSshConnectConfig(hop)
       client.connect(sock ? { ...config, sock } : config)
     } catch (error) {
-      fail(t('{label}：{error}', { label, error: toMessage(error) }))
+      fail(t('sshTunnel.labelWithError', { label, error: toMessage(error) }))
     }
   })
 }
@@ -219,11 +219,11 @@ function hopStream(
   return new Promise((resolve, reject) => {
     try {
       prev.forwardOut(LOOPBACK, 0, target.host.trim(), target.port, (error, channel) => {
-        if (error) reject(new Error(t('{label}：{error}', { label, error: toMessage(error) })))
+        if (error) reject(new Error(t('sshTunnel.labelWithError', { label, error: toMessage(error) })))
         else resolve(channel)
       })
     } catch (error) {
-      reject(new Error(t('{label}：{error}', { label, error: toMessage(error) })))
+      reject(new Error(t('sshTunnel.labelWithError', { label, error: toMessage(error) })))
     }
   })
 }
@@ -243,7 +243,7 @@ export type TunnelTarget = RedisConnectionConfig | MemcachedConnectionConfig
  */
 export async function openTunnel(config: TunnelTarget): Promise<Tunnel> {
   const ssh = config.ssh
-  if (!ssh) throw new Error(t('缺少 SSH 配置'))
+  if (!ssh) throw new Error(t('sshTunnel.missingSshConfiguration'))
   const tOpen = Date.now()
 
   const invalid = validateSshConfig(ssh)
@@ -309,12 +309,12 @@ export async function openTunnel(config: TunnelTarget): Promise<Tunnel> {
 
   const earlyPort = await new Promise<number>((resolve, reject) => {
     server.once('error', (error) =>
-      reject(new Error(t('本地端口监听失败：{error}', { error: toMessage(error) }))),
+      reject(new Error(t('sshTunnel.failedListenLocalPort', { error: toMessage(error) }))),
     )
     server.listen(0, LOOPBACK, () => {
       const address = server.address()
       if (address && typeof address === 'object') resolve(address.port)
-      else reject(new Error(t('无法获取本地监听端口')))
+      else reject(new Error(t('sshTunnel.notGetLocalListeningPort')))
     })
   })
 
@@ -328,13 +328,13 @@ export async function openTunnel(config: TunnelTarget): Promise<Tunnel> {
           : await hopStream(
               hopClients[i - 1],
               hop,
-              t('无法到达跳板 {index}（{host}）', { index: i + 1, host: hop.host.trim() }),
+              t('sshTunnel.cannotReachJumpHostIndex', { index: i + 1, host: hop.host.trim() }),
             )
       hopClients.push(
         await connectOne(
           hop,
           sock,
-          t('SSH 登录失败（跳板 {index}：{host}）', { index: i + 1, host: hop.host.trim() }),
+          t('sshTunnel.loginFailedViaJumpHost', { index: i + 1, host: hop.host.trim() }),
         ),
       )
     }
@@ -345,7 +345,7 @@ export async function openTunnel(config: TunnelTarget): Promise<Tunnel> {
         ? await hopStream(
             hopClients[hopClients.length - 1],
             ssh,
-            t('无法到达最后一跳（{host}）', { host: ssh.host.trim() }),
+            t('sshTunnel.cannotReachFinalHop', { host: ssh.host.trim() }),
           )
         : undefined
     client = await connectOne(ssh, finalSock)
@@ -491,7 +491,7 @@ export class TunnelManager {
    */
   async ensure(config: TunnelTarget): Promise<{ host: string; port: number }> {
     const ssh = config.ssh
-    if (!ssh) throw new Error(t('缺少 SSH 配置'))
+    if (!ssh) throw new Error(t('sshTunnel.missingSshConfiguration'))
 
     const existing = this.tunnels.get(config.id)
     if (existing && existing.alive && existing.key === tunnelKey(ssh)) {

@@ -114,7 +114,7 @@ export function NoticeDrawer({ ok, text, life = 4000, onDismiss }: NoticeDrawerP
         <DialogIcon name={ok ? 'check' : 'warning'} size={14} />
       </span>
       <span className="flyout-text">{text}</span>
-      <button type="button" className="flyout-close" aria-label={t('关闭提示')} onClick={beginLeave}>
+      <button type="button" className="flyout-close" aria-label={t('noticeDrawer.closeTip')} onClick={beginLeave}>
         <DialogIcon name="cancel" size={11} />
       </button>
     </div>

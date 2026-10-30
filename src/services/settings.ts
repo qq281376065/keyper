@@ -1,46 +1,46 @@
 import { api } from '@/api'
 import { defineStore } from '@/store'
 import type { AppSettings } from '@shared/types'
-import { detectLocale, normalizeLocale, setActiveLocale, LOCALE_HTML_LANG } from '@shared/i18n'
+import { detectLocale, normalizeLocale, setActiveLocale, LOCALE_HTML_LANG, type MsgKey } from '@shared/i18n'
 
 /** 界面字体候选 */
-export const UI_FONTS: Array<{ value: string; label: string; stack: string }> = [
+export const UI_FONTS: Array<{ value: string; label: MsgKey; stack: string }> = [
   {
     value: 'system',
-    label: '系统默认',
+    label: 'settings.systemDefault',
     stack: '"Segoe UI", system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif',
   },
   {
     value: 'yahei',
-    label: '微软雅黑',
+    label: 'settings.microsoftYahei',
     stack: '"Microsoft YaHei", "Segoe UI", system-ui, sans-serif',
   },
   {
     value: 'source-han',
-    label: '思源黑体',
+    label: 'settings.sourceHanSans',
     stack: '"Source Han Sans SC", "Noto Sans SC", "Microsoft YaHei", sans-serif',
   },
   {
     value: 'pingfang',
-    label: '苹方 / 中文黑体',
+    label: 'settings.pingfangChineseSansSerif',
     stack: '"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif',
   },
 ]
 
 /** 代码字体候选 */
-export const MONO_FONTS: Array<{ value: string; label: string; stack: string }> = [
+export const MONO_FONTS: Array<{ value: string; label: MsgKey; stack: string }> = [
   {
     value: 'jetbrains-mono',
-    label: 'JetBrains Mono',
+    label: 'settings.jetbrainsMono',
     stack: '"JetBrains Mono", "Cascadia Code", Consolas, monospace',
   },
   {
     value: 'cascadia',
-    label: 'Cascadia Code',
+    label: 'settings.cascadiaCode',
     stack: '"Cascadia Code", Consolas, "Courier New", monospace',
   },
-  { value: 'consolas', label: 'Consolas', stack: 'Consolas, "Courier New", monospace' },
-  { value: 'courier', label: 'Courier New', stack: '"Courier New", Courier, monospace' },
+  { value: 'consolas', label: 'settings.consolas', stack: 'Consolas, "Courier New", monospace' },
+  { value: 'courier', label: 'settings.courierNew', stack: '"Courier New", Courier, monospace' },
 ]
 
 /**

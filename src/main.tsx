@@ -16,6 +16,7 @@ import '@/styles/tailwind.css'
 import { App } from '@/App'
 import { applyToDom } from '@/services/settings'
 import { reportRendererError } from '@/services/errorReport'
+import { t } from '@shared/i18n'
 
 /**
  * 首帧先用默认值落一版字号/字体；主题由 index.html 的内联脚本按
@@ -37,7 +38,7 @@ window.addEventListener('unhandledrejection', (event) => {
 })
 
 const container = document.getElementById('root')
-if (!container) throw new Error('#root 容器缺失')
+if (!container) throw new Error(t('app.rootContainerMissing'))
 
 /*
  * 不加 StrictMode：

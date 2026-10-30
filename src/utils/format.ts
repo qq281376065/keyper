@@ -1,9 +1,10 @@
 /** 展示层通用格式化工具 */
+import { t } from '@shared/i18n'
 
-/** 把 TTL 秒数格式化为紧凑可读文本 */
+/** 把 TTL 秒数格式化为紧凑可读文本（永久 / 已过期随界面语言） */
 export function formatTtl(ttl: number): string {
-  if (ttl === -1) return '永久'
-  if (ttl === -2) return '已过期'
+  if (ttl === -1) return t('common.noExpiration')
+  if (ttl === -2) return t('ttl.expired')
   if (ttl >= 86400) return `${Math.floor(ttl / 86400)}d${Math.floor((ttl % 86400) / 3600)}h`
   if (ttl >= 3600) return `${Math.floor(ttl / 3600)}h${Math.floor((ttl % 3600) / 60)}m`
   if (ttl >= 60) return `${Math.floor(ttl / 60)}m${ttl % 60}s`

@@ -69,7 +69,7 @@ export function VersionInfoDialog({
       }
       setInfo(res.data)
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('读取失败'))
+      setError(e instanceof Error ? e.message : t('common.loadFailed'))
     } finally {
       setLoading(false)
     }
@@ -84,7 +84,7 @@ export function VersionInfoDialog({
     const raw = info?.raw
     if (!raw) return
     const done = await copyText(raw)
-    notify(done ? 'ok' : 'err', done ? t('已复制完整 INFO 输出') : t('复制失败，请检查剪贴板权限'))
+    notify(done ? 'ok' : 'err', done ? t('versionInfoDialog.copiedFullInfoOutput') : t('common.copyFailedCheckClipboardPermissions'))
   }
 
   const capabilities = resolveCapabilities(info?.version)
@@ -95,24 +95,24 @@ export function VersionInfoDialog({
   if (capabilities.versionKnown) {
     compatibility.push(
       {
-        name: t('hash 字段级 TTL'),
+        name: t('versionInfoDialog.hashFieldLevelTtl'),
         ok: capabilities.hashFieldTtl,
-        note: capabilities.hashFieldTtl ? t('HEXPIRE / HTTL 可用') : t('需 Redis 7.4+，当前仅支持键级 TTL'),
+        note: capabilities.hashFieldTtl ? t('versionInfoDialog.hexpireHttlAvailable') : t('versionInfoDialog.requiresRedis7KeyTtlOnly'),
       },
       {
-        name: t('set 成员级 TTL'),
+        name: t('versionInfoDialog.setMemberLevelTtl'),
         ok: capabilities.setMemberTtl,
-        note: capabilities.setMemberTtl ? t('SHEXPIRE / STTL 可用') : t('需 Redis 7.4+'),
+        note: capabilities.setMemberTtl ? t('versionInfoDialog.shexpireSttlAvailable') : t('versionInfoDialog.requiresRedis7'),
       },
       {
-        name: t('ACL（用户名认证）'),
+        name: t('versionInfoDialog.acl'),
         ok: (versionParts?.major ?? 0) > 5,
-        note: (versionParts?.major ?? 0) > 5 ? t('支持 USER / PASSWORD') : t('需 Redis 6.0+，仅支持密码'),
+        note: (versionParts?.major ?? 0) > 5 ? t('versionInfoDialog.supportsUserPassword') : t('versionInfoDialog.requiresRedis6PasswordOnly'),
       },
       {
-        name: t('多线程 IO'),
+        name: t('versionInfoDialog.multithreadedIo'),
         ok: (versionParts?.major ?? 0) > 5,
-        note: (versionParts?.major ?? 0) > 5 ? t('io-threads 可配') : t('需 Redis 6.0+'),
+        note: (versionParts?.major ?? 0) > 5 ? t('versionInfoDialog.ioThreadsConfigurable') : t('versionInfoDialog.requiresRedis6'),
       },
     )
   }
@@ -130,8 +130,8 @@ export function VersionInfoDialog({
   return (
     <DialogShell
       icon="info"
-      title={t('版本信息')}
-      description={t('版本号决定界面可用能力，下方列出本实例的实际支持情况')}
+      title={t('versionInfoDialog.versionInfo')}
+      description={t('versionInfoDialog.versionDeterminesWhich')}
       badge={
         <span className="dlg-badge mono ellipsis">
           {host}:{port}
@@ -145,7 +145,7 @@ export function VersionInfoDialog({
         <>
           <label className="essential-toggle">
             <Switch checked={essentialOnly} onCheckedChange={setEssentialOnly} />
-            <span>{t('仅显示关键项')}</span>
+            <span>{t('versionInfoDialog.showKeyItemsOnly')}</span>
           </label>
           <span className="spacer" />
           <Button
@@ -156,7 +156,7 @@ export function VersionInfoDialog({
             onClick={() => void load()}
           >
             <DialogIcon name="refresh" size={13} />
-            {t('刷新')}
+            {t('common.refresh')}
           </Button>
           <Button
             type="button"
@@ -166,11 +166,11 @@ export function VersionInfoDialog({
             onClick={() => void copyRaw()}
           >
             <DialogIcon name="copy" size={13} />
-            {t('复制 INFO')}
+            {t('versionInfoDialog.copyInfo')}
           </Button>
           <Button type="button" className="foot-btn foot-primary" onClick={onClose}>
             <DialogIcon name="check" size={13} />
-            {t('关闭')}
+            {t('common.close')}
           </Button>
         </>
       }
@@ -178,7 +178,7 @@ export function VersionInfoDialog({
       {loading ? (
         <p className="placeholder scan-state">
           <span className="spinner" />
-          <span>{t('正在读取 INFO…')}</span>
+          <span>{t('versionInfoDialog.readingInfo')}</span>
         </p>
       ) : error ? (
         <div className="dlg-alert is-err" role="status">
@@ -189,14 +189,14 @@ export function VersionInfoDialog({
         <>
           {/* 版本概览：版本号是这一屏的主信息，单独给一块视觉权重 */}
           <section className="vi-hero">
-            <span className="vi-version mono">{info.version || t('未知')}</span>
+            <span className="vi-version mono">{info.version || t('versionInfoDialog.unknown')}</span>
             <span className="vi-mode">{info.mode}</span>
           </section>
 
           {/* 能力探测：直接对应界面上哪些功能会出现 */}
           {compatibility.length ? (
             <section className="vi-section">
-              <h3 className="vi-section-title">{t('能力探测')}</h3>
+              <h3 className="vi-section-title">{t('versionInfoDialog.capabilityProbe')}</h3>
               <div className="vi-caps">
                 {compatibility.map((item) => (
                   <div key={item.name} className={`vi-cap${item.ok ? ' ok' : ''}`}>

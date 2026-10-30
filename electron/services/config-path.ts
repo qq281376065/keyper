@@ -68,7 +68,7 @@ export function configDir(): string {
       cachedDir = override
       return cachedDir
     }
-    fallbackReason = t('环境变量指定的目录不可写：{dir}', { dir: override })
+    fallbackReason = t('configPath.directorySpecifiedEnvironment', { dir: override })
   }
 
   const portable = path.join(appDir(), PORTABLE_DIR_NAME)
@@ -78,7 +78,7 @@ export function configDir(): string {
   }
 
   if (!fallbackReason) {
-    fallbackReason = t('程序目录不可写：{dir}（常见于安装在 Program Files 下）', { dir: portable })
+    fallbackReason = t('configPath.appDirectoryNotWritable', { dir: portable })
   }
   cachedDir = app.getPath('userData')
   return cachedDir

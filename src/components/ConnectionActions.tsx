@@ -102,7 +102,7 @@ export function ConnectionActions({ connection, onEdit, onVersion }: ConnectionA
     try {
       await action()
     } catch (error) {
-      notify('err', error instanceof Error ? error.message : t('操作失败'))
+      notify('err', error instanceof Error ? error.message : t('connectionActions.operationFailed'))
     }
   }
 
@@ -116,14 +116,14 @@ export function ConnectionActions({ connection, onEdit, onVersion }: ConnectionA
   function handleRefreshMetrics(): void {
     void run(async () => {
       await activateAndRefresh(connection.id)
-      notify('ok', t('服务端指标已刷新'))
+      notify('ok', t('connectionActions.serverMetricsRefreshed'))
     })
   }
 
   function handleTest(): void {
     void run(async () => {
       const res = await api.connection.test(connection)
-      if (res.ok) notify(res.data.ok ? 'ok' : 'err', res.data.message ?? t('测试完成'))
+      if (res.ok) notify(res.data.ok ? 'ok' : 'err', res.data.message ?? t('connectionActions.testComplete'))
       else notify('err', res.error)
     })
   }
@@ -142,7 +142,7 @@ export function ConnectionActions({ connection, onEdit, onVersion }: ConnectionA
   function handleVersion(): void {
     setOpen(false)
     if (!isConnected) {
-      notify('err', t('请先建立连接，再查看版本信息'))
+      notify('err', t('connectionActions.connectFirstViewVersionInfo'))
       return
     }
     onVersion(connection)
@@ -156,11 +156,11 @@ export function ConnectionActions({ connection, onEdit, onVersion }: ConnectionA
     void run(async () => {
       const done = await copyText(connectionUrl)
       if (!done) {
-        notify('err', t('复制失败，请检查剪贴板权限'))
+        notify('err', t('common.copyFailedCheckClipboardPermissions'))
         return
       }
       const withSecret = connection.engine === 'redis' && !!connection.password
-      notify('ok', withSecret ? t('已复制连接地址（含密码）') : t('已复制连接地址'))
+      notify('ok', withSecret ? t('connectionActions.copiedAddressWithPassword') : t('connectionActions.copiedConnectionAddress'))
     })
   }
 
@@ -172,8 +172,8 @@ export function ConnectionActions({ connection, onEdit, onVersion }: ConnectionA
        * SSH、密码全都要重填，误删代价远高于多点一次确认）。
        */
       const confirmed = await askConfirm({
-        title: t('删除连接'),
-        message: t('即将删除连接「{name}」：', { name: connection.name }),
+        title: t('connectionActions.deleteConnection'),
+        message: t('connectionActions.connectionNameDeleted', { name: connection.name }),
         /*
          * 明细按引擎给字段：Memcached 没有 db，硬写 db0 会让用户
          * 以为删的是某个库，而实际删的是整台实例的配置；SSH 两者共用。
@@ -181,25 +181,25 @@ export function ConnectionActions({ connection, onEdit, onVersion }: ConnectionA
         details:
           connection.engine === 'memcached'
             ? [
-                { label: t('地址'), value: `${connection.host}:${connection.port}`, mono: true },
-                { label: t('引擎'), value: 'Memcached', mono: false },
-                { label: t('连接池'), value: t('{count} 个连接', { count: connection.poolSize ?? 4 }), mono: true },
+                { label: t('connectionActions.address'), value: `${connection.host}:${connection.port}`, mono: true },
+                { label: t('connectionActions.engine'), value: 'Memcached', mono: false },
+                { label: t('connectionActions.connectionPool'), value: t('connectionActions.countConnections', { count: connection.poolSize ?? 4 }), mono: true },
                 ...(connection.sshEnabled && connection.ssh
-                  ? [{ label: t('SSH 隧道'), value: `${connection.ssh.host}:${connection.ssh.port}`, mono: true }]
+                  ? [{ label: t('connectionActions.sshTunnel'), value: `${connection.ssh.host}:${connection.ssh.port}`, mono: true }]
                   : []),
               ]
             : [
-                { label: t('地址'), value: `${connection.host}:${connection.port}`, mono: true },
-                { label: t('默认库'), value: `db${connection.db}`, mono: true },
+                { label: t('connectionActions.address'), value: `${connection.host}:${connection.port}`, mono: true },
+                { label: t('common.defaultDatabase'), value: `db${connection.db}`, mono: true },
                 ...(connection.sshEnabled && connection.ssh
-                  ? [{ label: t('SSH 隧道'), value: `${connection.ssh.host}:${connection.ssh.port}`, mono: true }]
+                  ? [{ label: t('connectionActions.sshTunnel'), value: `${connection.ssh.host}:${connection.ssh.port}`, mono: true }]
                   : []),
               ],
         warning:
           connection.engine === 'memcached'
-            ? t('删除后无法恢复，连接配置（含 SSH 凭据）需要重新填写。')
-            : t('删除后无法恢复，连接配置（含 SSH、密码）需要全部重新填写。'),
-        confirmText: t('删除'),
+            ? t('connectionActions.deleteWarningCredentials')
+            : t('connectionActions.deleteWarningPassword'),
+        confirmText: t('common.delete'),
         danger: true,
         force: true,
       })
@@ -211,7 +211,7 @@ export function ConnectionActions({ connection, onEdit, onVersion }: ConnectionA
   return (
     <div ref={anchorRef} className="conn-actions s-connection-actions" onClick={(event) => event.stopPropagation()}>
       {/* 实心三点（more）+ 常显主色：描线 menu 在弱色下几乎不可见 */}
-      <button className="more-btn" {...tipProps(t('更多操作'))} onClick={toggleOpen}>
+      <button className="more-btn" {...tipProps(t('common.moreActions'))} onClick={toggleOpen}>
         <DialogIcon name="more" size={15} />
       </button>
 
@@ -225,47 +225,47 @@ export function ConnectionActions({ connection, onEdit, onVersion }: ConnectionA
           >
             <button className="menu-item" onClick={handleToggleStatus}>
               <DialogIcon name="power" size={13} className="mi-icon" />
-              <span>{isConnected ? t('断开连接') : t('建立连接')}</span>
+              <span>{isConnected ? t('connectionActions.disconnect') : t('connectionActions.connect')}</span>
             </button>
 
             {isConnected ? (
               <button className="menu-item" onClick={handleRefreshMetrics}>
                 <DialogIcon name="refresh" size={13} className="mi-icon" />
-                <span>{t('刷新服务端指标')}</span>
+                <span>{t('connectionActions.refreshServerMetrics')}</span>
               </button>
             ) : null}
 
             <button className="menu-item" onClick={handleVersion}>
               <DialogIcon name="info" size={13} className="mi-icon" />
-              <span>{t('版本信息…')}</span>
-              {!isConnected ? <span className="shortcut">{t('需连接')}</span> : null}
+              <span>{t('connectionActions.versionInfo')}</span>
+              {!isConnected ? <span className="shortcut">{t('connectionActions.requiresConnection')}</span> : null}
             </button>
 
             <button className="menu-item" onClick={handleTest}>
               <DialogIcon name="bolt" size={13} className="mi-icon" />
-              <span>{t('测试连接')}</span>
+              <span>{t('connectionActions.testConnection')}</span>
             </button>
 
             <div className="menu-sep" />
 
             <button className="menu-item" onClick={handlePin}>
               <DialogIcon name="pin" size={13} className="mi-icon" />
-              <span>{connection.pinned ? t('取消置顶') : t('置顶')}</span>
+              <span>{connection.pinned ? t('connectionActions.unpin') : t('connectionActions.pin')}</span>
             </button>
 
             <button className="menu-item" onClick={handleEdit}>
               <DialogIcon name="edit" size={13} className="mi-icon" />
-              <span>{t('编辑配置…')}</span>
+              <span>{t('connectionActions.editConfig')}</span>
             </button>
 
             <button className="menu-item" onClick={handleClone}>
               <DialogIcon name="clone" size={13} className="mi-icon" />
-              <span>{t('克隆连接')}</span>
+              <span>{t('connectionActions.cloneConnection')}</span>
             </button>
 
             <button className="menu-item" onClick={handleCopy}>
               <DialogIcon name="copy" size={13} className="mi-icon" />
-              <span>{t('复制连接地址')}</span>
+              <span>{t('connectionActions.copyConnectionAddress')}</span>
             </button>
 
             <div className="menu-sep" />
@@ -273,7 +273,7 @@ export function ConnectionActions({ connection, onEdit, onVersion }: ConnectionA
             <button className="menu-item danger" onClick={handleDelete}>
               {/* 删除用垃圾桶而非 ×：「×」在菜单里读作"关闭菜单"，与删除语义相反 */}
               <DialogIcon name="trash" size={13} className="mi-icon" />
-              <span>{t('删除连接')}</span>
+              <span>{t('connectionActions.deleteConnection')}</span>
             </button>
           </div>
         </>

@@ -1,30 +1,31 @@
 /**
  * 多语言核心：语言码、字典查找与插值。
  *
- * 键即中文原文（gettext 风格的 msgid），而不是另起一套语义 key。
- *
- * 为什么这么做：
- *   · 应用从中文界面起步，现有文案已经过长期打磨，换成语义 key 等于
- *     把上千条文案重命名一遍，改错一个就是一处界面文案消失；
- *   · 中文原文本身具备"读代码即懂文案"的可读性，新增文案时不必先想 key 名；
- *   · 漏译会自然回退到中文原文（而不是显示 key 或空白），英文界面下
- *     一眼能看出哪些没翻，便于用脚本扫描收口。
+ * 键是语义化的 `namespace.camelCase`（如 `common.cancel`），英文目录
+ * `lang/en.ts` 是唯一事实来源：
+ *   · `MsgKey` 由英文目录的键推导，调用 `t()` 时拼错键会直接编译失败；
+ *   · 另外两份字典声明为 `Record<MsgKey, string>`，漏译 / 多译同样是编译错误；
+ *   · 运行时若出现未经类型检查的动态键，依次回退「当前语言 → 英文 → 键本身」，
+ *     不会渲染成空白。
  *
  * 约定：
- *   · 插值用 `{name}`，如 `t('已删除 {count} 个键', { count: 3 })`；
- *   · 中文原文里出现 `{` 字面量的场景不存在，无需转义；
- *   · 三种语言字典必须键集一致（tests/unit/i18n.spec.ts 会校验）。
+ *   · 插值用 `{name}`，如 `t('common.selectedCount', { count: 3 })`；
+ *   · 文案里出现 `{` 字面量的场景不存在，无需转义；
+ *   · 三种语言字典的键集与占位符集合由 `npm run i18n:check` 全量校验。
  *
  * 渲染层与主进程都从这里取翻译：主进程通过 setActiveLocale 跟随设置，
  * 渲染层用 src/i18n 里的 hook（会订阅设置变化并触发重渲染）。
  */
-import en from '../../lang/en'
+import en, { type MsgKey } from '../../lang/en'
 import zhCN from '../../lang/zh-CN'
 import zhTW from '../../lang/zh-TW'
 
+export type { MsgKey }
+
 export type LocaleCode = 'zh-CN' | 'zh-TW' | 'en'
-export type Dict = Record<string, string>
+export type Dict = Record<MsgKey, string>
 export type TParams = Record<string, string | number>
+export type TFunction = (key: MsgKey, params?: TParams) => string
 
 export const LOCALES: LocaleCode[] = ['zh-CN', 'zh-TW', 'en']
 export const DEFAULT_LOCALE: LocaleCode = 'zh-CN'
@@ -79,9 +80,9 @@ export function getActiveLocale(): LocaleCode {
 
 const PLACEHOLDER = /\{(\w+)\}/g
 
-export function translate(locale: LocaleCode, key: string, params?: TParams): string {
+export function translate(locale: LocaleCode, key: MsgKey, params?: TParams): string {
   const dict = DICTIONARIES[locale] ?? DICTIONARIES[DEFAULT_LOCALE]
-  const text = dict[key] ?? DICTIONARIES[DEFAULT_LOCALE][key] ?? key
+  const text = dict[key] ?? en[key] ?? key
   if (!params) return text
   return text.replace(PLACEHOLDER, (whole, name: string) => {
     const value = params[name]
@@ -90,6 +91,6 @@ export function translate(locale: LocaleCode, key: string, params?: TParams): st
 }
 
 /** 主进程 / 非 React 场景：按最近一次同步过来的语言翻译 */
-export function t(key: string, params?: TParams): string {
+export function t(key: MsgKey, params?: TParams): string {
   return translate(activeLocale, key, params)
 }

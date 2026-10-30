@@ -1,4 +1,5 @@
 import type { RedisValueType } from '@shared/types'
+import { t, type MsgKey } from '@shared/i18n'
 
 /**
  * 类型徽标的「单字符缩写」与「完整名称」。
@@ -34,15 +35,15 @@ const ABBR: Record<RedisValueType, string> = {
   none: '?',
 }
 
-/** 完整名称：tooltip 内容，带中文便于不认识缩写的用户 */
-const LABEL: Record<RedisValueType, string> = {
-  string: 'string · 字符串',
-  hash: 'hash · 哈希',
-  list: 'list · 列表',
-  set: 'set · 集合',
-  zset: 'zset · 有序集合',
-  stream: 'stream · 流',
-  none: '键不存在',
+/** 完整名称：tooltip 内容，随界面语言显示 */
+const LABEL: Record<RedisValueType, MsgKey> = {
+  string: 'type.string',
+  hash: 'type.hash',
+  list: 'type.list',
+  set: 'type.set',
+  zset: 'type.zset',
+  stream: 'type.stream',
+  none: 'type.keyNotExist',
 }
 
 /**
@@ -59,6 +60,6 @@ export function typeAbbr(type: RedisValueType | string | undefined | null): stri
 
 /** 取完整名称，用于 tooltip */
 export function typeLabel(type: RedisValueType | string | undefined | null): string {
-  if (!type) return '未知类型'
-  return LABEL[type as RedisValueType] ?? String(type)
+  if (!type) return t('type.unknownType')
+  return LABEL[type as RedisValueType] ? t(LABEL[type as RedisValueType]) : String(type)
 }

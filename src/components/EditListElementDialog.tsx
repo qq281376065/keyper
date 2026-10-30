@@ -75,23 +75,23 @@ export function EditListElementDialog({
   const title =
     mode === 'edit'
       ? showPosition
-        ? t('修改第 {index} 项', { index: index + 1 })
-        : t('修改成员')
+        ? t('editListElementDialog.editItemIndex', { index: index + 1 })
+        : t('common.editMember')
       : !showPosition
-        ? t('新增成员')
+        ? t('common.addMember')
         : appending
-          ? t('追加项')
+          ? t('editListElementDialog.appendItem')
           : position === 'before'
-            ? t('在第 {index} 项前插入', { index: index + 1 })
-            : t('在第 {index} 项后插入', { index: index + 1 })
+            ? t('editListElementDialog.insertBeforeItemIndex', { index: index + 1 })
+            : t('editListElementDialog.insertAfterItemIndex', { index: index + 1 })
 
   /** 副标题：说明这次操作的影响（无序集合无可预期的数量位置，仅在有序时展示） */
   const subtitle =
     mode === 'edit' || !showPosition
       ? ''
       : appending
-        ? t('将追加为第 {index} 项', { index: total + 1 })
-        : t('插入后共 {count} 项', { count: total + 1 })
+        ? t('editListElementDialog.appendedItemIndex', { index: total + 1 })
+        : t('editListElementDialog.countItemsAfterInsertion', { count: total + 1 })
 
   /** 尝试格式化为 JSON，便于用户确认自己写的是合法结构 */
   const jsonHint = (() => {
@@ -99,9 +99,9 @@ export function EditListElementDialog({
     if (!text || (!text.startsWith('{') && !text.startsWith('['))) return null
     try {
       JSON.parse(text)
-      return { text: t('合法 JSON'), bad: false }
+      return { text: t('editListElementDialog.validJson'), bad: false }
     } catch {
-      return { text: t('JSON 格式有误'), bad: true }
+      return { text: t('editListElementDialog.invalidJson'), bad: true }
     }
   })()
 
@@ -116,16 +116,16 @@ export function EditListElementDialog({
     <DialogShell
       icon={mode === 'edit' ? 'edit' : 'add'}
       title={title}
-      description={subtitle || (mode === 'edit' ? t('修改后立即生效') : t('插入后立即生效'))}
+      description={subtitle || (mode === 'edit' ? t('editListElementDialog.changeAppliesImmediately') : t('editListElementDialog.insertAppliesImmediately'))}
       badge={<span className="dlg-badge mono">{keyType}</span>}
       className="edit-list-element-dialog"
       onClose={onCancel}
       footer={
         <>
           {/* 统计条：字符 / 行 / 字节（+ 改动量），放在页脚左侧充当副信息 */}
-          <span className="stat mono">{t('{count} 字符', { count: stats.chars })}</span>
+          <span className="stat mono">{t('common.countCharacters', { count: stats.chars })}</span>
           <span className="sep">·</span>
-          <span className="stat mono">{t('{count} 行', { count: stats.lines })}</span>
+          <span className="stat mono">{t('editListElementDialog.countLines', { count: stats.lines })}</span>
           <span className="sep">·</span>
           <span className="stat mono">{formatBytes(stats.bytes)}</span>
           {/* 改动量仅在编辑模式展示：插入是新增内容，没有对比基准 */}
@@ -141,7 +141,7 @@ export function EditListElementDialog({
           <span className="spacer" />
           <Button type="button" variant="ghost" className="foot-btn foot-quiet" onClick={onCancel}>
             <DialogIcon name="cancel" size={13} />
-            {t('取消')}
+            {t('common.cancel')}
           </Button>
           <Button
             type="button"
@@ -150,7 +150,7 @@ export function EditListElementDialog({
             onClick={() => onConfirm(draft)}
           >
             <DialogIcon name="save" size={13} />
-            {mode === 'edit' ? t('保存') : t('插入')}
+            {mode === 'edit' ? t('common.save') : t('editListElementDialog.insert')}
           </Button>
         </>
       }
@@ -165,7 +165,7 @@ export function EditListElementDialog({
           <span className="pos mono">
             {mode === 'edit'
               ? `#${index + 1} / ${total}`
-              : t('插入点 #{index}', { index: index + 1 })}
+              : t('editListElementDialog.insertionPointIndex', { index: index + 1 })}
           </span>
         ) : null}
       </div>
@@ -178,7 +178,7 @@ export function EditListElementDialog({
           autoGrow
           spellCheck={false}
           placeholder={
-            !showPosition ? t('成员内容') : mode === 'edit' ? t('元素内容，可多行') : t('要插入的内容')
+            !showPosition ? t('editListElementDialog.memberContent') : mode === 'edit' ? t('editListElementDialog.elementContentMultiple') : t('editListElementDialog.contentInsert')
           }
           autoFocus
         />

@@ -1,5 +1,6 @@
 import type { CacheConnectionConfig } from '@shared/types'
 import type { ConnectionItem } from '@/store/session'
+import type { MsgKey } from '@shared/i18n'
 
 /**
  * 引擎元信息。
@@ -19,7 +20,7 @@ export interface EngineMeta {
   /** 默认端口 —— 新建时按引擎自动带出，省一次手动输入 */
   defaultPort: number
   /** 一句话说明，用于选择引擎时的提示 */
-  hint: string
+  hint: MsgKey
 }
 
 export const ENGINES: readonly EngineMeta[] = [
@@ -28,14 +29,14 @@ export const ENGINES: readonly EngineMeta[] = [
     label: 'Redis',
     short: 'R',
     defaultPort: 6379,
-    hint: '多库 · 六种结构 · Pub/Sub · SSH',
+    hint: 'engine.multiDbSixStructuresPub',
   },
   {
     key: 'memcached',
     label: 'Memcached',
     short: 'M',
     defaultPort: 11211,
-    hint: '纯键值缓存 · slab 分组 · SSH 跳板',
+    hint: 'engine.pureKeyValueCacheSlab',
   },
 ] as const
 

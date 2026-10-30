@@ -117,10 +117,10 @@ export function App() {
          * 尾部信息也按引擎给：Redis 显示 db，Memcached 显示连接池。
          */
         const details = online.map((c) => ({
-          label: t('连接中'),
+          label: t('app.connected'),
           value:
             c.engine === 'memcached'
-              ? `[Memcached] ${c.name} · ${c.host}:${c.port} · ${t('池 {size}', { size: c.poolSize ?? 4 })}`
+              ? `[Memcached] ${c.name} · ${c.host}:${c.port} · ${t('app.poolSize', { size: c.poolSize ?? 4 })}`
               : `[Redis] ${c.name} · ${c.host}:${c.port} · db${c.db}`,
           mono: false,
         }))
@@ -134,22 +134,22 @@ export function App() {
           .askConfirm({
             force: true,
             danger: true,
-            title: t('退出 Keyper'),
-            description: online.length ? t('退出前会先断开连接') : t('退出后可以再次打开，连接配置不会丢失'),
+            title: t('app.quitKeyper'),
+            description: online.length ? t('app.activeConnectionsClosedFirst') : t('app.youReopenAppLaterConnection'),
             message: online.length
               ? many
-                ? t('当前有 {count} 个连接处于连接状态，退出会连同这些会话一起断开。', {
+                ? t('app.countConnectionsStillOpen', {
                     count: online.length,
                   })
-                : t('当前有 1 个连接处于连接状态，退出会连同该会话一起断开。')
-              : t('当前没有处于连接状态的实例。未保存的编辑内容会丢失。'),
+                : t('app.oneConnectionStillOpen')
+              : t('app.noConnectionsOpen'),
             details,
             warning: online.length
               ? many
-                ? t('退出时将自动断开以上连接。')
-                : t('退出时将自动断开该连接。')
+                ? t('app.connectionsAboveClosed')
+                : t('app.connectionClosed')
               : undefined,
-            confirmText: online.length ? t('断开并退出') : t('退出'),
+            confirmText: online.length ? t('app.disconnectQuit') : t('app.quit'),
           })
           .then(async (ok) => {
             if (!ok) return
@@ -294,27 +294,27 @@ export function App() {
         */}
 
         <div className="topbar-actions">
-          <button className="bar-btn" {...tipProps(tr('操作日志'))} onClick={openLog}>
+          <button className="bar-btn" {...tipProps(tr('common.activityLog'))} onClick={openLog}>
             <DialogIcon name="activity" size={14} />
           </button>
-          <button className="bar-btn" {...tipProps(tr('全局设置'))} onClick={() => setSettingsVisible(true)}>
+          <button className="bar-btn" {...tipProps(tr('app.settings'))} onClick={() => setSettingsVisible(true)}>
             <DialogIcon name="hamburger" size={14} />
           </button>
           <LanguageSwitch />
           <ThemeSwitch />
           {/* 自绘窗口控制：系统标题栏已隐藏（titleBarStyle: hidden） */}
           <div className="win-controls">
-            <button className="win-btn" {...tipProps(tr('最小化'))} onClick={minimizeWindow}>
+            <button className="win-btn" {...tipProps(tr('app.minimize'))} onClick={minimizeWindow}>
               <DialogIcon name="win-min" size={12} />
             </button>
             <button
               className="win-btn"
-              {...tipProps(tr(windowMaximized ? '向下还原' : '最大化'))}
+              {...tipProps(tr(windowMaximized ? 'app.restoreDown' : 'app.maximize'))}
               onClick={toggleMaximize}
             >
               <DialogIcon name={windowMaximized ? 'win-restore' : 'win-max'} size={12} />
             </button>
-            <button className="win-btn win-close" {...tipProps(tr('关闭'))} onClick={closeWindow}>
+            <button className="win-btn win-close" {...tipProps(tr('common.close'))} onClick={closeWindow}>
               <DialogIcon name="cancel" size={13} />
             </button>
           </div>

@@ -62,16 +62,23 @@ describe('parseConnectionUri', () => {
     const r = parseConnectionUri('http://example.com')
     expect(r.ok).toBe(false)
     if (r.ok) return
-    expect(r.error).toContain('不支持')
+    expect(r.error.key).toBe('uri.unsupportedProtocol')
+    expect(r.error.params).toEqual({ scheme: 'http' })
   })
 
   it('拒绝超范围的库号', () => {
     const r = parseConnectionUri('redis://host:6379/99')
     expect(r.ok).toBe(false)
+    if (r.ok) return
+    expect(r.error.key).toBe('uri.databaseOutOfRange')
+    expect(r.error.params).toEqual({ db: 99, max: 15 })
   })
 
   it('拒绝空输入', () => {
-    expect(parseConnectionUri('   ').ok).toBe(false)
+    const r = parseConnectionUri('   ')
+    expect(r.ok).toBe(false)
+    if (r.ok) return
+    expect(r.error.key).toBe('uri.pasteConnectionString')
   })
 })
 

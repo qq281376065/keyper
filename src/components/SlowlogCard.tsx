@@ -39,7 +39,7 @@ export function SlowlogCard({ registerRefresh }: { registerRefresh?: (fn: () => 
       if (!res.ok) throw new Error(res.error)
       setOverview(res.data)
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('读取慢查询日志失败'))
+      setError(err instanceof Error ? err.message : t('slowlogCard.failedLoadSlowQueryLog'))
     } finally {
       setLoading(false)
     }
@@ -58,9 +58,9 @@ export function SlowlogCard({ registerRefresh }: { registerRefresh?: (fn: () => 
       const res = await api.redis.slowlogReset(activeId)
       if (!res.ok) throw new Error(res.error)
       await loadSlowlog()
-      notify('ok', t('慢查询日志已清空'))
+      notify('ok', t('slowlogCard.slowQueryLogCleared'))
     } catch (err) {
-      notify('err', err instanceof Error ? err.message : t('清空慢查询日志失败'))
+      notify('err', err instanceof Error ? err.message : t('slowlogCard.failedClearSlowQueryLog'))
     } finally {
       setResetting(false)
     }
@@ -101,10 +101,10 @@ export function SlowlogCard({ registerRefresh }: { registerRefresh?: (fn: () => 
    */
   function timeAgo(ts: number): string {
     const diff = Math.max(0, Math.floor(Date.now() / 1000) - ts)
-    if (diff < 60) return t('刚刚')
-    if (diff < 3600) return t('{count} 分钟前', { count: Math.floor(diff / 60) })
-    if (diff < 86_400) return t('{count} 小时前', { count: Math.floor(diff / 3600) })
-    return t('{count} 天前', { count: Math.floor(diff / 86_400) })
+    if (diff < 60) return t('slowlogCard.justNow')
+    if (diff < 3600) return t('slowlogCard.countMinutesAgo', { count: Math.floor(diff / 60) })
+    if (diff < 86_400) return t('slowlogCard.countHoursAgo', { count: Math.floor(diff / 3600) })
+    return t('slowlogCard.countDaysAgo', { count: Math.floor(diff / 86_400) })
   }
 
   return (
@@ -112,18 +112,18 @@ export function SlowlogCard({ registerRefresh }: { registerRefresh?: (fn: () => 
       <header className="slow-head">
         <h3 className="slow-title">
           <DialogIcon name="clock" size={14} className="slow-icon" />
-          <span>{t('慢查询日志')}</span>
+          <span>{t('common.slowQueryLog')}</span>
         </h3>
-        <span className="slow-count mono">{entries.length ? t('最近 {count} 条', { count: entries.length }) : ''}</span>
+        <span className="slow-count mono">{entries.length ? t('slowlogCard.latestCountEntries', { count: entries.length }) : ''}</span>
         <span className="spacer" />
         <button
           className="slow-reset"
           disabled={!connected || resetting || !entries.length}
-          title={t('清空服务端慢查询日志（SLOWLOG RESET）')}
+          title={t('slowlogCard.clearServerSideSlowQuery')}
           onClick={() => void resetSlowlog()}
         >
           <DialogIcon name="clear" size={12} className="ti" />
-          {t('清空')}
+          {t('common.clear')}
         </button>
       </header>
 
@@ -133,22 +133,22 @@ export function SlowlogCard({ registerRefresh }: { registerRefresh?: (fn: () => 
         根本没记录 —— 不写清楚，用户会以为功能坏了。
       */}
       <p className="slow-hint">
-        {t('记录耗时超过 slowlog-log-slower-than（默认 10ms）的命令，服务端最多保留 slowlog-max-len 条')}
+        {t('slowlogCard.commandsSlowerThanSlowlogLog')}
       </p>
 
       {error ? (
         <p className="slow-error">{error}</p>
       ) : loading && !overview ? (
-        <p className="slow-empty">{t('正在读取慢查询日志…')}</p>
+        <p className="slow-empty">{t('slowlogCard.readingSlowQueryLog')}</p>
       ) : entries.length ? (
         <table className="slow-table">
           <thead>
             <tr>
               <th className="col-id">ID</th>
-              <th className="col-time">{t('发生时间')}</th>
-              <th className="col-cost">{t('耗时')}</th>
-              <th className="col-cmd">{t('命令')}</th>
-              <th className="col-client">{t('客户端')}</th>
+              <th className="col-time">{t('slowlogCard.time')}</th>
+              <th className="col-cost">{t('slowlogCard.duration')}</th>
+              <th className="col-cmd">{t('slowlogCard.command')}</th>
+              <th className="col-client">{t('serverOverview.client')}</th>
             </tr>
           </thead>
           <tbody>
@@ -159,7 +159,7 @@ export function SlowlogCard({ registerRefresh }: { registerRefresh?: (fn: () => 
                   对"第几条"没有信息量；序号与阅读顺序一致。
                   ID 保留在 title 里，需要跟服务端核对时能看到。
                 */}
-                <td className="mono col-id" title={t('服务端 ID {id}', { id: entry.id })}>
+                <td className="mono col-id" title={t('slowlogCard.serverId', { id: entry.id })}>
                   {i + 1}
                 </td>
                 <td className="col-time" title={formatTime(entry.timestamp)}>
@@ -185,13 +185,13 @@ export function SlowlogCard({ registerRefresh }: { registerRefresh?: (fn: () => 
         </table>
       ) : (
         <p className="slow-empty">
-          {connected ? t('最近没有超过阈值的命令；可在 redis.conf 中调低 slowlog-log-slower-than 观察') : t('未连接')}
+          {connected ? t('slowlogCard.noCommandsExceededThresholdRecently') : t('cliConsole.notConnected')}
         </p>
       )}
 
       {overview ? (
         <p className="slow-summary mono">
-          {t('服务端共记录 {count} 条', { count: overview.len })}
+          {t('slowlogCard.serverRecordedCountEntriesTotal', { count: overview.len })}
         </p>
       ) : null}
     </section>

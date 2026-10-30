@@ -41,14 +41,14 @@ export function PromptDialog({
     <DialogShell
       icon="edit"
       title={title}
-      description={t('填写后按 Enter 可直接确认')}
+      description={t('common.pressEnterAfterTypingConfirm')}
       className="prompt-dialog"
       onClose={onCancel}
       footer={
         <>
           <Button type="button" variant="ghost" className="foot-btn foot-quiet" onClick={onCancel}>
             <DialogIcon name="cancel" size={13} />
-            {t('取消')}
+            {t('common.cancel')}
           </Button>
           <Button
             type="button"
@@ -56,7 +56,7 @@ export function PromptDialog({
             onClick={() => onConfirm(draft)}
           >
             <DialogIcon name="save" size={13} />
-            {confirmText ?? t('确定')}
+            {confirmText ?? t('common.ok')}
           </Button>
         </>
       }
@@ -85,7 +85,7 @@ export function PromptDialog({
       {/* 常用值：一键填入，省掉手输。整组胶囊化，与按钮约定一致 */}
       {presets.length ? (
         <div className="presets">
-          <span className="presets-label">{t('常用值')}</span>
+          <span className="presets-label">{t('editHashFieldTtlDialog.commonValues')}</span>
           {presets.map((item) => (
             <button
               key={item.value}

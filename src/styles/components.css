@@ -9953,22 +9953,20 @@ body.col-resizing .col-handle::after{
 
 /*
  * 概览卡：方案 09 无框轻排版 —— 与 Redis 顶部卡片同一套语言，
- * 单卡只靠留白与虚线成组，整组套一层白色圆角面板（四列自适应，窄窗自动折行）。
+ * 单卡只靠留白与虚线成组，整组套一层白色圆角面板（三列自适应，窄窗自动折行）。
  */
 .mc-cards{
   container-type: inline-size;
   display: grid;
   /*
-   * 187px 而不是 178px：四张卡里「Hits/misses」这一行在英文下最宽，
-   * 列再窄就会把数值截断。187px 是「标签 + 数值」刚好放得下的下限，
-   * 同时保证 1440 宽窗口下四列仍能并排（不折成 3+1）。
+   * 187px 是「标签 + 数值」在英文下不换行的下限；
+   * 1440 宽窗口下三列并排，1080 宽仍能保持两列。
    */
   grid-template-columns: repeat(auto-fit, minmax(min(187px, 100%), 1fr));
   gap: 16px 0;
   /*
    * 面板改为 margin + 纵向内边距：横向留白仍由卡片的 12px 内边距提供。
-   * 左右 margin 取 12px 与页头、页签对齐；1px 边框会让内容盒比原来少 2px，
-   * 1440 宽时仍有 749px（四列下限 748px），四列布局不受影响。
+   * 左右 margin 取 12px 与页头、页签对齐。
    */
   margin: 10px 12px 0;
   padding: 12px 0;
@@ -9987,12 +9985,7 @@ body.col-resizing .col-handle::after{
 .mc-card + .mc-card{
   border-left: 1px dashed color-mix(in srgb, var(--border-strong) 92%, transparent);
 }
-/* 换行后行首不画竖线：3 列 / 2 列 / 1 列的阈值与 minmax(187px) 对应 */
-@container (min-width: 561px) and (max-width: 747.9px) {
-  .mc-cards .mc-card:nth-child(3n + 1) {
-    border-left: 0;
-  }
-}
+/* 换行后行首不画竖线：2 列 / 1 列的阈值与 minmax(187px) 对应 */
 @container (min-width: 374px) and (max-width: 560.9px) {
   .mc-cards .mc-card:nth-child(odd) {
     border-left: 0;

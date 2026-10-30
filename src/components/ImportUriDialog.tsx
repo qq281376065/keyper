@@ -94,10 +94,10 @@ export function ImportUriDialog({ onSubmit, onClose, initialText = '' }: ImportU
                 <span className="dlg-head-icon">
                   <DialogIcon name="link" size={15} />
                 </span>
-                <DialogTitle className="dlg-title">{t('从连接串导入')}</DialogTitle>
+                <DialogTitle className="dlg-title">{t('importUriDialog.importConnectionString')}</DialogTitle>
               </div>
               <DialogDescription id="uri-desc" className="dlg-sub">
-                {t('支持 redis:// 与 rediss://，粘贴后自动识别主机、端口、密码与库号')}
+                {t('importUriDialog.supportsRedis')}
               </DialogDescription>
             </div>
             <Button
@@ -105,7 +105,7 @@ export function ImportUriDialog({ onSubmit, onClose, initialText = '' }: ImportU
               variant="ghost"
               size="icon"
               className="dlg-close"
-              aria-label={t('关闭')}
+              aria-label={t('common.close')}
               onClick={onClose}
             >
               <DialogIcon name="cancel" size={13} />
@@ -115,10 +115,10 @@ export function ImportUriDialog({ onSubmit, onClose, initialText = '' }: ImportU
           <div className="dlg-body">
             <div className="field">
               <div className="field-label key-label">
-                <Label htmlFor="uri-input">{t('连接串')}</Label>
+                <Label htmlFor="uri-input">{t('importUriDialog.connectionString')}</Label>
                 <button type="button" className="link-btn" onClick={() => void pasteFromClipboard()}>
                   <DialogIcon name="copy" size={12} />
-                  {t('从剪贴板粘贴')}
+                  {t('importUriDialog.pasteClipboard')}
                 </button>
               </div>
               <Input
@@ -139,39 +139,39 @@ export function ImportUriDialog({ onSubmit, onClose, initialText = '' }: ImportU
                 <div className="uri-preview">
                   <div className="uri-preview-head">
                     <DialogIcon name="check" size={13} />
-                    <span>{t('识别结果')}</span>
+                    <span>{t('importUriDialog.parsedResult')}</span>
                   </div>
                   <dl className="uri-rows">
                     <div className="uri-row">
-                      <dt>{t('主机')}</dt>
+                      <dt>{t('connectionDialog.host')}</dt>
                       <dd className="mono">{value.host}</dd>
                     </div>
                     <div className="uri-row">
-                      <dt>{t('端口')}</dt>
+                      <dt>{t('connectionDialog.port')}</dt>
                       <dd className="mono">{value.port}</dd>
                     </div>
                     {value.username ? (
                       <div className="uri-row">
-                        <dt>{t('用户名')}</dt>
+                        <dt>{t('connectionDialog.username')}</dt>
                         <dd className="mono">{value.username}</dd>
                       </div>
                     ) : null}
                     <div className="uri-row">
-                      <dt>{t('密码')}</dt>
-                      <dd className="mono">{value.password ? '••••••••' : t('（空）')}</dd>
+                      <dt>{t('connectionDialog.password')}</dt>
+                      <dd className="mono">{value.password ? '••••••••' : t('importUriDialog.empty')}</dd>
                     </div>
                     <div className="uri-row">
-                      <dt>{t('默认库')}</dt>
+                      <dt>{t('common.defaultDatabase')}</dt>
                       <dd className="mono">db{value.db}</dd>
                     </div>
                     <div className="uri-row">
                       <dt>TLS</dt>
-                      <dd className="mono">{value.tls ? t('已启用（rediss）') : t('未启用')}</dd>
+                      <dd className="mono">{value.tls ? t('importUriDialog.enabled') : t('importUriDialog.disabled')}</dd>
                     </div>
                   </dl>
                   <div className="field">
                     <Label htmlFor="uri-name" className="field-label">
-                      {t('连接名称')}
+                      {t('connectionDialog.connectionName')}
                     </Label>
                     <Input
                       id="uri-name"
@@ -185,7 +185,7 @@ export function ImportUriDialog({ onSubmit, onClose, initialText = '' }: ImportU
               ) : (
                 <p className="uri-error">
                   <DialogIcon name="warning" size={13} />
-                  {parsed && !parsed.ok ? t(parsed.error) : t('无法识别')}
+                  {parsed && !parsed.ok ? t(parsed.error.key, parsed.error.params) : t('importUriDialog.unrecognized')}
                 </p>
               )
             ) : null}
@@ -195,11 +195,11 @@ export function ImportUriDialog({ onSubmit, onClose, initialText = '' }: ImportU
             <span className="spacer" />
             <Button type="button" variant="ghost" className="foot-btn foot-quiet" onClick={onClose}>
               <DialogIcon name="cancel" size={13} />
-              {t('取消')}
+              {t('common.cancel')}
             </Button>
             <Button type="button" className="foot-btn foot-primary" disabled={!ok} onClick={handleSubmit}>
               <DialogIcon name="save" size={13} />
-              {t('填入表单')}
+              {t('importUriDialog.fillIntoForm')}
             </Button>
           </footer>
         </div>

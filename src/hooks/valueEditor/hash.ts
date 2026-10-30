@@ -129,15 +129,15 @@ export function useHashEditor(ctx: ValueEditorContext) {
 
   async function copyHashAll(): Promise<void> {
     if (!hashView.total) {
-      notify('err', t('当前 hash 没有字段'))
+      notify('err', t('valueEditorHash.hashNoFields'))
       return
     }
     const done = await copyText(hashAsJson())
     notify(
       done ? 'ok' : 'err',
       done
-        ? t('已复制 {count} 个字段（JSON）', { count: hashView.total })
-        : t('复制失败，请检查剪贴板权限'),
+        ? t('valueEditorHash.copiedCountFields', { count: hashView.total })
+        : t('common.copyFailedCheckClipboardPermissions'),
     )
   }
 
@@ -147,8 +147,8 @@ export function useHashEditor(ctx: ValueEditorContext) {
     notify(
       done ? 'ok' : 'err',
       done
-        ? t('已复制字段 {field}（名称 + 值）', { field: row.field })
-        : t('复制失败，请检查剪贴板权限'),
+        ? t('valueEditorHash.copiedField', { field: row.field })
+        : t('common.copyFailedCheckClipboardPermissions'),
     )
   }
 
@@ -157,7 +157,7 @@ export function useHashEditor(ctx: ValueEditorContext) {
     const done = await copyText(field)
     notify(
       done ? 'ok' : 'err',
-      done ? t('已复制字段名 {field}', { field }) : t('复制失败，请检查剪贴板权限'),
+      done ? t('valueEditorHash.copiedFieldName', { field }) : t('common.copyFailedCheckClipboardPermissions'),
     )
   }
 
@@ -166,7 +166,7 @@ export function useHashEditor(ctx: ValueEditorContext) {
     const done = await copyText(row.text)
     notify(
       done ? 'ok' : 'err',
-      done ? t('已复制 {field} 的值', { field: row.field }) : t('复制失败，请检查剪贴板权限'),
+      done ? t('valueEditorHash.copiedValueField', { field: row.field }) : t('common.copyFailedCheckClipboardPermissions'),
     )
   }
 
@@ -175,13 +175,13 @@ export function useHashEditor(ctx: ValueEditorContext) {
     const key = getValue()?.key ?? ''
     const command = `HSET ${key} "${row.field}" "${row.text}"`
     const done = await copyText(command)
-    notify(done ? 'ok' : 'err', done ? t('已复制 HSET 命令') : t('复制失败，请检查剪贴板权限'))
+    notify(done ? 'ok' : 'err', done ? t('valueEditorHash.copiedHsetCommand') : t('common.copyFailedCheckClipboardPermissions'))
   }
 
   /** 复制为 JSON 键值对：便于粘进配置或代码 */
   async function copyAsJsonEntry(row: { field: string; text: string }): Promise<void> {
     const done = await copyText(JSON.stringify({ [row.field]: row.text }, null, 2))
-    notify(done ? 'ok' : 'err', done ? t('已复制 JSON 键值对') : t('复制失败，请检查剪贴板权限'))
+    notify(done ? 'ok' : 'err', done ? t('valueEditorHash.copiedJsonKeyValuePairs') : t('common.copyFailedCheckClipboardPermissions'))
   }
 
   /** 单击选中行：再次点击同一行取消选中 */
@@ -301,17 +301,17 @@ export function useHashEditor(ctx: ValueEditorContext) {
       return
     }
     if (!res.data.saved) {
-      notify('ok', t('已取消导出'))
+      notify('ok', t('common.exportCancelled'))
       return
     }
-    notify('ok', t('已导出到 {path}', { path: res.data.path ?? t('本地文件') }))
+    notify('ok', t('common.exportedPath', { path: res.data.path ?? t('common.localFile') }))
   }
 
   async function copyField(field: string): Promise<void> {
     const done = await copyText(field)
     notify(
       done ? 'ok' : 'err',
-      done ? t('已复制字段名 {field}', { field }) : t('复制失败，请检查剪贴板权限'),
+      done ? t('valueEditorHash.copiedFieldName', { field }) : t('common.copyFailedCheckClipboardPermissions'),
     )
   }
 
@@ -324,26 +324,26 @@ export function useHashEditor(ctx: ValueEditorContext) {
     const totalCount = hashStats.total
 
     const confirmed = await askConfirm({
-      title: t('删除字段'),
-      message: t('即将从该 hash 中移除以下字段：'),
+      title: t('common.deleteField'),
+      message: t('valueEditorHash.fieldsRemovedHash'),
       details: [
-        { label: t('键名'), value: key, mono: true },
-        { label: t('字段'), value: field, mono: true, tone: 'danger' },
-        { label: t('字段数'), value: `${totalCount} → ${totalCount - 1}`, mono: true },
+        { label: t('common.keyName'), value: key, mono: true },
+        { label: t('common.field'), value: field, mono: true, tone: 'danger' },
+        { label: t('viewStreamEntryDialog.fields'), value: `${totalCount} → ${totalCount - 1}`, mono: true },
       ],
       preview: {
-        label: t('字段值'),
+        label: t('valueEditorHash.fieldValue'),
         text:
           fieldValue.length > 120
             ? `${fieldValue.slice(0, 120)}…`
-            : fieldValue || t('（空值）'),
+            : fieldValue || t('valueEditorHash.emptyValue'),
         truncated: fieldValue.length > 120,
       },
       warning:
         totalCount <= 1
-          ? t('这是该 hash 的最后一个字段，删除后整个键也会被移除。')
-          : t('删除后无法恢复。'),
-      confirmText: t('删除'),
+          ? t('valueEditorHash.lastFieldHashDeletingAlso')
+          : t('common.cannotUndone'),
+      confirmText: t('common.delete'),
       danger: true,
     })
     if (!confirmed) return
@@ -354,10 +354,10 @@ export function useHashEditor(ctx: ValueEditorContext) {
       return
     }
     if (!res.data.ok) {
-      notify('err', res.data.message ?? t('删除失败'))
+      notify('err', res.data.message ?? t('common.deleteFailed'))
       return
     }
-    notify('ok', res.data.message ?? t('已删除'))
+    notify('ok', res.data.message ?? t('common.deleted'))
 
     // 先记下是否最后一个字段：Redis 在字段清空后会连带移除整个键，
     // 此时应清空选中态，而不是让界面停留在一个已不存在的空壳上

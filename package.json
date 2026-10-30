@@ -1,7 +1,7 @@
 {
   "name": "keyper",
   "productName": "Keyper",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "多引擎键值缓存管理工具 —— 基于 Electron + React + TypeScript 的跨平台 Redis / Memcached 客户端",
   "author": {
     "name": "Keyper"
@@ -26,7 +26,7 @@
     "dist": "npm run build && electron-builder",
     "dist:win": "npm run build && electron-builder --win",
     "dist:win:alt": "npm run build && electron-builder --win -c.directories.output=release/${npm_package_version}-final",
-    "i18n:manifest": "node scripts/i18n-manifest.mjs"
+    "i18n:check": "node scripts/i18n-check.mjs"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.5.0",

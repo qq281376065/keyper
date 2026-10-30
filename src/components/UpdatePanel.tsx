@@ -83,16 +83,16 @@ export function UpdatePanel({ onClose }: UpdatePanelProps) {
   const hasUpdate = result?.hasUpdate === true
 
   return (
-    <div ref={panelRef} className="update-panel" role="dialog" aria-label={t('检查更新')}>
+    <div ref={panelRef} className="update-panel" role="dialog" aria-label={t('updatePanel.checkForUpdates')}>
       <header className="update-head">
-        <span className="update-title">{t('检查更新')}</span>
-        <span className="update-current mono">{t('当前 v{version}', { version: APP_VERSION })}</span>
+        <span className="update-title">{t('updatePanel.checkForUpdates')}</span>
+        <span className="update-current mono">{t('updatePanel.currentVVersion', { version: APP_VERSION })}</span>
       </header>
 
       {phase === 'checking' ? (
         <p className="update-state">
           <span className="spinner" />
-          {t('正在检查…')}
+          {t('updatePanel.checking')}
         </p>
       ) : null}
 
@@ -109,13 +109,13 @@ export function UpdatePanel({ onClose }: UpdatePanelProps) {
             <div className="update-state is-new">
               <DialogIcon name="arrow-up" size={13} />
               <span>
-                {t('发现新版本')} <strong className="mono">v{result.latestVersion}</strong>
+                {t('updatePanel.newVersionAvailable')} <strong className="mono">v{result.latestVersion}</strong>
               </span>
             </div>
           ) : (
             <div className="update-state is-latest">
               <DialogIcon name="check" size={13} />
-              <span>{t('已是最新版本')}</span>
+              <span>{t('updatePanel.youLatestVersion')}</span>
             </div>
           )}
 
@@ -126,7 +126,7 @@ export function UpdatePanel({ onClose }: UpdatePanelProps) {
 
           <footer className="update-foot">
             <span className="update-time mono">
-              {t('检查于 {time}', { time: formatTime(result.checkedAt) })}
+              {t('updatePanel.checkedTime', { time: formatTime(result.checkedAt) })}
             </span>
             <span className="spacer" />
             <button
@@ -134,11 +134,11 @@ export function UpdatePanel({ onClose }: UpdatePanelProps) {
               onClick={() => void api.update.openPage(result.pageUrl)}
             >
               <DialogIcon name="export" size={11} />
-              {hasUpdate ? t('查看下载') : t('版本历史')}
+              {hasUpdate ? t('updatePanel.viewDownload') : t('updatePanel.versionHistory')}
             </button>
             <button className="btn tiny" onClick={() => void check()}>
               <DialogIcon name="refresh" size={11} />
-              {t('重试')}
+              {t('memcachedOverview.retry')}
             </button>
           </footer>
         </>

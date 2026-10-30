@@ -68,18 +68,18 @@ function friendlyMessage(error: unknown): string {
   if (error instanceof MemcachedError) {
     switch (error.code) {
       case 'CONNECT_TIMEOUT':
-        return t('连接超时：请检查地址、端口与防火墙')
+        return t('memcached.connectionTimedOut')
       case 'COMMAND_TIMEOUT':
-        return t('命令超时：服务端无响应或负载过高')
+        return t('memcached.commandTimeoutUnresponsive')
       case 'SOCKET_CLOSED':
-        return t('连接已断开')
+        return t('memcached.disconnected')
       case 'SERVER_ERROR':
-        return t('服务端错误：{message}', { message: error.message })
+        return t('memcached.serverError', { message: error.message })
       default:
         return error.message
     }
   }
-  return error instanceof Error ? error.message : t('未知错误')
+  return error instanceof Error ? error.message : t('memcached.unknownError')
 }
 
 class MemcachedManager {
@@ -151,8 +151,8 @@ class MemcachedManager {
       return {
         ok: true,
         message: standalone
-          ? t('连接成功（SSH） · Memcached {version} · {latency}ms', { version, latency })
-          : t('连接成功 · Memcached {version} · {latency}ms', { version, latency }),
+          ? t('memcached.connected', { version, latency })
+          : t('memcached.connectedMemcachedVersionLatencyMs', { version, latency }),
       }
     } catch (error) {
       return { ok: false, message: friendlyMessage(error) }
@@ -243,7 +243,7 @@ class MemcachedManager {
   /** 取池，未连接时抛错 —— 每个读写接口都要先过这一关 */
   private require(id: string): ManagedMemcached {
     const managed = this.pool.get(id)
-    if (!managed) throw new Error(t('未连接到该 Memcached 实例'))
+    if (!managed) throw new Error(t('memcached.notConnectedMemcachedInstance'))
     return managed
   }
 
@@ -496,14 +496,14 @@ class MemcachedManager {
         ok: false,
         message:
           options.mode === 'add'
-            ? t('键已存在，未写入（add 语义）')
+            ? t('memcached.keyAlreadyExistsNothingWritten')
             : options.mode === 'replace'
-              ? t('键不存在，未写入（replace 语义）')
-              : t('服务端未确认写入'),
+              ? t('memcached.keyNotExistNothingWritten')
+              : t('memcached.serverNotConfirmWrite'),
       }
     }
     this.invalidateKeys(managed)
-    return { ok: true, message: t('已保存') }
+    return { ok: true, message: t('common.saved') }
   }
 
   /**
@@ -521,31 +521,31 @@ class MemcachedManager {
   async rename(id: string, key: string, newKey: string): Promise<OperationResult> {
     const managed = this.require(id)
     const target = newKey.trim()
-    if (!target) throw new Error(t('新的键名不能为空'))
+    if (!target) throw new Error(t('memcached.newKeyNameCannotEmpty'))
     if (/[\s\u0000-\u001f]/.test(target)) {
-      throw new Error(t('键名不能包含空格或控制字符（Memcached 协议限制）'))
+      throw new Error(t('memcachedKeyDialog.keyNamesCannotContainSpaces'))
     }
-    if (target === key) return { ok: true, message: t('键名未变化') }
+    if (target === key) return { ok: true, message: t('memcached.keyNameUnchanged') }
 
     return managed.pool.run(async (client) => {
       if (await client.get(target)) {
-        throw new Error(t('目标键 {key} 已存在，重命名会覆盖它，已拒绝执行', { key: target }))
+        throw new Error(t('connectionManager.targetKeyAlreadyExists', { key: target }))
       }
 
       const source = await this.readOn(client, managed, key)
-      if (!source) throw new Error(t('键已过期或被删除'))
+      if (!source) throw new Error(t('memcachedKeyBrowser.keyExpiredDeleted'))
 
       const stored = await client.store('add', target, source.data, {
         flags: source.flags,
         exptime: source.ttl !== undefined ? exptimeFromTtl(source.ttl) : 0,
       })
-      if (!stored) throw new Error(t('写入目标键 {key} 失败，目标可能已被占用', { key: target }))
+      if (!stored) throw new Error(t('memcached.failedWriteTargetKeyAlready', { key: target }))
 
       const deleted = await client.delete(key)
       if (!deleted) {
         /* 旧键在读取后被删除：撤销新键，避免留下"幽灵副本" */
         await client.delete(target)
-        throw new Error(t('旧键已不存在，重命名已回滚'))
+        throw new Error(t('memcached.oldKeyNoLongerExists'))
       }
 
       this.invalidateKeys(managed)
@@ -553,8 +553,8 @@ class MemcachedManager {
         ok: true,
         message:
           source.ttl !== undefined
-            ? t('已重命名')
-            : t('已重命名（未能读取原 TTL，新键为永久）'),
+            ? t('common.renamed')
+            : t('memcached.renamed'),
       }
     })
   }
@@ -564,8 +564,8 @@ class MemcachedManager {
     const deleted = await managed.pool.run((client) => client.delete(key))
     if (deleted) this.invalidateKeys(managed)
     return deleted
-      ? { ok: true, message: t('已删除') }
-      : { ok: false, message: t('键不存在') }
+      ? { ok: true, message: t('common.deleted') }
+      : { ok: false, message: t('type.keyNotExist') }
   }
 
   /** 清空全部数据 —— 破坏性操作，调用方必须先确认 */
@@ -573,7 +573,7 @@ class MemcachedManager {
     const managed = this.require(id)
     await managed.pool.run((client) => client.flushAll())
     this.invalidateKeys(managed)
-    return { ok: true, message: t('已清空全部数据') }
+    return { ok: true, message: t('memcached.allDataCleared') }
   }
 }
 

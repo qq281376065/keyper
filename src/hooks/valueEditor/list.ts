@@ -47,13 +47,13 @@ export function useListEditor(
 
   async function copyListAll(): Promise<void> {
     if (!listStats.total) {
-      notify('err', t('当前 list 没有元素'))
+      notify('err', t('valueEditorList.listNoElements'))
       return
     }
     const done = await copyText(listAsText())
     notify(
       done ? 'ok' : 'err',
-      done ? t('已复制 {count} 项', { count: listStats.total }) : t('复制失败，请检查剪贴板权限'),
+      done ? t('valueEditorList.copiedCountItems', { count: listStats.total }) : t('common.copyFailedCheckClipboardPermissions'),
     )
   }
 
@@ -68,10 +68,10 @@ export function useListEditor(
       return
     }
     if (!res.data.saved) {
-      notify('ok', t('已取消导出'))
+      notify('ok', t('common.exportCancelled'))
       return
     }
-    notify('ok', t('已导出到 {path}', { path: res.data.path ?? t('本地文件') }))
+    notify('ok', t('common.exportedPath', { path: res.data.path ?? t('common.localFile') }))
   }
 
   async function copyListRow(row: { index: number; text: string }): Promise<void> {
@@ -79,20 +79,20 @@ export function useListEditor(
     notify(
       done ? 'ok' : 'err',
       done
-        ? t('已复制第 {index} 项', { index: row.index + 1 })
-        : t('复制失败，请检查剪贴板权限'),
+        ? t('valueEditorList.copiedItemIndex', { index: row.index + 1 })
+        : t('common.copyFailedCheckClipboardPermissions'),
     )
   }
 
   async function copyListAsCommand(row: { index: number; text: string }): Promise<void> {
     const key = getValue()?.key ?? ''
     const done = await copyText(`LSET ${key} ${row.index} "${row.text}"`)
-    notify(done ? 'ok' : 'err', done ? t('已复制 LSET 命令') : t('复制失败，请检查剪贴板权限'))
+    notify(done ? 'ok' : 'err', done ? t('valueEditorList.copiedLsetCommand') : t('common.copyFailedCheckClipboardPermissions'))
   }
 
   async function copyListAsJson(row: { index: number; text: string }): Promise<void> {
     const done = await copyText(JSON.stringify({ index: row.index, value: row.text }, null, 2))
-    notify(done ? 'ok' : 'err', done ? t('已复制 JSON') : t('复制失败，请检查剪贴板权限'))
+    notify(done ? 'ok' : 'err', done ? t('valueEditorList.copiedJson') : t('common.copyFailedCheckClipboardPermissions'))
   }
 
   function openListMenu(event: React.MouseEvent, row: { index: number; text: string }): void {
@@ -145,10 +145,10 @@ export function useListEditor(
       return
     }
     if (!res.data.ok) {
-      notify('err', res.data.message ?? t('修改失败'))
+      notify('err', res.data.message ?? t('common.updateFailed'))
       return
     }
-    notify('ok', res.data.message ?? t('已修改'))
+    notify('ok', res.data.message ?? t('common.modified'))
     setEditingListIndex(null)
     // 本地替换，避免整表重读：新值与目标位置都已知，无需回读服务端
     replaceElementLocally({ index: target.index }, next)
@@ -164,7 +164,7 @@ export function useListEditor(
     // index 超出当前长度即视为追加到末尾（RPUSH 语义）
     const appending = target.index >= listStats.total
     if (!next) {
-      notify('err', t('内容不能为空'))
+      notify('err', t('valueEditorList.contentCannotEmpty'))
       return
     }
 
@@ -177,10 +177,10 @@ export function useListEditor(
       return
     }
     if (!res.data.ok) {
-      notify('err', res.data.message ?? t('插入失败'))
+      notify('err', res.data.message ?? t('valueEditorList.insertFailed'))
       return
     }
-    notify('ok', appending ? t('已追加到末尾') : (res.data.message ?? t('已插入')))
+    notify('ok', appending ? t('valueEditorList.appendedEnd') : (res.data.message ?? t('valueEditorList.inserted')))
     setInsertingList(null)
 
     // 本地插入，避免整表重读的骨架屏闪烁。
@@ -210,20 +210,20 @@ export function useListEditor(
     const preview = truncated ? `${row.text.slice(0, 120)}…` : row.text
 
     const confirmed = await askConfirm({
-      title: t('删除第 {index} 项', { index: row.index + 1 }),
-      message: t('即将从列表中移除以下元素：'),
+      title: t('valueEditorList.deleteItemIndex', { index: row.index + 1 }),
+      message: t('valueEditorList.elementsRemovedList'),
       details: [
-        { label: t('键名'), value: key, mono: true },
+        { label: t('common.keyName'), value: key, mono: true },
         {
-          label: t('位置'),
-          value: t('第 {index} / {total} 项', { index: row.index + 1, total: listStats.total }),
+          label: t('valueViewer.position'),
+          value: t('valueEditorList.itemIndexTotal', { index: row.index + 1, total: listStats.total }),
           mono: true,
         },
-        { label: t('大小'), value: formatBytes(utf8Bytes(row.text)), mono: true },
+        { label: t('common.size'), value: formatBytes(utf8Bytes(row.text)), mono: true },
       ],
-      preview: { label: t('待删除的内容'), text: preview, truncated },
-      warning: t('删除后无法恢复，列表长度将减 1。'),
-      confirmText: t('删除'),
+      preview: { label: t('valueEditorList.contentDelete'), text: preview, truncated },
+      warning: t('valueEditorList.cannotUndoneListLengthDecreases'),
+      confirmText: t('common.delete'),
       danger: true,
     })
     if (!confirmed) return
@@ -234,10 +234,10 @@ export function useListEditor(
       return
     }
     if (!res.data.ok) {
-      notify('err', res.data.message ?? t('删除失败'))
+      notify('err', res.data.message ?? t('common.deleteFailed'))
       return
     }
-    notify('ok', res.data.message ?? t('已删除'))
+    notify('ok', res.data.message ?? t('common.deleted'))
     // 本地移除该行，避免整表重读导致的骨架屏闪现；
     // 用真实下标匹配，与删除时使用的 row.index 保持一致
     const wasLast = (getValue()?.value as string[] | undefined)?.length === 1

@@ -50,7 +50,7 @@ export function PubsubCard() {
       setPatterns(res.data.patterns)
       setTargetText('')
     } catch (err) {
-      notify('err', err instanceof Error ? err.message : t('订阅失败'))
+      notify('err', err instanceof Error ? err.message : t('pubsubCard.subscribeFailed'))
     } finally {
       setSubscribing(false)
     }
@@ -64,7 +64,7 @@ export function PubsubCard() {
       setChannels(res.data.channels)
       setPatterns(res.data.patterns)
     } catch (err) {
-      notify('err', err instanceof Error ? err.message : t('退订失败'))
+      notify('err', err instanceof Error ? err.message : t('pubsubCard.unsubscribeFailed'))
     }
   }
 
@@ -82,9 +82,9 @@ export function PubsubCard() {
       const res = await api.redis.pubsubPublish(activeId, channel, pubMessage)
       if (!res.ok) throw new Error(res.error)
       setLastReceivers(res.data)
-      if (res.data === 0) notify('err', t('没有订阅者收到这条消息'))
+      if (res.data === 0) notify('err', t('pubsubCard.noSubscribersReceivedMessage'))
     } catch (err) {
-      notify('err', err instanceof Error ? err.message : t('发布失败'))
+      notify('err', err instanceof Error ? err.message : t('pubsubCard.publishFailed'))
     } finally {
       setPublishing(false)
     }
@@ -169,13 +169,13 @@ export function PubsubCard() {
       <header className="ps-head">
         <h3 className="ps-title">
           <DialogIcon name="bolt" size={14} className="ps-icon" />
-          <span>{t('Pub/Sub 订阅')}</span>
+          <span>{t('common.pubSubSubscriptions')}</span>
         </h3>
-        <span className="ps-state mono">{hasSubs ? t('{count} 个订阅', { count: subCount }) : t('未订阅')}</span>
+        <span className="ps-state mono">{hasSubs ? t('pubsubCard.countSubscriptions', { count: subCount }) : t('pubsubCard.notSubscribed')}</span>
         {connected && hasSubs ? (
-          <button className="ps-stop" {...tipProps(t('断开订阅专用连接（全部订阅一并失效）'))} onClick={() => void stopAll()}>
+          <button className="ps-stop" {...tipProps(t('pubsubCard.disconnectDedicatedSubscription'))} onClick={() => void stopAll()}>
             <DialogIcon name="power" size={12} className="ti" />
-            {t('停止')}
+            {t('keyBrowser.stop')}
           </button>
         ) : null}
       </header>
@@ -186,14 +186,14 @@ export function PubsubCard() {
           value={targetText}
           onChange={(event) => setTargetText(event.target.value)}
           className="ps-input grow ps-sub-target"
-          placeholder={asPattern ? t('模式，如 user:*（空格分隔多个）') : t('频道名（空格分隔多个）')}
+          placeholder={asPattern ? t('pubsubCard.patternE') : t('pubsubCard.channelNames')}
           onKeyDown={(event) => {
             if (event.key === 'Enter') void subscribe()
           }}
         />
-        <label className="ps-mode" {...tipProps(t('按模式订阅（PSUBSCRIBE，支持 * 与 ? 通配）'))}>
+        <label className="ps-mode" {...tipProps(t('pubsubCard.subscribePattern'))}>
           <input type="checkbox" checked={asPattern} onChange={(event) => setAsPattern(event.target.checked)} />
-          <span>{t('按模式')}</span>
+          <span>{t('pubsubCard.pattern')}</span>
         </label>
         <button
           className="ps-btn"
@@ -201,7 +201,7 @@ export function PubsubCard() {
           onClick={() => void subscribe()}
         >
           <DialogIcon name="play" size={12} className="ti" />
-          {subscribing ? t('订阅中…') : t('订阅')}
+          {subscribing ? t('pubsubCard.subscribing') : t('pubsubCard.subscribe')}
         </button>
       </div>
 
@@ -214,11 +214,11 @@ export function PubsubCard() {
       {hasSubs ? (
         <div className="ps-chips">
           {channels.map((channel) => (
-            <span key={`c:${channel}`} className="ps-chip mono" {...tipProps(t('频道订阅：{channel}', { channel }))}>
+            <span key={`c:${channel}`} className="ps-chip mono" {...tipProps(t('pubsubCard.channelSubscription', { channel }))}>
               {channel}
               <button
                 className="ps-chip-x"
-                {...tipProps(t('退订 {channel}', { channel }))}
+                {...tipProps(t('pubsubCard.unsubscribeChannel', { channel }))}
                 onClick={() => void unsubscribe(channel, false)}
               >
                 <DialogIcon name="close" size={9} />
@@ -229,12 +229,12 @@ export function PubsubCard() {
             <span
               key={`p:${pattern}`}
               className="ps-chip mono pattern"
-              {...tipProps(t('模式订阅：{pattern}', { pattern }))}
+              {...tipProps(t('pubsubCard.patternSubscription', { pattern }))}
             >
               {pattern}
               <button
                 className="ps-chip-x"
-                {...tipProps(t('退订模式 {pattern}', { pattern }))}
+                {...tipProps(t('pubsubCard.unsubscribePattern', { pattern }))}
                 onClick={() => void unsubscribe(pattern, true)}
               >
                 <DialogIcon name="close" size={9} />
@@ -250,7 +250,7 @@ export function PubsubCard() {
           value={pubChannel}
           onChange={(event) => setPubChannel(event.target.value)}
           className="ps-input ps-pub-channel"
-          placeholder={t('发布频道')}
+          placeholder={t('pubsubCard.publishChannel')}
           onKeyDown={(event) => {
             if (event.key === 'Enter') void publish()
           }}
@@ -259,7 +259,7 @@ export function PubsubCard() {
           value={pubMessage}
           onChange={(event) => setPubMessage(event.target.value)}
           className="ps-input grow ps-pub-body"
-          placeholder={t('消息内容')}
+          placeholder={t('pubsubCard.messageContent')}
           onKeyDown={(event) => {
             if (event.key === 'Enter') void publish()
           }}
@@ -270,21 +270,21 @@ export function PubsubCard() {
           onClick={() => void publish()}
         >
           <DialogIcon name="export" size={12} className="ti" />
-          {publishing ? t('发布中…') : t('发布')}
+          {publishing ? t('pubsubCard.publishing') : t('pubsubCard.publish')}
         </button>
         {lastReceivers != null ? (
-          <span className="ps-recv mono" {...tipProps(t('PUBLISH 返回值：收到这条消息的订阅者数量'))}>
-            {t('{count} 个订阅者', { count: lastReceivers })}
+          <span className="ps-recv mono" {...tipProps(t('pubsubCard.publishReturnValue'))}>
+            {t('pubsubCard.countSubscribers', { count: lastReceivers })}
           </span>
         ) : null}
       </div>
 
       <div className="ps-stream-head">
-        <span>{t('消息流（{count}）', { count: messages.length })}</span>
+        <span>{t('pubsubCard.messageStream', { count: messages.length })}</span>
         {messages.length ? (
           <button className="ps-clear" onClick={() => setMessages([])}>
             <DialogIcon name="clear" size={11} className="ti" />
-            {t('清空')}
+            {t('common.clear')}
           </button>
         ) : null}
       </div>
@@ -295,7 +295,7 @@ export function PubsubCard() {
             <span className="mono ps-time">{formatTime(message.timestamp)}</span>
             <span
               className={`mono ps-channel${message.kind === 'pmessage' ? ' pattern' : ''}`}
-              {...tipProps(message.kind === 'pmessage' ? t('模式 {pattern} 命中', { pattern: message.pattern }) : t('频道订阅：{channel}', { channel: message.channel }))}
+              {...tipProps(message.kind === 'pmessage' ? t('pubsubCard.patternMatched', { pattern: message.pattern }) : t('pubsubCard.channelSubscription', { channel: message.channel }))}
             >
               {message.channel}
             </span>
@@ -305,7 +305,7 @@ export function PubsubCard() {
           </div>
         ))}
         {!messages.length ? (
-          <div className="ps-empty">{t('订阅后收到的消息会显示在这里；用上方「发布」发一条可立即看到回声')}</div>
+          <div className="ps-empty">{t('pubsubCard.messagesReceivedAfterSubscribing')}</div>
         ) : null}
       </div>
     </section>

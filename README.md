@@ -14,9 +14,25 @@
 > 本项目起源于 RedisDesktop（Vue 3 版）的 React 移植；主进程、preload、IPC、
 > shared 类型契约、打包配置沿用其结构，渲染层已按多引擎架构重构。
 
-当前版本：`1.0.4`
+当前版本：`1.0.5`
 
-本轮变更（1.0.3 → 1.0.4）：
+本轮变更（1.0.4 → 1.0.5）：
+
+- **三语言界面**：简体中文 / 繁體中文 / English，主页右上角语言菜单即时切换并持久化；
+  首次启动按操作系统语言自动选择；字典改用语义 key（`namespace.camelCase`）并按语言
+  拆分到 `lang/` 下的独立文件，`MsgKey` 由英文目录推导、另外两份在编译期校验，
+  漏译按「当前语言 → 英文 → key」回退；主进程文案（错误信息、日志等）随设置同步切换；
+  新增 `npm run i18n:check` 校验键集、占位符与源码引用
+- **顶部卡片改方案 09（无框轻排版）**：Redis 与 Memcached 详情页顶部概览卡去掉边框与底色，
+  仅靠留白与细分隔线成组，下方卡片保持原样
+- **Memcached 键浏览补齐**：改用 `lru_crawler metadump` 遍历完整 LRU，修复仍处于
+  WARM 段的键（如 `group:yufei:2030`）重连后不显示的问题；旧服务端自动回退
+  `stats cachedump` 并标注「可能不完整」；按全局「每页加载键数」分页，
+  支持加载更多 / 加载全部，与 Redis 键区交互一致
+- **修复启动主题闪回**：设置读取完成前不再被默认主题覆盖，已保存的皮肤从首帧生效
+- **品牌图标更新**：「红色纯色圆角底 + 白色 K（钥匙齿）」，与界面内 Logo 几何一致
+
+上一版（1.0.3 → 1.0.4）：
 
 - **升级 React 19 并接入 React Compiler 1.0**：构建期自动记忆化，`target: 19`
   直接使用 React 自带的 compiler-runtime，不引入额外运行依赖（构建体积 +54.7 kB，
@@ -29,7 +45,7 @@
 - **PixelHeading 动画优化**：逐字字体切换改为直接写 DOM，不再每 50ms 触发整组件重渲染
 - **细节修复**：侧栏展开按钮提示文案与图标视觉重心、首页兼容性说明补充 Memcached
 
-上一版（1.0.2 → 1.0.3）：
+更早（1.0.2 → 1.0.3）：
 
 - **集成 Memcached 引擎模块**：与 Redis 完全隔离（独立连接池 / 管理器 / IPC 通道 /
   日志字段），连接列表带引擎角标、新建弹窗可选引擎、日志可按模块筛选
@@ -40,7 +56,7 @@
 - **引擎标识与品牌**：连接列表名称行改用引擎图形标识，新建弹窗引擎卡片同款图形；
   顶栏横版品牌、主页 Logo 立体悬停、CTA 渐变随皮肤切换
 
-上一版（1.0.1 → 1.0.2）：
+更早（1.0.1 → 1.0.2）：
 
 - **值区头部改为票根 + 水印**（75px）：左侧 26px 存根竖排类型名、右缘 mask 咬出半圆撕口，
   票面右侧压 72px 类型首字母水印
@@ -55,7 +71,7 @@
 
 累积能力：
 
-多标签工作区（每个连接一个标签、关标签即断开、右键菜单/溢出滚动/更多页签下拉）；
+三语言界面（简体中文 / 繁體中文 / English）；多标签工作区（每个连接一个标签、关标签即断开、右键菜单/溢出滚动/更多页签下拉）；
 值区多标签保活（`<Activity>` 隐藏而非卸载，状态原样保留）；操作日志表头排序与固定操作列；
 SSH 多级跳板与连接保活；值区四页签（Redis 信息详情/慢查询日志/键内存分析/Pub/Sub 订阅）；
 批量 TTL/重命名；全库搜索下沉主进程 + 平铺虚拟滚动；键搜索历史自动补全（按连接与库隔离、
@@ -89,26 +105,31 @@ string 值实底行号槽；安装器开始菜单快捷方式勾选页；
 
 | 位置 | 作用 |
 | --- | --- |
-| `lang/zh-CN.ts` / `lang/zh-TW.ts` / `lang/en.ts` | 每种语言一个独立字典文件，键即中文原文 |
-| `shared/i18n/index.ts` | 语言码、字典查找、`{name}` 插值；主进程与渲染层共用 |
+| `lang/en.ts` | 英文目录，**唯一事实来源**：语义 key + 英文译文，导出 `MsgKey` |
+| `lang/zh-CN.ts` / `lang/zh-TW.ts` | 简繁译文，声明为 `Record<MsgKey, string>`，编译期保证不缺不多 |
+| `shared/i18n/index.ts` | 语言码、字典查找、`{name}` 插值、回退链；主进程与渲染层共用 |
 | `src/i18n/index.ts` | 渲染层入口：`useI18n()`（订阅语言变化）与模块级 `t()` |
 
 设计要点：
 
-- **键即原文**（gettext msgid 风格），漏译自然回退中文，不会出现 key 或空白；
-- 字典键集由 `npm run i18n:manifest` 从源码中的中文字面量生成，
-  `lang/zh-CN.ts` 是自动生成的身份映射，不要手改；`--check` 模式校验
-  en / zh-TW 是否缺键（供测试使用）；
-- 组件内一律 `const { t } = useI18n()`，在渲染期翻译；主进程 `import { t } from '@shared/i18n'`，
+- **语义 key**（`namespace.camelCase`，如 `common.cancel`）描述用途而非文案，
+  改文案不影响调用点；`MsgKey = keyof typeof en`，拼错 key、漏译、多译都会编译失败；
+- 运行时容错回退「当前语言 → 英文 → key」，不会渲染成空白；
+- `npm run i18n:check` 全量校验三份字典的键集与占位符一致、英文译文不残留中文，
+  并检查源码中 `t()` 的字面量 key 是否存在、是否有从未被引用的 key；
+- 组件内用 `const { t } = useI18n()`，在渲染期翻译；主进程 `import { t } from '@shared/i18n'`，
   语言随设置同步（`syncMainLocale`）；
-- 模块级中文常量（主题名、表头映射、TTL 预设等）保持数据形态，渲染时 `t(常量)`；
-- 语言名与缩写始终用本名（English 界面下「繁體中文」不译），`<html lang>` 同步更新。
+- 模块级常量（主题名、表头映射、TTL 预设等）保存 `MsgKey`，渲染时再 `t(key)`；
+- 持久化的操作日志仍写中文操作名（便于 grep 与向后兼容），展示时经 `logActionKey`
+  映射为 `MsgKey` 再翻译；
+- 语言名始终用本名（English 界面下「繁體中文」不译），`<html lang>` 同步更新。
 
-新增一种语言：在 `lang/` 下加文件 → 在 `shared/i18n` 的 `LOCALES` / `LOCALE_NAMES` /
-`DICTIONARIES` 注册 → 运行 `npm run i18n:manifest` 补齐缺键。
+新增一种语言：在 `lang/` 下加文件并实现 `Record<MsgKey, string>` → 在 `shared/i18n`
+的 `LocaleCode` / `LOCALES` / `LOCALE_NAMES` / `LOCALE_HTML_LANG` / `DICTIONARIES`
+注册 → 运行 `npm run i18n:check`。
 
-新增文案：直接写中文并包 `t('…')`，运行 `npm run i18n:manifest` 自动进清单，
-再补 en / zh-TW 两条翻译即可。
+新增文案：在 `lang/en.ts` 按命名空间加语义 key → 在 zh-CN / zh-TW 补同名两条译文 →
+源码里 `t('ns.key', { … })` → 运行 `npm run i18n:check`。
 
 ---
 
@@ -147,10 +168,10 @@ Keyper/
 │       ├── update-service.ts        # 更新检查
 │       ├── config-path.ts           # 便携目录解析与回退
 │       └── close-signal.ts          # 退出前先断开的信号
-├── lang/                            # 语言字典（每语言一个独立文件，键即中文原文）
-│   ├── zh-CN.ts                     # 简体（由 npm run i18n:manifest 生成）
-│   ├── zh-TW.ts                     # 繁體
-│   └── en.ts                        # English
+├── lang/                            # 三份语言字典（语义 key）
+│   ├── en.ts                        # English（唯一事实来源，导出 MsgKey）
+│   ├── zh-CN.ts                     # 简体（Record<MsgKey, string>）
+│   └── zh-TW.ts                     # 繁體（Record<MsgKey, string>）
 ├── shared/                          # 主进程与渲染进程共享的类型契约
 │   ├── types.ts                     # 数据模型
 │   ├── api.ts                       # 接口 + IPC 通道常量
@@ -163,12 +184,12 @@ Keyper/
 │   ├── api/                         # 数据入口：Electron 走 IPC，浏览器降级 Mock
 │   ├── store/                       # defineStore + 会话 / 全局 / 订阅
 │   ├── hooks/                       # 设置、主题、搜索历史、弹窗拖拽、值编辑器
-│   ├── components/                  # 48 个界面组件 + ui/ 原子组件
+│   ├── components/                  # 49 个界面组件 + ui/ 原子组件
 │   ├── services/                    # 设置、主题、错误上报
 │   ├── utils/                       # 键树、能力探测、格式化、剪贴板等
 │   ├── styles/                      # main.css（设计令牌）+ components.css
 │   └── preview/                     # 纯浏览器预览页
-├── tests/unit/                      # vitest 单元测试（15 个 spec）
+├── tests/unit/                      # vitest 单元测试（16 个 spec）
 ├── build/                           # 图标与 NSIS 定制脚本
 ├── scripts/                         # 开发期探针与截图脚本
 ├── vite.config.ts                   # 渲染进程 + 主进程构建
@@ -187,14 +208,15 @@ npm run dev:web      # 纯浏览器调试渲染层：只起 Vite，不编译/不
 npm run preview      # 预览已构建产物（http://127.0.0.1:4173）
 npm run preview:title # 浏览器预览标题动画页
 npm run typecheck    # 类型检查（主进程 + 渲染进程）
-npm run test         # vitest 单元测试（tests/unit，15 个 spec）
+npm run test         # vitest 单元测试（tests/unit，16 个 spec）
+npm run i18n:check   # 校验三份字典的键集、占位符与源码引用一致
 npm run build        # 类型检查 + 构建产物到 dist/ 与 dist-electron/
 npm run dist         # 当前平台打包
 npm run dist:win     # 打包 Windows 安装包
 npm run dist:win:alt # 打包 Windows 到 release/<版本>-final（保留上一版产物时用）
 ```
 
-构建产物落在 `release/<版本>/`，文件名形如 `Keyper-1.0.4-win-x64.exe`。
+构建产物落在 `release/<版本>/`，文件名形如 `Keyper-1.0.5-win-x64.exe`。
 
 国内网络安装 Electron 二进制较慢，建议先执行：
 

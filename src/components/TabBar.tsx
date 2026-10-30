@@ -189,7 +189,7 @@ export function TabBar() {
         <button
           className="tabbar-btn"
           disabled={!canLeft}
-          {...tipProps(t('向左滚动'))}
+          {...tipProps(t('common.scrollLeft'))}
           onClick={() => scrollStrip(-1)}
         >
           <DialogIcon name="chevron-left" size={13} />
@@ -199,11 +199,11 @@ export function TabBar() {
       <div ref={stripEl} className="tab-strip" onScroll={updateScrollState}>
         <button
           className={`tab tab-home${!state.activeTabId ? ' active' : ''}`}
-          {...tipProps(t('主页'))}
+          {...tipProps(t('tabBar.home'))}
           onClick={() => activateTab(null)}
         >
           <DialogIcon name="home" size={13} />
-          <span>{t('主页')}</span>
+          <span>{t('tabBar.home')}</span>
         </button>
 
         {tabs.map((tab) => (
@@ -219,7 +219,7 @@ export function TabBar() {
             <span className="tab-name ellipsis">{tab.conn?.name ?? tab.id}</span>
             <span
               className="tab-close"
-              {...tipProps(t('关闭标签（并断开连接）'))}
+              {...tipProps(t('tabBar.closeTabDisconnect'))}
               onClick={(event) => {
                 event.stopPropagation()
                 closeTab(tab.id)
@@ -235,7 +235,7 @@ export function TabBar() {
         <button
           className="tabbar-btn"
           disabled={!canRight}
-          {...tipProps(t('向右滚动'))}
+          {...tipProps(t('common.scrollRight'))}
           onClick={() => scrollStrip(1)}
         >
           <DialogIcon name="chevron-right" size={13} />
@@ -243,7 +243,7 @@ export function TabBar() {
       ) : null}
 
       {overflowing ? (
-        <button ref={moreBtnEl} className="tabbar-btn" {...tipProps(t('更多页签'))} onClick={toggleList}>
+        <button ref={moreBtnEl} className="tabbar-btn" {...tipProps(t('tabBar.moreTabs'))} onClick={toggleList}>
           <DialogIcon name="more" size={15} />
         </button>
       ) : null}
@@ -266,20 +266,20 @@ export function TabBar() {
           >
             <button className="menu-item" onClick={ctxRefresh}>
               <DialogIcon name="refresh" size={13} className="mi-icon" />
-              <span>{t('刷新')}</span>
+              <span>{t('common.refresh')}</span>
             </button>
             <button className="menu-item" onClick={ctxClose}>
               <DialogIcon name="close" size={13} className="mi-icon" />
-              <span>{t('关闭')}</span>
+              <span>{t('common.close')}</span>
             </button>
             <div className="menu-sep" />
             <button className="menu-item" disabled={!ctxHasOthers} onClick={ctxCloseOthers}>
               <DialogIcon name="close" size={13} className="mi-icon" />
-              <span>{t('关闭其他标签')}</span>
+              <span>{t('tabBar.closeOtherTabs')}</span>
             </button>
             <button className="menu-item" disabled={!ctxHasRight} onClick={ctxCloseRight}>
               <DialogIcon name="close" size={13} className="mi-icon" />
-              <span>{t('关闭右侧标签')}</span>
+              <span>{t('tabBar.closeTabsRight')}</span>
             </button>
           </div>
         </>
@@ -303,7 +303,7 @@ export function TabBar() {
           >
             <button className={`menu-item${!state.activeTabId ? ' active' : ''}`} onClick={() => pickTab(null)}>
               <DialogIcon name="home" size={13} className="mi-icon" />
-              <span className="ellipsis">{t('主页')}</span>
+              <span className="ellipsis">{t('tabBar.home')}</span>
             </button>
             {tabs.map((tab) => (
               <button
@@ -315,7 +315,7 @@ export function TabBar() {
                 <span className="tl-name ellipsis">{tab.conn?.name ?? tab.id}</span>
                 <span
                   className="tl-close"
-                  {...tipProps(t('关闭标签'))}
+                  {...tipProps(t('tabBar.closeTab'))}
                   onClick={(event) => {
                     event.stopPropagation()
                     closeTab(tab.id)

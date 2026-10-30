@@ -6,6 +6,7 @@ import { PubsubCard } from '@/components/PubsubCard'
 import { SlowlogCard } from '@/components/SlowlogCard'
 import { tipProps } from '@/components/tip'
 import { useI18n } from '@/i18n'
+import type { MsgKey } from '@shared/i18n'
 import { useSessionStore } from '@/hooks/useSessionStore'
 import { useRedis } from '@/store/useRedis'
 import { useObservable } from '@/store/subscription'
@@ -21,11 +22,11 @@ type ServerTab = 'info' | 'slowlog' | 'memory' | 'pubsub'
  * - PubsubCard 的订阅挂在组件生命周期上，切页签就断订阅属于误伤；
  * - MemoryCard 的分析结果不自动重算，切走再切回应保留上次的结论。
  */
-const TABS: { key: ServerTab; label: string }[] = [
-  { key: 'info', label: 'Redis 信息详情' },
-  { key: 'slowlog', label: '慢查询日志' },
-  { key: 'memory', label: '键内存分析' },
-  { key: 'pubsub', label: 'Pub/Sub 订阅' },
+const TABS: { key: ServerTab; label: MsgKey }[] = [
+  { key: 'info', label: 'serverOverview.redisInfoTab' },
+  { key: 'slowlog', label: 'common.slowQueryLog' },
+  { key: 'memory', label: 'common.keyMemoryAnalysis' },
+  { key: 'pubsub', label: 'common.pubSubSubscriptions' },
 ]
 
 /**
@@ -33,62 +34,62 @@ const TABS: { key: ServerTab; label: string }[] = [
  * INFO 的键名是下划线英文，直接列出来对不熟悉 Redis 的人不友好；
  * 只翻译高频字段，未收录的原样展示 —— 强行翻译生僻项反而容易译错。
  */
-const FIELD_LABELS: Record<string, string> = {
-  redis_version: '版本',
-  redis_git_sha1: 'Git SHA1',
-  redis_git_dirty: 'Git 有改动',
-  redis_build_id: '构建 ID',
-  redis_mode: '运行模式',
-  os: '操作系统',
-  arch_bits: '架构位数',
-  process_id: '进程 ID',
-  run_id: '运行 ID',
-  tcp_port: '监听端口',
-  uptime_in_days: '运行天数',
-  config_file: '配置文件',
-  executable: '可执行文件',
-  connected_clients: '已连接客户端',
-  cluster_connections: '集群连接数',
-  maxclients: '最大客户端数',
-  blocked_clients: '阻塞客户端数',
-  used_memory_human: '已用内存',
-  used_memory_peak_human: '内存峰值',
-  used_memory_lua_human: 'Lua 占用',
-  maxmemory_human: '最大内存',
-  maxmemory_policy: '淘汰策略',
-  mem_fragmentation_ratio: '内存碎片率',
-  mem_allocator: '内存分配器',
-  total_connections_received: '累计连接数',
-  total_commands_processed: '累计命令数',
-  instantaneous_ops_per_sec: '每秒操作数',
-  keyspace_hits: '命中次数',
-  keyspace_misses: '未命中次数',
-  expired_keys: '过期键数',
-  evicted_keys: '淘汰键数',
-  role: '角色',
-  connected_slaves: '从节点数',
-  repl_backlog_active: '复制积压启用',
-  cluster_enabled: '集群模式',
+const FIELD_LABELS: Record<string, MsgKey> = {
+  redis_version: 'memcachedOverview.version',
+  redis_git_sha1: 'serverOverview.gitSha1',
+  redis_git_dirty: 'serverOverview.gitChanges',
+  redis_build_id: 'serverOverview.buildId',
+  redis_mode: 'serverOverview.runMode',
+  os: 'serverOverview.operatingSystem',
+  arch_bits: 'serverOverview.architectureBits',
+  process_id: 'serverOverview.processId',
+  run_id: 'serverOverview.runId',
+  tcp_port: 'serverOverview.listeningPort',
+  uptime_in_days: 'serverOverview.uptime',
+  config_file: 'serverOverview.configFile',
+  executable: 'serverOverview.executable',
+  connected_clients: 'serverOverview.connectedClients',
+  cluster_connections: 'serverOverview.clusterConnections',
+  maxclients: 'serverOverview.maxClients',
+  blocked_clients: 'serverOverview.blockedClients',
+  used_memory_human: 'serverOverview.usedMemory',
+  used_memory_peak_human: 'serverOverview.peakMemory',
+  used_memory_lua_human: 'serverOverview.luaUsage',
+  maxmemory_human: 'serverOverview.maxMemory',
+  maxmemory_policy: 'serverOverview.evictionPolicy',
+  mem_fragmentation_ratio: 'serverOverview.memoryFragmentationRatio',
+  mem_allocator: 'serverOverview.memoryAllocator',
+  total_connections_received: 'serverOverview.totalConnections',
+  total_commands_processed: 'serverOverview.totalCommands',
+  instantaneous_ops_per_sec: 'serverOverview.operationsPerSecond',
+  keyspace_hits: 'serverOverview.hitCount',
+  keyspace_misses: 'serverOverview.misses',
+  expired_keys: 'serverOverview.expiredKeys',
+  evicted_keys: 'serverOverview.evictedKeys',
+  role: 'serverOverview.role',
+  connected_slaves: 'serverOverview.replicas',
+  repl_backlog_active: 'serverOverview.replBacklogEnabled',
+  cluster_enabled: 'serverOverview.clusterMode',
 }
 
 /** 段落名中文化 */
-const SECTION_LABELS: Record<string, string> = {
-  Server: '服务器',
-  Clients: '客户端',
-  Memory: '内存',
-  Persistence: '持久化',
-  Stats: '统计',
-  Replication: '复制',
-  CPU: 'CPU',
-  Cluster: '集群',
-  Keyspace: '键空间',
+const SECTION_LABELS: Record<string, MsgKey> = {
+  Server: 'serverOverview.server',
+  Clients: 'serverOverview.client',
+  Memory: 'common.memory',
+  Persistence: 'serverOverview.persistence',
+  Stats: 'memcachedOverview.stats',
+  Replication: 'common.copy',
+  CPU: 'serverOverview.cpu',
+  Cluster: 'serverOverview.cluster',
+  Keyspace: 'serverOverview.keyspace',
 }
 
 /** 部署模式的中文说明：INFO 返回的是英文标识，直接展示不利于快速识别 */
-const MODE_LABEL: Record<string, string> = {
-  standalone: '单机',
-  cluster: '集群',
-  sentinel: '哨兵',
+const MODE_LABEL: Record<string, MsgKey> = {
+  standalone: 'serverOverview.standalone',
+  cluster: 'serverOverview.cluster',
+  sentinel: 'serverOverview.sentinel',
 }
 
 interface OverviewRow {
@@ -124,6 +125,12 @@ function hitRateTone(rate: number): 'ok' | 'warn' | 'idle' {
  */
 export function ServerOverview() {
   const { t } = useI18n()
+
+  /** 已收录的字段 / 段落走字典；INFO 里新出现的字段没有译文，原样展示 */
+  const labelOf = (map: Record<string, MsgKey>, raw: string | undefined): string => {
+    const key = raw ? map[raw] : undefined
+    return key ? t(key) : (raw ?? '-')
+  }
   const { state, activeConnection, loadServerInfo } = useRedis()
   useObservable(useSessionStore())
 
@@ -151,7 +158,7 @@ export function ServerOverview() {
       if (!res.ok) throw new Error(res.error)
       setDetail(res.data)
     } catch (error) {
-      setDetailError(error instanceof Error ? error.message : t('读取详情失败'))
+      setDetailError(error instanceof Error ? error.message : t('serverOverview.failedLoadDetails'))
     } finally {
       setDetailLoading(false)
     }
@@ -229,34 +236,34 @@ export function ServerOverview() {
     ? [
         {
           key: 'server',
-          title: t('服务器'),
+          title: t('serverOverview.server'),
           icon: 'server',
           /* 版本与模式是这个实例"是什么"的身份信息，放在第一张卡片 */
           rows: [
-            { label: t('Redis 版本'), value: info.version || '-', mono: true },
-            { label: t('运行模式'), value: t(MODE_LABEL[info.mode] ?? info.mode ?? '-'), mono: true },
-            { label: t('进程 ID'), value: info.processId ? String(info.processId) : '-', mono: true },
+            { label: t('serverOverview.redisVersion'), value: info.version || '-', mono: true },
+            { label: t('serverOverview.runMode'), value: labelOf(MODE_LABEL, info.mode), mono: true },
+            { label: t('serverOverview.processId'), value: info.processId ? String(info.processId) : '-', mono: true },
           ],
         },
         {
           key: 'memory',
-          title: t('内存'),
+          title: t('common.memory'),
           icon: 'memory',
           rows: [
-            { label: t('已用内存'), value: info.usedMemoryHuman || '-', mono: true },
-            { label: t('Lua 占用'), value: info.usedMemoryLua || '-', mono: true },
-            { label: t('每秒操作数'), value: info.opsPerSec != null ? String(info.opsPerSec) : '-', mono: true },
+            { label: t('serverOverview.usedMemory'), value: info.usedMemoryHuman || '-', mono: true },
+            { label: t('serverOverview.luaUsage'), value: info.usedMemoryLua || '-', mono: true },
+            { label: t('serverOverview.operationsPerSecond'), value: info.opsPerSec != null ? String(info.opsPerSec) : '-', mono: true },
           ],
         },
         {
           key: 'status',
-          title: t('状态'),
+          title: t('common.status'),
           icon: 'activity',
           rows: [
-            { label: t('客户端连接'), value: String(info.connectedClients ?? '-'), mono: true },
-            { label: t('键总数'), value: String(info.totalKeys ?? '-'), mono: true },
+            { label: t('serverOverview.clientConnections'), value: String(info.connectedClients ?? '-'), mono: true },
+            { label: t('serverOverview.totalKeys'), value: String(info.totalKeys ?? '-'), mono: true },
             /* 命中率带单位并着色 */
-            { label: t('命中率'), value: `${info.hitRate}%`, mono: true, tone: hitRateTone(info.hitRate) },
+            { label: t('serverOverview.hitRate'), value: `${info.hitRate}%`, mono: true, tone: hitRateTone(info.hitRate) },
           ],
         },
       ]
@@ -282,18 +289,18 @@ export function ServerOverview() {
     <div ref={rootRef} className="overview s-server-overview">
       <header className="ov-head">
         <div className="ov-ident">
-          <span className="ov-name">{activeConnection?.name ?? t('当前实例')}</span>
+          <span className="ov-name">{activeConnection?.name ?? t('memcachedOverview.currentInstance')}</span>
           <span className="ov-endpoint mono">{endpoint}</span>
           {sshLabel ? <span className="ov-ssh">{sshLabel}</span> : null}
         </div>
         <button
           className="ov-refresh"
           disabled={refreshing}
-          {...tipProps(t('刷新当前页面的全部信息（概览 + 详情）'))}
+          {...tipProps(t('serverOverview.refreshEverythingPage'))}
           onClick={() => void refreshAll()}
         >
           <DialogIcon name="refresh" size={13} className={`ti${refreshing ? ' spin' : ''}`} />
-          {refreshing ? t('刷新中…') : t('刷新')}
+          {refreshing ? t('memcachedOverview.refreshing') : t('common.refresh')}
         </button>
       </header>
 
@@ -319,8 +326,8 @@ export function ServerOverview() {
       ) : (
         <div className="ov-loading">
           <span className="ov-badge">Keyper</span>
-          <p>{t('正在读取服务端指标…')}</p>
-          <p className="ov-hint">{t('若长时间无响应，请检查连接是否仍然可用')}</p>
+          <p>{t('serverOverview.readingServerMetrics')}</p>
+          <p className="ov-hint">{t('serverOverview.ifThereNoResponseFor')}</p>
         </div>
       )}
 
@@ -347,12 +354,12 @@ export function ServerOverview() {
           <header className="ov-detail-head">
             <h3 className="ov-detail-title">
               <DialogIcon name="document" size={14} className="ov-card-icon" />
-              <span>{t('Redis信息详情')}</span>
+              <span>{t('serverOverview.redisInfoDetails')}</span>
             </h3>
             {detailLoading ? (
-              <span className="ov-detail-state">{t('读取中…')}</span>
+              <span className="ov-detail-state">{t('common.loading')}</span>
             ) : detail ? (
-              <span className="ov-detail-state mono">{t('{count} 个段落', { count: detail.groups.length })}</span>
+              <span className="ov-detail-state mono">{t('serverOverview.countParagraphs', { count: detail.groups.length })}</span>
             ) : null}
           </header>
 
@@ -368,7 +375,7 @@ export function ServerOverview() {
                 <section key={group.section} className="ov-section">
                   <button className="ov-section-head" onClick={() => toggleSection(group.section)}>
                     <span className="ov-caret">{collapsedSections.has(group.section) ? '▸' : '▾'}</span>
-                    <span>{t(SECTION_LABELS[group.section] ?? group.section)}</span>
+                    <span>{labelOf(SECTION_LABELS, group.section)}</span>
                     <span className="ov-section-count mono">{group.entries.length}</span>
                   </button>
                   <dl
@@ -377,7 +384,7 @@ export function ServerOverview() {
                   >
                     {group.entries.map((entry) => (
                       <div key={entry.key} className="ov-field">
-                        <dt {...tipProps(entry.key)}>{t(FIELD_LABELS[entry.key] ?? entry.key)}</dt>
+                        <dt {...tipProps(entry.key)}>{labelOf(FIELD_LABELS, entry.key)}</dt>
                         <dd className="mono" {...tipProps(entry.value)}>
                           {entry.value || '-'}
                         </dd>
@@ -388,7 +395,7 @@ export function ServerOverview() {
               ))}
             </div>
           ) : !detailError ? (
-            <div className="ov-detail-empty">{t('暂无详情数据')}</div>
+            <div className="ov-detail-empty">{t('serverOverview.noDetailData')}</div>
           ) : null}
         </section>
       </div>

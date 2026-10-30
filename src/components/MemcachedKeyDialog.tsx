@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useI18n } from '@/i18n'
+import type { MsgKey } from '@shared/i18n'
 import { api } from '@/api'
 import { formatBytes } from '@/utils/format'
 
@@ -42,15 +43,15 @@ export interface MemcachedKeyDialogProps {
 }
 
 /** 常用过期时间：0 = 永久。列出常见档位而不是让用户手算秒数 */
-const EXPIRY_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: '0', label: '永久' },
-  { value: '60', label: '1 分钟' },
-  { value: '300', label: '5 分钟' },
-  { value: '1800', label: '30 分钟' },
-  { value: '3600', label: '1 小时' },
-  { value: '21600', label: '6 小时' },
-  { value: '86400', label: '1 天' },
-  { value: '604800', label: '7 天' },
+const EXPIRY_OPTIONS: Array<{ value: string; label: MsgKey }> = [
+  { value: '0', label: 'common.noExpiration' },
+  { value: '60', label: 'common.oneMinute' },
+  { value: '300', label: 'common.fiveMinutes' },
+  { value: '1800', label: 'common.thirtyMinutes' },
+  { value: '3600', label: 'common.oneHour' },
+  { value: '21600', label: 'common.sixHours' },
+  { value: '86400', label: 'common.oneDay' },
+  { value: '604800', label: 'common.sevenDays' },
 ]
 
 export function MemcachedKeyDialog({
@@ -87,11 +88,11 @@ export function MemcachedKeyDialog({
         mode: isEdit ? 'set' : mode,
       })
       if (!res.ok) throw new Error(res.error)
-      if (!res.data.ok) throw new Error(res.data.message ?? t('写入失败'))
+      if (!res.data.ok) throw new Error(res.data.message ?? t('memcachedKeyDialog.writeFailed'))
       onSaved(key.trim())
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('写入失败'))
+      setError(err instanceof Error ? err.message : t('memcachedKeyDialog.writeFailed'))
     } finally {
       setSaving(false)
     }
@@ -100,18 +101,18 @@ export function MemcachedKeyDialog({
   return (
     <DialogShell
       icon={isEdit ? 'edit' : 'add'}
-      title={isEdit ? t('编辑缓存项') : t('新建缓存项')}
-      description={t('Memcached 的键值是扁平结构，一个键对应一段字节')}
+      title={isEdit ? t('memcachedKeyDialog.editCacheItem') : t('memcachedKeyBrowser.newCachedItem')}
+      description={t('memcachedKeyDialog.memcachedKeysFlat')}
       badge={<span className="dlg-badge">Memcached</span>}
       className="mc-key-dialog"
       onClose={onClose}
       footer={
         <>
-          <span className="stat mono">{t('{bytes} 字节', { bytes: bytes.toLocaleString() })}</span>
+          <span className="stat mono">{t('memcachedKeyDialog.bytes', { bytes: bytes.toLocaleString() })}</span>
           <span className="spacer" />
           <Button type="button" variant="ghost" className="foot-btn foot-quiet" onClick={onClose}>
             <DialogIcon name="cancel" size={13} />
-            {t('取消')}
+            {t('common.cancel')}
           </Button>
           <Button
             type="button"
@@ -120,14 +121,14 @@ export function MemcachedKeyDialog({
             onClick={() => void submit()}
           >
             <DialogIcon name="save" size={13} />
-            {saving ? t('写入中…') : isEdit ? t('保存') : t('创建')}
+            {saving ? t('memcachedKeyDialog.writing') : isEdit ? t('common.save') : t('common.create')}
           </Button>
         </>
       }
     >
       <div className="field">
         <Label htmlFor="mc-key" className="field-label">
-          {t('键名')}
+          {t('common.keyName')}
           <span className="req" aria-hidden="true">
             *
           </span>
@@ -137,22 +138,22 @@ export function MemcachedKeyDialog({
           value={key}
           onChange={(event) => setKey(event.target.value)}
           className={`mono${keyBadChar ? ' is-invalid' : ''}`}
-          placeholder={t('例如：session:8f2a1c')}
+          placeholder={t('memcachedKeyDialog.e')}
           autoComplete="off"
           /* 编辑时键名锁定：改名等于删旧键再建新键，语义上不是"编辑" */
           disabled={isEdit}
           autoFocus
         />
         {keyBadChar ? (
-          <p className="ml-field-hint is-error">{t('键名不能包含空格或控制字符（Memcached 协议限制）')}</p>
+          <p className="ml-field-hint is-error">{t('memcachedKeyDialog.keyNamesCannotContainSpaces')}</p>
         ) : (
-          <p className="ml-field-hint">{t('不能包含空格与控制字符；建议用冒号分层，便于筛选')}</p>
+          <p className="ml-field-hint">{t('memcachedKeyDialog.noSpacesControlCharactersUse')}</p>
         )}
       </div>
 
       <div className="field">
         <Label htmlFor="mc-value" className="field-label">
-          {t('值')}
+          {t('memcachedKeyDialog.value')}
         </Label>
         <Textarea
           id="mc-value"
@@ -161,14 +162,14 @@ export function MemcachedKeyDialog({
           className="mono dlg-content"
           autoGrow
           spellCheck={false}
-          placeholder={t('要写入的内容，可多行')}
+          placeholder={t('memcachedKeyDialog.contentWriteMultipleLines')}
         />
       </div>
 
       <div className="field-row">
         <div className="field grow">
           <Label htmlFor="mc-expiry" className="field-label">
-            {t('过期时间')}
+            {t('memcachedKeyDialog.expirationTime')}
           </Label>
           <Select value={expiry} onValueChange={setExpiry}>
             <SelectTrigger id="mc-expiry" className="dlg-select">
@@ -186,7 +187,7 @@ export function MemcachedKeyDialog({
 
         <div className="field grow">
           <Label htmlFor="mc-mode" className="field-label">
-            {t('写入模式')}
+            {t('memcachedKeyDialog.writeMode')}
           </Label>
           <Select
             value={isEdit ? 'set' : mode}
@@ -197,9 +198,9 @@ export function MemcachedKeyDialog({
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="dlg-select-menu">
-              <SelectItem value="set">{t('覆盖写入（set）')}</SelectItem>
-              <SelectItem value="add">{t('仅当不存在（add）')}</SelectItem>
-              <SelectItem value="replace">{t('仅当已存在（replace）')}</SelectItem>
+              <SelectItem value="set">{t('memcachedKeyDialog.overwrite')}</SelectItem>
+              <SelectItem value="add">{t('memcachedKeyDialog.onlyIfAbsent')}</SelectItem>
+              <SelectItem value="replace">{t('memcachedKeyDialog.onlyIfPresent')}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -209,7 +210,7 @@ export function MemcachedKeyDialog({
 
       {isEdit ? (
         <p className="ml-field-hint">
-          {t('当前大小 {size} · flags {flags}', { size: formatBytes(bytes), flags: initial?.flags ?? 0 })}
+          {t('memcachedKeyDialog.currentSizeFlags', { size: formatBytes(bytes), flags: initial?.flags ?? 0 })}
         </p>
       ) : null}
     </DialogShell>

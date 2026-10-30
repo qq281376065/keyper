@@ -126,7 +126,7 @@ export class MemcachedClient extends EventEmitter {
         reject(
           new MemcachedError(
             'CONNECT_TIMEOUT',
-            t('连接 {host}:{port} 超时', { host: this.options.host, port: this.options.port }),
+            t('memcached.timedOutConnectingHost', { host: this.options.host, port: this.options.port }),
           ),
         )
       }, this.options.connectTimeoutMs ?? 5000)
@@ -148,7 +148,7 @@ export class MemcachedClient extends EventEmitter {
 
       socket.on('close', () => {
         this.closed = true
-        this.failPending(new MemcachedError('SOCKET_CLOSED', t('连接已关闭')))
+        this.failPending(new MemcachedError('SOCKET_CLOSED', t('memcached.connectionClosed')))
         this.emit('close')
       })
     })
@@ -161,7 +161,7 @@ export class MemcachedClient extends EventEmitter {
       this.socket.destroy()
       this.socket = null
     }
-    this.failPending(new MemcachedError('SOCKET_CLOSED', t('连接已主动关闭')))
+    this.failPending(new MemcachedError('SOCKET_CLOSED', t('memcached.connectionClosedLocally')))
   }
 
   private failPending(error: Error): void {
@@ -186,7 +186,7 @@ export class MemcachedClient extends EventEmitter {
     } catch (error) {
       clearTimeout(pending.timer)
       this.pending = null
-      pending.reject(error instanceof Error ? error : new MemcachedError('PROTOCOL_ERROR', t('解析失败')))
+      pending.reject(error instanceof Error ? error : new MemcachedError('PROTOCOL_ERROR', t('memcached.parseFailed')))
       this.drainQueue()
       return
     }
@@ -221,7 +221,7 @@ export class MemcachedClient extends EventEmitter {
     return new Promise<Buffer>((resolve, reject) => {
       const run = (): void => {
         if (!this.socket || this.closed) {
-          reject(new MemcachedError('SOCKET_CLOSED', t('连接未建立')))
+          reject(new MemcachedError('SOCKET_CLOSED', t('memcached.notConnected')))
           return
         }
         const limit = timeoutMs ?? this.options.commandTimeoutMs ?? 3000
@@ -232,7 +232,7 @@ export class MemcachedClient extends EventEmitter {
            * 后续命令会读到上一条的尾巴。直接断开，由池负责重连。
            */
           this.disconnect()
-          reject(new MemcachedError('COMMAND_TIMEOUT', t('命令超时（{ms}ms）', { ms: limit })))
+          reject(new MemcachedError('COMMAND_TIMEOUT', t('memcached.commandTimeout', { ms: limit })))
         }, limit)
 
         this.pending = { resolve, reject, until, timer }
@@ -289,7 +289,7 @@ export class MemcachedClient extends EventEmitter {
   private readLine(buffer: Buffer): string {
     const text = buffer.toString('utf8').replace(/\r\n$/, '')
     if (text.startsWith('ERROR')) {
-      throw new MemcachedError('PROTOCOL_ERROR', t('服务端不认识这条命令'))
+      throw new MemcachedError('PROTOCOL_ERROR', t('memcached.serverNotRecognizeCommand'))
     }
     if (text.startsWith('CLIENT_ERROR')) {
       throw new MemcachedError('PROTOCOL_ERROR', text.slice('CLIENT_ERROR '.length) || text)
@@ -324,13 +324,13 @@ export class MemcachedClient extends EventEmitter {
 
     /* 头行：VALUE <key> <flags> <bytes> */
     const headerEnd = text.indexOf(CRLF)
-    if (headerEnd < 0) throw new MemcachedError('PROTOCOL_ERROR', t('VALUE 行不完整'))
+    if (headerEnd < 0) throw new MemcachedError('PROTOCOL_ERROR', t('memcached.incompleteValueLine'))
     const header = text.slice(0, headerEnd)
     if (!header.startsWith('VALUE ')) {
       this.readLine(raw)
       throw new MemcachedError(
         'PROTOCOL_ERROR',
-        t('无法识别的响应：{preview}', { preview: header.slice(0, 40) }),
+        t('memcached.unrecognizedResponse', { preview: header.slice(0, 40) }),
       )
     }
     const parts = header.split(' ')
@@ -372,13 +372,13 @@ export class MemcachedClient extends EventEmitter {
     if (text.startsWith(`EN${CRLF}`) || text.startsWith(`NF${CRLF}`)) return null
 
     const headerEnd = text.indexOf(CRLF)
-    if (headerEnd < 0) throw new MemcachedError('PROTOCOL_ERROR', t('VA 行不完整'))
+    if (headerEnd < 0) throw new MemcachedError('PROTOCOL_ERROR', t('memcached.incompleteVaLine'))
     const header = text.slice(0, headerEnd)
     if (!header.startsWith('VA ')) {
       this.readLine(raw)
       throw new MemcachedError(
         'PROTOCOL_ERROR',
-        t('无法识别的 meta 响应：{preview}', { preview: header.slice(0, 40) }),
+        t('memcached.unrecognizedMetaResponse', { preview: header.slice(0, 40) }),
       )
     }
 
@@ -436,10 +436,10 @@ export class MemcachedClient extends EventEmitter {
       MemcachedClient.untilLine,
     )
     const text = this.readLine(raw)
-    if (text === 'NOT_FOUND') throw new MemcachedError('NOT_FOUND', t('键 {key} 不存在', { key }))
+    if (text === 'NOT_FOUND') throw new MemcachedError('NOT_FOUND', t('memcached.keyNotExist', { key }))
     const value = Number(text)
     if (!Number.isFinite(value)) {
-      throw new MemcachedError('PROTOCOL_ERROR', t('非预期的数值响应：{response}', { response: text }))
+      throw new MemcachedError('PROTOCOL_ERROR', t('memcached.unexpectedNumericResponse', { response: text }))
     }
     return value
   }

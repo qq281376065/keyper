@@ -1,11 +1,47 @@
 /** 操作日志的分级：供日志面板突出运维关注的操作 */
+import type { MsgKey } from '@shared/i18n'
 
 export type LogSeverity = 'danger' | 'change' | 'normal'
 
-export const SEVERITY_LABEL: Record<LogSeverity, string> = {
-  danger: '删除',
-  change: '变更',
-  normal: '常规',
+export const SEVERITY_LABEL: Record<LogSeverity, MsgKey> = {
+  danger: 'common.delete',
+  change: 'logPanel.changes',
+  normal: 'log.general',
+}
+
+/**
+ * 日志文件里的操作名保持中文原文入库（见 electron/ipc/index.ts 的 LOG_ACTIONS）：
+ * 它同时承担筛选与 grep 的稳定标识，不随界面语言变化。
+ * 展示时才按这张表换成语义 key，历史日志与当前界面语言互不影响。
+ */
+const ACTION_KEYS: Record<string, MsgKey> = {
+  建立连接: 'connectionActions.connect',
+  断开连接: 'connectionActions.disconnect',
+  保存配置: 'ipc.saveSettings',
+  删除配置: 'ipc.deleteConfig',
+  写入键: 'ipc.writeKey',
+  新建键: 'common.newKey',
+  删除键: 'common.deleteKey',
+  '设置 TTL': 'common.setTtl',
+  重命名键: 'common.renameKey',
+  删除字段: 'common.deleteField',
+  修改字段: 'editHashFieldDialog.editField',
+  '修改字段 TTL': 'ipc.editFieldTtl',
+  修改元素: 'ipc.editElement',
+  删除元素: 'ipc.deleteElement',
+  插入元素: 'ipc.insertElement',
+  追加元素: 'ipc.appendElement',
+  修改成员: 'common.editMember',
+  删除成员: 'common.deleteMember',
+  新增成员: 'common.addMember',
+  追加消息: 'streamAddEntryDialog.appendMessage',
+  命令: 'slowlogCard.command',
+  清空数据: 'ipc.clearData',
+}
+
+/** 取操作名对应的文案 key；未知操作返回 null，界面原样展示 */
+export function logActionKey(action: string): MsgKey | null {
+  return ACTION_KEYS[action] ?? null
 }
 
 /**

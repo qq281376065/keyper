@@ -90,7 +90,7 @@ export function VirtualStringLines({
       className={`text-block mono${wrap ? '' : ' nowrap'}`}
       onScroll={onScroll}
       onDoubleClick={onDoubleClick}
-      title={t('双击进入编辑')}
+      title={t('virtualStringLines.doubleClickEdit')}
     >
       {/* 顶部占位：把可见行推到正确的滚动位置 */}
       {padTop > 0 ? <div className="vlines-pad" style={{ height: padTop }} aria-hidden /> : null}

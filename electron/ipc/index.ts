@@ -72,7 +72,7 @@ function fail(error: unknown): ApiResponse<never> {
 function unwrap<T>(value: T): T {
   const maybe = value as unknown as { ok?: boolean; message?: string }
   if (maybe && typeof maybe === 'object' && maybe.ok === false) {
-    throw new Error(maybe.message || t('操作失败'))
+    throw new Error(maybe.message || t('connectionActions.operationFailed'))
   }
   return value
 }
@@ -192,13 +192,13 @@ function describe(
         return {
           connectionName,
           engine,
-          detail: t('{key} · 第 {index} 项', { key: String(args[1]), index: (args[2] as number) + 1 }),
+          detail: t('ipc.keyItemIndex', { key: String(args[1]), index: (args[2] as number) + 1 }),
         }
       case IPC.redisDelListElement:
         return {
           connectionName,
           engine,
-          detail: t('{key} · 第 {index} 项', { key: String(args[1]), index: (args[2] as number) + 1 }),
+          detail: t('ipc.keyItemIndex', { key: String(args[1]), index: (args[2] as number) + 1 }),
         }
       case IPC.redisInsertListElement:
         return {
@@ -206,8 +206,8 @@ function describe(
           engine,
           detail:
             args[4] === 'before'
-              ? t('{key} · 第 {index} 项前', { key: String(args[1]), index: (args[2] as number) + 1 })
-              : t('{key} · 第 {index} 项后', { key: String(args[1]), index: (args[2] as number) + 1 }),
+              ? t('ipc.keyBeforeItemIndex', { key: String(args[1]), index: (args[2] as number) + 1 })
+              : t('ipc.keyAfterItemIndex', { key: String(args[1]), index: (args[2] as number) + 1 }),
         }
       case IPC.redisAppendListElement:
         return { connectionName, engine, detail: args[1] as string }
@@ -283,7 +283,7 @@ function handle<T>(channel: string, handler: (...args: any[]) => T | Promise<T>)
         action,
         detail: meta.detail || '-',
         ok: response.ok,
-        result: response.ok ? (data?.message ?? t('成功')) : response.error,
+        result: response.ok ? (data?.message ?? t('ipc.succeeded')) : response.error,
         costMs: Date.now() - started,
       })
     }
@@ -416,7 +416,7 @@ export function registerIpcHandlers(): void {
 
   handle<OperationResult>(IPC.logOpenDir, async () => {
     await openLogDir()
-    return { ok: true, message: t('已打开日志目录') }
+    return { ok: true, message: t('common.openedLogDirectory') }
   })
 
   // -------------------------------------------------------- 检查更新
@@ -430,9 +430,9 @@ export function registerIpcHandlers(): void {
   handle<OperationResult>(IPC.logRendererError, (report) => {
     try {
       appendErrorLog((report ?? {}) as ErrorReport)
-      return { ok: true, message: t('已记录') }
+      return { ok: true, message: t('ipc.recorded') }
     } catch {
-      return { ok: false, message: t('错误日志写入失败') }
+      return { ok: false, message: t('ipc.failedWriteErrorLog') }
     }
   })
 
@@ -440,12 +440,12 @@ export function registerIpcHandlers(): void {
   handle<{ saved: boolean; path?: string }>(IPC.fileSaveText, async (options) => {
     const payload = (options ?? {}) as { suggestedName?: string; content?: string }
     const result = await dialog.showSaveDialog({
-      title: t('导出内容'),
+      title: t('ipc.exportContent'),
       defaultPath: payload.suggestedName || 'value.txt',
       filters: [
-        { name: t('文本文件'), extensions: ['txt', 'log'] },
+        { name: t('ipc.textFile'), extensions: ['txt', 'log'] },
         { name: 'JSON', extensions: ['json'] },
-        { name: t('全部文件'), extensions: ['*'] },
+        { name: t('ipc.allFiles'), extensions: ['*'] },
       ],
     })
 
@@ -484,8 +484,8 @@ export function registerIpcHandlers(): void {
         engine: removedConn?.engine ?? 'redis',
         connectionId: String(id),
         connectionName: removedConn?.name ?? '-',
-        action: t('删除配置'),
-        detail: t('同步清理 {count} 条搜索历史', { count: pruned }),
+        action: t('ipc.deleteConfig'),
+        detail: t('ipc.alsoClearsCountSearchHistory', { count: pruned }),
         ok: true,
         result: 'ok',
       })

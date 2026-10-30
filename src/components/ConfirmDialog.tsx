@@ -49,7 +49,7 @@ export function ConfirmDialog() {
         但退出程序不是撤销问题 —— 它可能只是"待会儿再打开"。
         默认文案保持原样，退出这类请求自己传 description。
       */
-      description={request.description ?? t('请确认以下内容，操作不可撤销')}
+      description={request.description ?? t('common.reviewFollowingActionCannotUndone')}
       className="confirm-dialog"
       /* 确认框允许点遮罩取消：它没有"填到一半"的状态，取消成本极低 */
       closeOnOverlay
@@ -69,7 +69,7 @@ export function ConfirmDialog() {
             onClick={() => resolveConfirm(false)}
           >
             <DialogIcon name="cancel" size={13} />
-            {t('取消')}
+            {t('common.cancel')}
           </Button>
           <Button
             type="button"
@@ -78,7 +78,7 @@ export function ConfirmDialog() {
             onClick={confirm}
           >
             <DialogIcon name="check" size={13} />
-            {request.confirmText ?? t('确定')}
+            {request.confirmText ?? t('common.ok')}
           </Button>
         </>
       }
@@ -99,7 +99,7 @@ export function ConfirmDialog() {
         <div className="preview">
           <span className="preview-label">
             {request.preview.label}
-            {request.preview.truncated ? <span className="truncated">{t('已截断')}</span> : null}
+            {request.preview.truncated ? <span className="truncated">{t('common.truncated')}</span> : null}
           </span>
           <pre className="preview-text mono">{request.preview.text}</pre>
         </div>
@@ -116,7 +116,7 @@ export function ConfirmDialog() {
       {request.requirePhrase ? (
         <div className="phrase-box">
           <span className="phrase-hint">
-            {t('请输入')} <code className="mono">{request.requirePhrase}</code> {t('以确认执行')}
+            {t('common.enterValue')} <code className="mono">{request.requirePhrase}</code> {t('common.confirm')}
           </span>
           <Input
             value={phrase}

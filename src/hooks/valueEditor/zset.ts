@@ -46,7 +46,7 @@ export function useZsetEditor(
     const done = await copyText(member)
     notify(
       done ? 'ok' : 'err',
-      done ? t('已复制成员 {member}', { member }) : t('复制失败，请检查剪贴板权限'),
+      done ? t('valueEditorSet.copiedMember', { member }) : t('common.copyFailedCheckClipboardPermissions'),
     )
   }
 
@@ -54,7 +54,7 @@ export function useZsetEditor(
     const done = await copyText(row.text)
     notify(
       done ? 'ok' : 'err',
-      done ? t('已复制 score {score}', { score: row.text }) : t('复制失败，请检查剪贴板权限'),
+      done ? t('valueEditorZset.copiedScore', { score: row.text }) : t('common.copyFailedCheckClipboardPermissions'),
     )
   }
 
@@ -62,7 +62,7 @@ export function useZsetEditor(
   async function copyZsetAsCommand(row: { left?: string; text: string }): Promise<void> {
     const key = getValue()?.key ?? ''
     const done = await copyText(`ZADD ${key} ${row.text} "${zsetMemberOf(row)}"`)
-    notify(done ? 'ok' : 'err', done ? t('已复制 ZADD 命令') : t('复制失败，请检查剪贴板权限'))
+    notify(done ? 'ok' : 'err', done ? t('valueEditorZset.copiedZaddCommand') : t('common.copyFailedCheckClipboardPermissions'))
   }
 
   function openZsetMenu(
@@ -110,7 +110,7 @@ export function useZsetEditor(
 
     const score = Number(nextScore)
     if (!nextScore.trim() || Number.isNaN(score)) {
-      notify('err', t('score 必须是数字'))
+      notify('err', t('common.scoreNumber'))
       return
     }
 
@@ -120,10 +120,10 @@ export function useZsetEditor(
       return
     }
     if (!res.data.ok) {
-      notify('err', res.data.message ?? t('修改失败'))
+      notify('err', res.data.message ?? t('common.updateFailed'))
       return
     }
-    notify('ok', res.data.message ?? t('已修改'))
+    notify('ok', res.data.message ?? t('common.modified'))
     setEditingZset(null)
     // zset 会因 score 变化重排，本地难以推断新顺序，回读一次（静默，不闪骨架屏）
     await refreshSelected({ silent: true })
@@ -139,19 +139,19 @@ export function useZsetEditor(
     const score = items.map((raw) => splitPair(raw)).find(([m]) => m === member)?.[1]
 
     const confirmed = await askConfirm({
-      title: t('删除成员'),
-      message: t('即将从该有序集合中移除以下成员：'),
+      title: t('common.deleteMember'),
+      message: t('valueEditorZset.membersRemovedSortedSet'),
       details: [
-        { label: t('键名'), value: key, mono: true },
-        { label: t('成员'), value: member, mono: true, tone: 'danger' },
+        { label: t('common.keyName'), value: key, mono: true },
+        { label: t('valueEditorSet.member'), value: member, mono: true, tone: 'danger' },
         ...(score ? [{ label: 'score', value: score, mono: true }] : []),
-        { label: t('成员数'), value: `${total} → ${total - 1}`, mono: true },
+        { label: t('valueEditorSet.members'), value: `${total} → ${total - 1}`, mono: true },
       ],
       warning:
         total <= 1
-          ? t('这是集合的最后一个成员，删除后整个键也会被移除。')
-          : t('删除后无法恢复。'),
-      confirmText: t('删除'),
+          ? t('valueEditorSet.lastMemberSetDeletingAlso')
+          : t('common.cannotUndone'),
+      confirmText: t('common.delete'),
       danger: true,
     })
     if (!confirmed) return
@@ -162,10 +162,10 @@ export function useZsetEditor(
       return
     }
     if (!res.data.ok) {
-      notify('err', res.data.message ?? t('删除失败'))
+      notify('err', res.data.message ?? t('common.deleteFailed'))
       return
     }
-    notify('ok', res.data.message ?? t('已删除'))
+    notify('ok', res.data.message ?? t('common.deleted'))
     dropElementLocally((item) => splitPair(item)[0] === member)
     if (total <= 1) state.selectedValue = null
   }
@@ -177,11 +177,11 @@ export function useZsetEditor(
 
     const num = Number(score)
     if (!member.trim()) {
-      notify('err', t('成员内容不能为空'))
+      notify('err', t('common.memberContentCannotEmpty'))
       return
     }
     if (!score.trim() || Number.isNaN(num)) {
-      notify('err', t('score 必须是数字'))
+      notify('err', t('common.scoreNumber'))
       return
     }
 
@@ -191,10 +191,10 @@ export function useZsetEditor(
       return
     }
     if (!res.data.ok) {
-      notify('err', res.data.message ?? t('添加失败'))
+      notify('err', res.data.message ?? t('valueEditorSet.addFailed'))
       return
     }
-    notify('ok', res.data.message ?? t('已添加'))
+    notify('ok', res.data.message ?? t('valueEditorSet.added'))
     setAddingZset(false)
     // score 决定排序位置，本地插入难以保证顺序正确，静默回读
     await refreshSelected({ silent: true })
@@ -227,15 +227,15 @@ export function useZsetEditor(
 
   async function copyZsetAll(): Promise<void> {
     if (!zsetStats.total) {
-      notify('err', t('当前 zset 没有成员'))
+      notify('err', t('valueEditorZset.zsetNoMembers'))
       return
     }
     const done = await copyText(zsetAsText())
     notify(
       done ? 'ok' : 'err',
       done
-        ? t('已复制 {count} 个成员', { count: zsetStats.total })
-        : t('复制失败，请检查剪贴板权限'),
+        ? t('valueEditorSet.copiedCountMembers', { count: zsetStats.total })
+        : t('common.copyFailedCheckClipboardPermissions'),
     )
   }
 
@@ -250,10 +250,10 @@ export function useZsetEditor(
       return
     }
     if (!res.data.saved) {
-      notify('ok', t('已取消导出'))
+      notify('ok', t('common.exportCancelled'))
       return
     }
-    notify('ok', t('已导出到 {path}', { path: res.data.path ?? t('本地文件') }))
+    notify('ok', t('common.exportedPath', { path: res.data.path ?? t('common.localFile') }))
   }
 
   return {

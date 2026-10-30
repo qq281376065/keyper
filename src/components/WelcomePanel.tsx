@@ -14,6 +14,7 @@ import { UpdatePanel } from '@/components/UpdatePanel'
 import { useRedis } from '@/store/useRedis'
 import { APP_VERSION } from '@/services/errorReport'
 import { useI18n } from '@/i18n'
+import type { MsgKey } from '@shared/i18n'
 import type { EnvInfo } from '@shared/types'
 
 /*
@@ -22,23 +23,23 @@ import type { EnvInfo } from '@shared/types'
  * 不写没上线的功能。纯静态展示，不发任何数据请求。
  */
 const FEATS = [
-  { icon: 'text', title: '六类型可视化', desc: 'string / hash / list / set / zset / stream 全部支持浏览与编辑' },
-  { icon: 'search', title: '全库搜索', desc: 'SCAN 下沉主进程，进度推送可中止，历史记录自动补全' },
-  { icon: 'link', title: 'SSH 多级跳板', desc: '凭据加密存储 + 隧道保活，生产实例也能安全直连' },
-  { icon: 'terminal', title: '内置 CLI', desc: '按连接分标签的命令行控制台，任意命令直达' },
-  { icon: 'check', title: '批量操作', desc: '删除 / TTL / 重命名批量面板，进度可见可中止' },
-  { icon: 'clock', title: '慢查询日志', desc: '实时查看慢命令排行与耗时分布' },
-  { icon: 'activity', title: 'Pub/Sub 订阅', desc: '频道与模式订阅，发布测试即时回显' },
-  { icon: 'memory', title: '键内存分析', desc: '前缀聚合内存分布，容量排查一眼定位' },
-  { icon: 'theme', title: '9 套皮肤', desc: '暗色 / 亮色 / 七套配色皮肤，明暗档随主题切换' },
+  { icon: 'text', title: 'welcomePanel.visualizeAllSixTypes', desc: 'welcomePanel.stringHashListSetZset' },
+  { icon: 'search', title: 'welcomePanel.searchAllDatabases', desc: 'welcomePanel.scanRunsMainProcessStreamed' },
+  { icon: 'link', title: 'welcomePanel.multiHopSshBastion', desc: 'welcomePanel.encryptedCredentialsTunnelKeep' },
+  { icon: 'terminal', title: 'welcomePanel.builtCli', desc: 'welcomePanel.tabbedCommandConsolePerConnection' },
+  { icon: 'check', title: 'welcomePanel.bulkOperations', desc: 'welcomePanel.bulkDeleteTtlRenamePanel' },
+  { icon: 'clock', title: 'common.slowQueryLog', desc: 'welcomePanel.viewSlowCommandRankingsDuration' },
+  { icon: 'activity', title: 'common.pubSubSubscriptions', desc: 'welcomePanel.channelPatternSubscriptions' },
+  { icon: 'memory', title: 'common.keyMemoryAnalysis', desc: 'welcomePanel.memoryDistributionGroupedPrefixFor' },
+  { icon: 'theme', title: 'welcomePanel.nineSkins', desc: 'welcomePanel.darkLightSevenColorSchemes' },
 ] as const
 
 /* 快捷键速查：与产品真实交互一一对应 */
-const KEYS: Array<{ key: string; desc: string }> = [
-  { key: '双击值区域', desc: '进入编辑' },
-  { key: 'Tab / →', desc: '采纳搜索补全' },
-  { key: 'Esc', desc: '取消编辑 / 收起浮层' },
-  { key: 'Ctrl+Enter', desc: '保存编辑' },
+const KEYS: Array<{ key: MsgKey; desc: MsgKey }> = [
+  { key: 'welcomePanel.doubleClickValueArea', desc: 'welcomePanel.enterEditMode' },
+  { key: 'welcomePanel.shortcutTabRight', desc: 'welcomePanel.acceptSuggestion' },
+  { key: 'welcomePanel.shortcutEsc', desc: 'welcomePanel.cancelEditCollapsePopover' },
+  { key: 'welcomePanel.shortcutCtrlEnter', desc: 'welcomePanel.saveEdit' },
 ]
 
 /**
@@ -167,10 +168,10 @@ export function WelcomePanel({ onNewConnection, onImportUri, onOpenLog }: Welcom
             Keyper
           </PixelHeading>
           <p className="subtitle">
-            {t('Redis 桌面管理工具')}
+            {t('welcomePanel.redisDesktopManagementTool')}
             <span className="dot">·</span>v{env?.appVersion ?? APP_VERSION}
             <span className="dot">·</span>
-            {isElectron ? t('Electron 运行时') : t('浏览器预览模式')}
+            {isElectron ? t('welcomePanel.electronRuntime') : t('welcomePanel.browserPreviewMode')}
           </p>
         </header>
 
@@ -199,7 +200,7 @@ export function WelcomePanel({ onNewConnection, onImportUri, onOpenLog }: Welcom
             onClick={onNewConnection}
           >
             <DialogIcon name="add" size={15} />
-            {t('新建连接')}
+            {t('common.newConnection')}
           </BgAnimateButton>
 
           {/*
@@ -211,22 +212,22 @@ export function WelcomePanel({ onNewConnection, onImportUri, onOpenLog }: Welcom
             → 操作日志（连不上时第一时间来看）→ 检查更新。
           */}
           <div className="cta-secondary">
-            <button className="cta-sec-btn" onClick={onImportUri} title={t('粘贴 redis:// 连接串快速新建')}>
+            <button className="cta-sec-btn" onClick={onImportUri} title={t('welcomePanel.pasteRedis')}>
               <DialogIcon name="link" size={14} />
-              {t('粘贴连接串')}
+              {t('welcomePanel.pasteConnectionString')}
             </button>
-            <button className="cta-sec-btn" onClick={onOpenLog} title={t('查看连接与操作日志')}>
+            <button className="cta-sec-btn" onClick={onOpenLog} title={t('welcomePanel.viewConnectionsActivityLog')}>
               <DialogIcon name="activity" size={14} />
-              {t('操作日志')}
+              {t('common.activityLog')}
             </button>
             <button
               className={`cta-sec-btn${updateOpen ? ' is-open' : ''}`}
               onClick={() => setUpdateOpen((prev) => !prev)}
-              title={t('检查是否有新版本')}
+              title={t('welcomePanel.checkForNewVersion')}
               aria-expanded={updateOpen}
             >
               <DialogIcon name="refresh" size={14} />
-              {t('检查更新')}
+              {t('updatePanel.checkForUpdates')}
             </button>
             {updateOpen ? <UpdatePanel onClose={() => setUpdateOpen(false)} /> : null}
           </div>
@@ -236,7 +237,7 @@ export function WelcomePanel({ onNewConnection, onImportUri, onOpenLog }: Welcom
             自然知道去哪点；这句在常驻状态下反而是一直占位的噪音。
           */}
           {!hasConnections ? (
-            <span className="cta-hint">{t('还没有任何连接配置，添加一个 Redis 实例即可开始')}</span>
+            <span className="cta-hint">{t('welcomePanel.noConnectionsConfiguredYet')}</span>
           ) : null}
         </div>
 
@@ -253,8 +254,8 @@ export function WelcomePanel({ onNewConnection, onImportUri, onOpenLog }: Welcom
         <ShellCard className="feat-sheet-card">
           <ExpandableCardHeader className="feat-sheet-head">
             <div className="feat-sheet-title-row">
-              <h2 className="card-title">{t('功能清单')}</h2>
-              <span className="feat-sheet-count">{t('{count} 项', { count: FEATS.length })}</span>
+              <h2 className="card-title">{t('welcomePanel.features')}</h2>
+              <span className="feat-sheet-count">{t('memcachedOverview.countItems', { count: FEATS.length })}</span>
             </div>
           </ExpandableCardHeader>
           <ExpandableContent preset="slide-up" stagger>
@@ -274,7 +275,7 @@ export function WelcomePanel({ onNewConnection, onImportUri, onOpenLog }: Welcom
           <div className="info-grid">
             {/* ------------------------------------------------ 快捷键速查 */}
             <section className="info-col">
-              <h2 className="card-title">{t('快捷键速查')}</h2>
+              <h2 className="card-title">{t('welcomePanel.keyboardShortcuts')}</h2>
               <table className="keys-table">
                 <tbody>
                   {KEYS.map((item) => (
@@ -289,32 +290,32 @@ export function WelcomePanel({ onNewConnection, onImportUri, onOpenLog }: Welcom
 
             {/* ------------------------------------------------ 兼容与性能 */}
             <section className="info-col">
-              <h2 className="card-title">{t('兼容与性能')}</h2>
+              <h2 className="card-title">{t('welcomePanel.compatibilityPerformance')}</h2>
               <ul className="compat-list">
                 <li>
                   <DialogIcon name="server" size={13} className="compat-item-icon" />
                   <span>
-                    {t('支持单机')} <strong>Redis 7.x</strong> {t('及以上版本')}
+                    {t('welcomePanel.standaloneSupported')} <strong>Redis 7.x</strong> {t('welcomePanel.later')}
                   </span>
                 </li>
                 <li>
                   <DialogIcon name="memory" size={13} className="compat-item-icon" />
                   <span>
-                    {t('同时支持')} <strong>Memcached</strong>
-                    {t('：命中率 / slab / 内存统计与单键查看编辑')}
+                    {t('welcomePanel.alsoSupports')} <strong>Memcached</strong>
+                    {t('welcomePanel.memcachedCapabilitySuffix')}
                   </span>
                 </li>
                 <li>
                   <DialogIcon name="bolt" size={13} className="compat-item-icon" />
                   <span>
-                    {t('Redis 键浏览采用')} <strong>{t('SCAN 渐进式遍历')}</strong>
-                    {t('，不会阻塞服务端； Memcached 按 slab 限量取样，避免一次拉回整库')}
+                    {t('welcomePanel.redisKeyBrowsingUses')} <strong>{t('welcomePanel.incrementalScan')}</strong>
+                    {t('welcomePanel.withoutBlockingServerMemcached')}
                   </span>
                 </li>
                 <li>
                   <DialogIcon name="eye-off" size={13} className="compat-item-icon" />
                   <span>
-                    {t('连接凭据经系统钥匙串')} <strong>{t('加密存储')}</strong>
+                    {t('welcomePanel.credentialsStoredSystemKeychain')} <strong>{t('welcomePanel.encryptedStorage')}</strong>
                   </span>
                 </li>
               </ul>

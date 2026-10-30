@@ -390,7 +390,7 @@ export function createSession(
     cliEntries: [
       {
         kind: 'output',
-        text: t('Keyper CLI 就绪。输入命令后回车执行，例如 PING / DBSIZE / GET key'),
+        text: t('session.keyperCliReady'),
       },
     ],
     cliRunning: false,
@@ -410,14 +410,14 @@ export function createSession(
   async function loadDatabases(): Promise<void> {
     if (!state.activeId) return
     const res = await api.redis.databases(state.activeId)
-    if (!res.ok) return failure(res.error, t('读取数据库列表失败'))
+    if (!res.ok) return failure(res.error, t('session.failedLoadDatabaseList'))
     state.databases = res.data
   }
 
   async function loadServerInfo(): Promise<void> {
     if (!state.activeId) return
     const res = await api.redis.info(state.activeId)
-    if (!res.ok) return failure(res.error, t('读取服务端信息失败'))
+    if (!res.ok) return failure(res.error, t('session.failedLoadServerInfo'))
     state.serverInfo = res.data
   }
 
@@ -489,7 +489,7 @@ export function createSession(
         state.selectedValue = null
       }
     } catch (error) {
-      failure(error, t('扫描键失败'))
+      failure(error, t('session.failedScanKeys'))
     } finally {
       state.loadingKeys = false
     }
@@ -538,7 +538,7 @@ export function createSession(
         state.cursor = cursor
       }
     } catch (error) {
-      failure(error, t('加载全部失败'))
+      failure(error, t('session.failedLoadAll'))
     } finally {
       state.loadingKeys = false
     }
@@ -603,7 +603,7 @@ export function createSession(
     } catch (error) {
       if (seq !== valueLoadSeq) return
       state.selectedValue = null
-      failure(error, t('读取键值失败'))
+      failure(error, t('session.failedLoadKeyValue'))
     } finally {
       // 过期请求不得动 loading —— 它属于最新一次 selectKey
       if (seq === valueLoadSeq) {
@@ -850,24 +850,24 @@ export function createSession(
 
     const details: NonNullable<ConfirmRequest['details']> = [
       {
-        label: single ? t('键名') : t('数量'),
-        value: single ? keys[0]! : t('{count} 个键', { count: keys.length }),
+        label: single ? t('common.keyName') : t('memcachedKeyBrowser.count'),
+        value: single ? keys[0]! : t('memcachedKeyBrowser.countKeys', { count: keys.length }),
         mono: true,
       },
     ]
     if (target) {
-      details.push({ label: t('类型'), value: target.type, mono: true })
+      details.push({ label: t('common.type'), value: target.type, mono: true })
       details.push({
-        label: t('过期'),
-        value: target.ttl > 0 ? t('{seconds} 秒后', { seconds: target.ttl }) : t('永久'),
+        label: t('common.expiration'),
+        value: target.ttl > 0 ? t('session.seconds', { seconds: target.ttl }) : t('common.noExpiration'),
         mono: true,
         tone: 'muted',
       })
     }
 
     const confirmed = await askConfirm({
-      title: single ? t('删除键') : t('批量删除 {count} 个键', { count: keys.length }),
-      message: single ? t('即将从当前库中移除该键：') : t('即将从当前库中移除以下键：'),
+      title: single ? t('common.deleteKey') : t('common.bulkDeleteCountKeys', { count: keys.length }),
+      message: single ? t('session.keyRemovedCurrentDatabase') : t('session.keysRemovedCurrentDatabase'),
       details,
       /*
        * 单键不展示 preview：键名已在 details 中给出，
@@ -876,14 +876,14 @@ export function createSession(
       preview: single
         ? undefined
         : {
-            label: t('待删除的键名'),
+            label: t('memcachedKeyBrowser.keyNamesDelete'),
             text: shown.join('\n'),
             truncated,
           },
       warning: single
-        ? t('此操作不可撤销，键及其全部数据将被立即删除。')
-        : t('此操作不可撤销，这些键及其全部数据将被立即删除。'),
-      confirmText: single ? t('删除') : t('删除 {count} 个键', { count: keys.length }),
+        ? t('common.actionCannotUndoneKeyAll')
+        : t('memcachedKeyBrowser.actionCannotUndoneKeysAll'),
+      confirmText: single ? t('common.delete') : t('memcachedKeyBrowser.deleteCountKeys', { count: keys.length }),
       danger: true,
     })
     if (!confirmed) return
@@ -891,7 +891,7 @@ export function createSession(
     try {
       const res = await api.redis.remove(state.activeId, keys)
       if (!res.ok) throw new Error(res.error)
-      notify('ok', res.data.message ?? t('已删除'))
+      notify('ok', res.data.message ?? t('common.deleted'))
       syncRemove(keys)
       if (state.selectedKey && keys.includes(state.selectedKey)) {
         state.selectedKey = null
@@ -899,7 +899,7 @@ export function createSession(
       }
       await loadDatabases()
     } catch (error) {
-      failure(error, t('删除失败'))
+      failure(error, t('common.deleteFailed'))
     }
   }
 
@@ -1006,20 +1006,20 @@ export function createSession(
    * 拼出来的英文句子会错位。三种操作各写一整句，翻译才有完整上下文。
    */
   function bulkFailureSummary(action: BulkAction, count: number): string {
-    if (action === 'delete') return t('{count} 个键删除失败，可在面板中查看原因', { count })
-    if (action === 'ttl') return t('{count} 个键设置失败，可在面板中查看原因', { count })
-    return t('{count} 个键重命名失败，可在面板中查看原因', { count })
+    if (action === 'delete') return t('session.failedDeleteCountKeysSee', { count })
+    if (action === 'ttl') return t('session.failedUpdateCountKeysSee', { count })
+    return t('session.failedRenameCountKeysSee', { count })
   }
 
   /** 完成通知：按操作类型给出结果数量 */
   function resultSummary(task: BulkTask): string {
     const count = task.succeeded.length
-    if (task.action === 'delete') return t('已删除 {count} 个键', { count })
+    if (task.action === 'delete') return t('session.deletedCountKeys', { count })
     if (task.action === 'ttl')
       return task.ttlSeconds < 0
-        ? t('已将 {count} 个键设为永久', { count })
-        : t('已为 {count} 个键设置 TTL', { count })
-    return t('已重命名 {count} 个键', { count })
+        ? t('session.setCountKeysNoExpiration', { count })
+        : t('session.ttlSetForCountKeys', { count })
+    return t('session.renamedCountKeys', { count })
   }
 
   /** 中止批量操作（已开始的那一个会执行完） */
@@ -1045,12 +1045,12 @@ export function createSession(
     try {
       const res = await api.redis.setValue(state.activeId, key, type, payload, ttlSeconds, isNew)
       if (!res.ok) throw new Error(res.error)
-      notify('ok', res.data.message ?? t('已保存'))
+      notify('ok', res.data.message ?? t('common.saved'))
       await Promise.all([loadKeys(true), loadDatabases()])
       await selectKey(key)
       return true
     } catch (error) {
-      failure(error, t('保存失败'))
+      failure(error, t('common.saveFailed'))
       return false
     }
   }
@@ -1060,10 +1060,10 @@ export function createSession(
     try {
       const res = await api.redis.setTtl(state.activeId, key, seconds)
       if (!res.ok) throw new Error(res.error)
-      notify('ok', res.data.message ?? t('TTL 已更新'))
+      notify('ok', res.data.message ?? t('session.ttlUpdated'))
       await selectKey(key)
     } catch (error) {
-      failure(error, t('设置 TTL 失败'))
+      failure(error, t('session.failedSetTtl'))
     }
   }
 
@@ -1072,11 +1072,11 @@ export function createSession(
     try {
       const res = await api.redis.rename(state.activeId, key, newKey)
       if (!res.ok) throw new Error(res.error)
-      notify('ok', t('已重命名'))
+      notify('ok', t('common.renamed'))
       await loadKeys(true)
       await selectKey(newKey)
     } catch (error) {
-      failure(error, t('重命名失败'))
+      failure(error, t('common.renameFailed'))
     }
   }
 
@@ -1109,7 +1109,7 @@ export function createSession(
         void loadDatabases()
       }
     } catch (error) {
-      state.cliEntries.push({ kind: 'error', text: error instanceof Error ? error.message : t('执行失败') })
+      state.cliEntries.push({ kind: 'error', text: error instanceof Error ? error.message : t('session.executionFailed') })
     } finally {
       state.cliRunning = false
     }
@@ -1189,7 +1189,7 @@ export function createSession(
       if (seq !== remoteSearchSeq) return
       state.remoteSearch = null
       state.remoteKeys = []
-      failure(error, t('全库搜索失败'))
+      failure(error, t('session.searchAllDatabasesFailed'))
     }
   }
 

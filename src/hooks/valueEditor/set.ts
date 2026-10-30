@@ -36,19 +36,19 @@ export function useSetEditor(
     const done = await copyText(row.text)
     notify(
       done ? 'ok' : 'err',
-      done ? t('已复制成员 {member}', { member: row.text }) : t('复制失败，请检查剪贴板权限'),
+      done ? t('valueEditorSet.copiedMember', { member: row.text }) : t('common.copyFailedCheckClipboardPermissions'),
     )
   }
 
   async function copySetAsCommand(row: { index: number; text: string }): Promise<void> {
     const key = getValue()?.key ?? ''
     const done = await copyText(`SADD ${key} "${row.text}"`)
-    notify(done ? 'ok' : 'err', done ? t('已复制 SADD 命令') : t('复制失败，请检查剪贴板权限'))
+    notify(done ? 'ok' : 'err', done ? t('valueEditorSet.copiedSaddCommand') : t('common.copyFailedCheckClipboardPermissions'))
   }
 
   async function copySetAsJson(row: { index: number; text: string }): Promise<void> {
     const done = await copyText(JSON.stringify(row.text, null, 2))
-    notify(done ? 'ok' : 'err', done ? t('已复制 JSON') : t('复制失败，请检查剪贴板权限'))
+    notify(done ? 'ok' : 'err', done ? t('valueEditorList.copiedJson') : t('common.copyFailedCheckClipboardPermissions'))
   }
 
   function openSetMenu(event: React.MouseEvent, row: { index: number; text: string }): void {
@@ -121,15 +121,15 @@ export function useSetEditor(
 
   async function copySetAll(): Promise<void> {
     if (!setStats.total) {
-      notify('err', t('当前 set 没有成员'))
+      notify('err', t('valueEditorSet.setNoMembers'))
       return
     }
     const done = await copyText(setAsText())
     notify(
       done ? 'ok' : 'err',
       done
-        ? t('已复制 {count} 个成员', { count: setStats.total })
-        : t('复制失败，请检查剪贴板权限'),
+        ? t('valueEditorSet.copiedCountMembers', { count: setStats.total })
+        : t('common.copyFailedCheckClipboardPermissions'),
     )
   }
 
@@ -144,10 +144,10 @@ export function useSetEditor(
       return
     }
     if (!res.data.saved) {
-      notify('ok', t('已取消导出'))
+      notify('ok', t('common.exportCancelled'))
       return
     }
-    notify('ok', t('已导出到 {path}', { path: res.data.path ?? t('本地文件') }))
+    notify('ok', t('common.exportedPath', { path: res.data.path ?? t('common.localFile') }))
   }
 
   /** 修改成员：set 成员本身即标识，改内容等价于删除旧成员 + 添加新成员 */
@@ -163,10 +163,10 @@ export function useSetEditor(
       return
     }
     if (!res.data.ok) {
-      notify('err', res.data.message ?? t('修改失败'))
+      notify('err', res.data.message ?? t('common.updateFailed'))
       return
     }
-    notify('ok', res.data.message ?? t('已修改'))
+    notify('ok', res.data.message ?? t('common.modified'))
     setEditingSetMember(null)
 
     // 本地更新：先移除旧成员，若新成员尚不存在则补上
@@ -185,17 +185,17 @@ export function useSetEditor(
     const wasLast = total <= 1
 
     const confirmed = await askConfirm({
-      title: t('删除成员'),
-      message: t('即将从该集合中移除以下成员：'),
+      title: t('common.deleteMember'),
+      message: t('valueEditorSet.membersRemovedSet'),
       details: [
-        { label: t('键名'), value: key, mono: true },
-        { label: t('成员'), value: member, mono: true, tone: 'danger' },
-        { label: t('成员数'), value: `${total} → ${total - 1}`, mono: true },
+        { label: t('common.keyName'), value: key, mono: true },
+        { label: t('valueEditorSet.member'), value: member, mono: true, tone: 'danger' },
+        { label: t('valueEditorSet.members'), value: `${total} → ${total - 1}`, mono: true },
       ],
       warning: wasLast
-        ? t('这是集合的最后一个成员，删除后整个键也会被移除。')
-        : t('删除后无法恢复。'),
-      confirmText: t('删除'),
+        ? t('valueEditorSet.lastMemberSetDeletingAlso')
+        : t('common.cannotUndone'),
+      confirmText: t('common.delete'),
       danger: true,
     })
     if (!confirmed) return
@@ -206,10 +206,10 @@ export function useSetEditor(
       return
     }
     if (!res.data.ok) {
-      notify('err', res.data.message ?? t('删除失败'))
+      notify('err', res.data.message ?? t('common.deleteFailed'))
       return
     }
-    notify('ok', res.data.message ?? t('已删除'))
+    notify('ok', res.data.message ?? t('common.deleted'))
     dropElementLocally((item) => item === member)
     if (wasLast) state.selectedValue = null
   }
@@ -220,7 +220,7 @@ export function useSetEditor(
     if (!id || !key) return
 
     if (!next.trim()) {
-      notify('err', t('成员内容不能为空'))
+      notify('err', t('common.memberContentCannotEmpty'))
       return
     }
 
@@ -231,10 +231,10 @@ export function useSetEditor(
       return
     }
     if (!res.data.ok) {
-      notify('err', res.data.message ?? t('添加失败'))
+      notify('err', res.data.message ?? t('valueEditorSet.addFailed'))
       return
     }
-    notify('ok', res.data.message ?? t('已添加'))
+    notify('ok', res.data.message ?? t('valueEditorSet.added'))
     setAddingMember(false)
 
     // 本地更新（SADD 幂等，已存在则不再插入）

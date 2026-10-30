@@ -6,7 +6,7 @@ import { api } from '@/api'
 import { useRedis } from '@/store/useRedis'
 import { formatBytes } from '@/utils/format'
 import { emitMcKeysChanged } from '@/utils/memcachedEvents'
-import type { TParams } from '@shared/i18n'
+import type { MsgKey, TFunction } from '@shared/i18n'
 import type { MemcachedOverview, MemcachedSlab } from '@shared/types'
 
 /**
@@ -21,16 +21,16 @@ import type { MemcachedOverview, MemcachedSlab } from '@shared/types'
  * 设计取舍：
  *   1. Memcached 没有"库"的概念，因此不出现任何 db 相关 UI；
  *   2. 键浏览统一走左侧键栏（含 slab 分组、搜索、删除），详情页不再重复一份；
- *   3. 命中率、淘汰数是 Memcached 运维最关心的两个数，放在顶部卡片；
+ *   3. 服务、内存、状态三组关键数字放在顶部卡片；
  *   4. 所有数值都可能因为服务端禁用而未提供，一律显示 `—` 而不是 0 ——
  *      0 会被读成"确实是零"，而 `—` 表示"没拿到"。
  */
 
 type Tab = 'stats' | 'settings'
 
-const TABS: Array<{ key: Tab; label: string; icon: DialogIconName }> = [
-  { key: 'stats', label: '统计', icon: 'info' },
-  { key: 'settings', label: '设置', icon: 'settings' },
+const TABS: Array<{ key: Tab; label: MsgKey; icon: DialogIconName }> = [
+  { key: 'stats', label: 'memcachedOverview.stats', icon: 'info' },
+  { key: 'settings', label: 'memcachedOverview.settings', icon: 'settings' },
 ]
 
 /** 取数值，缺失时给 undefined 而不是 0 —— 让界面能区分"零"与"没数据" */
@@ -87,7 +87,7 @@ export function MemcachedOverview() {
         if (!aliveRef.current) return
         if (slabRes.ok) setSlabs(slabRes.data)
       } catch (err) {
-        if (aliveRef.current) setError(err instanceof Error ? err.message : t('读取失败'))
+        if (aliveRef.current) setError(err instanceof Error ? err.message : t('common.loadFailed'))
       } finally {
         if (aliveRef.current) setLoading(false)
       }
@@ -112,33 +112,30 @@ export function MemcachedOverview() {
   async function flushAll(): Promise<void> {
     if (!id) return
     const ok = await askConfirm({
-      title: t('清空全部数据'),
-      message: t('即将执行 flush_all，清空该 Memcached 实例的所有缓存项：'),
+      title: t('memcachedOverview.clearAllData'),
+      message: t('memcachedOverview.flushAllRunClearCached'),
       details: [
-        { label: t('实例'), value: `${connection?.host ?? ''}:${connection?.port ?? ''}`, mono: true },
-        { label: t('当前条目'), value: String(num(overview?.stats ?? {}, 'curr_items') ?? '—'), mono: true },
+        { label: t('memcachedOverview.instance'), value: `${connection?.host ?? ''}:${connection?.port ?? ''}`, mono: true },
+        { label: t('memcachedOverview.currentEntry'), value: String(num(overview?.stats ?? {}, 'curr_items') ?? '—'), mono: true },
       ],
-      warning: t('这是不可撤销的整体操作，所有业务缓存会同时失效。'),
-      confirmText: t('清空'),
+      warning: t('memcachedOverview.irreversibleAllEncompassing'),
+      confirmText: t('common.clear'),
       danger: true,
       force: true,
     })
     if (!ok) return
     const res = await api.memcached.flush(id)
     if (res.ok && res.data.ok) {
-      notify('ok', res.data.message ?? t('已清空'))
+      notify('ok', res.data.message ?? t('memcachedOverview.cleared'))
       await load()
       emitMcKeysChanged()
     } else {
-      notify('err', res.ok ? (res.data.message ?? t('清空失败')) : res.error)
+      notify('err', res.ok ? (res.data.message ?? t('memcachedOverview.clearFailed')) : res.error)
     }
   }
 
   const stats = overview?.stats ?? {}
   const currItems = num(stats, 'curr_items')
-  const getHits = num(stats, 'get_hits')
-  const getMisses = num(stats, 'get_misses')
-  const hitRate = pct(getHits, (getHits ?? 0) + (getMisses ?? 0))
   const usedBytes = num(stats, 'bytes')
   const limitBytes = num(stats, 'limit_maxbytes')
   const usage = pct(usedBytes, limitBytes)
@@ -149,56 +146,42 @@ export function MemcachedOverview() {
 
   const cards: Array<{ title: string; icon: DialogIconName; rows: Array<{ label: string; value: string; tone?: 'warn' | 'bad' }> }> = [
     {
-      title: t('服务'),
+      title: t('memcachedOverview.service'),
       icon: 'info',
       rows: [
-        { label: t('版本'), value: version },
-        { label: t('线程数'), value: stats.threads ?? '—' },
-        { label: t('运行时长'), value: uptime === undefined ? '—' : formatUptime(uptime, t) },
+        { label: t('memcachedOverview.version'), value: version },
+        { label: t('memcachedOverview.threads'), value: stats.threads ?? '—' },
+        { label: t('memcachedOverview.uptime'), value: uptime === undefined ? '—' : formatUptime(uptime, t) },
       ],
     },
     {
-      title: t('内存'),
+      title: t('common.memory'),
       icon: 'memory',
       rows: [
         {
-          label: t('已用'),
+          label: t('memcachedOverview.used'),
           value: usedBytes === undefined ? '—' : formatBytes(usedBytes),
         },
         {
-          label: t('上限'),
+          label: t('memcachedOverview.limit'),
           value: limitBytes === undefined ? '—' : formatBytes(limitBytes),
           tone: usage !== undefined && usage > 90 ? 'warn' : undefined,
         },
-        { label: t('占用率'), value: usage === undefined ? '—' : `${usage.toFixed(1)}%` },
+        { label: t('memcachedOverview.usage'), value: usage === undefined ? '—' : `${usage.toFixed(1)}%` },
       ],
     },
     {
-      title: t('命中'),
-      icon: 'bolt',
-      rows: [
-        {
-          label: t('命中率'),
-          value: hitRate === undefined ? '—' : `${hitRate.toFixed(1)}%`,
-          /* 低于 90% 用琥珀提醒：通常意味着缓存没起作用 */
-          tone: hitRate !== undefined && hitRate < 90 ? 'warn' : undefined,
-        },
-        { label: t('命中/未中'), value: getHits === undefined && getMisses === undefined ? '—' : `${getHits ?? 0} / ${getMisses ?? 0}` },
-        { label: t('条目数'), value: currItems === undefined ? '—' : String(currItems) },
-      ],
-    },
-    {
-      title: t('状态'),
+      title: t('common.status'),
       icon: 'activity',
       rows: [
-        { label: t('当前连接'), value: currConn === undefined ? '—' : String(currConn) },
+        { label: t('memcachedOverview.currentConnection'), value: currConn === undefined ? '—' : String(currConn) },
         {
-          label: t('淘汰数'),
+          label: t('memcachedOverview.evictions'),
           value: evictions === undefined ? '—' : String(evictions),
           /* 有淘汰说明内存不够，是要处理的信号 */
           tone: evictions !== undefined && evictions > 0 ? 'bad' : undefined,
         },
-        { label: t('总条目'), value: stats.total_items ?? '—' },
+        { label: t('memcachedOverview.totalEntries'), value: stats.total_items ?? '—' },
       ],
     },
   ]
@@ -227,7 +210,7 @@ export function MemcachedOverview() {
     <div className="overview s-mc-overview">
       <header className="ov-head">
         <div className="ov-ident">
-          <span className="ov-name">{connection?.name ?? t('当前实例')}</span>
+          <span className="ov-name">{connection?.name ?? t('memcachedOverview.currentInstance')}</span>
           <span className="ov-endpoint mono">
             {connection ? `${connection.host}:${connection.port}` : ''}
           </span>
@@ -242,11 +225,11 @@ export function MemcachedOverview() {
         <button
           className="ov-refresh"
           disabled={refreshing}
-          {...tipProps(t('刷新统计信息'))}
+          {...tipProps(t('memcachedOverview.refreshStatistics'))}
           onClick={() => void refreshAll()}
         >
           <DialogIcon name="refresh" size={13} className={`ti${refreshing ? ' spin' : ''}`} />
-          {refreshing ? t('刷新中…') : t('刷新')}
+          {refreshing ? t('memcachedOverview.refreshing') : t('common.refresh')}
         </button>
       </header>
 
@@ -255,7 +238,7 @@ export function MemcachedOverview() {
           <DialogIcon name="warning" size={14} />
           <span>{error}</span>
           <button className="mc-retry" onClick={() => void load()}>
-            {t('重试')}
+            {t('memcachedOverview.retry')}
           </button>
         </div>
       ) : null}
@@ -263,8 +246,8 @@ export function MemcachedOverview() {
       {loading && !overview ? (
         <div className="ov-loading">
           <span className="ov-badge">Memcached</span>
-          <p>{t('正在读取统计信息…')}</p>
-          <p className="ov-hint">{t('若长时间无响应，请检查实例是否仍然可用')}</p>
+          <p>{t('memcachedOverview.readingStatistics')}</p>
+          <p className="ov-hint">{t('memcachedOverview.ifThereNoResponseFor')}</p>
         </div>
       ) : (
         <>
@@ -304,10 +287,10 @@ export function MemcachedOverview() {
             <div className="ov-tab-pane">
               <section className="mc-pane-card">
                 <header className="mc-pane-head">
-                  <h4 className="mc-pane-title">{t('全部统计项')}</h4>
+                  <h4 className="mc-pane-title">{t('memcachedOverview.allStats')}</h4>
                   <span className="mc-pane-count mono">
                     {statRows.length === Object.keys(stats).length
-                      ? t('{count} 项', { count: statRows.length })
+                      ? t('memcachedOverview.countItems', { count: statRows.length })
                       : `${statRows.length} / ${Object.keys(stats).length}`}
                   </span>
                   <span className="spacer" />
@@ -322,13 +305,13 @@ export function MemcachedOverview() {
                       value={statFilter}
                       onChange={(event) => setStatFilter(event.target.value)}
                       className="mc-search-input mono"
-                      placeholder={statExact ? t('完整字段名') : t('搜索字段名')}
+                      placeholder={statExact ? t('memcachedOverview.fullFieldName') : t('memcachedOverview.searchFieldNames')}
                       spellCheck={false}
                     />
                     {statFilter ? (
                       <button
                         className="mc-search-clear"
-                        {...tipProps(t('清除'))}
+                        {...tipProps(t('memcachedOverview.clear'))}
                         onClick={() => setStatFilter('')}
                       >
                         <DialogIcon name="cancel" size={10} />
@@ -338,7 +321,7 @@ export function MemcachedOverview() {
                       className={`mc-search-exact${statExact ? ' on' : ''}`}
                       role="checkbox"
                       aria-checked={statExact}
-                      {...tipProps(statExact ? t('精确匹配（点击切换为模糊）') : t('模糊匹配（点击切换为精确）'))}
+                      {...tipProps(statExact ? t('memcachedOverview.exactMatch') : t('memcachedOverview.fuzzyMatch'))}
                       onClick={() => setStatExact((v) => !v)}
                     >
                       Aa
@@ -360,25 +343,25 @@ export function MemcachedOverview() {
                   </div>
                 ) : (
                   <p className="mc-empty">
-                    {t('没有匹配「{filter}」的统计项', { filter: statFilter })}
-                    {statExact ? t('（当前为精确匹配，试试切换为模糊）') : ''}
+                    {t('memcachedOverview.noStatsItemsMatchFilter', { filter: statFilter })}
+                    {statExact ? t('memcachedOverview.exactMatchHint') : ''}
                   </p>
                 )}
               </section>
 
               <section className="mc-pane-card">
                 <header className="mc-pane-head">
-                  <h4 className="mc-pane-title">{t('slab 分布')}</h4>
-                  <span className="mc-pane-count mono">{t('{count} 个 class', { count: slabs.length })}</span>
+                  <h4 className="mc-pane-title">{t('memcachedOverview.slabDistribution')}</h4>
+                  <span className="mc-pane-count mono">{t('memcachedOverview.countClasses', { count: slabs.length })}</span>
                 </header>
                 {slabs.length ? (
                   <table className="mc-table">
                     <thead>
                       <tr>
                         <th>slab</th>
-                        <th>{t('条目数')}</th>
-                        <th>{t('最老条目')}</th>
-                        <th>{t('淘汰数')}</th>
+                        <th>{t('memcachedOverview.entries')}</th>
+                        <th>{t('memcachedOverview.oldestEntry')}</th>
+                        <th>{t('memcachedOverview.evictions')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -393,7 +376,7 @@ export function MemcachedOverview() {
                     </tbody>
                   </table>
                 ) : (
-                  <p className="mc-empty">{t('当前实例没有缓存条目')}</p>
+                  <p className="mc-empty">{t('memcachedOverview.currentInstanceNoCached')}</p>
                 )}
               </section>
             </div>
@@ -403,12 +386,12 @@ export function MemcachedOverview() {
             <div className="ov-tab-pane">
               <section className="mc-pane-card">
                 <header className="mc-pane-head">
-                  <h4 className="mc-pane-title">{t('运行参数')}</h4>
-                  <span className="mc-pane-count mono">{t('{count} 项', { count: Object.keys(overview?.settings ?? {}).length })}</span>
+                  <h4 className="mc-pane-title">{t('memcachedOverview.runtimeParameters')}</h4>
+                  <span className="mc-pane-count mono">{t('memcachedOverview.countItems', { count: Object.keys(overview?.settings ?? {}).length })}</span>
                   <span className="spacer" />
                   <button className="mc-run danger" onClick={() => void flushAll()}>
                     <DialogIcon name="trash" size={12} className="ti" />
-                    {t('清空全部数据')}
+                    {t('memcachedOverview.clearAllData')}
                   </button>
                 </header>
                 {Object.keys(overview?.settings ?? {}).length ? (
@@ -422,7 +405,7 @@ export function MemcachedOverview() {
                   </div>
                 ) : (
                   <p className="mc-empty">
-                    {t('该实例没有返回 settings（部分托管服务会禁用该命令），因此无法展示运行参数。')}
+                    {t('memcachedOverview.instanceNotReturnSettings')}
                   </p>
                 )}
               </section>
@@ -435,15 +418,15 @@ export function MemcachedOverview() {
 }
 
 /** 运行时长：86400 这类秒数对人类不直观，转成「1 天 2 小时」 */
-function formatUptime(seconds: number, t: (key: string, params?: TParams) => string): string {
+function formatUptime(seconds: number, t: TFunction): string {
   if (!Number.isFinite(seconds) || seconds < 0) return '—'
-  if (seconds < 60) return t('{seconds} 秒', { seconds: Math.floor(seconds) })
+  if (seconds < 60) return t('bulkOpsPanel.seconds', { seconds: Math.floor(seconds) })
   const days = Math.floor(seconds / 86400)
   const hours = Math.floor((seconds % 86400) / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)
-  if (days > 0) return t('{days} 天 {hours} 小时', { days, hours })
-  if (hours > 0) return t('{hours} 小时 {minutes} 分', { hours, minutes })
-  return t('{minutes} 分', { minutes })
+  if (days > 0) return t('memcachedOverview.daysHours', { days, hours })
+  if (hours > 0) return t('memcachedOverview.hoursMinutes', { hours, minutes })
+  return t('memcachedOverview.minutes', { minutes })
 }
 
 export default MemcachedOverview

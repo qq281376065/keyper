@@ -87,7 +87,7 @@ export function DialogShell({
               variant="ghost"
               size="icon"
               className="dlg-close"
-              aria-label={t('关闭')}
+              aria-label={t('common.close')}
               onClick={onClose}
             >
               <DialogIcon name="cancel" size={13} />
