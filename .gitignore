@@ -24,6 +24,7 @@ release-cfg/
 release-ssh/
 
 # 开发期的截图与临时探针产物（不属于源码）
+.qa/
 hero-*.png
 previews/
 nul
