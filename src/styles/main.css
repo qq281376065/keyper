@@ -11,6 +11,11 @@
   --bg-hover: #272c37;
   --bg-active: #2f3542;
 
+  /* 阴影墨色（rgb 三元组，配 rgb(var(--shadow-ink) / 透明度) 用）：0 0 0 —— 浅底带色相更自然，暗底只有纯黑压得出层次 */
+  --shadow-ink: 0 0 0;
+  /* 页签阴影两层的不透明度：浅底取低值保持轻盈；暗底黑压黑，同一档只剩 5 个通道差，须拉到 .40 */
+  --tab-shadow-a1: .40;
+  --tab-shadow-a2: .44;
   --border: #2b3140;
   --border-strong: #3a4256;
 
@@ -124,6 +129,11 @@
   --bg-hover: #e8eaef;
   --bg-active: #dfe2e9;
 
+  /* 阴影墨色（rgb 三元组，配 rgb(var(--shadow-ink) / 透明度) 用）：27 36 48 —— 浅底带色相更自然，暗底只有纯黑压得出层次 */
+  --shadow-ink: 27 36 48;
+  /* 页签阴影两层的不透明度：浅底取低值保持轻盈；暗底黑压黑，同一档只剩 5 个通道差，须拉到 .40 */
+  --tab-shadow-a1: .13;
+  --tab-shadow-a2: .18;
   --border: #d9dce3;
   --border-strong: #c2c7d0;
 
@@ -191,6 +201,11 @@
   --bg-hover: #1e2c46;
   --bg-active: #253654;
 
+  /* 阴影墨色（rgb 三元组，配 rgb(var(--shadow-ink) / 透明度) 用）：0 0 0 —— 浅底带色相更自然，暗底只有纯黑压得出层次 */
+  --shadow-ink: 0 0 0;
+  /* 页签阴影两层的不透明度：浅底取低值保持轻盈；暗底黑压黑，同一档只剩 5 个通道差，须拉到 .40 */
+  --tab-shadow-a1: .40;
+  --tab-shadow-a2: .44;
   --border: #22304a;
   --border-strong: #31456a;
 
@@ -198,7 +213,17 @@
   --text-secondary: #93a5c1;
   --text-muted: #5f7192;
 
-  --accent: #ff5c49;
+  /*
+   * 强调色：深海青 #2FD4E6（色相 186°），和这套的深海军蓝底同族。
+   *
+   * 原来是珊瑚红 #ff5c49 —— 在深蓝底上虽然够亮（对面板 5.65），但红配蓝是
+   * 「告警」的语义，而且它的白字对比只有 3.05，按钮文字本来就不达标。
+   * 换青之后三个指标全面变好：对 --bg-panel 9.6、深字在青上 9.21、
+   * 页签激活态「青字在 15% 淡底上」6.99。
+   *
+   * 青色亮度高，白字压上去只有 1.8，必须换深字（--on-accent: #04222B，9.21）。
+   */
+  --accent: #2FD4E6;
   /*
    * 深海皮肤的品牌图标走「磨砂玻璃」：浅灰渐变 + 白色内描边 + 强顶部高光，
    * 符号改用近黑。深色界面里一块亮玻璃，是九套里唯一的反差点。
@@ -215,9 +240,9 @@
   --cta-fg: #3B0A05;
   --brand-edge: 0.85;
   --brand-glow: 0.85;
-  --accent-hover: #ff7566;
-  --accent-soft: rgba(255, 92, 73, 0.15);
-  --on-accent: #ffffff;
+  --accent-hover: #5AE0EF;
+  --accent-soft: rgba(47, 212, 230, 0.15);
+  --on-accent: #04222B;
 
   --blue: #56a8ff;
   --green: #3ddc97;
@@ -264,6 +289,11 @@
   --bg-hover: #e6dfc8;
   --bg-active: #dcd4b9;
 
+  /* 阴影墨色（rgb 三元组，配 rgb(var(--shadow-ink) / 透明度) 用）：60 45 20 —— 浅底带色相更自然，暗底只有纯黑压得出层次 */
+  --shadow-ink: 60 45 20;
+  /* 页签阴影两层的不透明度：浅底取低值保持轻盈；暗底黑压黑，同一档只剩 5 个通道差，须拉到 .40 */
+  --tab-shadow-a1: .13;
+  --tab-shadow-a2: .18;
   --border: #d9d1b6;
   --border-strong: #c2b995;
 
@@ -271,7 +301,18 @@
   --text-secondary: #586e75;
   --text-muted: #93a1a1;
 
-  --accent: #dc322f;
+  /*
+   * 强调色：琥珀深金 #8F5E00，与暖纸底（#eee8d5 / #fdf6e3 色相约 45°）同色系。
+   *
+   * 原来是 Solarized 官方红 #dc322f —— 在奶油黄底上读起来像「警告」，
+   * 而且这套的品牌图标是落日渐变（杏橙→玫瑰）、CTA 是杏橙，
+   * 红色和它们都不在同一色系，页面里三种暖色打架。
+   *
+   * 取值依据：对 --bg-app 4.84、对 --bg-panel 5.49、按钮白字 5.49，
+   * 激活态「12% 淡底上的文字」4.65（这一项决定了不能取更浅的金），
+   * 淡底本身与面板差 27 个通道值，比原来红色的 24 更清楚。
+   */
+  --accent: #8A5A00;
   /*
    * 暖纸皮肤用「落日」渐变：杏橙 → 玫瑰，符号取深栗。
    *
@@ -289,8 +330,8 @@
   --cta-a: #FFDDB8;
   --cta-b: #F5A15C;
   --cta-fg: #3B2405;
-  --accent-hover: #b93a2b;
-  --accent-soft: rgba(220, 50, 47, 0.12);
+  --accent-hover: #755000;
+  --accent-soft: rgba(138, 90, 0, 0.12);
   --on-accent: #fdf6e3;
 
   --blue: #268bd2;
@@ -338,6 +379,11 @@
   --bg-hover: #1f2c24;
   --bg-active: #26352b;
 
+  /* 阴影墨色（rgb 三元组，配 rgb(var(--shadow-ink) / 透明度) 用）：0 0 0 —— 浅底带色相更自然，暗底只有纯黑压得出层次 */
+  --shadow-ink: 0 0 0;
+  /* 页签阴影两层的不透明度：浅底取低值保持轻盈；暗底黑压黑，同一档只剩 5 个通道差，须拉到 .40 */
+  --tab-shadow-a1: .40;
+  --tab-shadow-a2: .44;
   --border: #243329;
   --border-strong: #354a3b;
 
@@ -405,6 +451,11 @@
   --bg-hover: #f6ecef;
   --bg-active: #efdee4;
 
+  /* 阴影墨色（rgb 三元组，配 rgb(var(--shadow-ink) / 透明度) 用）：52 24 34 —— 浅底带色相更自然，暗底只有纯黑压得出层次 */
+  --shadow-ink: 52 24 34;
+  /* 页签阴影两层的不透明度：浅底取低值保持轻盈；暗底黑压黑，同一档只剩 5 个通道差，须拉到 .40 */
+  --tab-shadow-a1: .13;
+  --tab-shadow-a2: .18;
   --border: #ecdbe1;
   --border-strong: #d9bcc8;
 
@@ -472,6 +523,11 @@
   --bg-hover: #e0efe5;
   --bg-active: #d0e6d7;
 
+  /* 阴影墨色（rgb 三元组，配 rgb(var(--shadow-ink) / 透明度) 用）：22 44 34 —— 浅底带色相更自然，暗底只有纯黑压得出层次 */
+  --shadow-ink: 22 44 34;
+  /* 页签阴影两层的不透明度：浅底取低值保持轻盈；暗底黑压黑，同一档只剩 5 个通道差，须拉到 .40 */
+  --tab-shadow-a1: .13;
+  --tab-shadow-a2: .18;
   --border: #d7e8dc;
   --border-strong: #b5d4bf;
 
@@ -539,6 +595,11 @@
   --bg-hover: #dfe7ef;
   --bg-active: #cfdce8;
 
+  /* 阴影墨色（rgb 三元组，配 rgb(var(--shadow-ink) / 透明度) 用）：28 42 58 —— 浅底带色相更自然，暗底只有纯黑压得出层次 */
+  --shadow-ink: 28 42 58;
+  /* 页签阴影两层的不透明度：浅底取低值保持轻盈；暗底黑压黑，同一档只剩 5 个通道差，须拉到 .40 */
+  --tab-shadow-a1: .13;
+  --tab-shadow-a2: .18;
   --border: #d2dde7;
   --border-strong: #a9bfd1;
 
@@ -611,6 +672,11 @@
   --bg-hover: #eaeef8;
   --bg-active: #dfe5f4;
 
+  /* 阴影墨色（rgb 三元组，配 rgb(var(--shadow-ink) / 透明度) 用）：20 24 40 —— 浅底带色相更自然，暗底只有纯黑压得出层次 */
+  --shadow-ink: 20 24 40;
+  /* 页签阴影两层的不透明度：浅底取低值保持轻盈；暗底黑压黑，同一档只剩 5 个通道差，须拉到 .40 */
+  --tab-shadow-a1: .13;
+  --tab-shadow-a2: .18;
   --border: #e6e9f3;
   --border-strong: #cbd2e6;
 

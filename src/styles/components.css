@@ -5954,6 +5954,28 @@
  * + 红色名字，圆得彻底、选中感最强；未激活仅 hover 淡底胶囊。
  * border 保持 transparent 占位：胶囊无边框，但保留 1px 槽位
  * 防止将来 hover 加描边时文字跳动。
+ *
+ * 阴影（2026-10 定稿，方案「静浮」）：四级，只靠影子深浅表达层级，不做位移。
+ *   默认     none
+ *   hover    单层 1px               —— 最轻，只是「鼠标在这儿」
+ *   激活     双层 1px 实 + 2px 虚   —— 「这个签立起来了」
+ *   激活+hover 同双层、透明度各深一点
+ *   按下     none                   —— 像指尖把纸按住
+ *
+ * 为什么参数都这么克制：.tab 高 28px、页签栏 36px，上下各只有 4px 余量，
+ * 而 .tab-strip 是 overflow-x: auto（按规范 overflow-y 随之变 auto），
+ * 纵向溢出的阴影会被裁掉。两层阴影的净可见范围正好是 3px / 4px，卡在余量内。
+ * 想加大必须先给 .tab-strip 腾出纵向空间，否则改了也看不见。
+ *
+ * 两层墨色与两级不透明度都走变量，九套皮肤各自配：
+ *   --shadow-ink     墨色三元组。浅色皮肤用带色相的深色（如 27 36 48），
+ *                    暗色皮肤用纯黑 —— 深底上带色相的墨几乎看不出来。
+ *   --tab-shadow-a1  近层不透明度；--tab-shadow-a2 远层。
+ *                    浅色 .13 / .18（轻盈）；暗色 .40 / .44。
+ *
+ * 暗色必须给到 .40 是实测算出来的：墨色 @18% 叠在 #131c17 上只差 5 个通道值，
+ * 肉眼等于没有；拉到 .44 才有 12 个通道差。同一个 alpha 打不了两套底。
+ * hover 与激活+hover 用 calc 从基准派生，改基准就整条链跟着走。
  */
 .tab{
   display: flex;
@@ -5968,6 +5990,8 @@
   max-width: 180px;
   flex: 0 0 auto;
   position: relative;
+  /* 只过渡影子与配色：不加 transform，避免切换标签时整排页签互相挤动 */
+  transition: box-shadow .16s ease, background-color .14s ease, color .14s ease;
   /*
    * 顶栏整体是窗口拖拽区（no-drag 只在按钮上豁免），
    * 标签栏贴着顶栏，同样给出拖拽豁免，避免点击被拖拽语义吞掉。
@@ -5977,12 +6001,32 @@
 .s-tab-bar .tab:hover{
   background: var(--bg-hover);
   color: var(--text-primary);
+  box-shadow: 0 1px 2px rgb(var(--shadow-ink) / calc(var(--tab-shadow-a1) * .75));
 }
 /* 写在 :hover 之后 —— 激活胶囊 hover 时保持红底，不被通用 hover 覆盖 */
 .s-tab-bar.tab.active, .s-tab-bar .tab.active{
   background: var(--accent-soft);
   color: var(--accent);
   font-weight: 600;
+  box-shadow:
+    0 1px 2px rgb(var(--shadow-ink) / var(--tab-shadow-a1)),
+    0 2px 4px -2px rgb(var(--shadow-ink) / var(--tab-shadow-a2));
+}
+/* 激活态再被悬停：保持双层结构，只把墨加深一档，不做额外位移 */
+.s-tab-bar .tab.active:hover{
+  box-shadow:
+    0 1px 2px rgb(var(--shadow-ink) / calc(var(--tab-shadow-a1) * 1.3)),
+    0 2px 4px -2px rgb(var(--shadow-ink) / calc(var(--tab-shadow-a2) * 1.33));
+}
+/* 按下（伪类 :active，与 .active 类不是一回事）：影子收干净 */
+.s-tab-bar .tab:active{
+  box-shadow: none;
+}
+/* 减少动态效果：只留最终态，不做影子过渡 */
+@media (prefers-reduced-motion: reduce){
+  .tab{
+    transition: none;
+  }
 }
 .s-tab-bar.tab-home, .s-tab-bar .tab-home{
   gap: 5px;
