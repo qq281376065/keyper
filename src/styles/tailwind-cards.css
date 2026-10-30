@@ -41,6 +41,48 @@
   --card-frame-bg: color-mix(in srgb, var(--bg-panel) 72%, #000000 28%);
 }
 
+/*
+ * 卡片内容面（三层结构里的最内层 L3）。
+ *
+ * 官方类名是 `bg-white dark:bg-muted`，写死 #fff 的后果是：**所有浅色皮肤
+ * 的内层面都是同一个纯白**，与浅底页面（light #f4f5f7 / sakura #f9f4f6 /
+ * mint #f3f8f4 / solarized #eee8d5…）格格不入 —— 白块从页面里"跳"出来，
+ * 换皮肤也不变色。
+ *
+ * 这里按主题现算：取面板色为主体，掺入页面底色，得到"近白但带这套皮肤色相"
+ * 的卡面。暗色系保持 --bg-elevated —— 它已经比外框亮一档，层次是够的，
+ * 再掺底色反而会压暗。
+ */
+:root,
+:root[data-theme='light'],
+:root[data-theme='solarized'],
+:root[data-theme='sakura'],
+:root[data-theme='mint'],
+:root[data-theme='mist'],
+:root[data-theme='aurora'] {
+  --card-face-bg: color-mix(in srgb, var(--bg-panel) 42%, var(--bg-app) 58%);
+}
+:root[data-theme='dark'],
+:root[data-theme='ocean'],
+:root[data-theme='forest'] {
+  --card-face-bg: var(--bg-elevated);
+}
+
+/*
+ * 薄荷 / 雾蓝 / 极光：这三套的面板色本身就是纯白或近白，
+ * 按上面的「面板 + 页面底」算出来仍是三种几乎分不出的近白
+ * （#F7FBF7 / #F5F7FA / #FBFCFD）。
+ *
+ * 改为掺入各自的主色：面板色 92% + 强调色 8%。比例取 8% 是因为
+ * 卡面是大面积色块，再高就开始"染色"、九宫格里的正文会显得发灰；
+ * 8% 刚好让三套一眼可辨，同时保持浅到不影响文字对比度。
+ */
+:root[data-theme='mint'],
+:root[data-theme='mist'],
+:root[data-theme='aurora'] {
+  --card-face-bg: color-mix(in srgb, var(--bg-panel) 92%, var(--accent) 8%);
+}
+
 @layer components {
   /*
    * 卡片根：宽度铺满内容区，高度随内容自然增长。
@@ -102,13 +144,10 @@
 
   /*
    * 内层卡片面用的是 `bg-white dark:bg-muted`。
-   * 深色下 --color-muted 已映射到 --bg-elevated，只剩"浅色也白得刺眼"
-   * 的问题 —— 纯白 #fff 放在 --bg-app #f4f5f7 上会跳出来，换成面板色
-   * 与整套配色一致。
+   * 具体的覆盖规则见本文件末尾（必须在 @layer 之外）—— 它要压过
+   * Tailwind 的 .bg-white 工具类，而 utilities 层在 components 之后求值，
+   * 写在 @layer components 里会被静默吃掉（踩过：加了规则却仍是纯白）。
    */
-  .feat-card .bg-white {
-    background-color: var(--bg-panel);
-  }
 
   /* 卡片标题：两张外壳卡共用 */
   .feat-card .card-title {
@@ -160,28 +199,50 @@
   /*
    * 九宫格：3 列 × 3 行。
    *
-   * 用 1px 的 gap + 内层背景做分隔线，比给每项加 border 更干净 ——
-   * 后者会在网格最外圈也画线，与卡片自身的圆角描边打架。
+   * 容器与条目都透明：九宫格与卡面同色，只靠条目内边距分组。
+   * （原来是「--border 铺底 + gap 1px 露出当分隔线」，那要求每个条目
+   *   都自带不透明底色；条目一旦透明，整块就会露出深色网格，故两者必须同步改。）
    */
   .feat-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 1px;
-    background: var(--border);
+    /* 分隔线改由条目的虚线边框承担，不再需要 gap */
+    gap: 0;
+    background: transparent;
     border-radius: 12px;
     overflow: hidden;
     margin: 0;
   }
 
-  /* 单个条目：自带底色，gap 露出的 1px 就是分隔线 */
+  /* 单个条目：默认透明，悬停才浮出底色作为交互反馈 */
   .feat-item {
     display: flex;
     flex-direction: column;
     gap: 6px;
     padding: 14px 15px;
-    background: var(--bg-elevated);
-    transition: background-color 0.15s;
+    background: transparent;
+    /*
+     * 九宫格内部的虚线：每个格子只画右、下两条，相邻格子之间正好一条线，
+     * 不会出现双线。外圈由下面的 nth-child 规则去掉 —— 留着会和卡片的
+     * 圆角以及外框内边打架。
+     */
+    border-right: 1px dashed var(--border);
+    border-bottom: 1px dashed var(--border);
+    transition: background-color 0.15s, border-color 0.15s;
   }
+  /* 3 列：最右列不画右线，最后一行不画下线 */
+  .feat-item:nth-child(3n) {
+    border-right: 0;
+  }
+  .feat-item:nth-last-child(-n + 3) {
+    border-bottom: 0;
+  }
+  /*
+   * 悬停底色直接用全局 --bg-hover：它是每套皮肤各自调过的交互底色
+   * （light #e8eaef / 薄荷 #e0efe5 / 雾蓝 #dfe7ef / 极光 #eaeef8 /
+   *   暖纸 #e6dfc8 / 樱花 #f6ecef），天然跟随主题与皮肤，也带各自色相；
+   * 不要再拿卡面混黑白 —— 混黑会把色相洗淡，混白在浅色下几乎看不出。
+   */
   .feat-item:hover {
     background: var(--bg-hover);
   }
@@ -224,10 +285,44 @@
     .feat-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+    /* 两列：右线只留左列（3n 那批原本被 3 列规则去掉了，这里补回），
+       底线则恢复倒数第 3 项起 —— 9 项两列时最后一行只有第 9 项 */
+    .feat-item:nth-child(3n) {
+      border-right: 1px dashed var(--border);
+    }
+    .feat-item:nth-child(2n) {
+      border-right: 0;
+    }
+    .feat-item:nth-last-child(-n + 3) {
+      border-bottom: 1px dashed var(--border);
+    }
+    /*
+     * 第 9 项独占一行，右线没有相邻格子可分隔，底边也在卡片最下沿。
+     * 必须写在 nth-last-child 之后 —— 两者特异性相同（都是两 class），
+     * 写在前面会被那条恢复底线的规则盖掉。
+     */
+    .feat-item:last-child {
+      border-right: 0;
+      border-bottom: 0;
+    }
   }
   @media (max-width: 620px) {
     .feat-grid {
       grid-template-columns: minmax(0, 1fr);
+    }
+    /*
+     * 一列：没有右线，只保留条目之间的一条底线。
+     * 选择器必须带 :nth-child(n) 才压得住上面 3n 那条（同为两class），
+     * 否则第 3/6/9 项还会留着右线。
+     */
+    .feat-item:nth-child(n) {
+      border-right: 0;
+    }
+    .feat-item:nth-last-child(-n + 3) {
+      border-bottom: 1px dashed var(--border);
+    }
+    .feat-item:last-child {
+      border-bottom: 0;
     }
   }
 }
@@ -239,9 +334,14 @@
   .info-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    /* 两栏之间的竖向分隔线，与九宫格的分隔线同色同粗细 */
+    /*
+     * 与九宫格同一口径：容器与栏位都透明，两栏只靠内边距分组。
+     * 原来是「--border 铺底 + gap 1px 当竖向分隔线」，那要求每一栏
+     * 都自带不透明底色；栏位一旦透明，整块就会露出深色的线，
+     * 所以容器必须跟着一起透明。
+     */
     gap: 1px;
-    background: var(--border);
+    background: transparent;
     border-radius: 12px;
     overflow: hidden;
     height: 100%;
@@ -251,8 +351,12 @@
     display: flex;
     flex-direction: column;
     padding: 15px 17px;
-    background: var(--bg-elevated);
+    background: transparent;
     min-width: 0;
+  }
+  /* 两栏之间的竖虚线：颜色与九宫格同一支，整页分隔线才像一套 */
+  .info-col:first-child {
+    border-right: 1px dashed var(--border);
   }
 
   .info-col .card-title {
@@ -268,6 +372,10 @@
   @media (max-width: 760px) {
     .info-grid {
       grid-template-columns: minmax(0, 1fr);
+    }
+    /* 单列后竖虚线失去意义（它右侧已经没有第二栏） */
+    .info-col:first-child {
+      border-right: 0;
     }
   }
 }
@@ -493,4 +601,20 @@
 .update-time {
   font-size: var(--fs-xs);
   color: var(--text-muted);
+}
+
+/* ---------------------------------------------------------------------------
+ * 卡片内容面（三层里的 L3）——必须放在所有 @layer 之外
+ *
+ * Tailwind 的 `.bg-white` 属于 utilities 层，而层叠顺序是
+ * theme → base → components → utilities：utilities 永远赢过 components。
+ * 早先这条覆盖写在 `@layer components` 里，于是被 .bg-white 静默压掉
+ * （表现就是所有浅色皮肤的内层面都一样白，换主题不变色，且控制台无任何提示）。
+ * 未分层的普通规则优先于任何 @layer，这才是能稳定生效的位置。
+ *
+ * 颜色走 --card-face-bg：浅色皮肤按"面板色 + 页面底色"现算，保留各自色相；
+ * 暗色系直接用 --bg-elevated。
+ * ------------------------------------------------------------------------- */
+.feat-card .bg-white {
+  background-color: var(--card-face-bg);
 }
