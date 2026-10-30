@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 
 import { cn } from "@/lib/utils"
 
@@ -57,6 +57,37 @@ function goldenBase(index: number): number {
  */
 function pseudoRandom(tick: number, index: number): number {
   return ((tick * 2654435761 + index * 340573321) >>> 0) % FONT_COUNT
+}
+
+function fontIndexFor(
+  mode: PixelHeadingMode,
+  visibleIndex: number,
+  ms: number,
+  cycleInterval: number,
+  staggerDelay: number,
+  defaultFontIndex: number
+): number {
+  switch (mode) {
+    case "uniform": {
+      const cycles = Math.floor(ms / cycleInterval)
+      return (defaultFontIndex + cycles) % FONT_COUNT
+    }
+    case "multi": {
+      const charMs = Math.max(0, ms - visibleIndex * staggerDelay)
+      const cycles = Math.floor(charMs / cycleInterval)
+      return (goldenBase(visibleIndex) + cycles) % FONT_COUNT
+    }
+    case "wave": {
+      const charMs = Math.max(0, ms - visibleIndex * staggerDelay)
+      const cycles = Math.floor(charMs / cycleInterval)
+      return (visibleIndex + cycles) % FONT_COUNT
+    }
+    case "random": {
+      const charMs = Math.max(0, ms - visibleIndex * staggerDelay)
+      const cycles = Math.floor(charMs / cycleInterval)
+      return cycles > 0 ? pseudoRandom(cycles, visibleIndex) : goldenBase(visibleIndex)
+    }
+  }
 }
 
 /* ─── Helpers ─── */
@@ -252,6 +283,47 @@ export function PixelHeading({
   const [isActive, setIsActive] = useState(false)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const prevUniformIndex = useRef(defaultFontIndex)
+  /** 当前动画毫秒数：仅驱动 DOM，不参与 React 渲染 */
+  const msRef = useRef(0)
+  /** 逐字 span 引用，索引与 text 对齐（空格 / isolate 字符为 null） */
+  const charElsRef = useRef<(HTMLSpanElement | null)[]>([])
+
+  /*
+   * 逐字字体切换直接写 span.className，不再每 50ms setState。
+   * 动画只是换 class，没有需要 React 参与的状态；
+   * 走 setState 会让整个标题组件每秒重渲染 20 次，纯属浪费。
+   * uniform 模式例外：字体类挂在外层 Tag 上，且可能回调外部 onFontIndexChange。
+   */
+  const applyFonts = useCallback(
+    (ms: number) => {
+      if (mode === "uniform") return
+      let vi = 0
+      for (let i = 0; i < text.length; i++) {
+        if (text[i] === " ") continue
+        const el = charElsRef.current[i]
+        if (el) {
+          const next =
+            PIXEL_FONTS[
+              fontIndexFor(mode, vi, ms, cycleInterval, staggerDelay, defaultFontIndex)
+            ]
+          if (el.className !== next) el.className = next
+        }
+        vi++
+      }
+    },
+    [mode, text, cycleInterval, staggerDelay, defaultFontIndex]
+  )
+
+  /* 父级重渲染按当前动画时间重刷字体类，防止 class 被拉回静止态 */
+  useLayoutEffect(() => {
+    applyFonts(msRef.current)
+  })
+
+  const tick = useCallback(() => {
+    msRef.current += TICK_MS
+    if (mode === "uniform") setMsElapsed(msRef.current)
+    else applyFonts(msRef.current)
+  }, [mode, applyFonts])
 
   /* ── Cleanup ── */
   useEffect(() => {
@@ -290,12 +362,14 @@ export function PixelHeading({
           intervalRef.current = null
         }
         setIsActive(false)
+        msRef.current = 0
         setMsElapsed(0)
+        applyFonts(0)
       }
     }
     mq.addEventListener('change', onChange)
     return () => mq.removeEventListener('change', onChange)
-  }, [])
+  }, [applyFonts])
 
   /* ── Auto-play: start cycling on mount ── */
   useEffect(() => {
@@ -303,10 +377,10 @@ export function PixelHeading({
     if (prefersReducedMotion) return
     // Kick off the interval immediately
     setIsActive(true)
+    msRef.current = 0
     setMsElapsed(0)
-    intervalRef.current = setInterval(() => {
-      setMsElapsed((prev) => prev + TICK_MS)
-    }, TICK_MS)
+    applyFonts(0)
+    intervalRef.current = setInterval(tick, TICK_MS)
 
     return () => {
       if (intervalRef.current) {
@@ -314,7 +388,7 @@ export function PixelHeading({
         intervalRef.current = null
       }
     }
-  }, [autoPlay, prefersReducedMotion])
+  }, [autoPlay, prefersReducedMotion, tick, applyFonts])
 
   /* Preference flipped on while playing: make sure nothing is left running. */
   useEffect(() => {
@@ -324,8 +398,10 @@ export function PixelHeading({
       intervalRef.current = null
     }
     setIsActive(false)
+    msRef.current = 0
     setMsElapsed(0)
-  }, [prefersReducedMotion])
+    applyFonts(0)
+  }, [prefersReducedMotion, applyFonts])
 
   /* ── Compute per-character font indices ── */
   const charFonts = useMemo(() => {
@@ -337,34 +413,9 @@ export function PixelHeading({
         fonts.push(-1)
         continue
       }
-
-      switch (mode) {
-        case "uniform": {
-          const cycles = Math.floor(msElapsed / cycleInterval)
-          const idx = (defaultFontIndex + cycles) % FONT_COUNT
-          fonts.push(idx)
-          break
-        }
-        case "multi": {
-          const base = goldenBase(vi)
-          const charMs = Math.max(0, msElapsed - vi * staggerDelay)
-          const cycles = Math.floor(charMs / cycleInterval)
-          fonts.push((base + cycles) % FONT_COUNT)
-          break
-        }
-        case "wave": {
-          const charMs = Math.max(0, msElapsed - vi * staggerDelay)
-          const cycles = Math.floor(charMs / cycleInterval)
-          fonts.push((vi + cycles) % FONT_COUNT)
-          break
-        }
-        case "random": {
-          const charMs = Math.max(0, msElapsed - vi * staggerDelay)
-          const cycles = Math.floor(charMs / cycleInterval)
-          fonts.push(cycles > 0 ? pseudoRandom(cycles, vi) : goldenBase(vi))
-          break
-        }
-      }
+      fonts.push(
+        fontIndexFor(mode, vi, msElapsed, cycleInterval, staggerDelay, defaultFontIndex)
+      )
       vi++
     }
     return fonts
@@ -405,11 +456,11 @@ export function PixelHeading({
       intervalRef.current = null
     }
     setIsActive(true)
+    msRef.current = 0
     setMsElapsed(0)
-    intervalRef.current = setInterval(() => {
-      setMsElapsed((prev) => prev + TICK_MS)
-    }, TICK_MS)
-  }, [prefersReducedMotion])
+    applyFonts(0)
+    intervalRef.current = setInterval(tick, TICK_MS)
+  }, [prefersReducedMotion, applyFonts, tick])
 
   const stopCycling = useCallback(() => {
     if (autoPlay) {
@@ -461,11 +512,16 @@ export function PixelHeading({
     (e: React.KeyboardEvent<HTMLHeadingElement>) => {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault()
-        setMsElapsed((prev) => prev + cycleInterval)
+        if (mode === "uniform") {
+          setMsElapsed((prev) => prev + cycleInterval)
+        } else {
+          msRef.current += cycleInterval
+          applyFonts(msRef.current)
+        }
       }
       onKeyDown?.(e)
     },
-    [cycleInterval, onKeyDown]
+    [mode, cycleInterval, applyFonts, onKeyDown]
   )
 
   /* ── Uniform font index (for class on the Tag itself) ── */
@@ -554,6 +610,9 @@ export function PixelHeading({
                 <span
                   // biome-ignore lint/suspicious/noArrayIndexKey: stable character sequence
                   key={i}
+                  ref={(el) => {
+                    charElsRef.current[i] = el
+                  }}
                   className={PIXEL_FONTS[charFonts[i]]}
                   aria-hidden
                 >
