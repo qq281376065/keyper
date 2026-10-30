@@ -33,6 +33,16 @@ export interface TipState {
   placement: TipPlacement
   /** 是否强制单行（用于短标签，禁止换行） */
   nowrap: boolean
+  /**
+   * 显示序号：每次 showTip 自增。
+   *
+   * 为什么需要它：同一个元素可以被反复悬停，第二次进入时 text / anchor /
+   * placement 全都与上次相同 —— store 的 set trap 对等值写入直接跳过不 emit，
+   * 渲染层就不会重新定位；一旦上一次定位因锚点尚未挂载而失败（placed=false），
+   * 这里就再也恢复不过来，表现为「第一次有提示，移开再移回来就不显示」。
+   * 序号保证每次显示请求都是一个可观察的变化。
+   */
+  seq: number
 }
 
 /** 全局唯一的提示状态 */
@@ -42,6 +52,7 @@ export const tipHolder = defineStore<TipState>({
   anchor: null,
   placement: 'top',
   nowrap: false,
+  seq: 0,
 })
 
 const state = tipHolder.store
@@ -89,6 +100,8 @@ export function showTip(
   state.anchor = el
   state.placement = placement
   state.nowrap = nowrap
+  // 即使其余字段与上次完全相同（同一元素反复悬停），也保证渲染层收到一次变更
+  state.seq = (state.seq ?? 0) + 1
 }
 
 /**
@@ -98,10 +111,20 @@ export function showTip(
  */
 export function hideTip(immediate = false): void {
   activeEl = null
-  if (!state.visible) return
+  clearHideTimer()
+  if (!state.visible) {
+    /*
+     * 已经不可见：仍然把残留内容清干净。
+     * 否则上次淡出留下的 text / anchor 会让下一次 showTip 的写入
+     * 被 store 的等值判断跳过，渲染层收不到变更（现在有 seq 兜底，
+     * 但状态不留脏数据总是更稳）。
+     */
+    state.anchor = null
+    state.text = ''
+    return
+  }
 
   if (immediate) {
-    clearHideTimer()
     state.visible = false
     state.anchor = null
     return
@@ -111,7 +134,6 @@ export function hideTip(immediate = false): void {
    * 保留 anchor 与 text 让元素完成淡出动画，
    * 仅把 visible 置 false；下次 showTip 会整体覆盖状态。
    */
-  clearHideTimer()
   state.visible = false
   hideTimer = window.setTimeout(() => {
     // 若期间没有新的显示请求，才真正清空内容
@@ -207,21 +229,56 @@ function resolveNowrap(cfg: TipBinding): boolean {
  * 注意：与原生 `title` **不可共存** —— 同时存在时浏览器仍会弹出
  * 原生提示，自绘气泡与系统气泡重叠。替换时务必把 `title` 删掉。
  */
+/**
+ * 已绑定提示的元素 → 它的提示配置。
+ *
+ * 用途：处理**嵌套绑定**（页签按钮上挂了连接信息，页签里的关闭 × 也挂了
+ * 「关闭」提示）。鼠标从子元素移回父元素时，子元素的 mouseleave 会把提示
+ * 收起，而父元素的 mouseenter 不会重新触发（指针从未离开父元素），
+ * 结果是提示就此消失、要移出再移进才恢复。留下这份映射才能在离开子元素时
+ * 把最近的已绑定祖先的提示还原回去。
+ */
+const bindings = new WeakMap<HTMLElement, TipBinding>()
+
 export function tipProps(value: TipInput): {
   onMouseEnter: (event: React.MouseEvent<HTMLElement>) => void
-  onMouseLeave: () => void
+  onMouseLeave: (event: React.MouseEvent<HTMLElement>) => void
   onMouseDown: () => void
 } {
   const cfg = normalize(value)
   return {
     onMouseEnter: (event) => {
+      const el = event.currentTarget
+      bindings.set(el, cfg)
       /*
        * 进入时二次校正：binding 更新时可能还没拿到最终文本
        * （如异步加载的字段名），进入时才是准确值。
        */
-      showTip(event.currentTarget, cfg.text, cfg.placement, resolveNowrap(cfg))
+      showTip(el, cfg.text, cfg.placement, resolveNowrap(cfg))
     },
-    onMouseLeave: () => hideTip(),
+    onMouseLeave: (event) => {
+      const el = event.currentTarget
+      const next = event.relatedTarget as Node | null
+
+      // 移入自己的子元素：浏览器仍会派发本元素的 mouseleave，
+      // 但指针并没离开本元素 —— 收起会让提示闪一下（子元素紧接着会覆盖）
+      if (next instanceof Node && el.contains(next)) return
+
+      // 从子元素移回本元素内部的其他区域：还原最近的已绑定祖先的提示
+      let parent = el.parentElement
+      while (parent) {
+        const binding = bindings.get(parent)
+        if (binding) {
+          if (next instanceof Node && parent.contains(next)) {
+            showTip(parent, binding.text, binding.placement, resolveNowrap(binding))
+            return
+          }
+        }
+        parent = parent.parentElement
+      }
+
+      hideTip()
+    },
     /* 按下即收起：点击后弹出的菜单/弹窗会盖住气泡，
      * 让它留在原地会像一块没清掉的残留物。 */
     onMouseDown: () => hideTip(),

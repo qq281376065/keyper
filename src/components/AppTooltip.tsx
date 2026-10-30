@@ -43,20 +43,29 @@ export function AppTooltip() {
    * 翻转规则：优先使用传入的 placement；若该方向空间不足，
    * 则尝试相反方向；两侧都不足时仍用原方向（此时会贴近边缘，
    * 由 EDGE 保证不完全出界）。
+   *
+   * @returns 是否成功定位。锚点尚未挂载（或尺寸为 0）时返回 false，
+   *          由调用方安排重试 —— 否则 placed 会永久停在 false，
+   *          气泡就再也不显形了。
    */
-  function place(): void {
+  function place(): boolean {
     const el = ref.current
     const anchor = tip.anchor
-    if (!el || !anchor) return
+    if (!el || !anchor) return false
 
     // 元素已从 DOM 摘除（v-if / 条件渲染更新）时没有可用坐标
     if (!anchor.isConnected) {
       setPlaced(false)
-      return
+      return false
     }
 
     const rect = anchor.getBoundingClientRect()
     const box = el.getBoundingClientRect()
+    // 零尺寸：锚点刚插入、浏览器还没完成布局，直接量会得到 0×0
+    if (!rect.width && !rect.height) {
+      setPlaced(false)
+      return false
+    }
     const vw = window.innerWidth
     const vh = window.innerHeight
 
@@ -104,6 +113,7 @@ export function AppTooltip() {
 
     setPos({ top: Math.round(top), left: Math.round(left) })
     setPlaced(true)
+    return true
   }
 
   /*
@@ -112,6 +122,10 @@ export function AppTooltip() {
    * 必须等 DOM 提交后再量尺寸：effect 内 ref 上已经是新文本，
    * 但浏览器尚未完成布局，需要下一帧（rAF）才能量到正确高度。
    * 量出旧高度会导致位置偏移（表现为气泡与图标错开半行）。
+   *
+   * 依赖里的 `tip.seq` 保证「同一元素第二次悬停」也会重跑：
+   * 第二次进入时 text / anchor 都与上次相同，store 对等值写入不 emit，
+   * 只靠这些字段会漏掉这一轮定位。
    */
   useEffect(() => {
     if (!tip.visible) {
@@ -120,12 +134,32 @@ export function AppTooltip() {
     }
     // 先隐藏再量，避免旧位置闪现
     setPlaced(false)
-    const raf = requestAnimationFrame(() => {
-      requestAnimationFrame(place)
+
+    let raf = 0
+    let tries = 0
+
+    /**
+     * 递归重试：锚点可能晚一帧才连上 DOM（弹层刚挂载、列表刚插入），
+     * 此时 getBoundingClientRect 全为 0。最多重试 3 帧，
+     * 仍失败就收起 —— 让状态回到「不可见」，而不是留一个
+     * visible=true 却永远 placed=false 的死状态。
+     */
+    const run = (): void => {
+      if (place()) return
+      tries += 1
+      if (tries >= 3) {
+        setPlaced(false)
+        return
+      }
+      raf = requestAnimationFrame(run)
+    }
+
+    raf = requestAnimationFrame(() => {
+      raf = requestAnimationFrame(run)
     })
     return () => cancelAnimationFrame(raf)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tip.visible, tip.text, tip.anchor, tip.placement, tip.nowrap])
+  }, [tip.visible, tip.text, tip.anchor, tip.placement, tip.nowrap, tip.seq])
 
   if (!tip.visible || !tip.text) return null
 
