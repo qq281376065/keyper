@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { utf8Bytes } from '@/utils/format'
 import { api } from '@/api'
 import { useRedis } from '@/store/useRedis'
@@ -108,10 +108,15 @@ export function useHashEditor(ctx: ValueEditorContext) {
     }
   }
 
-  // 键或能力变化时重新拉取字段 TTL
+  // 键或能力变化时重新拉取字段 TTL。
+  // 加 ref 去重：Activity 重新显示会重放 effect，键没变时不应再打一次请求。
   const currentKey = value?.key ?? ''
   const capabilityFlag = capabilities.hashFieldTtl
+  const ttlSignatureRef = useRef('')
   useEffect(() => {
+    const signature = `${currentKey}|${capabilityFlag}`
+    if (ttlSignatureRef.current === signature) return
+    ttlSignatureRef.current = signature
     void loadFieldTtls()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentKey, capabilityFlag])

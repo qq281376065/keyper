@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Activity, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { api } from '@/api'
 import { BulkOpsPanel } from '@/components/BulkOpsPanel'
@@ -105,59 +105,19 @@ function tabLabel(text: string, head = 12, tail = 8): React.ReactNode {
 /**
  * 值查看/编辑区（右侧主面板）。
  *
- * 结构：
- *   BulkOpsPanel（批量任务进行中独占）→ 骨架屏 → 值头 + 工具栏 + 表格 → 状态栏
- *   未选键时展示 ServerOverview（已连接）或占位提示。
+ * 每个打开的书签各自常驻一个 ValueDetailPane，由 <Activity> 控制显隐：
+ * 切走的标签只是隐藏，筛选、排序、编辑草稿与滚动位置全部保留。
+ * 值按 key 缓存在本层 —— 切回已读过的标签时先用缓存即时呈现，
+ * 同时静默重读一次，避免看到过期数据。
  *
- * 移植说明：
- * - 7 个 editor hook 与 Vue 版一一对应（string/hash/list/set/zset/stream + lineView）；
- * - 模板里的 v-if 链改为按类型分支渲染的表单片段；
- * - 浮层菜单用 createPortal 挂到 body（与 Vue 的 Teleport 等价）。
+ * 结构：
+ *   BulkOpsPanel（批量任务进行中独占）→ 各书签面板 → ServerOverview
+ *   未选键时展示 ServerOverview（已连接）或占位提示。
  */
 export function ValueViewer() {
-  const { state, activeConnection, renameKey, setTtl, notify, refreshSelected, selectKey, markSelected } = useRedis()
-  /* 订阅：本标签的会话（或全局）任一写入都重渲染 —— 与 Vue 的响应式粒度一致 */
+  const { state, activeConnection, selectKey, markSelected } = useRedis()
+  /* 订阅：书签条、键列表与选中值都来自会话 store */
   useObservable(useSessionStore())
-
-  const value = state.selectedValue
-  /** 正在读取键值：期间展示骨架屏，避免右侧看起来"卡住" */
-  const loading = state.loadingValue
-  /** 刷新当前键：值区叠加轻量 loading，页面结构保持不变 */
-  const refreshingValue = state.refreshingValue
-
-  /**
-   * 服务端能力：由当前连接的 redis_version 推导。
-   * hash 字段级 TTL 需要 Redis 7.4+，版本未知时按不支持处理。
-   */
-  const capabilities = resolveCapabilities(activeConnection?.version)
-
-  const [filter, setFilter] = useState('')
-  const [pretty, setPretty] = useState(true)
-  /** 自动换行：关闭后超长单行可横向滚动，便于比对长串 */
-  const [wrap, setWrap] = useState(true)
-
-  const [renameVisible, setRenameVisible] = useState(false)
-  const [ttlVisible, setTtlVisible] = useState(false)
-  const [editVisible, setEditVisible] = useState(false)
-  /** 自动刷新开关：开启后每 5 秒重新读取一次 */
-  const [autoRefresh, setAutoRefresh] = useState(false)
-
-  /** 排序键：field（hash 字段名）/ value（内容或 score）/ member（zset 成员、stream ID） */
-  const [sortKey, setSortKey] = useState<'field' | 'value' | 'member' | null>(null)
-  const [sortAsc, setSortAsc] = useState(true)
-
-  /**
-   * 列宽（仅 hash / zset，按类型独立记录，仅会话内有效 —— 按要求不持久化）。
-   * 用 CSS 变量驱动栅格而非拼接 grid-template-columns 字符串。
-   */
-  const [colWidth, setColWidth] = useState({
-    hash: { ...DEFAULT_COL_WIDTH.hash },
-    zset: { ...DEFAULT_COL_WIDTH.zset },
-  })
-
-  /** 表格容器的实际可用宽度，用于约束拖拽上限 */
-  const [tableWidth, setTableWidth] = useState(0)
-  const tableRef = useRef<HTMLDivElement | null>(null)
 
   /* ---------------- 底部键书签（方案 05） ----------------
    * 每个连接各自一套书签：切走时把集合存进 tabStoreRef，切回时恢复。
@@ -176,6 +136,12 @@ export function ValueViewer() {
     caret: number
   } | null>(null)
 
+  /**
+   * 各书签最近一次读到的值。
+   * 隐藏标签的数据源：保留自己的最后快照，切回时先行呈现。
+   */
+  const [tabValues, setTabValues] = useState<Record<string, KeyValue>>({})
+
   const tabStripRef = useRef<HTMLDivElement | null>(null)
   const tabMenuInputRef = useRef<HTMLInputElement | null>(null)
   const tabHoverTimer = useRef<number | null>(null)
@@ -185,6 +151,14 @@ export function ValueViewer() {
   const tabStateRef = useRef({ open: openTabs, active: activeTab })
   tabStateRef.current = { open: openTabs, active: activeTab }
   const tabStoreRef = useRef<Record<string, { open: string[]; active: string }>>({})
+
+  /** store 读到的最新值写入对应书签的缓存（只接受与选中键同名的结果） */
+  useEffect(() => {
+    const key = state.selectedKey
+    const value = state.selectedValue
+    if (!key || !value || value.key !== key) return
+    setTabValues((prev) => (prev[key] === value ? prev : { ...prev, [key]: value }))
+  }, [state.selectedKey, state.selectedValue])
 
   /** 连接切换：保存旧连接的书签，恢复新连接的；没有记录则从选中键起步 */
   useEffect(() => {
@@ -196,6 +170,8 @@ export function ValueViewer() {
     setTabMenuOpen(false)
     setTabQuery('')
     cancelTabHover()
+    /* 旧连接的值快照一律作废：新连接的键可能同名，但内容无关 */
+    setTabValues({})
     if (!nextId) {
       setOpenTabs([])
       setActiveTab('detail')
@@ -211,13 +187,14 @@ export function ValueViewer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.activeId])
 
-  /** 切库：同一连接内键集合已变，旧书签作废 */
+  /** 切库：同一连接内键集合已变，旧书签与旧快照作废 */
   useEffect(() => {
     if (tabDbRef.current === state.activeDb) return
     tabDbRef.current = state.activeDb
     setOpenTabs([])
     setActiveTab('detail')
     setTabMenuOpen(false)
+    setTabValues({})
     const id = state.activeId
     if (id) tabStoreRef.current[id] = { open: [], active: 'detail' }
   }, [state.activeDb, state.activeId])
@@ -229,8 +206,15 @@ export function ValueViewer() {
       setActiveTab('detail')
       return
     }
+    /*
+     * 右键只 markSelected、不读取值：此时不抢走当前标签 ——
+     * 用户只是看了看菜单，值区不该突然被清空或换成概览。
+     * 真正打开（loadingValue 转 true）或已有缓存时再切换。
+     */
+    if (!state.loadingValue && state.selectedValue?.key !== key && !tabValues[key]) return
     setOpenTabs((prev) => (prev.includes(key) ? prev : [...prev, key]))
     setActiveTab(key)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.selectedKey])
 
   /*
@@ -243,6 +227,17 @@ export function ValueViewer() {
     setOpenTabs((prev) => (prev.includes(key) ? prev : [...prev, key]))
     setActiveTab(key)
   }, [state.loadingValue, state.selectedKey])
+
+  /** 关闭书签后丢弃它的缓存，避免下次打开看到旧内容 */
+  useEffect(() => {
+    setTabValues((prev) => {
+      const stale = Object.keys(prev).filter((key) => !openTabs.includes(key))
+      if (!stale.length) return prev
+      const next = { ...prev }
+      for (const key of stale) delete next[key]
+      return next
+    })
+  }, [openTabs])
 
   /** 把当前书签集合写回所属连接，供切走再切回时恢复 */
   useEffect(() => {
@@ -347,9 +342,9 @@ export function ValueViewer() {
     strip.scrollBy({ left: direction * Math.max(88, strip.clientWidth * 0.72), behavior: 'smooth' })
   }
 
-  /** 书签的元信息（类型 / TTL / 内存）：取自键列表，缺省回退当前值 */
+  /** 书签的元信息（类型 / TTL / 内存）：优先取缓存值，其次键列表 */
   function tabMeta(key: string): { key: string; type: KeyValue['type']; ttl: number; size?: number } | null {
-    const current = state.selectedValue?.key === key ? state.selectedValue : null
+    const current = tabValues[key] ?? null
     const item = state.keys.find((entry) => entry.key === key)
     if (item) {
       /* 扫描结果通常不带 size，已打开的那个键可以用值里的真实占用补上 */
@@ -362,12 +357,22 @@ export function ValueViewer() {
     return null
   }
 
+  /** 切换书签：有缓存先静默重读（内容即时可见），没有则走骨架屏读取 */
+  function openTabValue(key: string): void {
+    if (state.selectedKey === key) {
+      /* 已是选中键却还没有内容（右键选中后切过来）：补一次读取 */
+      if (!tabValues[key] && !state.loadingValue) void selectKey(key)
+      return
+    }
+    void selectKey(key, tabValues[key] ? { silent: true } : undefined)
+  }
+
   function activateTab(key: string): void {
     cancelTabHover()
     setTabMenuOpen(false)
     setTabQuery('')
     setActiveTab(key)
-    if (state.selectedKey !== key) void selectKey(key)
+    openTabValue(key)
   }
 
   function showDetailTab(): void {
@@ -391,7 +396,7 @@ export function ValueViewer() {
     if (activeTab !== key) return
     if (next && rest.includes(next)) {
       setActiveTab(next)
-      void selectKey(next)
+      openTabValue(next)
     } else {
       setActiveTab('detail')
       markSelected(null)
@@ -447,6 +452,484 @@ export function ValueViewer() {
       })
     }, 90)
   }
+
+  /** 重命名成功：书签、激活项与悬停卡一起迁到新键名 */
+  function handleKeyRenamed(from: string, to: string): void {
+    setOpenTabs((prev) => Array.from(new Set(prev.map((key) => (key === from ? to : key)))))
+    setActiveTab((prev) => (prev === from ? to : prev))
+    setTabHover((prev) => (prev?.key === from ? { ...prev, key: to } : prev))
+    setTabValues((prev) => {
+      if (!(from in prev)) return prev
+      const next = { ...prev }
+      delete next[from]
+      return next
+    })
+  }
+
+  /*
+   * 书签渲染取当前连接的数据。
+   * 连接刚切换、effect 尚未跑完的这一帧里 tabConnRef 还是旧 id ——
+   * 此时宁可先不显示标签，也绝不把上一个连接的键画到新连接上。
+   */
+  const tabsReady = tabConnRef.current === state.activeId
+  const shownTabs = tabsReady ? openTabs : []
+  const shownActive = tabsReady ? activeTab : 'detail'
+  const tabKeyword = tabQuery.trim().toLowerCase()
+  const visibleTabs = tabKeyword
+    ? openTabs.filter((key) => key.toLowerCase().includes(tabKeyword))
+    : openTabs
+  const bulkActive = !!state.bulkTask && !!state.activeId
+  const activeValue = shownActive === 'detail' ? null : tabValues[shownActive] ?? null
+  const activeLoading =
+    shownActive !== 'detail' && state.loadingValue && state.selectedKey === shownActive
+  /*
+   * 没有可展示内容时回到概览：详情书签、右键短暂选中（尚未读取）、
+   * 或读取失败（无值且不在 loading）都属于这一类。
+   */
+  const overviewActive =
+    !!activeConnection && !bulkActive && (shownActive === 'detail' || (!activeLoading && !activeValue))
+  const hoverMeta = tabHover ? tabMeta(tabHover.key) : null
+  const hoverValue = tabHover ? tabValues[tabHover.key] ?? null : null
+
+  return (
+    <section className="viewer s-value-viewer">
+      {/*
+        批量操作面板：必须有连接才显示。
+        除了 store 在断开时会清理 bulkTask，这里再加一道渲染层的保险 ——
+        面板里的「执行 / 取消」都依赖 activeId，无连接时露出来就是个死界面。
+      */}
+      {bulkActive ? <BulkOpsPanel /> : null}
+
+      {/*
+        每个书签一个常驻面板。隐藏的书签不卸载，筛选、排序、列宽、
+        滚动位置与编辑草稿都留在各自的实例里。
+      */}
+      {shownTabs.map((key) => {
+        const isActive = !bulkActive && !overviewActive && shownActive === key
+        const cached = tabValues[key] ?? null
+        const selectedNow = state.selectedKey === key
+        return (
+          <Activity key={`${state.activeId}:${key}`} mode={isActive ? 'visible' : 'hidden'}>
+            <ValueDetailPane
+              value={cached}
+              loading={isActive && !cached && state.loadingValue && selectedNow}
+              refreshing={
+                isActive && !!cached && selectedNow && (state.refreshingValue || state.loadingValue)
+              }
+              active={isActive}
+              onRenamed={handleKeyRenamed}
+            />
+          </Activity>
+        )
+      })}
+
+      {overviewActive ? (
+        /* 未选中键 / 「详情」标签：服务端概览。按引擎分流，与原分支一致 */
+        activeConnection!.engine === 'memcached' ? (
+          <MemcachedOverview />
+        ) : (
+          <ServerOverview />
+        )
+      ) : null}
+
+      {!activeConnection && !bulkActive ? (
+        <div className="blank">
+          <div className="blank-inner">
+            <span className="blank-badge">Keyper</span>
+            <p>从中间列表选择一个键，查看其内容</p>
+            <p className="blank-hint">支持 string / hash / list / set / zset / stream 六种类型的浏览</p>
+          </div>
+        </div>
+      ) : null}
+
+      {/* ---------------- 底部键书签（方案 05）：固定详情 + 横向书签 + 更多 ---------------- */}
+      {activeConnection && !bulkActive ? (
+        <div className="viewer-tabs" role="tablist" aria-label="已打开的键">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={shownActive === 'detail'}
+            className={`vt-home${shownActive === 'detail' ? ' active' : ''}`}
+            onClick={showDetailTab}
+            {...tipProps('当前连接详情')}
+          >
+            <DialogIcon name="home" size={13} />
+            <span>详情</span>
+          </button>
+
+          <button
+            type="button"
+            className="vt-arrow"
+            disabled={!tabArrows.left}
+            onClick={() => scrollTabs(-1)}
+            aria-label="向左滚动"
+            title="向左滚动"
+          >
+            ‹
+          </button>
+
+          <div
+            className="vt-strip"
+            ref={tabStripRef}
+            onScroll={syncTabArrows}
+            onMouseLeave={cancelTabHover}
+          >
+            {shownTabs.length === 0 ? (
+              <span className="vt-empty">还没有打开键 · 从左侧选择</span>
+            ) : (
+              shownTabs.map((key) => {
+                const meta = tabMeta(key)
+                const isActive = shownActive === key
+                return (
+                  <div
+                    key={key}
+                    role="tab"
+                    aria-selected={isActive}
+                    tabIndex={0}
+                    data-vtab={key}
+                    className={`vt-tab${isActive ? ' active' : ''}`}
+                    /* 类型色只在激活顶线与圆点上体现，不给整块标签上色 */
+                    style={
+                      meta
+                        ? ({ '--vt-tc': `var(--badge-${meta.type}-fg)` } as React.CSSProperties)
+                        : undefined
+                    }
+                    onMouseEnter={(event) => queueTabHover(key, event.currentTarget)}
+                    onClick={() => activateTab(key)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        activateTab(key)
+                      }
+                    }}
+                    onAuxClick={(event) => {
+                      if (event.button === 1) {
+                        event.preventDefault()
+                        closeTab(key)
+                      }
+                    }}
+                  >
+                    <span className={`vt-dot${meta ? '' : ' unknown'}`} />
+                    <span className="vt-name" title={key}>
+                      {tabLabel(key)}
+                    </span>
+                    <button
+                      type="button"
+                      className="vt-x"
+                      title="关闭"
+                      aria-label={`关闭 ${key}`}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        closeTab(key)
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                )
+              })
+            )}
+          </div>
+
+          <button
+            type="button"
+            className="vt-arrow"
+            disabled={!tabArrows.right}
+            onClick={() => scrollTabs(1)}
+            aria-label="向右滚动"
+            title="向右滚动"
+          >
+            ›
+          </button>
+
+          <button
+            type="button"
+            className={`vt-more${tabMenuOpen ? ' on' : ''}`}
+            disabled={!shownTabs.length}
+            onClick={() => {
+              cancelTabHover()
+              setTabMenuOpen((prev) => !prev)
+              setTabQuery('')
+            }}
+            {...tipProps('更多操作')}
+          >
+            ⋯
+          </button>
+
+          {tabMenuOpen && shownTabs.length ? (
+            <>
+              <div
+                className="popover-mask"
+                onClick={() => {
+                  setTabMenuOpen(false)
+                  setTabQuery('')
+                }}
+              />
+              <div className="vt-menu" role="menu">
+                <div className="vt-menu-hd">
+                  <b className="mono">
+                    {tabKeyword ? `${visibleTabs.length} / ${shownTabs.length}` : shownTabs.length}
+                  </b>
+                  <span>个已打开的键</span>
+                  <button
+                    type="button"
+                    className="vt-menu-x"
+                    title="关闭 (Esc)"
+                    aria-label="关闭"
+                    onClick={() => {
+                      setTabMenuOpen(false)
+                      setTabQuery('')
+                    }}
+                  >
+                    {/* 内联叉号：DialogIcon 的 close 是「退出」图标，语义不对 */}
+                    <svg viewBox="0 0 24 24" width={11} height={11} aria-hidden="true">
+                      <path
+                        d="m6 6 12 12M18 6 6 18"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2.2}
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  </button>
+                </div>
+
+                <label className="vt-menu-search">
+                  <DialogIcon name="search" size={12} />
+                  <input
+                    ref={tabMenuInputRef}
+                    className="mono"
+                    value={tabQuery}
+                    spellCheck={false}
+                    placeholder="搜索已打开的键"
+                    aria-label="搜索已打开的键"
+                    onChange={(event) => setTabQuery(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault()
+                        const first = visibleTabs[0]
+                        if (first) activateTab(first)
+                      } else if (event.key === 'ArrowDown') {
+                        event.preventDefault()
+                        const firstItem = document.querySelector<HTMLElement>('.vt-menu .vt-mi')
+                        firstItem?.focus()
+                      }
+                    }}
+                  />
+                </label>
+
+                <div className="vt-menu-list">
+                  {visibleTabs.length ? (
+                    visibleTabs.map((key) => {
+                      const meta = tabMeta(key)
+                      return (
+                        <div
+                          key={key}
+                          role="menuitem"
+                          tabIndex={0}
+                          className={`vt-mi${shownActive === key ? ' active' : ''}`}
+                          onMouseEnter={cancelTabHover}
+                          onClick={() => activateTab(key)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault()
+                              activateTab(key)
+                            } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                              event.preventDefault()
+                              const items = Array.from(
+                                document.querySelectorAll<HTMLElement>('.vt-menu .vt-mi'),
+                              )
+                              const current = items.indexOf(event.currentTarget)
+                              const next = items[current + (event.key === 'ArrowDown' ? 1 : -1)]
+                              if (next) next.focus()
+                              else if (event.key === 'ArrowUp') tabMenuInputRef.current?.focus()
+                            }
+                          }}
+                        >
+                          <span className={`vt-t${meta ? ` type-${meta.type}` : ''}`}>
+                            {meta ? meta.type.charAt(0).toUpperCase() : '?'}
+                          </span>
+                          <span className="vt-mi-k mono" title={key}>
+                            {tabLabel(key, 20, 10)}
+                          </span>
+                          <button
+                            type="button"
+                            className="vt-mi-x"
+                            title="关闭"
+                            aria-label={`关闭 ${key}`}
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              closeTab(key)
+                            }}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      )
+                    })
+                  ) : (
+                    <div className="vt-menu-empty">没有匹配的键</div>
+                  )}
+                </div>
+
+                <div className="vt-menu-acts">
+                  <button
+                    type="button"
+                    className="vt-act"
+                    disabled={openTabs.length < 2}
+                    onClick={() => runTabBulk('others')}
+                  >
+                    <DialogIcon name="clone" size={11} />
+                    <span>关闭其他</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="vt-act"
+                    disabled={
+                      shownActive === 'detail' ||
+                      openTabs.indexOf(shownActive) >= openTabs.length - 1
+                    }
+                    onClick={() => runTabBulk('right')}
+                  >
+                    <DialogIcon name="expand" size={11} />
+                    <span>关闭右侧</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="vt-act danger"
+                    onClick={() => runTabBulk('all')}
+                  >
+                    <DialogIcon name="trash" size={11} />
+                    <span>全部关闭</span>
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/*
+        书签悬停统计卡：挂到 body，避免被 .value-area 的 overflow 裁掉。
+        只读展示，pointer-events: none —— 卡片本身不接事件，鼠标离开标签即消失。
+      */}
+      {!bulkActive && tabHover && hoverMeta
+        ? createPortal(
+            <div
+              className="vt-pop"
+              data-side={tabHover.side}
+              role="tooltip"
+              style={{
+                left: `${tabHover.left}px`,
+                top: `${tabHover.top}px`,
+                ['--vt-caret' as string]: `${tabHover.caret}px`,
+              }}
+            >
+              <div className="vp-k">
+                <span className={`vt-t type-${hoverMeta.type}`}>
+                  {hoverMeta.type.charAt(0).toUpperCase()}
+                </span>
+                <span className="vp-name mono">{tabHover.key}</span>
+                <span className="vp-type">{hoverMeta.type}</span>
+              </div>
+
+              <div className="vp-row">
+                <i>TTL</i>
+                <b className={`mono ${ttlTone(hoverMeta.ttl)}`}>
+                  {formatTtl(hoverMeta.ttl)}
+                  {ttlTone(hoverMeta.ttl) === 'urgent' ? <span className="vp-chip">即将过期</span> : null}
+                </b>
+              </div>
+
+              <div className="vp-row">
+                <i>内存</i>
+                <b className="mono">{hoverMeta.size != null ? formatBytes(hoverMeta.size) : '—'}</b>
+              </div>
+
+              {hoverValue ? (
+                <>
+                  <div className="vp-row">
+                    <i>编码</i>
+                    <b className="mono">{hoverValue.encoding ?? '—'}</b>
+                  </div>
+                  <div className="vp-row">
+                    <i>长度</i>
+                    <b className="mono">
+                      {hoverValue.length != null ? hoverValue.length : '—'}
+                      {hoverValue.size != null ? ` · ${formatBytes(hoverValue.size)}` : ''}
+                    </b>
+                  </div>
+                </>
+              ) : null}
+
+              <div className="vp-hint">点击切换 · × 关闭 · 滚轮 / ‹ › 横向滚动</div>
+            </div>,
+            document.body,
+          )
+        : null}
+    </section>
+  )
+}
+
+interface ValueDetailPaneProps {
+  /** 该标签对应键的值快照（由书签层缓存并传入） */
+  value: KeyValue | null
+  /** 首次读取该键：展示骨架屏 */
+  loading: boolean
+  /** 重新读取该键：叠加轻量刷新遮罩 */
+  refreshing: boolean
+  /** 是否为当前激活标签：portal 浮层只在激活时挂载 */
+  active: boolean
+  /** 重命名成功：把书签与缓存迁移到新键名 */
+  onRenamed: (from: string, to: string) => void
+}
+
+/**
+ * 单个键标签的内容面板。
+ *
+ * 每个打开的书签各挂一个实例，外层用 <Activity> 控制显隐：
+ * 切走的标签只是隐藏，编辑器草稿、筛选、排序与列宽全部保留，
+ * 切回来无需重新挂载。数据由外层缓存传入，刷新走同一个 store。
+ */
+function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: ValueDetailPaneProps) {
+  const { activeConnection, renameKey, setTtl, notify, refreshSelected } = useRedis()
+  /* 订阅：本标签的会话（或全局）任一写入都重渲染 —— 与 Vue 的响应式粒度一致 */
+  useObservable(useSessionStore())
+
+  /**
+   * 服务端能力：由当前连接的 redis_version 推导。
+   * hash 字段级 TTL 需要 Redis 7.4+，版本未知时按不支持处理。
+   */
+  const capabilities = resolveCapabilities(activeConnection?.version)
+
+  const [filter, setFilter] = useState('')
+  const [pretty, setPretty] = useState(true)
+  /** 自动换行：关闭后超长单行可横向滚动，便于比对长串 */
+  const [wrap, setWrap] = useState(true)
+
+  const [renameVisible, setRenameVisible] = useState(false)
+  const [ttlVisible, setTtlVisible] = useState(false)
+  const [editVisible, setEditVisible] = useState(false)
+  /** 自动刷新开关：开启后每 5 秒重新读取一次 */
+  const [autoRefresh, setAutoRefresh] = useState(false)
+
+  /** 排序键：field（hash 字段名）/ value（内容或 score）/ member（zset 成员、stream ID） */
+  const [sortKey, setSortKey] = useState<'field' | 'value' | 'member' | null>(null)
+  const [sortAsc, setSortAsc] = useState(true)
+
+  /**
+   * 列宽（仅 hash / zset，按类型独立记录，仅会话内有效 —— 按要求不持久化）。
+   * 用 CSS 变量驱动栅格而非拼接 grid-template-columns 字符串。
+   */
+  const [colWidth, setColWidth] = useState({
+    hash: { ...DEFAULT_COL_WIDTH.hash },
+    zset: { ...DEFAULT_COL_WIDTH.zset },
+  })
+
+  /** 表格容器的实际可用宽度，用于约束拖拽上限 */
+  const [tableWidth, setTableWidth] = useState(0)
+  const tableRef = useRef<HTMLDivElement | null>(null)
+  const areaRef = useRef<HTMLDivElement | null>(null)
 
   /*
    * 拖拽上下文：记录起始位置与起始宽度。
@@ -543,7 +1026,7 @@ export function ValueViewer() {
 
   /** editor hook 的上下文：用 getter 捕获当前渲染的最新值 */
   const ctx = {
-    getValue: () => state.selectedValue,
+    getValue: () => value,
     getKeyword: () => keyword,
     getPretty: () => pretty,
     getCapabilities: () => capabilities,
@@ -604,9 +1087,17 @@ export function ValueViewer() {
     streamEditor.closeStreamMenu()
   }
 
-  // 切换键时重置过滤词、排序与全部浮层状态，避免上一次的状态影响新键
+  /*
+   * 切换键时重置过滤词、排序与全部浮层状态，避免上一次的状态影响新键。
+   * 必须用 ref 判断「键真的变了」：<Activity> 隐藏会销毁并重建 effect，
+   * 若照旧无条件重置，每次切回标签都会把筛选与排序清掉，
+   * 那正是保活要避免的。
+   */
   const valueKey = value?.key ?? ''
+  const lastValueKey = useRef(valueKey)
   useEffect(() => {
+    if (lastValueKey.current === valueKey) return
+    lastValueKey.current = valueKey
     setFilter('')
     setSortKey(null)
     setSortAsc(true)
@@ -621,6 +1112,38 @@ export function ValueViewer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [valueKey])
 
+  /*
+   * 滚动位置记忆。
+   * Activity 隐藏时 display:none 会销毁布局盒，浏览器顺手把 scrollTop 归零。
+   * 在 scroll 事件里持续记录（只在有高度时记，隐藏瞬间的 0 不会覆盖），
+   * 重新激活后再由 layout effect 写回。
+   */
+  const scrollMemory = useRef(new Map<HTMLElement, { top: number; left: number }>())
+
+  useEffect(() => {
+    const area = areaRef.current
+    if (!area) return
+    const onScroll = (event: Event): void => {
+      const el = event.target
+      if (!(el instanceof HTMLElement) || el === area || !el.clientHeight) return
+      scrollMemory.current.set(el, { top: el.scrollTop, left: el.scrollLeft })
+    }
+    area.addEventListener('scroll', onScroll, true)
+    return () => area.removeEventListener('scroll', onScroll, true)
+  }, [valueKey])
+
+  useLayoutEffect(() => {
+    if (!active) return
+    for (const [el, pos] of scrollMemory.current) {
+      if (!el.isConnected) {
+        scrollMemory.current.delete(el)
+        continue
+      }
+      if (el.scrollTop !== pos.top) el.scrollTop = pos.top
+      if (el.scrollLeft !== pos.left) el.scrollLeft = pos.left
+    }
+  }, [active])
+
   useEffect(() => {
     measureTable()
   }, [valueKey, value?.type])
@@ -633,10 +1156,10 @@ export function ValueViewer() {
   useTabBlur(closeAllRowMenus)
 
   /** 自动刷新：每 5 秒重读当前键 */
-  const refreshing = useRef(false)
+  const autoRefreshing = useRef(false)
 
   async function tickAutoRefresh(): Promise<void> {
-    if (refreshing.current) return
+    if (autoRefreshing.current) return
     /*
      * 三种情况刻意跳过刷新，避免打断用户操作或造成无谓请求：
      * 1. 有弹窗打开（编辑 / TTL / 重命名）—— 刷新会让弹窗依据的旧值突然变化；
@@ -656,12 +1179,12 @@ export function ValueViewer() {
     ) {
       return
     }
-    refreshing.current = true
+    autoRefreshing.current = true
     try {
       // 静默刷新：自动刷新同样不该触发骨架屏，否则每 5 秒整个值区闪一次
       await refreshSelected({ silent: true })
     } finally {
-      refreshing.current = false
+      autoRefreshing.current = false
     }
   }
 
@@ -767,11 +1290,8 @@ export function ValueViewer() {
     if (!target || target === value?.key) return
     const from = value!.key
     await renameKey(from, target)
-    // 重命名不新增书签：原地改名（选中键的 effect 也会补一次，去重即可）
-    setOpenTabs((prev) => {
-      const renamed = prev.map((key) => (key === from ? target : key))
-      return Array.from(new Set(renamed))
-    })
+    // 重命名不新增书签：把原书签与缓存原地改名，避免留下旧键名的死标签
+    onRenamed(from, target)
   }
 
   async function handleTtl(next: string): Promise<void> {
@@ -784,41 +1304,9 @@ export function ValueViewer() {
     await setTtl(value!.key, seconds)
   }
 
-  /*
-   * 书签渲染取当前连接的数据。
-   * 连接刚切换、effect 尚未跑完的这一帧里 tabConnRef 还是旧 id ——
-   * 此时宁可先不显示标签，也绝不把上一个连接的键画到新连接上。
-   */
-  const tabsReady = tabConnRef.current === state.activeId
-  const shownTabs = tabsReady ? openTabs : []
-  const shownActive = tabsReady ? activeTab : 'detail'
-  const tabKeyword = tabQuery.trim().toLowerCase()
-  const visibleTabs = tabKeyword
-    ? openTabs.filter((key) => key.toLowerCase().includes(tabKeyword))
-    : openTabs
-  const overviewActive = !!activeConnection && (shownActive === 'detail' || (!loading && !value))
-  const hoverMeta = tabHover ? tabMeta(tabHover.key) : null
-  const hoverValue = tabHover && state.selectedValue?.key === tabHover.key ? state.selectedValue : null
-
   return (
-    <section className="viewer s-value-viewer">
-      {/*
-        批量操作面板：必须有连接才显示。
-        除了 store 在断开时会清理 bulkTask，这里再加一道渲染层的保险 ——
-        面板里的「执行 / 取消」都依赖 activeId，无连接时露出来就是个死界面。
-      */}
-      {state.bulkTask && state.activeId ? <BulkOpsPanel /> : (
-        <>
-          {overviewActive ? (
-            /* 未选中键 / 「详情」标签：服务端概览。按引擎分流，与原分支一致 */
-            activeConnection!.engine === 'memcached' ? (
-              <MemcachedOverview />
-            ) : (
-              <ServerOverview />
-            )
-          ) : loading ? (
-            <SkeletonValue />
-          ) : value ? (
+    <>
+      {value ? (
         <>
           {/*
             值区头部 —— 票根 + 水印（design/key-header-avant.html 方案 05）
@@ -1103,7 +1591,7 @@ export function ValueViewer() {
           ) : null}
 
           {/* 值区外层：承载刷新时的轻量 loading 遮罩（不改变内部布局） */}
-          <div className="value-area">
+          <div className="value-area" ref={areaRef}>
             <div className="value-body">
               {value.type === 'string' && !keyword && stringEditor.stringEditing ? (
                 /* string 行内编辑态：取消/保存按钮置于文本框上方 */
@@ -1659,7 +2147,7 @@ export function ValueViewer() {
             </div>
 
             {/* 刷新当前键：值区居中 loading，不改动内部布局 */}
-            {refreshingValue ? (
+            {refreshing ? (
               <div className="value-refreshing">
                 <span className="spinner" />
                 <span className="refresh-text">正在刷新…</span>
@@ -1668,6 +2156,8 @@ export function ValueViewer() {
           </div>
 
         </>
+      ) : loading ? (
+        <SkeletonValue />
       ) : (
         <div className="blank">
           <div className="blank-inner">
@@ -1678,275 +2168,16 @@ export function ValueViewer() {
         </div>
       )}
 
-      {/* ---------------- 底部键书签（方案 05）：固定详情 + 横向书签 + 更多 ---------------- */}
-      {activeConnection ? (
-        <div className="viewer-tabs" role="tablist" aria-label="已打开的键">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={shownActive === 'detail'}
-            className={`vt-home${shownActive === 'detail' ? ' active' : ''}`}
-            onClick={showDetailTab}
-            {...tipProps('当前连接详情')}
-          >
-            <DialogIcon name="home" size={13} />
-            <span>详情</span>
-          </button>
-
-          <button
-            type="button"
-            className="vt-arrow"
-            disabled={!tabArrows.left}
-            onClick={() => scrollTabs(-1)}
-            aria-label="向左滚动"
-            title="向左滚动"
-          >
-            ‹
-          </button>
-
-          <div
-            className="vt-strip"
-            ref={tabStripRef}
-            onScroll={syncTabArrows}
-            onMouseLeave={cancelTabHover}
-          >
-            {shownTabs.length === 0 ? (
-              <span className="vt-empty">还没有打开键 · 从左侧选择</span>
-            ) : (
-              shownTabs.map((key) => {
-                const meta = tabMeta(key)
-                const isActive = shownActive === key
-                return (
-                  <div
-                    key={key}
-                    role="tab"
-                    aria-selected={isActive}
-                    tabIndex={0}
-                    data-vtab={key}
-                    className={`vt-tab${isActive ? ' active' : ''}`}
-                    /* 类型色只在激活顶线与圆点上体现，不给整块标签上色 */
-                    style={
-                      meta
-                        ? ({ '--vt-tc': `var(--badge-${meta.type}-fg)` } as React.CSSProperties)
-                        : undefined
-                    }
-                    onMouseEnter={(event) => queueTabHover(key, event.currentTarget)}
-                    onClick={() => activateTab(key)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault()
-                        activateTab(key)
-                      }
-                    }}
-                    onAuxClick={(event) => {
-                      if (event.button === 1) {
-                        event.preventDefault()
-                        closeTab(key)
-                      }
-                    }}
-                  >
-                    <span className={`vt-dot${meta ? '' : ' unknown'}`} />
-                    <span className="vt-name" title={key}>
-                      {tabLabel(key)}
-                    </span>
-                    <button
-                      type="button"
-                      className="vt-x"
-                      title="关闭"
-                      aria-label={`关闭 ${key}`}
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        closeTab(key)
-                      }}
-                    >
-                      ×
-                    </button>
-                  </div>
-                )
-              })
-            )}
-          </div>
-
-          <button
-            type="button"
-            className="vt-arrow"
-            disabled={!tabArrows.right}
-            onClick={() => scrollTabs(1)}
-            aria-label="向右滚动"
-            title="向右滚动"
-          >
-            ›
-          </button>
-
-          <button
-            type="button"
-            className={`vt-more${tabMenuOpen ? ' on' : ''}`}
-            disabled={!shownTabs.length}
-            onClick={() => {
-              cancelTabHover()
-              setTabMenuOpen((prev) => !prev)
-              setTabQuery('')
-            }}
-            {...tipProps('更多操作')}
-          >
-            ⋯
-          </button>
-
-          {tabMenuOpen && shownTabs.length ? (
-            <>
-              <div
-                className="popover-mask"
-                onClick={() => {
-                  setTabMenuOpen(false)
-                  setTabQuery('')
-                }}
-              />
-              <div className="vt-menu" role="menu">
-                <div className="vt-menu-hd">
-                  <b className="mono">
-                    {tabKeyword ? `${visibleTabs.length} / ${shownTabs.length}` : shownTabs.length}
-                  </b>
-                  <span>个已打开的键</span>
-                  <button
-                    type="button"
-                    className="vt-menu-x"
-                    title="关闭 (Esc)"
-                    aria-label="关闭"
-                    onClick={() => {
-                      setTabMenuOpen(false)
-                      setTabQuery('')
-                    }}
-                  >
-                    {/* 内联叉号：DialogIcon 的 close 是「退出」图标，语义不对 */}
-                    <svg viewBox="0 0 24 24" width={11} height={11} aria-hidden="true">
-                      <path
-                        d="m6 6 12 12M18 6 6 18"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth={2.2}
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                  </button>
-                </div>
-
-                <label className="vt-menu-search">
-                  <DialogIcon name="search" size={12} />
-                  <input
-                    ref={tabMenuInputRef}
-                    className="mono"
-                    value={tabQuery}
-                    spellCheck={false}
-                    placeholder="搜索已打开的键"
-                    aria-label="搜索已打开的键"
-                    onChange={(event) => setTabQuery(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') {
-                        event.preventDefault()
-                        const first = visibleTabs[0]
-                        if (first) activateTab(first)
-                      } else if (event.key === 'ArrowDown') {
-                        event.preventDefault()
-                        const firstItem = document.querySelector<HTMLElement>('.vt-menu .vt-mi')
-                        firstItem?.focus()
-                      }
-                    }}
-                  />
-                </label>
-
-                <div className="vt-menu-list">
-                  {visibleTabs.length ? (
-                    visibleTabs.map((key) => {
-                      const meta = tabMeta(key)
-                      return (
-                        <div
-                          key={key}
-                          role="menuitem"
-                          tabIndex={0}
-                          className={`vt-mi${shownActive === key ? ' active' : ''}`}
-                          onMouseEnter={cancelTabHover}
-                          onClick={() => activateTab(key)}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Enter' || event.key === ' ') {
-                              event.preventDefault()
-                              activateTab(key)
-                            } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-                              event.preventDefault()
-                              const items = Array.from(
-                                document.querySelectorAll<HTMLElement>('.vt-menu .vt-mi'),
-                              )
-                              const current = items.indexOf(event.currentTarget)
-                              const next = items[current + (event.key === 'ArrowDown' ? 1 : -1)]
-                              if (next) next.focus()
-                              else if (event.key === 'ArrowUp') tabMenuInputRef.current?.focus()
-                            }
-                          }}
-                        >
-                          <span className={`vt-t${meta ? ` type-${meta.type}` : ''}`}>
-                            {meta ? meta.type.charAt(0).toUpperCase() : '?'}
-                          </span>
-                          <span className="vt-mi-k mono" title={key}>
-                            {tabLabel(key, 20, 10)}
-                          </span>
-                          <button
-                            type="button"
-                            className="vt-mi-x"
-                            title="关闭"
-                            aria-label={`关闭 ${key}`}
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              closeTab(key)
-                            }}
-                          >
-                            ×
-                          </button>
-                        </div>
-                      )
-                    })
-                  ) : (
-                    <div className="vt-menu-empty">没有匹配的键</div>
-                  )}
-                </div>
-
-                <div className="vt-menu-acts">
-                  <button
-                    type="button"
-                    className="vt-act"
-                    disabled={openTabs.length < 2}
-                    onClick={() => runTabBulk('others')}
-                  >
-                    <DialogIcon name="clone" size={11} />
-                    <span>关闭其他</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="vt-act"
-                    disabled={
-                      shownActive === 'detail' ||
-                      openTabs.indexOf(shownActive) >= openTabs.length - 1
-                    }
-                    onClick={() => runTabBulk('right')}
-                  >
-                    <DialogIcon name="expand" size={11} />
-                    <span>关闭右侧</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="vt-act danger"
-                    onClick={() => runTabBulk('all')}
-                  >
-                    <DialogIcon name="trash" size={11} />
-                    <span>全部关闭</span>
-                  </button>
-                </div>
-              </div>
-            </>
-          ) : null}
-        </div>
-      ) : null}
-    </>
-  )}
       {/* ---------------- 行右键菜单（Teleport 到 body，五套按类型共用 RowMenuMask） ---------------- */}
+      {/*
+        所有 portal 浮层只在激活标签上挂载。
+        portal 挂在 body 上，Activity 的 display:none 管不到它们；
+        不按 active 门控的话，切走后隐藏标签的菜单 / 弹窗会留在屏幕上。
+        这里只卸载浮层本身，浮层的开关状态（如 renameVisible）仍保留，
+        切回来时能恢复原样。
+      */}
+      {active ? (
+        <>
       {hashEditor.rowMenu ? (
         <RowMenuMask onClose={hashEditor.closeRowMenu}>
           <div
@@ -2123,63 +2354,6 @@ export function ValueViewer() {
       ) : null}
 
       {/*
-        书签悬停统计卡：挂到 body，避免被 .value-area 的 overflow 裁掉。
-        只读展示，pointer-events: none —— 卡片本身不接事件，鼠标离开标签即消失。
-      */}
-      {tabHover && hoverMeta
-        ? createPortal(
-            <div
-              className="vt-pop"
-              data-side={tabHover.side}
-              role="tooltip"
-              style={{
-                left: `${tabHover.left}px`,
-                top: `${tabHover.top}px`,
-                ['--vt-caret' as string]: `${tabHover.caret}px`,
-              }}
-            >
-              <div className="vp-k">
-                <span className={`vt-t type-${hoverMeta.type}`}>
-                  {hoverMeta.type.charAt(0).toUpperCase()}
-                </span>
-                <span className="vp-name mono">{tabHover.key}</span>
-                <span className="vp-type">{hoverMeta.type}</span>
-              </div>
-
-              <div className="vp-row">
-                <i>TTL</i>
-                <b className={`mono ${ttlTone(hoverMeta.ttl)}`}>
-                  {formatTtl(hoverMeta.ttl)}
-                  {ttlTone(hoverMeta.ttl) === 'urgent' ? <span className="vp-chip">即将过期</span> : null}
-                </b>
-              </div>
-
-              <div className="vp-row">
-                <i>内存</i>
-                <b className="mono">{hoverMeta.size != null ? formatBytes(hoverMeta.size) : '—'}</b>
-              </div>
-
-              {hoverValue ? (
-                <>
-                  <div className="vp-row">
-                    <i>编码</i>
-                    <b className="mono">{hoverValue.encoding ?? '—'}</b>
-                  </div>
-                  <div className="vp-row">
-                    <i>长度</i>
-                    <b className="mono">
-                      {hoverValue.length != null ? hoverValue.length : '—'}
-                      {hoverValue.size != null ? ` · ${formatBytes(hoverValue.size)}` : ''}
-                    </b>
-                  </div>
-                </>
-              ) : null}
-
-              <div className="vp-hint">点击切换 · × 关闭 · 滚轮 / ‹ › 横向滚动</div>
-            </div>,
-            document.body,
-          )
-        : null}
 
       {/* ---------------- 弹窗 ---------------- */}
       {editVisible && value ? <EditValueDialog initial={value as KeyValue} onClose={() => setEditVisible(false)} /> : null}
@@ -2345,12 +2519,11 @@ export function ValueViewer() {
           onCancel={() => setTtlVisible(false)}
         />
       ) : null}
-    </section>
+        </>
+      ) : null}
+    </>
   )
 }
-
-
-export default ValueViewer
 /** 骨架屏：读取中保留尺寸，避免内容出现时的跳变 */
 function SkeletonValue() {
   return (

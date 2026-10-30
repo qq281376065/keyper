@@ -104,9 +104,14 @@ export function useStringEditor(ctx: ValueEditorContext) {
     }
   }
 
-  // 切换到别的键（或当前键被删）时丢弃草稿退出编辑，避免草稿写进下一个键
+  // 切换到别的键（或当前键被删）时丢弃草稿退出编辑，避免草稿写进下一个键。
+  // 用 ref 记住上一次的键：Activity 隐藏后重新显示会重放 effect，
+  // 按键值比较而不是无脑清空，否则切回标签时草稿会被误删。
   const currentKey = value?.key ?? ''
+  const lastKeyRef = useRef(currentKey)
   useEffect(() => {
+    if (lastKeyRef.current === currentKey) return
+    lastKeyRef.current = currentKey
     setStringEditing(false)
     setStringDraft('')
   }, [currentKey])
