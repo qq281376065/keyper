@@ -10,15 +10,49 @@
 
 | 引擎 | 能力 |
 | --- | --- |
-| **Redis** | 多库、六种数据结构（string / hash / list / set / zset / stream）、Pub/Sub、慢查询、键内存分析、SSH 多级跳板、内置 CLI |
-| **Memcached** | 统计与命中率、全量键浏览（`lru_crawler metadump`，旧服务端回退 `stats cachedump`）、分页加载、单键查看与增删、`flush_all`、运行参数查看 |
+| **Redis** | 多库、六种数据结构（string / hash / list / set / zset / stream）、Pub/Sub、慢查询、键内存分析、监控曲线、键空间通知、SSH 多级跳板、内置 CLI |
+| **Memcached** | 统计与命中率、全量键浏览（`lru_crawler metadump`，旧服务端回退 `stats cachedump`）、分页加载、单键查看与增删、批量删除 / TTL / 前缀重命名、监控曲线、`flush_all`、运行参数查看 |
 
 > 本项目起源于 RedisDesktop（Vue 3 版）的 React 移植；主进程、preload、IPC、
 > shared 类型契约、打包配置沿用其结构，渲染层已按多引擎架构重构。
 
 当前版本：`1.0.7`
 
-本轮变更（1.0.6 → 1.0.7）：
+开发中（1.0.7 → 1.0.8）：
+
+- **大 key 分页加载**：hash / list / set / zset / stream 不再一次读全量。默认每页 500 条，
+  已加载上限 20000 条；值区底部「加载更多」按游标继续取 —— hash / set 用 SCAN 游标，
+  list / zset 用偏移量，stream 用上一页最后的 entry ID。刷新当前键时按已加载数量重读，
+  不会退回第一页；SCAN 跨页重复返回的成员在合并时去重
+- **Redis 键列表增量刷新**：工具栏刷新改为原地替换 —— 不清空列表、不闪骨架屏，
+  按当前已加载数量重扫当前匹配模式；未变化的键复用原对象，列表行不重绘；
+  选中键若不在新结果里，先用单键查询核实，确认已被删除才清空值区
+- **五种表格类型虚拟滚动**：hash / list / set / zset / stream 的表格只渲染视口内的行
+  （可变行高实测缓存 + 前缀和二分查找 + 上下等高占位），string 的逐行视图同样窗口化；
+  万级元素的键也能流畅滚动，粘性表头、列宽拖拽与行内操作不受影响
+- **监控指标曲线**：Redis 概览新增「监控」页签 —— 每 2 秒采样一次、保留 450 个点，
+  支持 1m / 5m / 15m 三段窗口与暂停 / 清空；六个指标（内存、Ops/sec、客户端连接、命中率、
+  键总数、淘汰数）各配一张纯 SVG 迷你折线图，并显示当前区间的最小 / 最大值。
+  Memcached 详情页的「监控」页签复用同一套采样与绘图骨架，只把数据源换成 `stats`：
+  Ops/sec 由累计命令计数的相邻采样差值换算，淘汰数按每分钟增量绘制
+- **键空间通知**：概览新增「键空间通知」页签。可直接勾选 `notify-keyspace-events` 的
+  频道位（K / E）与类型位（A / g$lshzxetd / m / n）并写回服务端，值预览实时拼接；
+  监听使用独立的订阅连接（与 Pub/Sub 互不干扰），事件流保留最近 200 条，
+  支持按事件名 / 键名 / 频道过滤，切换连接或离开面板即退订
+- **Memcached 批量操作**：键栏进入批量选择后，可对选中的缓存项执行删除、TTL 修改或前缀重命名。
+  值区切换为批量面板：清单可搜索、排序，逐行显示当前值与目标值，执行时逐键推进并可随时中止；
+  重命名按前缀替换规则预览，目标键已存在时跳过并标记失败；全部结束后只广播一次键列表刷新
+- **应用内增量更新**：接入 electron-updater，在主页「检查更新」面板内直接下载并安装。
+  下载走 blockmap 差分，只传输与本地版本不同的分块，显示百分比、已下载 / 总量与速度；
+  面板可隐藏而下载继续，完成后可选「稍后」或「重启并安装」；未打包版本自动跳过
+- **GitHub Actions CI 与发布流水线**：push / PR 跑 i18n 校验、类型检查、单元测试与构建；
+  推送 `v*` 标签时在 Windows 上打包 NSIS 并发布 Release（含 `latest.yml`、blockmap 与
+  `app-update.yml`），标签版本与 `package.json` 不一致会直接失败
+- **安装包体积优化**：Electron 运行时语言包从 50+ 种裁到界面真正使用的 3 种
+  （en-US / zh-CN / zh-TW），渲染层依赖改归 devDependencies 使 asar 只含生产依赖；
+  安装包从 84.0 MB 降到 75.4 MB（-10.3%），app.asar 从 18.9 MiB 降到 3.7 MiB
+
+当前版本变更（1.0.6 → 1.0.7）：
 
 - **全应用图标按钮统一 hover 阴影**：刷新 / 新建 / 弹窗关闭 / 更多操作 / 侧栏新建与折叠 /
   侧栏展开 / 页签溢出 / 顶栏图标 / 窗口控件 / 键行删除 / 批量面板行操作 / 值行操作 /
@@ -106,9 +140,12 @@
 
 三语言界面（简体中文 / 繁體中文 / English）；多标签工作区（每个连接一个标签、关标签即断开、右键菜单/溢出滚动/更多页签下拉）；
 值区多标签保活（`<Activity>` 隐藏而非卸载，状态原样保留）；操作日志表头排序与固定操作列；
-SSH 多级跳板与连接保活；值区四页签（Redis 信息详情/慢查询日志/键内存分析/Pub/Sub 订阅）；
+SSH 多级跳板与连接保活；值区六页签（Redis 信息详情/慢查询日志/键内存分析/Pub/Sub 订阅/监控指标/键空间通知）；
 批量 TTL/重命名；全库搜索下沉主进程 + 平铺虚拟滚动；键搜索历史自动补全（按连接与库隔离、
 LRU 30 条、配置文件持久化）；树形深层目录右键批量删除；string 双击编辑；
+大 key 分页加载（每页 500 / 上限 20000）；键列表原地增量刷新；六种值类型虚拟滚动；
+监控曲线（Redis 与 Memcached）；Memcached 批量删除 / TTL / 前缀重命名；
+应用内增量更新（electron-updater）；GitHub Actions CI 与发布流水线；
 批量删除两键以上走值区面板；9 套皮肤（含极光）；连接凭据失效黄条；
 string 值实底行号槽；安装器开始菜单快捷方式勾选页；
 错误落盘（渲染层/主进程异常写 `logs/errors-yyyymmdd.log`，带堆栈与 5 秒去重）；
@@ -127,7 +164,7 @@ string 值实底行号槽；安装器开始菜单快捷方式勾选页；
 | `src/store/global.ts` | 连接管理、多标签、快照恢复 |
 | `src/store/useRedis.ts` | 语境包装：标签树内用 Context，标签外用激活会话代理 |
 | `src/hooks/` | 设置、主题、搜索历史、弹窗拖拽、六个值类型编辑器（`valueEditor/`） |
-| `src/components/` | 48 个界面组件（`.tsx`）+ `ui/` 原子组件 + `components.css` |
+| `src/components/` | 53 个界面组件（`.tsx`）+ `ui/` 原子组件 + `components.css` |
 
 ---
 
@@ -175,7 +212,9 @@ string 值实底行号槽；安装器开始菜单快捷方式勾选页；
 | 编译优化 | **React Compiler 1.0** | 构建期自动记忆化，`target: 19` 直接用 React 自带 runtime |
 | 通信 | contextBridge + ipcRenderer.invoke | 上下文隔离，渲染进程不接触 Node |
 | Redis 客户端 | ioredis 5 | 支持 TLS / ACL / 分页 SCAN |
-| 打包 | electron-builder 25 | Windows NSIS / macOS DMG / Linux AppImage+deb |
+| 应用内更新 | electron-updater 6 | blockmap 差分下载、下载进度、退出时自动安装 |
+| CI / 发布 | GitHub Actions | push / PR 全量校验；打标签构建 Windows 安装包并发布 Release |
+| 打包 | electron-builder 25 | Windows NSIS / macOS DMG / Linux AppImage+deb；仅打包 3 个界面语言 |
 
 ---
 
@@ -198,9 +237,13 @@ Keyper/
 │       ├── settings-store.ts        # 应用设置持久化（settings.json）
 │       ├── search-history-store.ts  # 键搜索历史（LRU 30，按连接与库隔离）
 │       ├── log-service.ts           # 手动操作日志（按天分片、超期清理）
-│       ├── update-service.ts        # 更新检查
+│       ├── update-service.ts        # 更新检查（版本页兜底）
+│       ├── auto-update.ts           # 应用内更新（electron-updater 差分下载与安装）
 │       ├── config-path.ts           # 便携目录解析与回退
 │       └── close-signal.ts          # 退出前先断开的信号
+├── .github/workflows/               # CI 与发布流水线
+│   ├── ci.yml                       # push / PR：i18n、类型检查、单测、构建
+│   └── release.yml                  # 标签 / 手动：构建 NSIS 并发布 Release
 ├── lang/                            # 三份语言字典（语义 key）
 │   ├── en.ts                        # English（唯一事实来源，导出 MsgKey）
 │   ├── zh-CN.ts                     # 简体（Record<MsgKey, string>）
@@ -217,7 +260,7 @@ Keyper/
 │   ├── api/                         # 数据入口：Electron 走 IPC，浏览器降级 Mock
 │   ├── store/                       # defineStore + 会话 / 全局 / 订阅
 │   ├── hooks/                       # 设置、主题、搜索历史、弹窗拖拽、值编辑器
-│   ├── components/                  # 49 个界面组件 + ui/ 原子组件
+│   ├── components/                  # 53 个界面组件 + ui/ 原子组件
 │   ├── services/                    # 设置、主题、错误上报
 │   ├── utils/                       # 键树、能力探测、格式化、剪贴板等
 │   ├── styles/                      # main.css（设计令牌）+ components.css
@@ -247,9 +290,12 @@ npm run build        # 类型检查 + 构建产物到 dist/ 与 dist-electron/
 npm run dist         # 当前平台打包
 npm run dist:win     # 打包 Windows 安装包
 npm run dist:win:alt # 打包 Windows 到 release/<版本>-final（保留上一版产物时用）
+npm run dist:win:publish # 打包并发布到 GitHub Releases（需 GH_TOKEN，版本号须与标签一致）
 ```
 
-构建产物落在 `release/<版本>/`，文件名形如 `Keyper-1.0.7-win-x64.exe`。
+构建产物落在 `release/<版本>/`，文件名形如 `Keyper-1.0.7-win-x64.exe`；
+同目录还会生成 `latest.yml`、`*.blockmap`（增量更新分块索引）与打包进安装目录的
+`app-update.yml`（更新源配置）。
 
 国内网络安装 Electron 二进制较慢，建议先执行：
 
@@ -293,6 +339,29 @@ env -u ELECTRON_RUN_AS_NODE -u NODE_OPTIONS ./Keyper.exe
 KEYPER_DEBUG_LOG=/tmp/rd.log ./Keyper.exe
 # 日志会记录：module loaded → requestSingleInstanceLock 结果 → app ready → 窗口创建
 ```
+
+---
+
+## 持续集成与自动更新
+
+| 工作流 | 触发 | 内容 |
+| --- | --- | --- |
+| `.github/workflows/ci.yml` | push（任意分支）/ PR 到 master | `npm ci` → `i18n:check` → `typecheck` → `vitest` → `vite build` |
+| `.github/workflows/release.yml` | 推送 `v*` 标签 / 手动运行 | 校验标签与 `package.json` 版本一致 → Windows 打包 → 上传安装包、`latest.yml` 与 blockmap；标签触发自动发布 Release，手动运行默认只构建 |
+
+### 应用内更新
+
+打包版在主页「检查更新」面板里走 electron-updater：检查 GitHub Releases 的 `latest.yml`，
+发现新版本后可直接下载并安装。下载使用 blockmap 差分，只传输与本地安装包不同的分块；
+面板显示百分比、已下载 / 总量与速度，收起面板不中断下载，完成后可选「稍后 / 重启并安装」，
+选择稍后时退出应用会自动安装。
+
+- 更新源配置在 `electron-builder.yml` 的 `publish` 字段，`app-update.yml` 随安装包生成；
+  可用环境变量 `KEYPER_UPDATE_URL` 指向内网 / 镜像的 generic 更新源
+  （目录内放 `latest.yml` 与安装包即可），覆盖打包时写入的配置；
+- 开发态 / 未打包版本没有 `app-update.yml`，自动更新直接跳过，回退到版本页检查（只提示新版本并打开下载页）；
+- 发布：`npm run dist:win:publish`（需 `GH_TOKEN`），或推送与版本号一致的 `v*` 标签由 CI 构建；
+- 增量元数据（`latest.yml` 与 `*.blockmap`）必须与安装包一同上传，否则客户端只能全量下载。
 
 ---
 
@@ -439,9 +508,11 @@ K 用矢量笔画手绘而非字体 —— 字体字形墨迹只有字号的 66%
 
 #### 服务端信息面板
 
-右上四页签：**Redis 信息详情**（9 个段落，服务器 / 客户端 / 内存 / 持久化 / 统计 / 复制 / CPU / 集群 / 键空间，
+右上六页签：**Redis 信息详情**（9 个段落，服务器 / 客户端 / 内存 / 持久化 / 统计 / 复制 / CPU / 集群 / 键空间，
 每段可折叠）、**慢查询日志**、**键内存分析**（按前缀聚合，扫描上限 10000 键，结果保留内存前 200 的前缀）、
-**Pub/Sub 订阅**（频道实底 chip、模式虚线 chip，点 × 单个退订）。
+**Pub/Sub 订阅**（频道实底 chip、模式虚线 chip，点 × 单个退订）、**监控**（2 秒采样的六条指标曲线）、
+**键空间通知**（配置位勾选 + 事件流）。Memcached 详情页为统计 / 设置 / 监控三页签，
+监控与 Redis 共用采样与绘图骨架。
 
 <p>
   <img src="docs/screenshots/overview-info.png" width="49%" alt="Redis 信息详情 · 暗色" />
@@ -688,6 +759,20 @@ K 用矢量笔画手绘而非字体 —— 字体字形墨迹只有字号的 66%
 - CLI 控制台：命令解析（支持引号）、结果格式化、历史记录（↑↓）。
   **高危命令防护**：`FLUSHALL` / `FLUSHDB` / `SHUTDOWN` 执行前弹出二次确认，
   且必须逐字输入命令名才能提交（不是"点一下确认"的软提示），取消后在控制台留下记录
+- **大 key 分页加载**：值区集合类型默认一次读 500 条（`VALUE_PAGE_SIZE`），单键最多累计
+  20000 条（`VALUE_PAGE_MAX`）。hash / set 用 `HSCAN` / `SSCAN` 游标，list / zset 用偏移量，
+  stream 用上一页最后一条 entry ID（含边界重读一条后丢弃，兼容旧版本）；
+  底部「加载更多」显示已加载 / 总数。刷新当前键时按已加载数量重读，大 key 不会被重置回第一页；
+  SCAN 跨页可能重复返回成员，set 合并时去重，hash 按字段名合并
+- **Redis 键列表增量刷新**：工具栏刷新调用 `refreshKeys()`，以当前已加载数量为目标重扫当前匹配模式，
+  结果回来才整体替换 —— 列表不清空、不闪骨架屏；未变化的键复用原对象引用，列表行不重绘；
+  选中键不在新结果里时先用单键查询核实，确认已删除才清空值区（SCAN 本就不保证一次返回全部键）
+- **值区虚拟滚动**：hash / list / set / zset / stream 五类表格接入 `VirtualRows`。
+  行高由内容决定，逐行用 ResizeObserver 实测并缓存，前缀和 + 二分查找定位视口行，
+  上下用等高占位块补足；行元素通过 `cloneElement` 注入 ref，不额外包一层 DOM，
+  表格的 flex / grid 布局、hover 与粘性底栏完全不变。少于 40 行时全量渲染（窗口化开销大于收益）；
+  string 的逐行行号视图由 `VirtualStringLines` 处理：不折行时固定行高精确虚拟化，
+  折行时按估算高度 + 较大 overscan 保守渲染，行号始终存在
 
 **界面能力**
 
@@ -755,6 +840,20 @@ K 用矢量笔画手绘而非字体 —— 字体字形墨迹只有字号的 66%
   - 段落用 CSS `columns` 自然分栏（各段字段数差异大，grid 固定列会留大片空白），
     支持逐段折叠；字段名做中文化映射，未收录的生僻项原样展示
   - 值超长时省略并挂 tooltip，保证"能扫"而非"全露出来"
+- **监控指标曲线**：Redis 概览的「监控」页签每 2 秒采样一次，最多保留 450 个点，
+  支持 1m / 5m / 15m 三段窗口与暂停 / 清空；六项指标（内存、Ops/sec、客户端连接、命中率、
+  键总数、淘汰数）各配一张自绘 SVG 折线图，并标出当前区间的最小 / 最大值。
+  累计型计数器（淘汰数）按 60 秒窗口换算成每分钟增量，命中率按启动以来累计；
+  页签与采样历史常驻，切走再切回不会从零开始。Memcached 详情页复用同一套采样与绘图骨架，
+  只把数据源换成 `stats`：Ops/sec 由累计命令计数（get / set / touch / delete / incr / decr / cas）
+  的相邻采样差值除以秒数得到，淘汰数同样按每分钟增量绘制
+- **键空间通知**：概览的「键空间通知」页签可直接勾选 `notify-keyspace-events` 的
+  频道位（K / E）与类型位（A、g$lshzxetd、m、n）并写回服务端，值预览随勾选实时拼接；
+  A 是 g$lshzxetd 的别名，勾选 A 时具体类型显示为「隐含选中」。监听使用独立订阅连接
+  （订阅模式下的连接不能执行普通命令，与 Pub/Sub 各自独立），只订 `keyevent` 频道 ——
+  它与 `keyspace` 载荷互为镜像，两个都订会让一次操作推两条重复事件。
+  事件流保留最近 200 条、自动滚到底部，可按事件名 / 键名 / 频道过滤；
+  切换连接或离开概览页会退订，不留只收不推的幽灵连接
 - **欢迎页**：无任何连接配置时，主区域展示本机运行环境（Electron / Chromium / Node / V8 / 平台）
   与 Redis 速查信息（默认端口、连接串格式、常用命令）
 - **全局设置**：界面字号（12–16px，由 `--fs-base` 推导全套字号）、界面字体、代码字体、
@@ -777,6 +876,12 @@ K 用矢量笔画手绘而非字体 —— 字体字形墨迹只有字号的 66%
   命令行里的 `FLUSHALL` / `FLUSHDB` / `SHUTDOWN` 亦按 `danger` 标注（同时匹配详情内容）
 - **键列表分页**：基于 `SCAN` 游标式加载，底部显示「已加载 N / 库总数」，
   提供「加载更多」（再取一页）与「加载全部」（连续扫描至游标归零，上限 5000 键防止拖垮界面）
+- **Memcached 批量操作**：键栏批量选择后，勾选操作条提供 TTL 修改、前缀重命名与批量删除，
+  删除前走二次确认。值区切换为 `MemcachedBulkOpsPanel`（与 Redis 批量面板同骨架）：
+  清单可搜索，可按键名 / TTL / 大小 / 状态排序，逐行显示当前值与目标值；
+  执行时按清单顺序逐键调用 IPC，可随时中止；前缀重命名只改命中的键，
+  目标键已存在时跳过并标记失败，不覆盖已有数据；
+  任务结束后只广播一次键列表刷新，避免 N 个键触发 N 次全量枚举
 - **键右键菜单**：树形与平铺两种模式共用一份菜单（树节点通过 emit 上报右键，
   由 `KeyBrowser` 顶层统一渲染）—— 若每个递归节点各挂一份，长列表下会堆满隐藏浮层。
   菜单有**两种形态**，判定依据是「有无子节点 + 是否为真实键」（**不是单纯按深度**）：
@@ -819,12 +924,25 @@ K 用矢量笔画手绘而非字体 —— 字体字形墨迹只有字号的 66%
   ⚠️ **`tipProps` 与 `title` 不可共存** —— 同时存在时浏览器仍会弹出系统提示，两个气泡重叠。
   另注意：`PromptDialog` 等组件上的 `title` 是**组件 prop**（弹窗标题），不是提示，不要误改。
 
+**工程化与分发**
+
+- **应用内更新**：打包版在主页「检查更新」面板走 electron-updater，检查 GitHub Releases 的
+  `latest.yml`；有新版本时可直接下载并安装。下载走 blockmap 差分，只取与本地安装包不同的分块，
+  进度由主进程推送到渲染层（百分比 / 已下载 / 总量 / 速度）；面板收起不中断下载，
+  完成后可选「稍后」或「重启并安装」，选择稍后时退出应用自动安装。
+  未打包版本没有 `app-update.yml`，自动更新直接跳过并回退到版本页检查
+- **CI 与发布**：GitHub Actions 两个工作流 —— `ci.yml` 在每次 push / PR 上跑
+  i18n 校验、类型检查、单元测试与构建；`release.yml` 响应 `v*` 标签（或手动运行），
+  先校验标签与 `package.json` 版本一致，再在 Windows 上构建 NSIS，
+  上传安装包、`latest.yml` 与 blockmap 并发布 Release。手动运行默认只构建、不发布
+- **安装包精简**：Electron 运行时只打包 en-US / zh-CN / zh-TW 三个语言包（默认 50+ 种），
+  渲染层依赖归入 devDependencies，asar 内只保留 ioredis / ssh2 / electron-updater 等生产依赖；
+  安装包从 84.0 MB 降至 75.4 MB（-10.3%），app.asar 从 18.9 MiB 降至 3.7 MiB
+
 ## 后续规划（建议按序推进）
 
 1. **连接能力补全**：哨兵 / 集群模式、连接导入导出
-2. **性能与体验**：大 key 分页加载、键列表增量刷新、更多类型的虚拟滚动
-3. **功能增强**：监控指标曲线、键空间通知、Memcached 批量操作
-4. **工程化**：CI 打包、增量更新（electron-updater）、安装包体积优化
+2. **分发完善**：macOS 公证与签名、稳定 / 预发布（beta）双更新通道
 
 ---
 
@@ -832,4 +950,6 @@ K 用矢量笔画手绘而非字体 —— 字体字形墨迹只有字号的 66%
 
 - 渲染进程开启 `contextIsolation`、关闭 `nodeIntegration`，仅通过白名单 IPC 访问主进程能力
 - 连接密码优先调用系统钥匙串加密；仅在钥匙串不可用时降级为明文存储（以 `raw:` 前缀标记）
+- 自动更新从配置的 GitHub Releases（HTTPS）拉取，安装包与增量元数据必须同源发布；
+  Windows 安装包目前未做代码签名，正式分发前应补齐签名，避免 SmartScreen 告警
 - 生产构建可进一步收紧：为渲染进程加载 `Content-Security-Policy`、启用 `sandbox: true`（需将 preload 改为无 `require` 的纯 IPC 桥）

@@ -11,14 +11,72 @@ registering it; no existing code path has to change.
 
 | Engine | Capabilities |
 | --- | --- |
-| **Redis** | Multiple databases, six data structures (string / hash / list / set / zset / stream), Pub/Sub, slow log, key memory analysis, multi-hop SSH tunnels, built-in CLI |
-| **Memcached** | Stats and hit rate, full key browsing (`lru_crawler metadump`, falling back to `stats cachedump` on older servers), paged loading, single-key view and CRUD, `flush_all`, runtime settings |
+| **Redis** | Multiple databases, six data structures (string / hash / list / set / zset / stream), Pub/Sub, slow log, key memory analysis, monitoring charts, keyspace notifications, multi-hop SSH tunnels, built-in CLI |
+| **Memcached** | Stats and hit rate, full key browsing (`lru_crawler metadump`, falling back to `stats cachedump` on older servers), paged loading, single-key view and CRUD, batch delete / TTL / prefix rename, monitoring charts, `flush_all`, runtime settings |
 
 > This project began as a React port of RedisDesktop (Vue 3). The main process, preload, IPC,
 > shared type contracts and packaging configuration follow that structure; the renderer has been
 > rebuilt around a multi-engine architecture.
 
 Current version: `1.0.7`
+
+In development (1.0.7 → 1.0.8):
+
+- **Paged loading for large keys**: hash / list / set / zset / stream no longer read everything at
+  once. The default page is 500 elements and a key caps at 20,000; "load more" continues by cursor —
+  HSCAN / SSCAN for hash and set, offsets for list and zset, and the last entry ID for stream (the
+  boundary entry is re-read and dropped for older servers). Refreshing a key re-reads as many
+  elements as are already loaded, so a large key does not fall back to page one; members returned
+  twice by SCAN are de-duplicated when merging (hash merges by field name).
+- **Incremental Redis key-list refresh**: the toolbar refresh calls `refreshKeys()`, rescanning the current
+  pattern up to the number already loaded and swapping the list only when the result arrives — no
+  clearing and no skeleton flash. Unchanged keys reuse their original object references so rows do
+  not re-render; if the selected key is missing from the new result it is verified with a single-key
+  lookup before the value pane is cleared (SCAN never guarantees every key in one pass).
+- **Virtual scrolling for all five table types**: hash / list / set / zset / stream use `VirtualRows`.
+  Row heights vary with content, so each row is measured with a ResizeObserver and cached, the
+  viewport is located with prefix sums + binary search, and equal-height spacer blocks fill the
+  rest. Rows receive their ref through `cloneElement` with no extra wrapper, so the table's flex /
+  grid layout, hover states and sticky footer stay untouched. Below 40 rows everything renders
+  (windowing would cost more than it saves); string's line-number view is handled by
+  `VirtualStringLines` — exact virtualisation with fixed rows when wrapping is off, and an estimate
+  plus generous overscan when wrapping is on, so line numbers always remain.
+- **Monitoring charts**: the Redis overview's "Monitoring" tab samples every 2 seconds and keeps up
+  to 450 points, with 1m / 5m / 15m windows plus pause / clear; six metrics (memory, ops/sec,
+  clients, hit rate, keys, evictions) each get a self-drawn SVG sparkline and the min / max of the
+  current range. Cumulative counters (evictions) are converted to a per-minute increase over a
+  60-second window, and hit rate is cumulative since server start. The tab and its sample history
+  stay alive when switching tabs. Memcached reuses the same sampling and drawing skeleton with
+  `stats` as the source: ops/sec is the difference of cumulative command counters (get / set /
+  touch / delete / incr / decr / cas) divided by elapsed seconds, and evictions are drawn as a
+  per-minute increase.
+- **Keyspace notifications**: the overview's "Keyspace notifications" tab lets you toggle the
+  `notify-keyspace-events` channel flags (K / E) and type flags (A, g$lshzxetd, m, n) and write them
+  back, with a live value preview; A is an alias for g$lshzxetd, so its types show as implicitly
+  selected. Listening uses a dedicated subscriber connection (a connection in subscribe mode cannot
+  run ordinary commands, and it is independent from Pub/Sub) and subscribes to the `keyevent`
+  channel only — it mirrors `keyspace`, and subscribing to both would push two events per action.
+  The stream keeps the latest 200 events, auto-scrolls to the bottom and filters by event / key /
+  channel; switching connections or leaving the overview unsubscribes, leaving no ghost connection.
+- **Memcached batch operations**: after entering batch selection in the key browser, the action bar
+  offers TTL, prefix rename and batch delete; delete asks for confirmation first. The value area
+  becomes `MemcachedBulkOpsPanel` (same skeleton as the Redis batch panel): the list is searchable
+  and sortable by key / TTL / size / state, each row shows its current and target value, and
+  execution walks the list one key at a time and can be stopped midway. Prefix rename only touches
+  matching keys; an existing target is skipped and marked failed instead of being overwritten.
+  When the task ends the key list is refreshed with a single broadcast, not once per key.
+- **In-app incremental updates**: electron-updater is wired into the home page's "Check for updates"
+  panel, which can download and install directly. Downloads are differential via blockmap — only
+  blocks that differ from the local installer are transferred — with percent, transferred / total
+  and speed; hiding the panel does not stop the download, and when it finishes you can choose
+  "Later" or "Restart and install". Unpackaged builds skip it.
+- **GitHub Actions CI and release pipeline**: push / PR runs i18n checks, type checking, unit tests
+  and a build; pushing a `v*` tag builds NSIS on Windows and publishes a Release (with `latest.yml`,
+  blockmap and `app-update.yml`). A tag that does not match `package.json` fails immediately.
+- **Smaller installer**: Electron runtime locales are cut from 50+ to the three the UI actually uses
+  (en-US / zh-CN / zh-TW), and renderer dependencies moved to devDependencies so asar contains only
+  production dependencies. The installer drops from 84.0 MB to 75.4 MB (-10.3%) and app.asar from
+  18.9 MiB to 3.7 MiB.
 
 What changed in this release (1.0.6 → 1.0.7):
 
@@ -136,18 +194,21 @@ Cumulative capabilities:
 Three-language UI (Simplified Chinese / Traditional Chinese / English); multi-tab workspace (one tab
 per connection, closing a tab disconnects, context menu / overflow scrolling / more-tabs dropdown);
 value tabs kept alive (`<Activity>` hides instead of unmounting, preserving state); sortable
-operation log with a pinned action column; multi-hop SSH tunnels with keep-alive; four value-area
-tabs (Redis info / slow log / key memory analysis / Pub/Sub); batch TTL and rename; full-database
-search pushed down to the main process with flat virtual scrolling; key search history with
-autocomplete (isolated per connection and database, LRU 30, persisted to the config file); batch
-delete from deep tree directories via context menu; string values editable on double click; batch
-delete of two or more keys routed through the value panel; nine skins (including Aurora); credential
-expiry banner; solid line-number gutter for string values; installer start-menu shortcut page;
-error log files (renderer and main-process exceptions written to
-`logs/errors-yyyymmdd.log` with stack traces and 5-second de-duplication); batch delete in the
-connection list (entry appears at three or more); dialog close discipline (regular dialogs ignore
-mask clicks); symmetric entry points for all six types; nine-cell feature tour on the home page;
-vitest unit tests.
+operation log with a pinned action column; multi-hop SSH tunnels with keep-alive; six value-area tabs
+(Redis info / slow log / key memory analysis / Pub/Sub / monitoring charts / keyspace notifications);
+batch TTL and rename; full-database search pushed down to the main process with flat virtual
+scrolling; key search history with autocomplete (isolated per connection and database, LRU 30,
+persisted to the config file); batch delete from deep tree directories via context menu; string
+values editable on double click; paged loading for large keys (500 per page, 20,000 cap);
+incremental key-list refresh; virtual scrolling for all six value types; monitoring charts (Redis
+and Memcached); Memcached batch delete / TTL / prefix rename; in-app incremental updates
+(electron-updater); GitHub Actions CI and release pipeline; batch delete of two or more keys routed
+through the value panel; nine skins (including Aurora); credential expiry banner; solid line-number
+gutter for string values; installer start-menu shortcut page; error log files (renderer and
+main-process exceptions written to `logs/errors-yyyymmdd.log` with stack traces and 5-second
+de-duplication); batch delete in the connection list (entry appears at three or more); dialog close
+discipline (regular dialogs ignore mask clicks); symmetric entry points for all six types; nine-cell
+feature tour on the home page; vitest unit tests.
 
 ---
 
@@ -160,7 +221,7 @@ vitest unit tests.
 | `src/store/global.ts` | Connection management, tabs, snapshot restore |
 | `src/store/useRedis.ts` | Context wrapper: a Context inside the tab tree, an active-session proxy outside it |
 | `src/hooks/` | Settings, theme, search history, dialog dragging, six value-type editors (`valueEditor/`) |
-| `src/components/` | 48 UI components (`.tsx`) + `ui/` primitives + `components.css` |
+| `src/components/` | 53 UI components (`.tsx`) + `ui/` primitives + `components.css` |
 
 ---
 
@@ -213,7 +274,9 @@ to zh-CN and zh-TW → call `t('ns.key', { … })` in the source → run `npm ru
 | Compile-time optimization | **React Compiler 1.0** | Build-time automatic memoization, `target: 19` uses React's built-in runtime |
 | Transport | contextBridge + ipcRenderer.invoke | Context isolation; the renderer never touches Node |
 | Redis client | ioredis 5 | TLS / ACL / paged SCAN |
-| Packaging | electron-builder 25 | Windows NSIS / macOS DMG / Linux AppImage + deb |
+| In-app updates | electron-updater 6 | Blockmap differential downloads, progress, install on quit |
+| CI / releases | GitHub Actions | Full checks on push / PR; tagged builds for Windows published to Releases |
+| Packaging | electron-builder 25 | Windows NSIS / macOS DMG / Linux AppImage + deb; only three UI locales bundled |
 
 ---
 
@@ -236,9 +299,13 @@ Keyper/
 │       ├── settings-store.ts        # App settings persistence (settings.json)
 │       ├── search-history-store.ts  # Key search history (LRU 30, per connection and db)
 │       ├── log-service.ts           # Manual operation log (daily shards, expiry cleanup)
-│       ├── update-service.ts        # Update checks
+│       ├── update-service.ts        # Update checks (release-page fallback)
+│       ├── auto-update.ts           # In-app updates (electron-updater differential download / install)
 │       ├── config-path.ts           # Portable directory resolution and fallback
 │       └── close-signal.ts          # Disconnect-before-exit signal
+├── .github/workflows/               # CI and release pipelines
+│   ├── ci.yml                       # push / PR: i18n, typecheck, tests, build
+│   └── release.yml                  # tag / manual: build NSIS and publish a Release
 ├── lang/                            # Three dictionaries (semantic keys)
 │   ├── en.ts                        # English (single source of truth, exports MsgKey)
 │   ├── zh-CN.ts                     # Simplified (Record<MsgKey, string>)
@@ -255,7 +322,7 @@ Keyper/
 │   ├── api/                         # Data layer: IPC in Electron, mock fallback in the browser
 │   ├── store/                       # defineStore + session / global / subscriptions
 │   ├── hooks/                       # Settings, theme, search history, dialog drag, value editors
-│   ├── components/                  # 49 UI components + ui/ primitives
+│   ├── components/                  # 53 UI components + ui/ primitives
 │   ├── services/                    # Settings, theme, error reporting
 │   ├── utils/                       # Key tree, capability detection, formatting, clipboard
 │   ├── styles/                      # main.css (design tokens) + components.css
@@ -285,9 +352,12 @@ npm run build        # Type check + build into dist/ and dist-electron/
 npm run dist         # Package for the current platform
 npm run dist:win     # Build the Windows installer
 npm run dist:win:alt # Build Windows into release/<version>-final (keeps the previous output)
+npm run dist:win:publish # Build and publish to GitHub Releases (needs GH_TOKEN; version must match the tag)
 ```
 
-Build output lands in `release/<version>/` as `Keyper-1.0.7-win-x64.exe`.
+Build output lands in `release/<version>/` as `Keyper-1.0.7-win-x64.exe`; the same folder also
+contains `latest.yml`, `*.blockmap` (differential-update block index) and, inside the install
+directory, `app-update.yml` (the update feed configuration).
 
 Downloading the Electron binary is slow on mainland networks, so set a mirror first:
 
@@ -332,6 +402,34 @@ To diagnose startup problems, enable the main-process diagnostic log:
 KEYPER_DEBUG_LOG=/tmp/rd.log ./Keyper.exe
 # The log records: module loaded → requestSingleInstanceLock result → app ready → window created
 ```
+
+---
+
+## CI and automatic updates
+
+| Workflow | Trigger | Content |
+| --- | --- | --- |
+| `.github/workflows/ci.yml` | push (any branch) / PR to master | `npm ci` → `i18n:check` → `typecheck` → `vitest` → `vite build` |
+| `.github/workflows/release.yml` | `v*` tag / manual run | Verifies the tag matches `package.json` → builds NSIS on Windows → uploads the installer, `latest.yml` and blockmaps; a tag publishes the Release, a manual run only builds by default |
+
+### In-app updates
+
+The packaged build uses electron-updater behind the home page's "Check for updates" panel: it reads
+`latest.yml` from GitHub Releases and can download and install a new version directly. Downloads are
+differential via blockmap — only blocks that differ from the local installer are transferred — and
+the panel shows percent, transferred / total and speed. Closing the panel does not stop the
+download; when it finishes you can choose "Later" or "Restart and install", and choosing Later
+installs automatically when the app quits.
+
+- The feed is configured in the `publish` field of `electron-builder.yml`, and `app-update.yml` ships
+  with the installer; the `KEYPER_UPDATE_URL` environment variable can point at an internal / mirror
+  generic feed (a directory with `latest.yml` and the installer) and overrides that configuration.
+- Dev and unpackaged builds have no `app-update.yml`, so the in-app updater is skipped and the panel
+  falls back to the release-page check (it only reports the new version and opens the download page).
+- Publish with `npm run dist:win:publish` (needs `GH_TOKEN`), or push a `v*` tag matching the version
+  and let CI build it.
+- The incremental metadata (`latest.yml` and `*.blockmap`) must be uploaded together with the
+  installer, otherwise clients can only download the full package.
 
 ---
 
@@ -488,11 +586,13 @@ for long keys.
 
 #### Server information panel
 
-Four tabs at the top right: **Redis info** (nine sections — Server / Clients / Memory / Persistence /
+Six tabs at the top right: **Redis info** (nine sections — Server / Clients / Memory / Persistence /
 Stats / Replication / CPU / Cluster / Keyspace, each collapsible), **slow log**, **key memory
 analysis** (aggregated by prefix, scanning up to 10,000 keys and keeping the 200 largest prefixes),
-and **Pub/Sub subscriptions** (solid chips for channels, dashed chips for patterns, click × to
-unsubscribe one).
+**Pub/Sub subscriptions** (solid chips for channels, dashed chips for patterns, click × to
+unsubscribe one), **monitoring** (six metric charts sampled every 2 seconds) and **keyspace
+notifications** (flag toggles plus an event stream). Memcached has three tabs — stats / settings /
+monitoring — with monitoring sharing the Redis sampling and drawing skeleton.
 
 <p>
   <img src="docs/screenshots/overview-info.png" width="49%" alt="Redis info · dark" />
@@ -785,6 +885,27 @@ semantic colour tokens that follow all nine skins. Supports SSH tunnels and mult
   **Dangerous command guard**: `FLUSHALL` / `FLUSHDB` / `SHUTDOWN` prompt for confirmation and require
   typing the command name literally (not a soft "click to confirm"), and cancelling leaves a record in
   the console.
+- **Paged loading for large keys**: collection types read 500 elements at a time (`VALUE_PAGE_SIZE`)
+  and a single key accumulates at most 20,000 (`VALUE_PAGE_MAX`). hash / set continue with
+  `HSCAN` / `SSCAN` cursors, list / zset with offsets, and stream with the last entry ID of the
+  previous page (the boundary entry is re-read and dropped for older servers). The footer shows
+  "loaded / total"; refreshing a key re-reads as many elements as are already loaded, so a large key
+  does not jump back to page one. SCAN may return members twice across pages, so set merges
+  de-duplicate and hash merges by field name.
+- **Incremental Redis key-list refresh**: the toolbar refresh calls `refreshKeys()` and rescans the current
+  pattern up to the number already loaded, swapping the list only when the result arrives — no
+  clearing and no skeleton flash. Unchanged keys reuse their original object references so rows do
+  not re-render; when the selected key is missing from the new result it is verified with a
+  single-key lookup, and the value pane is cleared only after it is confirmed gone (SCAN never
+  guarantees every key in one pass).
+- **Virtual scrolling in the value area**: hash / list / set / zset / stream use `VirtualRows`.
+  Row heights depend on content, so each row is measured with a ResizeObserver and cached; prefix
+  sums + binary search locate the viewport rows and equal-height spacers fill the rest. Row elements
+  receive their ref through `cloneElement` without an extra DOM wrapper, so the table's flex / grid
+  layout, hover states and sticky footer stay exactly as they were. Below 40 rows everything renders
+  (windowing would cost more than it saves). string's line-number view is handled by
+  `VirtualStringLines`: exact virtualisation with fixed row heights when wrapping is off, and an
+  estimate plus a generous overscan when wrapping is on — line numbers always remain.
 
 **Interface capabilities**
 
@@ -865,6 +986,23 @@ semantic colour tokens that follow all nine skins. Supports SSH tunnels and mult
     map are shown as-is.
   - Over-long values are ellipsised with a tooltip, keeping the panel scannable rather than fully
     exposed.
+- **Monitoring charts**: the Redis overview's "Monitoring" tab samples every 2 seconds and keeps up
+  to 450 points, with 1m / 5m / 15m windows and pause / clear; six metrics (memory, ops/sec,
+  clients, hit rate, keys, evictions) each get a self-drawn SVG sparkline plus the min / max of the
+  current range. Cumulative counters (evictions) become a per-minute increase over a 60-second
+  window, and hit rate is cumulative since server start. The tab and its samples stay alive across
+  tab switches, so history never restarts. Memcached reuses the same sampling and drawing skeleton
+  with `stats` as the source: ops/sec is the difference of cumulative command counters (get / set /
+  touch / delete / incr / decr / cas) divided by elapsed seconds, and evictions are drawn as a
+  per-minute increase.
+- **Keyspace notifications**: the overview's "Keyspace notifications" tab toggles the
+  `notify-keyspace-events` channel flags (K / E) and type flags (A, g$lshzxetd, m, n) and writes
+  them back, with a live value preview; A is an alias for g$lshzxetd, so its types show as
+  implicitly selected. Listening uses a dedicated subscriber connection (subscribe-mode connections
+  cannot run ordinary commands, and it is independent of Pub/Sub) and subscribes to `keyevent`
+  only — it mirrors `keyspace`, and subscribing to both would push two events per action. The
+  stream keeps the latest 200 events, auto-scrolls to the bottom and filters by event / key /
+  channel; switching connections or leaving the overview unsubscribes, leaving no ghost connection.
 - **Welcome page**: with no connections configured, the main area shows the local runtime (Electron /
   Chromium / Node / V8 / platform) and Redis quick reference (default port, connection string format,
   common commands).
@@ -895,6 +1033,14 @@ semantic colour tokens that follow all nine skins. Supports SSH tunnels and mult
 - **Key list paging**: cursor-based `SCAN` loading, with "loaded N / total in db" at the bottom and
   "load more" (one more page) plus "load all" (scan until the cursor is zero, capped at 5,000 keys so
   the UI stays responsive).
+- **Memcached batch operations**: after entering batch selection in the key browser, the action bar
+  offers TTL, prefix rename and batch delete; delete asks for confirmation first. The value area
+  becomes `MemcachedBulkOpsPanel` (same skeleton as the Redis batch panel): the list is searchable
+  and sortable by key / TTL / size / state, and each row shows its current and target value.
+  Execution walks the list one key at a time and can be stopped midway. Prefix rename only touches
+  matching keys; an existing target is skipped and marked failed instead of being overwritten.
+  When the task ends the key list refreshes with a single broadcast, so N keys do not trigger N full
+  enumerations.
 - **Key context menu**: tree and flat modes share one menu (tree nodes emit the right-click and
   `KeyBrowser` renders it at the top level) — one menu per recursive node would fill a long list with
   hidden popovers.
@@ -948,13 +1094,30 @@ semantic colour tokens that follow all nine skins. Supports SSH tunnels and mult
   bubbles overlap. Note also that `title` on components such as `PromptDialog` is a **component prop**
   (the dialog title), not a tooltip; do not "fix" it.
 
+**Engineering and distribution**
+
+- **In-app updates**: the packaged build checks GitHub Releases' `latest.yml` from the home page's
+  "Check for updates" panel and can download and install a new version directly. Downloads are
+  differential via blockmap — only blocks that differ from the local installer are transferred — and
+  progress is pushed from the main process (percent / transferred / total / speed). Closing the panel
+  does not stop the download; when it finishes you can choose "Later" or "Restart and install", and
+  choosing Later installs automatically when the app quits. Unpackaged builds have no
+  `app-update.yml`, so the in-app updater is skipped and the panel falls back to the release-page
+  check.
+- **CI and releases**: two GitHub Actions workflows — `ci.yml` runs i18n checks, type checking, unit
+  tests and a build on every push / PR; `release.yml` responds to a `v*` tag (or a manual run), first
+  verifying that the tag matches `package.json`, then building NSIS on Windows and uploading the
+  installer, `latest.yml` and blockmaps before publishing the Release. A manual run only builds by
+  default.
+- **Smaller installer**: Electron runtime locales are cut from 50+ to the three the UI actually uses
+  (en-US / zh-CN / zh-TW), renderer dependencies moved to devDependencies, and asar keeps only
+  production dependencies (ioredis / ssh2 / electron-updater and friends). The installer drops from
+  84.0 MB to 75.4 MB (-10.3%) and app.asar from 18.9 MiB to 3.7 MiB.
+
 ## Roadmap
 
 1. **Connection coverage**: Sentinel / Cluster mode, connection import and export
-2. **Performance and ergonomics**: paged loading for large keys, incremental key list refresh, virtual
-   scrolling for more types
-3. **Feature depth**: monitoring charts, keyspace notifications, Memcached batch operations
-4. **Engineering**: CI packaging, incremental updates (electron-updater), smaller installers
+2. **Distribution**: macOS notarisation and signing, stable / beta update channels
 
 ---
 
@@ -964,6 +1127,9 @@ semantic colour tokens that follow all nine skins. Supports SSH tunnels and mult
   reachable only through whitelisted IPC
 - Connection passwords are encrypted with the system keychain where available, degrading to plaintext
   storage only when it is not (marked with a `raw:` prefix)
+- Automatic updates pull from the configured GitHub Releases feed over HTTPS, and the installer and
+  incremental metadata must be published from the same source. The Windows installer is not code-signed
+  yet; add signing before public distribution to avoid SmartScreen warnings.
 - Production builds can tighten further: load a `Content-Security-Policy` for the renderer and enable
   `sandbox: true` (which requires turning the preload into a pure IPC bridge without `require`)
 
