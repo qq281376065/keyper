@@ -6899,7 +6899,11 @@
   border-left: 1px solid var(--border);
 }
 .s-value-viewer.viewer-head, .s-value-viewer .viewer-head{
-  padding: 10px 8px 8px;
+  /*
+   * 上下留白比左右宽：头部是值区的"标题栏"，需要一点呼吸感。
+   * 左右 14px 与下方工具栏的内边距对齐，避免两行左边界错位。
+   */
+  padding: 14px 14px 13px;
   border-bottom: 1px solid var(--border);
   background: var(--bg-panel);
 }
@@ -6907,7 +6911,34 @@
 .s-value-viewer.key-line, .s-value-viewer .key-line{
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+  /* 与下方元信息行拉开距离；两行各自成组，不贴着 */
+  margin-bottom: 9px;
+}
+/*
+ * 右侧操作容器：与 key 行同高、垂直居中，且不被 flex 压缩。
+ *
+ * 原写法没有显式高度，按钮靠 inline 基线参与排版，图标落在字体基线上
+ * 而不是几何中心，视觉上比左侧胶囊和 key 名偏低。这里统一成 flex 居中。
+ */
+.s-value-viewer .key-line .value-actions {
+  display: flex;
+  align-items: center;
+  align-self: center;
+  height: 24px;
+  flex: 0 0 auto;
+}
+.s-value-viewer .key-line .value-actions .more-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  width: 24px;
+  padding: 0;
+}
+/* 图标本体也走 flex 居中，避免 SVG 的 inline 基线偏移 */
+.s-value-viewer .key-line .value-actions .more-btn svg {
+  display: block;
 }
 /*
  * 值区头部的类型徽章：全称胶囊（与三个编辑对话框同一形态）。
@@ -6925,11 +6956,19 @@
 .s-value-viewer.type-badge, .s-value-viewer .type-badge{
   width: auto;
   height: auto;
+  /*
+   * 尺寸与三个编辑对话框的胶囊保持一致（3px 10px / 10px 圆角）。
+   * 16px 高配 10px 半径已经是满圆，不必改成 999px ——
+   * 数值一致才便于日后统一调整，视觉上并无差别。
+   */
   padding: 3px 10px;
   border-radius: 10px;
   font-size: var(--fs-xs);
   font-weight: 600;
   letter-spacing: 0.3px;
+  /* 行内块不随父级 baseline 下沉，与 key 名几何居中 */
+  align-self: center;
+  flex: 0 0 auto;
 }
 .s-value-viewer.key-name, .s-value-viewer .key-name{
   font-size: var(--fs-lg);
@@ -7077,8 +7116,48 @@
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+/*
+ * 第二行：TTL | encoding | 大小（次级信息带）。
+ *
+ * 这段样式在还原头部时被误删（只留了 .sep 的配色），导致 .meta-line
+ * 退回浏览器默认的 block + 无间距 —— 三项靠行内空白相连、竖线两侧
+ * 几乎贴字，这正是"太紧凑"的直接原因。
+ *
+ * 重新设计的三条原则：
+ *   1. 字号提到 --fs-md（12px）。原来用 --fs-sm（11px）夹在
+ *      14px 的 key 名和 10px 的胶囊之间，太靠下，读起来吃力。
+ *   2. 间距拆两级：组间 14px（足够让三组各自成块），组内 5px。
+ *      原来的 12px 在 12px 字号下仍偏紧，竖线左右各 14px 才透气。
+ *   3. 标签与值用不同色阶：标签 --text-muted，值 --text-secondary，
+ *      靠颜色分层而不是只靠字号，减少"整行都是小字"的压迫感。
+ */
+.s-value-viewer.meta-line, .s-value-viewer .meta-line{
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  font-size: var(--fs-md);
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+/* 每个「标签 + 值」是一组，组内用小间距 */
+.s-value-viewer .meta-line > span:not(.sep) {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+}
+.s-value-viewer .meta-line b{
+  color: var(--text-secondary);
+  font-weight: 500;
+}
 .s-value-viewer.sep, .s-value-viewer .sep{
+  /* 竖线弱化成一条细分隔，避免与两侧文字抢注意力 */
   color: var(--border-strong);
+  opacity: 0.75;
+  font-size: var(--fs-xs);
+  user-select: none;
 }
 .s-value-viewer.hint, .s-value-viewer .hint{
   margin-left: auto;
