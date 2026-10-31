@@ -66,6 +66,76 @@ async function main() {
   })
   await sleep(2500)
 
+  console.log('→ CLI 控制台')
+  /*
+   * 打开 CLI 控制台并执行一条命令，等结果真正回显后再截图。
+   *
+   * 三个坑（都踩过，别再回头）：
+   *
+   * 1) 输入方式：必须用 playwright 的 keyboard.type（逐字符真实按键），
+   *    不能用「改 DOM value + dispatchEvent('input')」那套。
+   *    输入框是 React 受控组件，submit() 读的是 state 里的 input；
+   *    直接改 DOM 属性再派发合成事件不会更新 state，
+   *    于是 input.trim() 为空、submit() 第一行就 return ——
+   *    表现为「点了执行但没有任何输出」，排查了很久。
+   *
+   * 2) 时序：mock 的 DBSIZE 往返约 2.5s，原实现固定 sleep(1800)
+   *    会在结果出来前截图，README 里的 CLI 图只有命令没有结果。
+   *
+   * 3) 折叠态：面板折叠时 .cli-body 仍是 DOM 节点但 display:none，
+   *    对隐藏元素取 innerText 得到空串，判断永远为假。
+   *    所以先确认 offsetParent 非空；也不能无条件点 .cli-head ——
+   *    若已是展开态，点击反而会收起。
+   *
+   * 判定用 .cli-log 里的 output entry（结果形如 "1284"），
+   * 不要用 .cli-body.innerText —— 它还含输入行，
+   * 提示符里的 127.0.0.1:6379 同样是数字，会误判。
+   */
+  const cliExpanded = await page.evaluate(() => {
+    const body = document.querySelector('.cli-body')
+    return !!body && body.offsetParent !== null
+  })
+  if (!cliExpanded) {
+    await page.evaluate(() => {
+      const h = document.querySelector('.cli-head')
+      if (h) h.click()
+    })
+    await sleep(800)
+  }
+
+  /*
+   * 提交方式用「点执行按钮」而不是「按 Enter」。
+   *
+   * Enter 走的是 onKeyDown → submit()，而按钮走 onClick → submit()，
+   * 两者本应等价，但实测在长流程后按 Enter 偶发不触发（焦点可能已被
+   * 前序操作移走），点按钮更稳。这里选稳的那条路。
+   */
+  await page.locator('.cli-input-row input').click()
+  await page.keyboard.type('DBSIZE', { delay: 40 })
+  await sleep(300)
+  await page.evaluate(() => {
+    const btns = [...document.querySelectorAll('.cli-input-row button')]
+    const exec = btns[btns.length - 1]
+    if (exec && !exec.disabled) exec.click()
+  })
+
+  const cliReady = await page
+    .waitForFunction(
+      () => {
+        const body = document.querySelector('.cli-body')
+        if (!body || body.offsetParent === null) return false
+        return [...document.querySelectorAll('.cli-log .entry.output')].some((e) =>
+          /^\d+/.test(e.innerText.trim()),
+        )
+      },
+      { timeout: 10000 },
+    )
+    .then(() => true)
+    .catch(() => false)
+  if (!cliReady) console.log('  ! CLI 结果未在 10s 内出现，仍按当前状态截图')
+  await sleep(400)
+  await shot('cli-console', 'dark')
+
   console.log('→ 键浏览器（9 套皮肤）')
   await clickText('树形')
   await sleep(600)
@@ -150,23 +220,6 @@ async function main() {
   })
   await sleep(1200)
 
-  console.log('→ CLI 控制台')
-  await page.evaluate(() => {
-    const h = document.querySelector('.cli-head')
-    if (h) h.click()
-  })
-  await sleep(800)
-  await page.evaluate(() => {
-    const inp = document.querySelector('.cli-input-row input')
-    if (!inp) return
-    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
-    setter.call(inp, 'DBSIZE')
-    inp.dispatchEvent(new Event('input', { bubbles: true }))
-    const btn = [...document.querySelectorAll('.cli-input-row button')].pop()
-    if (btn) btn.click()
-  })
-  await sleep(1800)
-  await shot('cli-console', 'dark')
 
   console.log('→ 操作日志')
   await page.evaluate(() => {
