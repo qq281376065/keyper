@@ -18,9 +18,27 @@ registering it; no existing code path has to change.
 > shared type contracts and packaging configuration follow that structure; the renderer has been
 > rebuilt around a multi-engine architecture.
 
-Current version: `1.0.8`
+Current version: `1.0.9`
 
-What changed in this release (1.0.7 → 1.0.8):
+What changed in this release (1.0.8 → 1.0.9):
+
+- **Fixed: copy operations were failing.** The permission hardening denied every permission
+  probe, so `navigator.clipboard.writeText` threw `NotAllowedError`, and the
+  `document.execCommand('copy')` fallback is deprecated in modern Chromium — all 16 copy call
+  sites (key name / value / connection address) failed. The policy now allows `clipboard-read`
+  by its actual permission name (Chromium requests it as a probe before `writeText` writes);
+  every other permission is still denied.
+- **Fixed: toasts disappeared instantly.** A 200 ms hide timer in the renderer overrode the
+  5–6.5 s duration configured in the store, so a toast flashed for a single frame. The timer is
+  gone and visibility is owned by the store alone; the success duration is now 6 s.
+- **Value header restored to "type pill | key"**: replaces the three-part masthead layout — the
+  first row holds the type pill, the key name and the actions on the right, the second row holds
+  `TTL | encoding | size`.
+- **Header spacing and alignment**: restored the meta-row styles that had been dropped by mistake
+  (14 px between groups, 12 px font size, separate colour steps for label and value) and 14 px
+  padding; fixed the right-hand ⋮ button, which sat off-centre because of inline baseline layout.
+
+Previous release (1.0.7 → 1.0.8):
 
 - **Paged loading for large keys**: hash / list / set / zset / stream no longer read everything at
   once. The default page is 500 elements and a key caps at 20,000; "load more" continues by cursor —
@@ -97,7 +115,7 @@ What changed in this release (1.0.7 → 1.0.8):
   longer polls in the background.
 - **electron-builder upgraded to 26**: no config changes required, installer size down another 3.53%.
 
-Previous release (1.0.6 → 1.0.7):
+Earlier (1.0.6 → 1.0.7):
 
 - **Unified hover shadow for icon buttons across the app**: 15 kinds of icon-only buttons — refresh /
   new key / dialog close / more actions / sidebar new and collapse / sidebar expand / tab overflow /
@@ -377,7 +395,7 @@ npm run dist:win:alt # Build Windows into release/<version>-final (keeps the pre
 npm run dist:win:publish # Build and publish to GitHub Releases (needs GH_TOKEN; version must match the tag)
 ```
 
-Build output lands in `release/<version>/` as `Keyper-1.0.8-win-x64.exe`; the same folder also
+Build output lands in `release/<version>/` as `Keyper-1.0.9-win-x64.exe`; the same folder also
 contains `latest.yml`, `*.blockmap` (differential-update block index) and, inside the install
 directory, `app-update.yml` (the update feed configuration).
 
