@@ -35,6 +35,18 @@ jobs:
         run: npm test
 
       # 与 npm run build 相同的产物（含主进程 / preload），
-      # typecheck 已单独执行，这里不再重复
+      # typecheck 已单独执行，这里不再重复。
+      #
+      # ⚠️ 必须用 vite build 而不是 npm run build：
+      # 后者含 typecheck（上面已跑过），但**不能**跳过 csp-hash 这一步 ——
+      # dist/index.html 的 meta CSP 依赖它对内联脚本算 sha256。
+      # 漏掉后发布包里的首屏主题脚本会被 CSP 拦下（亮暗闪烁）。
       - name: Build bundles
         run: npx vite build
+
+      - name: Inject CSP hashes
+        run: node scripts/csp-hash.mjs
+
+      # 兜底：确认注入结果与内联脚本一致（防止脚本自身写错）
+      - name: Verify CSP hashes
+        run: npm run csp:check

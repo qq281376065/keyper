@@ -48,6 +48,7 @@ export type DialogIconName =
   | 'link'
   | 'menu'
   | 'folder-open'
+  | 'import'
   | 'export'
   | 'search'
   | 'warning'
@@ -93,6 +94,8 @@ export type DialogIconName =
     /* 概览监控页签：折线坐标轴 / 键空间通知：铃铛 */
   | 'chart'
   | 'bell'
+    /* 连接栏顶部「导入 / 导出连接」入口：单托盘 + 双向箭头 */
+  | 'transfer'
   /** 尺寸（px），默认 13 */
 
 export interface DialogIconProps {
@@ -458,12 +461,22 @@ function renderGlyph(name: DialogIconName): React.ReactElement | null {
       </g>
     )
   }
-  /** 导出：向下的箭头落到托盘 */
-  if (name === 'export') {
+  /** 导入：向下的箭头落进托盘（从外部读入） */
+  if (name === 'import') {
     return (
       <g>
         <path d="M8 2.4v7.2" />
         <path d="M5.2 6.8 8 9.6l2.8-2.8" />
+        <path d="M2.8 12.4h10.4" />
+      </g>
+    )
+  }
+  /** 导出：向上的箭头离开托盘（写出到外部） */
+  if (name === 'export') {
+    return (
+      <g>
+        <path d="M8 11.6V3.6" />
+        <path d="M5.2 6.4 8 3.6l2.8 2.8" />
         <path d="M2.8 12.4h10.4" />
       </g>
     )
@@ -739,6 +752,24 @@ function renderGlyph(name: DialogIconName): React.ReactElement | null {
       <g>
         <path d="M3.6 11.4h8.8l-1-1.5V7.2a3.4 3.4 0 0 0-6.8 0v2.7z" />
         <path d="M6.5 13.2a1.6 1.6 0 0 0 3 0" />
+      </g>
+    )
+  }
+  /** 导入 / 导出连接：单托盘 + 双向箭头。
+      语义：托盘沿用现有「导入/导出」图标的既有认知（向托盘里放 / 从托盘里取），
+      两支箭头一进一出，把「这一个入口同时管导入和导出」讲清楚。
+      几何取舍（13px 实测）：
+      - 只留一条底托。一版画上下两条托盘的版本，13px 下 5 段笔画把负空间填满、
+        与箭头糊成一团，已废弃；
+      - 两支箭头左右分开（间距 4.6），不做对称重叠，避免缩略时并成一根粗柱；
+      - 托盘放在 y=12.8，与箭头最低点留 2.9 的净空，缩放后不会贴上箭头尾部。
+      整体 bbox 中心正好落在 (8, 8)，与相邻的 add / trash 图标同心。 */
+  if (name === 'transfer') {
+    return (
+      <g>
+        <path d="M3.4 12.8h9.2" />
+        <path d="M5.7 9.9V3.2M4.2 4.7 5.7 3.2l1.5 1.5" />
+        <path d="M10.3 3.2v6.7M8.8 8.4l1.5 1.5 1.5-1.5" />
       </g>
     )
   }

@@ -1463,7 +1463,8 @@
   color: #fff;
 }
 /* 多选模式激活态：入口图标高亮，一眼可辨「当前处于批量删除中」 */
-.s-connection-sidebar.add-btn.bulk-on, .s-connection-sidebar .add-btn.bulk-on{
+.s-connection-sidebar.add-btn.bulk-on, .s-connection-sidebar .add-btn.bulk-on,
+.s-connection-sidebar .add-btn.active {
   background: var(--accent-soft);
   color: var(--accent);
 }

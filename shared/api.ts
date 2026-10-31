@@ -17,6 +17,11 @@ import type {
   MetricsSample,
   OperationResult,
   CacheConnectionConfig,
+  ConnectionExportOptions,
+  ConnectionExportResult,
+  ConnectionImportApplyOptions,
+  ConnectionImportPreview,
+  ConnectionImportResult,
   MemcachedKeyList,
   MemcachedOverview,
   MemcachedSlab,
@@ -154,6 +159,28 @@ export interface RedisDesktopApi {
      * 组内先后完全由这里落盘的顺序决定。
      */
     reorder: (ids: string[]) => Promise<ApiResponse<CacheConnectionConfig[]>>
+    /**
+     * 导出全部连接。文件路径由主进程的保存对话框决定，
+     * 渲染层只传「是否包含凭据」—— 不允许指定任意路径。
+     */
+    exportToFile: (options: ConnectionExportOptions) => Promise<ApiResponse<ConnectionExportResult>>
+    /**
+     * 选择并解析导入文件，返回脱敏预览与一次性 token。
+     * 用户取消文件对话框时 data 为 null。
+     */
+    importPick: () => Promise<ApiResponse<ConnectionImportPreview | null>>
+    /** 确认导入：主进程重新读盘合并、一次落盘并返回全量列表 */
+    importApply: (
+      token: string,
+      options: ConnectionImportApplyOptions,
+    ) => Promise<ApiResponse<ConnectionImportResult>>
+    /** 放弃预览时释放主进程缓存的解析结果（过期也会自动清理） */
+    importCancel: (token: string) => Promise<ApiResponse<OperationResult>>
+    /**
+     * 批量新建（URI 批量导入用）：主进程重新校验、分配不冲突的 ID，
+     * 一次落盘，避免逐条 save 的 N 次 IPC 与 N 次全量刷新。
+     */
+    saveMany: (configs: CacheConnectionConfig[]) => Promise<ApiResponse<ConnectionImportResult>>
     /** 测试连接：按 config.engine 路由到对应引擎的适配器 */
     test: (config: CacheConnectionConfig) => Promise<ApiResponse<OperationResult>>
     /** 建立连接：同上，返回该引擎特有的状态对象 */
@@ -475,6 +502,11 @@ export const IPC = {
   connectionRemove: 'connection:remove',
   connectionSetPinned: 'connection:setPinned',
   connectionReorder: 'connection:reorder',
+  connectionExport: 'connection:export',
+  connectionImportPick: 'connection:importPick',
+  connectionImportApply: 'connection:importApply',
+  connectionImportCancel: 'connection:importCancel',
+  connectionSaveMany: 'connection:saveMany',
   connectionTest: 'connection:test',
   connectionConnect: 'connection:connect',
   connectionDisconnect: 'connection:disconnect',

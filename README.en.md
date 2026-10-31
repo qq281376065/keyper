@@ -77,6 +77,13 @@ In development (1.0.7 → 1.0.8):
   (en-US / zh-CN / zh-TW), and renderer dependencies moved to devDependencies so asar contains only
   production dependencies. The installer drops from 84.0 MB to 75.4 MB (-10.3%) and app.asar from
   18.9 MiB to 3.7 MiB.
+- **Connection import/export**: the sidebar ⋯ menu and the home page's "Import from connection
+  string" share one set of entry points. Export writes a format-tagged JSON profile (both engines
+  plus multi-hop SSH, credentials stripped by default with an explicit opt-in and confirmation).
+  Import shows a per-entry preview first (conflicts / connected / invalid entries / credential
+  badges), creates new IDs by default, can overwrite by ID while skipping connected entries, and
+  batch URI import accepts comments, caps at 200 lines, reports errors per line and imports only the
+  valid ones.
 
 What changed in this release (1.0.6 → 1.0.7):
 
@@ -206,7 +213,8 @@ and Memcached); Memcached batch delete / TTL / prefix rename; in-app incremental
 through the value panel; nine skins (including Aurora); credential expiry banner; solid line-number
 gutter for string values; installer start-menu shortcut page; error log files (renderer and
 main-process exceptions written to `logs/errors-yyyymmdd.log` with stack traces and 5-second
-de-duplication); batch delete in the connection list (entry appears at three or more); dialog close
+de-duplication); connection import/export (JSON, credentials excluded by default) and batch URI
+import; batch delete in the connection list (entry appears at three or more); dialog close
 discipline (regular dialogs ignore mask clicks); symmetric entry points for all six types; nine-cell
 feature tour on the home page; vitest unit tests.
 
@@ -295,6 +303,7 @@ Keyper/
 │       ├── connection-manager.ts    # Redis connection pool + every Redis command
 │       ├── ssh-tunnel.ts            # SSH tunnel (local port forwarding)
 │       ├── connection-store.ts      # Connection config persistence
+│       ├── connection-transfer.ts   # Import/export file IO and one-time preview tokens
 │       ├── credential-crypto.ts     # Credential encryption (safeStorage + fallback)
 │       ├── settings-store.ts        # App settings persistence (settings.json)
 │       ├── search-history-store.ts  # Key search history (LRU 30, per connection and db)
@@ -313,6 +322,7 @@ Keyper/
 ├── shared/                          # Type contracts shared by main and renderer
 │   ├── types.ts                     # Data models
 │   ├── api.ts                       # Interfaces + IPC channel constants
+│   ├── connection-transfer.ts       # Pure import/export logic: allowlist export / parsing / merge policy
 │   ├── keyspace.ts                  # Key namespace parsing (separators / prefixes)
 │   ├── i18n/index.ts                # Translation core: language codes, lookup, interpolation
 │   └── version.ts                   # Version parsing and comparison
@@ -322,12 +332,12 @@ Keyper/
 │   ├── api/                         # Data layer: IPC in Electron, mock fallback in the browser
 │   ├── store/                       # defineStore + session / global / subscriptions
 │   ├── hooks/                       # Settings, theme, search history, dialog drag, value editors
-│   ├── components/                  # 53 UI components + ui/ primitives
+│   ├── components/                  # 55 UI components + ui/ primitives
 │   ├── services/                    # Settings, theme, error reporting
 │   ├── utils/                       # Key tree, capability detection, formatting, clipboard
 │   ├── styles/                      # main.css (design tokens) + components.css
 │   └── preview/                     # Browser-only preview pages
-├── tests/unit/                      # vitest unit tests (16 specs)
+├── tests/unit/                      # vitest unit tests (17 specs)
 ├── build/                           # Icons and NSIS customization scripts
 ├── scripts/                         # Development probes and screenshot scripts
 ├── vite.config.ts                   # Renderer + main process builds
@@ -931,6 +941,41 @@ semantic colour tokens that follow all nine skins. Supports SSH tunnels and mult
   zset, with initial content and an optional TTL; on success the ancestor path expands and the new key
   is selected.
   Container types require at least one element (a Redis container key only exists once it has one).
+- **Connection import/export (JSON)**: the sidebar-header ⋯ menu offers "Import connections…", "Export
+  connections…" and "Import from connection string…", and the home page's "Import from connection
+  string" button reuses the same dialog. Transfer files carry their own header,
+  `{ format: "keyper.connections", version: 1, exportedAt, appVersion, includesCredentials }`, and
+  cover Redis / Memcached plus multi-hop SSH settings; export is always exhaustive in v1, with no
+  per-connection selection. They are deliberately separate from the internal `connections.json`
+  (a bare array of `enc2:` ciphertext bound to the session key, which cannot be decrypted on another
+  machine).
+
+  - **Credentials are excluded by default**: Redis passwords and SSH passwords / private keys /
+    passphrases are stripped unless "include credentials" is ticked, which requires a second
+    confirmation and states plainly that the file will hold plaintext. Entries are built from a field
+    allowlist, so runtime fields such as `pinned` and `credentialError` never reach disk. A saved but
+    temporarily disabled tunnel is written as `sshEnabled: false`, so the importing side does not
+    re-enable it just because an `ssh` block exists.
+  - **Import preview**: before applying, every entry shows its engine, address, database / TLS / SSH
+    jump host and credential badges, ID / name conflicts with existing configs, whether it is
+    connected, and the file's export time and app version. Malformed or invalid entries (out-of-range
+    ports, duplicate IDs, …) are listed separately and **do not block the valid ones**.
+  - **Merge policy**: new IDs by default, with duplicated names gaining ` (2)`, ` (3)`; an optional
+    "overwrite by ID" mode matches IDs only and preserves the existing pin. **Connected entries are
+    skipped in overwrite mode** — rewriting the saved config would not rebuild the in-memory session,
+    and "the list shows a new address while the client still talks to the old instance" is more
+    dangerous than refusing. The list is updated in place afterwards without a full bootstrap, so
+    connection state and open tabs are untouched.
+  - **File IO stays in the main process**: the renderer passes options only; choosing the file,
+    reading, writing and validation all happen in the main process, and the preview is handed back
+    through a one-time token valid for five minutes, so the renderer never sees a file path.
+- **Batch URI import**: one dialog, single and batch modes. A single URI is parsed and shown with a
+  masked password, database and TLS state, then "Fill into form" carries it into the new-connection
+  dialog. Batch mode takes one connection string per line — `redis://`, `rediss://`,
+  `memcached://` or bare `host[:port]` — ignores `#` comments and blank lines, and caps at 200 lines.
+  Each line shows its number, engine, address, auth state and error reason (out-of-range port,
+  Memcached not supporting auth / a database number, …); **only valid lines are imported**, with the
+  original line numbers kept for cross-checking.
 - **Connection menu**: connect / disconnect, refresh server metrics, **version info**, test connection,
   edit config, clone connection, copy connection URL (`redis://…`), delete connection.
 - **SSH tunnel**: reach a Redis instance that only answers on an internal or loopback address through a
@@ -1116,11 +1161,8 @@ semantic colour tokens that follow all nine skins. Supports SSH tunnels and mult
 
 ## Roadmap
 
-1. **Import / export** (next up): native JSON profiles covering both engines and SSH settings, with
-   credentials excluded by default; batch URI import.
-2. **Distribution**: Windows code signing, macOS notarisation and signing, stable / beta update
+1. **Distribution**: Windows code signing, macOS notarisation and signing, stable / beta update
    channels.
-3. **Quality and security**: renderer CSP and sandbox hardening.
 
 ---
 
@@ -1130,11 +1172,22 @@ semantic colour tokens that follow all nine skins. Supports SSH tunnels and mult
   reachable only through whitelisted IPC
 - Connection passwords are encrypted with the system keychain where available, degrading to plaintext
   storage only when it is not (marked with a `raw:` prefix)
+- Exported connection files exclude credentials by default. With "include credentials" ticked,
+  Redis / SSH passwords, private keys and passphrases are written to the chosen file as **plaintext**
+  with no second layer of encryption, so the file must be handled with care
 - Automatic updates pull from the configured GitHub Releases feed over HTTPS, and the installer and
   incremental metadata must be published from the same source. The Windows installer is not code-signed
   yet; add signing before public distribution to avoid SmartScreen warnings.
-- Production builds can tighten further: load a `Content-Security-Policy` for the renderer and enable
-  `sandbox: true` (which requires turning the preload into a pure IPC bridge without `require`)
+- The renderer runs with `sandbox: true`: the preload keeps only `require("electron")`, so neither the
+  renderer nor the preload can reach `require` / `process` / `module` / `Buffer` — capabilities are
+  exposed solely through `contextBridge`
+- A strict `Content-Security-Policy` (`default-src 'none'`, no `unsafe-inline` for scripts or styles) is
+  applied: in production it takes effect via a `<meta>` tag in the built HTML (response headers do not
+  apply to `file://`), while the dev server gets a second policy that allows HMR. The sha256 of the
+  first-paint theme script is written by `scripts/csp-hash.mjs` at build time and can be verified with
+  `npm run csp:check`
+- In-app navigation, `<webview>` attachment and Chromium permission requests are all denied; external
+  links are handed to the system browser and only https URLs on trusted hosts (GitHub / Gitee) pass
 
 
 

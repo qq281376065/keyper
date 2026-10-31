@@ -1,5 +1,6 @@
 import { BrowserWindow, app, dialog, ipcMain } from 'electron'
 import fs from 'node:fs'
+import path from 'node:path'
 import { IPC } from '../../shared/api'
 import { t } from '@shared/i18n'
 import type {
@@ -15,6 +16,20 @@ import { connectionManager } from '../services/connection-manager'
 import { memcachedManager } from '../services/engines/memcached/manager'
 import { getEngine, registerEngine } from '../services/engines/registry'
 import { loadConnections, saveConnections } from '../services/connection-store'
+import {
+  MAX_TRANSFER_CONNECTIONS,
+  TRANSFER_FORMAT,
+  TRANSFER_VERSION,
+  buildExportPayload,
+  buildPreviewItems,
+  dropImport,
+  mergeImported,
+  parseTransferText,
+  readTransferFile,
+  stashImport,
+  takeImport,
+  writeTransferFile,
+} from '../services/connection-transfer'
 import { appendErrorLog, appendLog, listLogFiles, logDir, openLogDir, readLogs } from '../services/log-service'
 import {
   clearSearchHistory,
@@ -39,6 +54,11 @@ import type {
   ApiResponse,
   AppSettings,
   CliResult,
+  ConnectionExportOptions,
+  ConnectionExportResult,
+  ConnectionImportApplyOptions,
+  ConnectionImportPreview,
+  ConnectionImportResult,
   ConnectionState,
   DatabaseInfo,
   EnvInfo,
@@ -589,6 +609,139 @@ export function registerIpcHandlers(): void {
     for (const item of list) if (!order.has(item.id)) next.push(item)
     saveConnections(next)
     return next
+  })
+
+  /*
+   * 连接导入导出。
+   *
+   * 文件路径一律由主进程的对话框提供，渲染层只传选项 / 令牌 ——
+   * 不接受任意路径，避免渲染层被注入后读写用户磁盘上的其他文件。
+   */
+  handle<ConnectionExportResult>(IPC.connectionExport, async (options) => {
+    const list = loadConnections()
+    if (!list.length) throw new Error(t('connectionTransfer.noConnectionsToExport'))
+
+    const typed = (options ?? {}) as ConnectionExportOptions
+    const { file, missingCredentials } = buildExportPayload(
+      list,
+      { includeCredentials: typed.includeCredentials === true },
+      app.getVersion(),
+    )
+
+    const now = new Date()
+    const pad = (value: number): string => String(value).padStart(2, '0')
+    const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`
+    const result = await dialog.showSaveDialog({
+      title: t('connectionTransfer.exportDialogTitle'),
+      defaultPath: `keyper-connections-${stamp}.json`,
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    })
+    if (result.canceled || !result.filePath) {
+      return { saved: false, exported: 0, missingCredentials: 0 }
+    }
+
+    writeTransferFile(result.filePath, file)
+    return {
+      saved: true,
+      path: result.filePath,
+      exported: file.connections.length,
+      missingCredentials,
+    }
+  })
+
+  handle<ConnectionImportPreview | null>(IPC.connectionImportPick, async () => {
+    const picked = await dialog.showOpenDialog({
+      title: t('connectionTransfer.importDialogTitle'),
+      properties: ['openFile'],
+      filters: [
+        { name: 'JSON', extensions: ['json'] },
+        { name: t('ipc.allFiles'), extensions: ['*'] },
+      ],
+    })
+    const filePath = picked.filePaths[0]
+    if (picked.canceled || !filePath) return null
+
+    const parsed = parseTransferText(readTransferFile(filePath))
+    const existing = loadConnections()
+    const items = buildPreviewItems(parsed.configs, {
+      existing,
+      isConnected: (id) => connectionManager.isConnected(id) || memcachedManager.owns(id),
+    })
+    const token = stashImport(parsed, path.basename(filePath))
+
+    return {
+      token,
+      fileName: path.basename(filePath),
+      formatVersion: parsed.formatVersion,
+      ...(parsed.exportedAt ? { exportedAt: parsed.exportedAt } : {}),
+      ...(parsed.appVersion ? { appVersion: parsed.appVersion } : {}),
+      includesCredentials: parsed.includesCredentials,
+      total: parsed.total,
+      valid: parsed.configs.length,
+      items,
+      issues: parsed.issues,
+    }
+  })
+
+  handle<ConnectionImportResult>(IPC.connectionImportApply, (token, options) => {
+    const pending = takeImport(String(token ?? ''))
+    const list = loadConnections()
+    const connectedIds = new Set(
+      list
+        .filter((item) => connectionManager.isConnected(item.id) || memcachedManager.owns(item.id))
+        .map((item) => item.id),
+    )
+    const typed = (options ?? {}) as ConnectionImportApplyOptions
+    const { next, summary, skippedConnected } = mergeImported(list, pending.parsed.configs, {
+      overwrite: typed.overwrite === true,
+      connectedIds,
+    })
+    saveConnections(next)
+    return { connections: next, summary, skippedConnected }
+  })
+
+  handle<OperationResult>(IPC.connectionImportCancel, (token) => {
+    dropImport(String(token ?? ''))
+    return { ok: true }
+  })
+
+  /**
+   * URI 批量导入：渲染层已完成语法解析，这里复验一遍再落盘。
+   * 复用传输文件的解析器，避免两套校验规则随迭代漂移。
+   */
+  handle<ConnectionImportResult>(IPC.connectionSaveMany, (configs) => {
+    if (!Array.isArray(configs) || !configs.length) {
+      throw new Error(t('connectionTransfer.noConnections'))
+    }
+    if (configs.length > MAX_TRANSFER_CONNECTIONS) {
+      throw new Error(
+        t('connectionTransfer.tooManyConnections', {
+          max: MAX_TRANSFER_CONNECTIONS,
+          count: configs.length,
+        }),
+      )
+    }
+
+    const parsed = parseTransferText(
+      JSON.stringify({
+        format: TRANSFER_FORMAT,
+        version: TRANSFER_VERSION,
+        exportedAt: new Date().toISOString(),
+        appVersion: app.getVersion(),
+        includesCredentials: true,
+        connections: configs,
+      }),
+    )
+    if (parsed.issues.length) throw new Error(parsed.issues[0]!.message)
+    if (!parsed.configs.length) throw new Error(t('connectionTransfer.noConnections'))
+
+    const list = loadConnections()
+    const { next, summary, skippedConnected } = mergeImported(list, parsed.configs, {
+      overwrite: false,
+      connectedIds: new Set(),
+    })
+    saveConnections(next)
+    return { connections: next, summary, skippedConnected }
   })
 
   /*

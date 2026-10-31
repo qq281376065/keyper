@@ -1,5 +1,16 @@
 import type { RedisDesktopApi } from '@shared/api'
-import { detectLocale } from '@shared/i18n'
+import { detectLocale, t } from '@shared/i18n'
+import {
+  MAX_TRANSFER_CONNECTIONS,
+  MAX_TRANSFER_FILE_BYTES,
+  TRANSFER_FORMAT,
+  TRANSFER_VERSION,
+  buildExportPayload,
+  buildPreviewItems,
+  mergeImported,
+  parseTransferText,
+  type ParsedTransfer,
+} from '@shared/connection-transfer'
 import { APP_VERSION } from '@/services/errorReport'
 import { memoryPrefixOf, MEMORY_BUCKET_LIMIT } from '@shared/keyspace'
 import type {
@@ -66,6 +77,7 @@ const delay = (ms = 120): Promise<void> => new Promise((resolve) => setTimeout(r
  */
 const utf8Bytes = (text: string): number => new TextEncoder().encode(text).length
 const ok = <T>(data: T): ApiResponse<T> => ({ ok: true, data })
+const fail = (error: string): ApiResponse<never> => ({ ok: false, error })
 
 /*
  * 演示连接：两种引擎混排，用于验证
@@ -99,6 +111,59 @@ try {
   }
 } catch {
   /* localStorage 不可用（隐私模式等）就回到默认顺序 */
+}
+
+/*
+ * 导入导出的浏览器预览实现。
+ *
+ * 解析 / 合并规则全部复用 @shared/connection-transfer，与主进程一致；
+ * 这里只补浏览器没有的两个能力：文件下载与文件选择。
+ */
+const CONNECTED_IDS = new Set<string>()
+const PENDING_IMPORTS = new Map<string, ParsedTransfer>()
+let importTokenSeq = 0
+
+function downloadJson(fileName: string, text: string): void {
+  const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }))
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = fileName
+  anchor.click()
+  /* 立刻 revoke 会让部分浏览器来不及下载；延迟释放是常见做法 */
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+function pickJsonFile(): Promise<File | null> {
+  return new Promise((resolve) => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'application/json,.json'
+    /*
+     * 挂进 DOM 再点：不挂载的 input 在 Chrome 里也能弹出选择框，
+     * 但预览环境的自动化测试找不到它，无法注入文件。
+     */
+    input.style.display = 'none'
+    document.body.appendChild(input)
+    const cleanup = (): void => input.remove()
+    input.addEventListener(
+      'change',
+      () => {
+        const file = input.files?.[0] ?? null
+        cleanup()
+        resolve(file)
+      },
+      { once: true },
+    )
+    input.addEventListener(
+      'cancel',
+      () => {
+        cleanup()
+        resolve(null)
+      },
+      { once: true },
+    )
+    input.click()
+  })
 }
 
 /**
@@ -888,6 +953,7 @@ export const mockApi: RedisDesktopApi = {
        */
       const index = CONNECTIONS.findIndex((item) => item.id === id)
       if (index >= 0) CONNECTIONS.splice(index, 1)
+      CONNECTED_IDS.delete(id)
       try {
         const order = JSON.parse(localStorage.getItem(ORDER_KEY) ?? '[]') as string[]
         if (order.includes(id)) {
@@ -918,6 +984,103 @@ export const mockApi: RedisDesktopApi = {
       }
       return ok(CONNECTIONS)
     },
+    exportToFile: async (options) => {
+      await delay(80)
+      if (!CONNECTIONS.length) return fail(t('connectionTransfer.noConnectionsToExport'))
+      const { file, missingCredentials } = buildExportPayload(
+        CONNECTIONS,
+        { includeCredentials: options.includeCredentials === true },
+        APP_VERSION,
+      )
+      const now = new Date()
+      const pad = (value: number): string => String(value).padStart(2, '0')
+      const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`
+      const fileName = `keyper-connections-${stamp}.json`
+      downloadJson(fileName, `${JSON.stringify(file, null, 2)}\n`)
+      return ok({ saved: true, path: fileName, exported: file.connections.length, missingCredentials })
+    },
+    importPick: async () => {
+      const picked = await pickJsonFile()
+      if (!picked) return ok(null)
+      if (picked.size > MAX_TRANSFER_FILE_BYTES) {
+        return fail(
+          t('connectionTransfer.fileTooLarge', {
+            max: Math.round(MAX_TRANSFER_FILE_BYTES / 1024 / 1024),
+          }),
+        )
+      }
+      try {
+        const parsed = parseTransferText(await picked.text())
+        const items = buildPreviewItems(parsed.configs, {
+          existing: CONNECTIONS,
+          isConnected: (id) => CONNECTED_IDS.has(id),
+        })
+        const token = `mock-import-${(importTokenSeq += 1)}`
+        PENDING_IMPORTS.set(token, parsed)
+        return ok({
+          token,
+          fileName: picked.name,
+          formatVersion: parsed.formatVersion,
+          ...(parsed.exportedAt ? { exportedAt: parsed.exportedAt } : {}),
+          ...(parsed.appVersion ? { appVersion: parsed.appVersion } : {}),
+          includesCredentials: parsed.includesCredentials,
+          total: parsed.total,
+          valid: parsed.configs.length,
+          items,
+          issues: parsed.issues,
+        })
+      } catch (error) {
+        return fail(error instanceof Error ? error.message : String(error))
+      }
+    },
+    importApply: async (token, options) => {
+      const pending = PENDING_IMPORTS.get(token)
+      PENDING_IMPORTS.delete(token)
+      if (!pending) return fail(t('connectionTransfer.previewExpired'))
+      const { next, summary, skippedConnected } = mergeImported(CONNECTIONS, pending.configs, {
+        overwrite: options.overwrite === true,
+        connectedIds: CONNECTED_IDS,
+      })
+      CONNECTIONS.splice(0, CONNECTIONS.length, ...next)
+      return ok({ connections: [...CONNECTIONS], summary, skippedConnected })
+    },
+    importCancel: async (token) => {
+      PENDING_IMPORTS.delete(token)
+      return ok({ ok: true })
+    },
+    saveMany: async (configs) => {
+      if (!configs.length) return fail(t('connectionTransfer.noConnections'))
+      if (configs.length > MAX_TRANSFER_CONNECTIONS) {
+        return fail(
+          t('connectionTransfer.tooManyConnections', {
+            max: MAX_TRANSFER_CONNECTIONS,
+            count: configs.length,
+          }),
+        )
+      }
+      try {
+        const parsed = parseTransferText(
+          JSON.stringify({
+            format: TRANSFER_FORMAT,
+            version: TRANSFER_VERSION,
+            exportedAt: new Date().toISOString(),
+            appVersion: APP_VERSION,
+            includesCredentials: true,
+            connections: configs,
+          }),
+        )
+        if (parsed.issues.length) return fail(parsed.issues[0]!.message)
+        if (!parsed.configs.length) return fail(t('connectionTransfer.noConnections'))
+        const { next, summary, skippedConnected } = mergeImported(CONNECTIONS, parsed.configs, {
+          overwrite: false,
+          connectedIds: new Set(),
+        })
+        CONNECTIONS.splice(0, CONNECTIONS.length, ...next)
+        return ok({ connections: [...CONNECTIONS], summary, skippedConnected })
+      } catch (error) {
+        return fail(error instanceof Error ? error.message : String(error))
+      }
+    },
     test: async () => {
       await delay(420)
       return ok({ ok: true, message: '连接成功 · Redis 7.2.4 · 2ms' })
@@ -933,6 +1096,7 @@ export const mockApi: RedisDesktopApi = {
        * 界面上就会出现"Memcached 连上后还显示 db0"这类脏数据。
        */
       if (config.engine === 'memcached') {
+        CONNECTED_IDS.add(config.id)
         return ok({
           id: config.id,
           name: config.name,
@@ -949,6 +1113,7 @@ export const mockApi: RedisDesktopApi = {
       }
       // 记录当前版本，后续 info / TTL 相关接口按此返回
       activeVersion = versionOf(config.id)
+      CONNECTED_IDS.add(config.id)
       /*
        * 与主进程 connect 的 identity 同构：只挑字段，不做 {...config} 全展开。
        * 曾用全展开让 pinned/ssh 意外"顺带"保留，掩盖了主进程挑字段漏传
@@ -971,8 +1136,10 @@ export const mockApi: RedisDesktopApi = {
         mode: 'standalone',
       })
     },
-    disconnect: async (): Promise<ApiResponse<OperationResult>> => {
+    disconnect: async (id?: string): Promise<ApiResponse<OperationResult>> => {
       /* 对齐主进程：断开时一并清掉 Pub/Sub 与键空间订阅（不留幽灵订阅） */
+      if (id) CONNECTED_IDS.delete(id)
+      else CONNECTED_IDS.clear()
       PUBSUB_SUBS.clear()
       KEYSPACE_SUBS.clear()
       for (const id of [...KEYSPACE_TIMERS.keys()]) stopKeyspaceTicker(id)
