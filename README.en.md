@@ -18,9 +18,9 @@ registering it; no existing code path has to change.
 > shared type contracts and packaging configuration follow that structure; the renderer has been
 > rebuilt around a multi-engine architecture.
 
-Current version: `1.0.7`
+Current version: `1.0.8`
 
-In development (1.0.7 → 1.0.8):
+What changed in this release (1.0.7 → 1.0.8):
 
 - **Paged loading for large keys**: hash / list / set / zset / stream no longer read everything at
   once. The default page is 500 elements and a key caps at 20,000; "load more" continues by cursor —
@@ -84,8 +84,20 @@ In development (1.0.7 → 1.0.8):
   badges), creates new IDs by default, can overwrite by ID while skipping connected entries, and
   batch URI import accepts comments, caps at 200 lines, reports errors per line and imports only the
   valid ones.
+- **Renderer sandbox and CSP hardening**: `sandbox: true` is enabled, so neither the renderer nor the
+  preload can reach `require` / `process` / `module` / `Buffer`; capabilities are exposed only through
+  `contextBridge`. A strict `Content-Security-Policy` is applied (scripts via sha256 hash, styles
+  without `unsafe-inline`) — in production through a `<meta>` tag in the built HTML (headers do not
+  apply to `file://`), in development through a second policy injected by the main process that
+  allows HMR. In-app navigation and `<webview>` attachment are blocked, all permission requests are
+  denied, and external links are limited to https URLs on GitHub.
+- **Monitoring no longer samples by default**: the "Monitoring" tab on the overview now starts
+  sampling (one read every 2 seconds) only after an explicit "Start". Three states are distinguished
+  (never started / sampling / paused) and the button label follows; merely opening the overview no
+  longer polls in the background.
+- **electron-builder upgraded to 26**: no config changes required, installer size down another 3.53%.
 
-What changed in this release (1.0.6 → 1.0.7):
+Previous release (1.0.6 → 1.0.7):
 
 - **Unified hover shadow for icon buttons across the app**: 15 kinds of icon-only buttons — refresh /
   new key / dialog close / more actions / sidebar new and collapse / sidebar expand / tab overflow /
@@ -127,7 +139,7 @@ What changed in this release (1.0.6 → 1.0.7):
   also folds its six actions into one segmented control, making the split from the key-level ⋮ menu
   clearer.
 
-Previous release (1.0.4 → 1.0.6):
+Earlier (1.0.4 → 1.0.6):
 
 - **Three-language UI**: Simplified Chinese / Traditional Chinese / English, switched live from the
   language menu at the top right of the home page and persisted; the first launch follows the OS
@@ -365,7 +377,7 @@ npm run dist:win:alt # Build Windows into release/<version>-final (keeps the pre
 npm run dist:win:publish # Build and publish to GitHub Releases (needs GH_TOKEN; version must match the tag)
 ```
 
-Build output lands in `release/<version>/` as `Keyper-1.0.7-win-x64.exe`; the same folder also
+Build output lands in `release/<version>/` as `Keyper-1.0.8-win-x64.exe`; the same folder also
 contains `latest.yml`, `*.blockmap` (differential-update block index) and, inside the install
 directory, `app-update.yml` (the update feed configuration).
 
