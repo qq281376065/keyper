@@ -19,8 +19,17 @@ type Engine = 'redis' | 'memcached'
  * 为什么不用图表库：项目没有图表依赖，为六条 sparkline 引入轻则几十 KB、
  * 重则上百 KB 的库并不划算；这里只需要折线 + 面积，SVG path 足够。
  *
- * 采样只在「监控页签处于激活状态且连接可用」时进行；
- * 组件本身常驻（页签用 display 切换），因此切走再切回不会丢历史点。
+ * 采样默认 **不开启**，需要用户点「开启」才开始：
+ * 每 2 秒一次 INFO 是持续成本（连接占用、实例侧开销、电池），
+ * 打开概览看一眼时不该在后台无声跑起来。
+ *
+ * 三种状态（三态而非布尔，文案才不会混）：
+ *   idle    → 从未开启，按钮「开启」，状态「未开启采样」
+ *   running → 采样中，按钮「暂停」
+ *   paused  → 开启后暂停，按钮「继续」，已采集的点保留
+ *
+ * 采样只在「页签激活 + 连接可用 + 处于 running」三者同时成立时进行；
+ * 组件本身常驻（页签用 display 切换），因此切走再切回不丢历史点。
  */
 
 const SAMPLE_INTERVAL_MS = 2000
@@ -253,7 +262,18 @@ export function MetricsCard({ active, engine = 'redis' }: MetricsCardProps) {
   const connected = activeConnection?.status === 'connected'
 
   const [samples, setSamples] = useState<MetricsSample[]>([])
-  const [paused, setPaused] = useState(false)
+  /*
+   * 采样默认不开启。
+   *
+   * 监控每 2 秒打一次 Redis，是持续的成本：连接池占用、实例侧
+   * INFO 命令开销、笔记本电池消耗。用户只是打开概览看一眼时，
+   * 不该在后台无声地跑起来 —— 这里改为显式「开启」才采样。
+   *
+   * 三态而非布尔：要区分「从未开启」与「开启后暂停」——
+   * 前者按钮应写「开启」，后者写「继续」，文案不能混用。
+   */
+  const [samplingState, setSamplingState] = useState<'idle' | 'running' | 'paused'>('idle')
+  const sampling = samplingState === 'running'
   const [range, setRange] = useState<RangeKey>('5m')
   const [error, setError] = useState<string | null>(null)
 
@@ -264,15 +284,22 @@ export function MetricsCard({ active, engine = 'redis' }: MetricsCardProps) {
   /* Memcached 的 ops/sec 靠相邻采样的累计命令差值换算，需要保存上一次的参照点 */
   const commandMarkRef = useRef<CommandMark | null>(null)
 
-  /* 换连接 / 断开：旧实例的采样不能挂到新连接上 */
+  /*
+   * 换连接 / 断开：旧实例的采样不能挂到新连接上。
+   *
+   * 同时把状态拉回 idle —— 否则换到新连接后会停在「已暂停」，
+   * 而新连接其实一个点都没采过，文案与实际不符。
+   * 断开同理：重新连上时应回到「开启」，由用户决定要不要采。
+   */
   useEffect(() => {
     setSamples([])
     setError(null)
     commandMarkRef.current = null
+    setSamplingState('idle')
   }, [activeId, connected])
 
   useEffect(() => {
-    if (!active || !connected || paused) return
+    if (!active || !connected || !sampling) return
     let cancelled = false
     /* 暂停或切走期间计数仍在增长，恢复后按旧参照点算会把速率摊平 */
     commandMarkRef.current = null
@@ -314,7 +341,7 @@ export function MetricsCard({ active, engine = 'redis' }: MetricsCardProps) {
       clearInterval(timer)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, connected, paused, activeId, engine])
+  }, [active, connected, sampling, activeId, engine])
 
   const windowSize = RANGES.find((item) => item.key === range)?.samples ?? 150
   const windowSamples = samples.slice(Math.max(0, samples.length - windowSize))
@@ -330,13 +357,15 @@ export function MetricsCard({ active, engine = 'redis' }: MetricsCardProps) {
           <DialogIcon name="chart" size={14} className="ov-card-icon" />
           <span>{t('metricsCard.title')}</span>
         </h3>
-        <span className={`mt-live${paused || !active || !connected ? ' off' : ''}`}>
+        <span className={`mt-live${!sampling || !active || !connected ? ' off' : ''}`}>
           <i className="mt-dot" />
-          {paused
-            ? t('metricsCard.paused')
-            : !connected
-              ? t('metricsCard.waitingConnection')
-              : t('metricsCard.sampling', { count: samples.length })}
+          {!connected
+            ? t('metricsCard.waitingConnection')
+            : samplingState === 'idle'
+              ? t('metricsCard.idle')
+              : samplingState === 'paused'
+                ? t('metricsCard.paused')
+                : t('metricsCard.sampling', { count: samples.length })}
         </span>
         <span className="spacer" />
         <div className="mt-ranges" role="group" aria-label={t('metricsCard.title')}>
@@ -353,11 +382,25 @@ export function MetricsCard({ active, engine = 'redis' }: MetricsCardProps) {
         <button
           className="mt-toggle-btn"
           disabled={!connected}
-          {...tipProps(t(paused ? 'metricsCard.resumeTip' : 'metricsCard.pauseTip'))}
-          onClick={() => setPaused((prev) => !prev)}
+          {...tipProps(
+            t(
+              sampling
+                ? 'metricsCard.pauseTip'
+                : samplingState === 'paused'
+                  ? 'metricsCard.resumeTip'
+                  : 'metricsCard.startTip',
+            ),
+          )}
+          onClick={() =>
+            setSamplingState((prev) => (prev === 'running' ? 'paused' : 'running'))
+          }
         >
-          <DialogIcon name={paused ? 'play' : 'stop'} size={12} className="ti" />
-          {paused ? t('metricsCard.resume') : t('metricsCard.pause')}
+          <DialogIcon name={sampling ? 'stop' : 'play'} size={12} className="ti" />
+          {sampling
+            ? t('metricsCard.pause')
+            : samplingState === 'paused'
+              ? t('metricsCard.resume')
+              : t('metricsCard.start')}
         </button>
         <button
           className="mt-clear-btn"
@@ -396,7 +439,9 @@ export function MetricsCard({ active, engine = 'redis' }: MetricsCardProps) {
                 {values.length >= 2 ? (
                   <Sparkline values={values} />
                 ) : (
-                  <span className="mt-tile-waiting">{t('metricsCard.waitingFirstSample')}</span>
+                  <span className="mt-tile-waiting">
+                    {t(sampling ? 'metricsCard.waitingFirstSample' : 'metricsCard.clickToStart')}
+                  </span>
                 )}
               </div>
               <footer className="mt-tile-foot mono">
