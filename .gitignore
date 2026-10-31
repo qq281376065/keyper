@@ -32,6 +32,9 @@ docs/_head.md
 docs/_tail.md
 *.full.png
 
+# 设计稿（方案预览页）：本地迭代频繁、体积大，不进版本库
+design/
+
 # 一次性调试探针（本次迁移/排障期间生成，非项目交付物）
 scripts/_probe-crypto-stub.js
 scripts/probe-save-conn.cjs
