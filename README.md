@@ -969,12 +969,6 @@ K 用矢量笔画手绘而非字体 —— 字体字形墨迹只有字号的 66%
   渲染层依赖归入 devDependencies，asar 内只保留 ioredis / ssh2 / electron-updater 等生产依赖；
   安装包从 84.0 MB 降至 75.4 MB（-10.3%），app.asar 从 18.9 MiB 降至 3.7 MiB
 
-## 后续规划（建议按序推进）
-
-1. **分发完善**：Windows 代码签名、macOS 公证与签名、稳定 / 预发布（beta）双更新通道。
-
----
-
 ## 安全说明
 
 - 渲染进程开启 `contextIsolation`、关闭 `nodeIntegration`，仅通过白名单 IPC 访问主进程能力

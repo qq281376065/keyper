@@ -1159,13 +1159,6 @@ semantic colour tokens that follow all nine skins. Supports SSH tunnels and mult
   production dependencies (ioredis / ssh2 / electron-updater and friends). The installer drops from
   84.0 MB to 75.4 MB (-10.3%) and app.asar from 18.9 MiB to 3.7 MiB.
 
-## Roadmap
-
-1. **Distribution**: Windows code signing, macOS notarisation and signing, stable / beta update
-   channels.
-
----
-
 ## Security
 
 - The renderer enables `contextIsolation` and disables `nodeIntegration`; main-process capabilities are
