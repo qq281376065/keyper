@@ -480,6 +480,7 @@ const zhTW: Record<MsgKey, string> = {
   'editZsetMemberDialog.e': '如 9821 或 1.5',
   'editZsetMemberDialog.scoreSetsSortPosition': 'score 決定排序位置，可為小數或負數',
   'editZsetMemberDialog.scoreSortHint': '（排序依據，可為小數或負數）',
+  'engine.engineFieldMissing': '連線設定缺少引擎類型（engine），無法處理該連線',
   'engine.engineNotRegisteredCannotHandle': '引擎 {engine} 尚未註冊，無法處理該連線',
   'engine.multiDbSixStructuresPub': '多資料庫 · 六種結構 · Pub/Sub · SSH',
   'engine.pureKeyValueCacheSlab': '純鍵值快取 · slab 分組 · SSH 跳板',

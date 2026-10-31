@@ -480,6 +480,7 @@ const zhCN: Record<MsgKey, string> = {
   'editZsetMemberDialog.e': '如 9821 或 1.5',
   'editZsetMemberDialog.scoreSetsSortPosition': 'score 决定排序位置，可为小数或负数',
   'editZsetMemberDialog.scoreSortHint': '（排序依据，可为小数或负数）',
+  'engine.engineFieldMissing': '连接配置缺少引擎类型（engine），无法处理该连接',
   'engine.engineNotRegisteredCannotHandle': '引擎 {engine} 尚未注册，无法处理该连接',
   'engine.multiDbSixStructuresPub': '多库 · 六种结构 · Pub/Sub · SSH',
   'engine.pureKeyValueCacheSlab': '纯键值缓存 · slab 分组 · SSH 跳板',

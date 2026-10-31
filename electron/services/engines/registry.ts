@@ -41,6 +41,19 @@ export function registerEngine(engine: CacheEngine, handlers: EngineHandlers<unk
 export function getEngine<TConnect, TTest>(
   engine: CacheEngine,
 ): EngineHandlers<TConnect, TTest> {
+  /*
+   * 先判空再查表。
+   *
+   * 不判空的话，engine 为 undefined / null 时会一路走到下面那条
+   * "引擎 {engine} 尚未注册" —— 插值拿到 undefined 后原样保留占位符，
+   * 用户看到的是字面量 `{engine}`，既不说明缺了什么、也看不出是缺字段
+   * 还是引擎没注册。这两种原因的处置方式完全不同（补配置 vs 装引擎），
+   * 所以必须分开报。
+   */
+  if (engine === undefined || engine === null || (engine as string) === '') {
+    throw new Error(t('engine.engineFieldMissing'))
+  }
+
   const handlers = registry.get(engine)
   if (!handlers) {
     throw new Error(t('engine.engineNotRegisteredCannotHandle', { engine }))

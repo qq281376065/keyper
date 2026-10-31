@@ -481,6 +481,7 @@ const en = {
   'editZsetMemberDialog.e': 'e.g. 9821 or 1.5',
   'editZsetMemberDialog.scoreSetsSortPosition': 'score sets the sort position; decimals and negatives are allowed',
   'editZsetMemberDialog.scoreSortHint': '(sort basis; decimals or negative numbers allowed)',
+  'engine.engineFieldMissing': 'The connection config is missing its engine type (engine)',
   'engine.engineNotRegisteredCannotHandle': 'Engine {engine} is not registered and cannot handle this connection',
   'engine.multiDbSixStructuresPub': 'Multi-DB · six structures · Pub/Sub · SSH',
   'engine.pureKeyValueCacheSlab': 'Pure key-value cache · slab grouping · SSH jump host',
