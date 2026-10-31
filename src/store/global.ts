@@ -553,6 +553,33 @@ function selectConnection(id: string): void {
   if (target?.status === 'connected') activateOrOpenTab(id)
 }
 
+/**
+ * 导入或批量新建后同步连接列表。
+ *
+ * 刻意不调 bootstrap()：它把所有连接重置为 disconnected，导入一次会让
+ * 所有绿点瞬间熄灭。这里以磁盘返回的配置为准，同时把旧条目上的运行时
+ * 字段（status / latency / version / mode / sshHost）搬回来。
+ *
+ * 不能用 `{ ...old, ...config }`：覆盖导入若不含凭据，旧 password 会
+ * 被保留下来，界面上看起来覆盖成功，实际仍在用旧密码。
+ */
+function applyImportedConnections(next: CacheConnectionConfig[]): void {
+  const previous = new Map(globalState.connections.map((item) => [item.id, item]))
+  globalState.connections = next.map((config) => {
+    const old = previous.get(config.id)
+    if (!old) return { ...config, status: 'disconnected' as const }
+    return {
+      ...config,
+      status: old.status,
+      ...(old.message !== undefined ? { message: old.message } : {}),
+      ...(old.version !== undefined ? { version: old.version } : {}),
+      ...(old.mode !== undefined ? { mode: old.mode } : {}),
+      ...(old.latency !== undefined ? { latency: old.latency } : {}),
+      ...(old.sshHost !== undefined ? { sshHost: old.sshHost } : {}),
+    }
+  })
+}
+
 /** 新增或更新一条连接配置，成功返回 true */
 async function saveConnection(config: CacheConnectionConfig): Promise<boolean> {
   try {
@@ -769,6 +796,7 @@ export const globalActions = {
   disconnect,
   selectConnection,
   saveConnection,
+  applyImportedConnections,
   removeConnection,
   removeConnections,
   cloneConnection,

@@ -16,6 +16,9 @@ export interface ConnectionSidebarProps {
   onNewConnection: () => void
   onEditConnection: (connection: ConnectionItem) => void
   onViewVersion: (connection: ConnectionItem) => void
+  onImportConnections: () => void
+  onExportConnections: () => void
+  onImportFromUri: () => void
 }
 
 /** 批量删除入口的显隐门槛：连接数 ≥3 才有批量价值 */
@@ -36,6 +39,9 @@ export function ConnectionSidebar({
   onNewConnection,
   onEditConnection,
   onViewVersion,
+  onImportConnections,
+  onExportConnections,
+  onImportFromUri,
 }: ConnectionSidebarProps) {
   const { state, connect, selectConnection, moveConnection, removeConnections, askConfirm } = useRedis()
   const { settings, save: saveSettings } = useSettings()
@@ -202,6 +208,36 @@ export function ConnectionSidebar({
 
   const collapsed = settings.sidebarCollapsed
 
+  /*
+   * 侧栏头部的「⋯」菜单：导入 / 导出入口。
+   * 菜单贴着按钮下方展开；头部在窗口顶部，不需要 ConnectionActions 那套
+   * 「下方放不下就上翻」的落位逻辑，只需把水平位置夹在视口内。
+   */
+  const MENU_WIDTH = 216
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 })
+  const menuAnchorRef = useRef<HTMLButtonElement | null>(null)
+
+  function toggleHeaderMenu(): void {
+    if (menuOpen) {
+      setMenuOpen(false)
+      return
+    }
+    const rect = menuAnchorRef.current?.getBoundingClientRect()
+    if (rect) {
+      setMenuPos({
+        top: rect.bottom + 4,
+        left: Math.max(8, Math.min(rect.left, window.innerWidth - MENU_WIDTH - 8)),
+      })
+    }
+    setMenuOpen(true)
+  }
+
+  function runMenu(action: () => void): void {
+    setMenuOpen(false)
+    action()
+  }
+
   return (
     <aside className={`sidebar${collapsed ? ' collapsed' : ''} s-connection-sidebar`}>
       {collapsed ? (
@@ -241,6 +277,21 @@ export function ConnectionSidebar({
           <div className="sidebar-head">
             <span className="head-title">{t('connectionSidebar.connect')}</span>
             <div className="head-actions">
+              <button className="add-btn" {...tipProps(t('common.newConnection'))} onClick={onNewConnection}>
+                {/* 用 SVG 而非全角 ＋：字符的字形重心与盒中心不一致，换成矢量线条可精确居中 */}
+                <DialogIcon name="add" size={13} />
+              </button>
+              <button
+                ref={menuAnchorRef}
+                className={`add-btn${menuOpen ? ' active' : ''}`}
+                {...tipProps(t('connectionTransfer.moreActions'))}
+                onClick={toggleHeaderMenu}
+              >
+                {/* 入口用「单托盘 + 双向箭头」而非三点：
+                    三点表达的是"还有更多操作"，与"连接配置的导入导出"没有关联，
+                    用户得点开才知道这里是导入导出。菜单内三项图标保持原样。 */}
+                <DialogIcon name="transfer" size={13} />
+              </button>
               {/* 批量删除入口：≥3 个连接才显示，点击进/出多选模式 */}
               {showBulkBtn ? (
                 <button
@@ -251,14 +302,38 @@ export function ConnectionSidebar({
                   <DialogIcon name="trash" size={13} />
                 </button>
               ) : null}
-              <button className="add-btn" {...tipProps(t('common.newConnection'))} onClick={onNewConnection}>
-                {/* 用 SVG 而非全角 ＋：字符的字形重心与盒中心不一致，换成矢量线条可精确居中 */}
-                <DialogIcon name="add" size={13} />
-              </button>
               <button className="add-btn" {...tipProps(t('connectionSidebar.collapse'))} onClick={toggleCollapsed}>
                 <DialogIcon name="sidebar-collapse" size={14} />
               </button>
             </div>
+
+            {menuOpen ? (
+              <>
+                <div className="popover-mask" onClick={() => setMenuOpen(false)} />
+                <div
+                  className="menu"
+                  style={{ top: `${menuPos.top}px`, left: `${menuPos.left}px`, width: `${MENU_WIDTH}px` }}
+                >
+                  <button className="menu-item" onClick={() => runMenu(onImportConnections)}>
+                    <DialogIcon name="import" size={13} className="mi-icon" />
+                    <span>{t('connectionTransfer.importConnections')}</span>
+                  </button>
+                  <button
+                    className="menu-item"
+                    disabled={!sortedConnections.length}
+                    onClick={() => runMenu(onExportConnections)}
+                  >
+                    <DialogIcon name="export" size={13} className="mi-icon" />
+                    <span>{t('connectionTransfer.exportConnections')}</span>
+                  </button>
+                  <div className="menu-sep" />
+                  <button className="menu-item" onClick={() => runMenu(onImportFromUri)}>
+                    <DialogIcon name="link" size={13} className="mi-icon" />
+                    <span>{t('connectionTransfer.importFromUri')}</span>
+                  </button>
+                </div>
+              </>
+            ) : null}
           </div>
 
           <div className="conn-list">

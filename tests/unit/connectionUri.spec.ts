@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { extractUriFromText, parseConnectionUri } from '@/utils/connectionUri'
+import {
+  MAX_BATCH_URIS,
+  extractUriFromText,
+  parseConnectionUri,
+  parseConnectionUriBatch,
+} from '@/utils/connectionUri'
 
 describe('parseConnectionUri', () => {
   it('标准形态：带密码与库号', () => {
@@ -7,6 +12,7 @@ describe('parseConnectionUri', () => {
     expect(r.ok).toBe(true)
     if (!r.ok) return
     expect(r.value).toEqual({
+      engine: 'redis',
       host: '127.0.0.1',
       port: 6379,
       username: undefined,
@@ -79,6 +85,73 @@ describe('parseConnectionUri', () => {
     expect(r.ok).toBe(false)
     if (r.ok) return
     expect(r.error.key).toBe('uri.pasteConnectionString')
+  })
+
+  it('memcached:// 映射为 Memcached 并取默认端口', () => {
+    const r = parseConnectionUri('memcached://cache.internal')
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.value).toEqual({
+      engine: 'memcached',
+      host: 'cache.internal',
+      port: 11211,
+      db: 0,
+      tls: false,
+    })
+  })
+
+  it('memcached 带认证时明确拒绝', () => {
+    const r = parseConnectionUri('memcached://user:pw@cache.internal:11211')
+    expect(r.ok).toBe(false)
+    if (r.ok) return
+    expect(r.error.key).toBe('uri.memcachedNoAuth')
+  })
+
+  it('memcached 带库号时明确拒绝', () => {
+    const r = parseConnectionUri('memcached://cache.internal:11211/2')
+    expect(r.ok).toBe(false)
+    if (r.ok) return
+    expect(r.error.key).toBe('uri.memcachedNoDatabase')
+    expect(r.error.params).toEqual({ db: '2' })
+  })
+})
+
+describe('parseConnectionUriBatch', () => {
+  it('跳过空行与 # 注释，保留原始行号', () => {
+    const r = parseConnectionUriBatch(
+      ['# 生产环境', 'redis://:pw@10.0.0.1:6379/0', '', 'memcached://10.0.0.2:11211'].join('\n'),
+    )
+    expect(r.total).toBe(2)
+    expect(r.valid).toBe(2)
+    expect(r.invalid).toBe(0)
+    expect(r.entries.map((entry) => entry.line)).toEqual([2, 4])
+    expect(r.entries.map((entry) => entry.result.ok && entry.result.value.engine)).toEqual([
+      'redis',
+      'memcached',
+    ])
+  })
+
+  it('行内说明文字被截掉', () => {
+    const r = parseConnectionUriBatch('redis://10.0.0.1:6379/0   # 主库\n10.0.0.2:6380 备用')
+    expect(r.valid).toBe(2)
+    const second = r.entries[1]!
+    expect(second.result.ok && second.result.value.host).toBe('10.0.0.2')
+  })
+
+  it('非法行不中断整批，错误指回对应行', () => {
+    const r = parseConnectionUriBatch('redis://10.0.0.1:6379/0\nhttp://example.com\nredis://host/99')
+    expect(r.total).toBe(3)
+    expect(r.valid).toBe(1)
+    expect(r.invalid).toBe(2)
+    expect(r.entries[1]!.result.ok).toBe(false)
+    expect(r.entries[2]!.result.ok).toBe(false)
+  })
+
+  it('超过上限时截断并标记 tooMany', () => {
+    const text = Array.from({ length: MAX_BATCH_URIS + 1 }, (_, index) => `10.0.0.${index}:6379`).join('\n')
+    const r = parseConnectionUriBatch(text)
+    expect(r.total).toBe(MAX_BATCH_URIS)
+    expect(r.tooMany).toBe(true)
   })
 })
 

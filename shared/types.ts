@@ -152,6 +152,98 @@ export interface MemcachedConnectionConfig extends BaseConnectionConfig {
 /** 任意引擎的连接配置联合类型 —— 界面与持久化层只认这个 */
 export type CacheConnectionConfig = RedisConnectionConfig | MemcachedConnectionConfig
 
+/* ---------------------------------------------------------------- 连接导入导出 */
+
+/**
+ * 导出选项。
+ *
+ * 默认不含凭据：导出文件是可读的 JSON，任何人拿到都能看到内容；
+ * 凭据必须由用户显式勾选，且界面需要二次确认。
+ */
+export interface ConnectionExportOptions {
+  includeCredentials: boolean
+}
+
+export interface ConnectionExportResult {
+  /** 用户在保存对话框里取消时为 false */
+  saved: boolean
+  path?: string
+  /** 实际写入文件的连接数 */
+  exported: number
+  /** 因密文解不开而只能按「无凭据」导出的条数 */
+  missingCredentials: number
+}
+
+/** 预览里的冲突类型：none 无冲突；id 命中已有连接；name 仅名称重复 */
+export type ConnectionImportConflict = 'none' | 'id' | 'name'
+
+export interface ConnectionImportPreviewItem {
+  /** 在文件 connections 数组中的下标，用于和 issues 对齐 */
+  index: number
+  engine: CacheEngine
+  name: string
+  host: string
+  port: number
+  username?: string
+  db?: number
+  tls?: boolean
+  poolSize?: number
+  sshEnabled: boolean
+  sshHost?: string
+  sshHopCount?: number
+  /** 是否带凭据（只回布尔，绝不把密码 / 私钥交给预览界面） */
+  hasPassword: boolean
+  hasSshCredential: boolean
+  conflict: ConnectionImportConflict
+  /** 冲突条目当前处于连接中 —— 覆盖策略下会被跳过 */
+  connected: boolean
+}
+
+export interface ConnectionImportIssue {
+  /** 文件里的条目下标；整文件级别的错误为 -1 */
+  index: number
+  message: string
+}
+
+export interface ConnectionImportPreview {
+  /** 一次性导入令牌：应用阶段凭它取回主进程缓存的解析结果 */
+  token: string
+  fileName: string
+  formatVersion: number
+  exportedAt?: string
+  appVersion?: string
+  /** 文件头声明；导入时以实际字段重新判断 */
+  includesCredentials: boolean
+  /** 文件中的条目总数（含非法条目） */
+  total: number
+  /** 通过校验、可导入的条数 */
+  valid: number
+  items: ConnectionImportPreviewItem[]
+  issues: ConnectionImportIssue[]
+}
+
+export interface ConnectionImportApplyOptions {
+  /**
+   * 按 ID 覆盖已有配置；默认 false（全部生成新 ID）。
+   * 已连接的命中项一律跳过 —— 会话仍跑旧配置，覆盖只会让界面与会话不一致。
+   */
+  overwrite: boolean
+}
+
+export interface ConnectionImportSummary {
+  imported: number
+  overwritten: number
+  skipped: number
+}
+
+export interface ConnectionImportResult {
+  /** 导入后的全量连接列表（含明文凭据，与 connection:list 同规则） */
+  connections: CacheConnectionConfig[]
+  summary: ConnectionImportSummary
+  /** 因仍处于连接中而跳过的连接名 */
+  skippedConnected: string[]
+}
+
 /**
  * 检查更新的结果。
  *

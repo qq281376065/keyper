@@ -5,6 +5,8 @@ import { BrandMark } from '@/components/BrandMark'
 import { CliConsole } from '@/components/CliConsole'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { ConnectionDialog } from '@/components/ConnectionDialog'
+import { ExportConnectionsDialog } from '@/components/ExportConnectionsDialog'
+import { ImportConnectionsDialog } from '@/components/ImportConnectionsDialog'
 import { ImportUriDialog } from '@/components/ImportUriDialog'
 import { ConnectionSidebar } from '@/components/ConnectionSidebar'
 import { DialogIcon } from '@/components/DialogIcon'
@@ -25,7 +27,7 @@ import { useObservable } from '@/store/subscription'
 import { tipProps } from '@/components/tip'
 import { t, useI18n } from '@/i18n'
 import { toConfig } from '@/utils/engine'
-import type { CacheConnectionConfig, RedisConnectionConfig } from '@shared/types'
+import type { CacheConnectionConfig } from '@shared/types'
 
 /**
  * 应用外壳：顶栏 + 连接侧栏 + 标签工作区 + CLI，以及各全局弹窗的挂载点。
@@ -47,6 +49,9 @@ export function App() {
   const [dialogInitial, setDialogInitial] = useState<CacheConnectionConfig | null>(null)
   /** 粘贴连接串弹窗：解析成功后把结果交给标准连接表单，用户仍可改 */
   const [importUriVisible, setImportUriVisible] = useState(false)
+  /** 连接配置文件导入 / 导出（侧栏头部 ⋯ 菜单） */
+  const [exportVisible, setExportVisible] = useState(false)
+  const [importVisible, setImportVisible] = useState(false)
   const [version, setVersion] = useState(APP_VERSION)
   const [settingsVisible, setSettingsVisible] = useState(false)
   /** 正在查看版本信息的连接 */
@@ -263,7 +268,7 @@ export function App() {
    * 不直接连接：解析结果仍要经过用户的确认与可编辑的表单，
    * 否则粘贴错一行就会连到别的实例上。
    */
-  function handleUriParsed(config: RedisConnectionConfig): void {
+  function handleUriParsed(config: CacheConnectionConfig): void {
     setDialogInitial(config)
     setDialogVisible(true)
   }
@@ -326,6 +331,9 @@ export function App() {
           onNewConnection={openNewConnection}
           onEditConnection={openEditConnection}
           onViewVersion={(item) => setVersionTarget(item)}
+          onImportConnections={() => setImportVisible(true)}
+          onExportConnections={() => setExportVisible(true)}
+          onImportFromUri={() => setImportUriVisible(true)}
         />
 
         <div className="workspace">
@@ -353,6 +361,10 @@ export function App() {
       {importUriVisible ? (
         <ImportUriDialog onClose={() => setImportUriVisible(false)} onSubmit={handleUriParsed} />
       ) : null}
+
+      {exportVisible ? <ExportConnectionsDialog onClose={() => setExportVisible(false)} /> : null}
+
+      {importVisible ? <ImportConnectionsDialog onClose={() => setImportVisible(false)} /> : null}
 
       {settingsVisible ? <SettingsDialog onClose={() => setSettingsVisible(false)} /> : null}
 

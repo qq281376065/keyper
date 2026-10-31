@@ -1,17 +1,22 @@
 import { useMemo, useState } from 'react'
+import { api } from '@/api'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { DialogIcon } from '@/components/DialogIcon'
 import { useDialogDrag } from '@/hooks/useDialogDrag'
-import { extractUriFromText, parseConnectionUri } from '@/utils/connectionUri'
-import type { RedisConnectionConfig } from '@shared/types'
+import { useRedis } from '@/store/useRedis'
+import { engineMeta } from '@/utils/engine'
+import { MAX_BATCH_URIS, extractUriFromText, parseConnectionUri, parseConnectionUriBatch } from '@/utils/connectionUri'
+import type { ParsedConnectionUri } from '@/utils/connectionUri'
+import type { CacheConnectionConfig } from '@shared/types'
 import { useI18n } from '@/i18n'
 
 export interface ImportUriDialogProps {
   /** 确认后把解析好的配置交给调用方（由它决定保存 / 直接连接） */
-  onSubmit: (config: RedisConnectionConfig) => void
+  onSubmit: (config: CacheConnectionConfig) => void
   onClose: () => void
   /** 从剪贴板预填的内容（可选） */
   initialText?: string
@@ -20,35 +25,53 @@ export interface ImportUriDialogProps {
 /**
  * 粘贴连接串新建连接。
  *
- * 为什么单独做一个弹窗而不是塞进 ConnectionDialog：
- *   · 真实使用场景是"别人给我一串 redis://…，我要立刻连上看看"，
- *     走完整表单要点开、填六个字段、再回来，成本太高；
- *   · 解析出的字段必须让用户先看一眼再确认 —— 静默按解析结果连接，
- *     万一解析错了会连到别的实例上，这在生产环境里很危险。
+ * 单行时保持原有「解析 → 预览 → 填入表单」流程：字段必须让用户先核对，
+ * 静默按解析结果连接，万一解析错了会连到别的实例上。
  *
- * 所以这里做"解析 → 预览 → 确认"三段式，确认后仍进入标准表单
- * （保留可编辑性），只是字段已经填好。
+ * 多行时切换为批量导入：逐行解析、逐行展示错误，确认后一次性写盘。
+ * 批量不进入标准表单 —— N 条记录无法用一张表单承载，也没必要逐条改名，
+ * 名称默认取 host:port，重名由服务端合并规则自动加序号。
  */
 export function ImportUriDialog({ onSubmit, onClose, initialText = '' }: ImportUriDialogProps) {
   const { style, onDragStart } = useDialogDrag()
   const { t } = useI18n()
+  const { notify, applyImportedConnections } = useRedis()
   const [text, setText] = useState(initialText)
   const [name, setName] = useState('')
+  const [busy, setBusy] = useState(false)
 
-  /*
-   * 解析是纯函数、开销极小，直接用 useMemo 跟着输入走，
-   * 用户边粘贴边看到结果 —— 比"点一下解析"少一步，也更容易发现格式不对。
-   */
-  const parsed = useMemo(() => {
+  const batch = useMemo(() => parseConnectionUriBatch(text), [text])
+  const isBatch = batch.entries.length > 1
+
+  /* 单行模式的解析结果与旧实现保持一致：从整段文本里捞出第一个连接串 */
+  const single = useMemo(() => {
     if (!text.trim()) return null
     return parseConnectionUri(extractUriFromText(text))
   }, [text])
 
-  const ok = parsed?.ok === true
-  const value = ok ? parsed.value : null
+  const singleValue = single?.ok ? single.value : null
+  const singleOk = single?.ok === true
 
   /** 默认名称：主机名 + 端口，用户可改。避免一堆"未命名"分不清 */
-  const suggestedName = value ? `${value.host}:${value.port}` : ''
+  const suggestedName = singleValue ? `${singleValue.host}:${singleValue.port}` : ''
+
+  function buildConfig(value: ParsedConnectionUri, label: string, idSeed: string): CacheConnectionConfig {
+    const id = `conn-uri-${Date.now().toString(36)}-${idSeed}`
+    if (value.engine === 'memcached') {
+      return { id, engine: 'memcached', name: label, host: value.host, port: value.port, poolSize: 4 }
+    }
+    return {
+      id,
+      engine: 'redis',
+      name: label,
+      host: value.host,
+      port: value.port,
+      username: value.username,
+      password: value.password,
+      db: value.db,
+      tls: value.tls,
+    }
+  }
 
   async function pasteFromClipboard(): Promise<void> {
     try {
@@ -60,23 +83,33 @@ export function ImportUriDialog({ onSubmit, onClose, initialText = '' }: ImportU
   }
 
   function handleSubmit(): void {
-    if (!value) return
-    onSubmit({
-      id: `conn-${Date.now().toString(36)}`,
-      /*
-       * 连接串解析只产出 Redis 配置 —— URI 形态本就是 Redis 的约定，
-       * Memcached 没有等价物（见 utils/engine 里对连接串的说明）。
-       */
-      engine: 'redis',
-      name: name.trim() || suggestedName,
-      host: value.host,
-      port: value.port,
-      username: value.username,
-      password: value.password,
-      db: value.db,
-      tls: value.tls,
-    })
+    if (!singleValue) return
+    onSubmit(buildConfig(singleValue, name.trim() || suggestedName, 'single'))
     onClose()
+  }
+
+  async function handleBatchImport(): Promise<void> {
+    if (busy || batch.tooMany) return
+    const configs: CacheConnectionConfig[] = []
+    for (const entry of batch.entries) {
+      if (!entry.result.ok) continue
+      const value = entry.result.value
+      configs.push(buildConfig(value, `${value.host}:${value.port}`, String(entry.line)))
+    }
+    if (!configs.length) return
+
+    setBusy(true)
+    try {
+      const res = await api.connection.saveMany(configs)
+      if (!res.ok) throw new Error(res.error)
+      applyImportedConnections(res.data.connections)
+      notify('ok', t('importUriDialog.batchImported', { count: res.data.summary.imported }))
+      onClose()
+    } catch (error) {
+      notify('err', error instanceof Error ? error.message : String(error))
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -121,21 +154,73 @@ export function ImportUriDialog({ onSubmit, onClose, initialText = '' }: ImportU
                   {t('importUriDialog.pasteClipboard')}
                 </button>
               </div>
-              <Input
+              <Textarea
                 id="uri-input"
                 value={text}
                 onChange={(event) => setText(event.target.value)}
-                className="mono"
-                placeholder="redis://:password@127.0.0.1:6379/0"
+                className="mono uri-input"
+                placeholder={'redis://:password@127.0.0.1:6379/0\nmemcached://127.0.0.1:11211'}
                 autoComplete="off"
                 spellCheck={false}
+                rows={isBatch ? 5 : 2}
                 autoFocus
               />
+              <p className="uri-hint">{t('importUriDialog.batchHint')}</p>
             </div>
 
-            {/* 解析结果预览：确认前让用户核对，避免连错实例 */}
-            {text.trim() ? (
-              ok && value ? (
+            {isBatch ? (
+              <div className="uri-batch">
+                <div className={`uri-batch-head${batch.invalid ? ' has-invalid' : ''}`}>
+                  <DialogIcon name={batch.invalid ? 'warning' : 'check'} size={13} />
+                  <span>{t('importUriDialog.detectedSummary', { valid: batch.valid, invalid: batch.invalid })}</span>
+                  <span className="uri-batch-limit mono">
+                    {batch.total}/{MAX_BATCH_URIS}
+                  </span>
+                </div>
+
+                {batch.tooMany ? (
+                  <p className="uri-error">
+                    <DialogIcon name="warning" size={13} />
+                    {t('importUriDialog.tooManyLines', { max: MAX_BATCH_URIS })}
+                  </p>
+                ) : null}
+
+                <div className="uri-batch-list">
+                  {batch.entries.map((entry) => (
+                    <div
+                      className={`uri-batch-row${entry.result.ok ? '' : ' invalid'}`}
+                      key={entry.line}
+                    >
+                      <span className="uri-batch-line mono">
+                        {t('importUriDialog.lineNumber', { line: entry.line })}
+                      </span>
+                      {entry.result.ok ? (
+                        <>
+                          <span className="uri-batch-engine">
+                            {engineMeta(entry.result.value.engine).label}
+                          </span>
+                          <span className="uri-batch-addr mono">
+                            {entry.result.value.host}:{entry.result.value.port}
+                            {entry.result.value.engine === 'redis' ? ` · db${entry.result.value.db}` : ''}
+                            {entry.result.value.tls ? ' · TLS' : ''}
+                          </span>
+                          <span className="uri-batch-auth">
+                            {entry.result.value.password
+                              ? t('importUriDialog.hasPassword')
+                              : t('importUriDialog.noCredentials')}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="uri-batch-error">
+                          {t(entry.result.error.key, entry.result.error.params)}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : text.trim() ? (
+              singleOk && singleValue ? (
                 <div className="uri-preview">
                   <div className="uri-preview-head">
                     <DialogIcon name="check" size={13} />
@@ -143,31 +228,48 @@ export function ImportUriDialog({ onSubmit, onClose, initialText = '' }: ImportU
                   </div>
                   <dl className="uri-rows">
                     <div className="uri-row">
+                      <dt>{t('importUriDialog.engine')}</dt>
+                      <dd className="mono">{engineMeta(singleValue.engine).label}</dd>
+                    </div>
+                    <div className="uri-row">
                       <dt>{t('connectionDialog.host')}</dt>
-                      <dd className="mono">{value.host}</dd>
+                      <dd className="mono">{singleValue.host}</dd>
                     </div>
                     <div className="uri-row">
                       <dt>{t('connectionDialog.port')}</dt>
-                      <dd className="mono">{value.port}</dd>
+                      <dd className="mono">{singleValue.port}</dd>
                     </div>
-                    {value.username ? (
+                    {singleValue.engine === 'redis' ? (
+                      <>
+                        {singleValue.username ? (
+                          <div className="uri-row">
+                            <dt>{t('connectionDialog.username')}</dt>
+                            <dd className="mono">{singleValue.username}</dd>
+                          </div>
+                        ) : null}
+                        <div className="uri-row">
+                          <dt>{t('connectionDialog.password')}</dt>
+                          <dd className="mono">
+                            {singleValue.password ? '••••••••' : t('importUriDialog.empty')}
+                          </dd>
+                        </div>
+                        <div className="uri-row">
+                          <dt>{t('common.defaultDatabase')}</dt>
+                          <dd className="mono">db{singleValue.db}</dd>
+                        </div>
+                        <div className="uri-row">
+                          <dt>TLS</dt>
+                          <dd className="mono">
+                            {singleValue.tls ? t('importUriDialog.enabled') : t('importUriDialog.disabled')}
+                          </dd>
+                        </div>
+                      </>
+                    ) : (
                       <div className="uri-row">
-                        <dt>{t('connectionDialog.username')}</dt>
-                        <dd className="mono">{value.username}</dd>
+                        <dt>{t('importUriDialog.credentials')}</dt>
+                        <dd className="mono">{t('importUriDialog.noCredentials')}</dd>
                       </div>
-                    ) : null}
-                    <div className="uri-row">
-                      <dt>{t('connectionDialog.password')}</dt>
-                      <dd className="mono">{value.password ? '••••••••' : t('importUriDialog.empty')}</dd>
-                    </div>
-                    <div className="uri-row">
-                      <dt>{t('common.defaultDatabase')}</dt>
-                      <dd className="mono">db{value.db}</dd>
-                    </div>
-                    <div className="uri-row">
-                      <dt>TLS</dt>
-                      <dd className="mono">{value.tls ? t('importUriDialog.enabled') : t('importUriDialog.disabled')}</dd>
-                    </div>
+                    )}
                   </dl>
                   <div className="field">
                     <Label htmlFor="uri-name" className="field-label">
@@ -185,7 +287,7 @@ export function ImportUriDialog({ onSubmit, onClose, initialText = '' }: ImportU
               ) : (
                 <p className="uri-error">
                   <DialogIcon name="warning" size={13} />
-                  {parsed && !parsed.ok ? t(parsed.error.key, parsed.error.params) : t('importUriDialog.unrecognized')}
+                  {single && !single.ok ? t(single.error.key, single.error.params) : t('importUriDialog.unrecognized')}
                 </p>
               )
             ) : null}
@@ -197,10 +299,24 @@ export function ImportUriDialog({ onSubmit, onClose, initialText = '' }: ImportU
               <DialogIcon name="cancel" size={13} />
               {t('common.cancel')}
             </Button>
-            <Button type="button" className="foot-btn foot-primary" disabled={!ok} onClick={handleSubmit}>
-              <DialogIcon name="save" size={13} />
-              {t('importUriDialog.fillIntoForm')}
-            </Button>
+            {isBatch ? (
+              <Button
+                type="button"
+                className="foot-btn foot-primary"
+                disabled={!batch.valid || batch.tooMany || busy}
+                onClick={() => void handleBatchImport()}
+              >
+                <DialogIcon name="import" size={13} />
+                {busy
+                  ? t('connectionTransfer.importing')
+                  : t('importUriDialog.batchImportCount', { count: batch.valid })}
+              </Button>
+            ) : (
+              <Button type="button" className="foot-btn foot-primary" disabled={!singleOk} onClick={handleSubmit}>
+                <DialogIcon name="save" size={13} />
+                {t('importUriDialog.fillIntoForm')}
+              </Button>
+            )}
           </footer>
         </div>
       </DialogContent>
