@@ -1,7 +1,7 @@
 import path from 'node:path'
 import fs from 'node:fs'
 import util from 'node:util'
-import { BrowserWindow, Menu, app, nativeTheme, shell } from 'electron'
+import { BrowserWindow, Menu, app, nativeTheme, session, shell } from 'electron'
 import { IPC } from '../shared/api'
 import { registerIpcHandlers } from './ipc'
 import { connectionManager } from './services/connection-manager'
@@ -79,6 +79,61 @@ process.on('unhandledRejection', (reason) => {
 /** 由 vite-plugin-electron 在开发模式下注入 */
 const DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL
 const isDev = !!DEV_SERVER_URL
+
+/**
+ * 生产 CSP。
+ *
+ * 几条关键取舍（均经真实 Electron 运行时实测，见 .qa/ 下的探针）：
+ *
+ * · `script-src 'self'` + 内联脚本的 sha256 hash，不用 unsafe-inline。
+ *   index.html 里那段「首屏主题脚本」必须同步执行（否则亮暗闪烁），
+ *   用 hash 精确放行比放开整个 inline 安全得多。
+ *   ⚠️ 脚本内容一旦改动，hash 必须同步更新 ——
+ *   由 scripts/csp-hash.mjs 在构建时自动写入 index.html。
+ *
+ * · `style-src 'self'` 不含 unsafe-inline。
+ *   React 的 inline style 走 CSSOM（node.style.setProperty），
+ *   不受 CSP 行内样式限制；实测 42 个 [style] 元素计算值全部正确，
+ *   1880 条样式规则正常加载。
+ *
+ * · `img-src` 保留 data:（图标内联为 data URI 的场景）。
+ * · 其余一律 'none'：本应用不加载远程脚本、不嵌 iframe、
+ *   不用 Worker、不提交表单。
+ */
+const CSP_PROD = [
+  "default-src 'none'",
+  "script-src 'self'",
+  "style-src 'self'",
+  "font-src 'self'",
+  "img-src 'self' data:",
+  "connect-src 'self'",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "object-src 'none'",
+  "frame-src 'none'",
+  "worker-src 'none'",
+].join('; ')
+
+/**
+ * 开发 CSP：Vite HMR 与 React Refresh 需要额外放行。
+ *
+ * · unsafe-inline / unsafe-eval：Vite 注入的客户端脚本与
+ *   react-refresh 的运行时都依赖动态求值，开发态无法规避。
+ * · connect-src 放行 dev server 的 http / ws，否则 HMR 连不上。
+ *
+ * 这套只在 isDev 生效，不会进入安装包。
+ */
+const CSP_DEV = [
+  "default-src 'none'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  "style-src 'self' 'unsafe-inline'",
+  "font-src 'self' data:",
+  "img-src 'self' data:",
+  "connect-src 'self' ws://127.0.0.1:* ws://localhost:* http://127.0.0.1:* http://localhost:*",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "object-src 'none'",
+].join('; ')
 
 /*
  * 生产调试模式：`Keyper.exe --rd-debug` 或环境变量 KEYPER_DEBUG=1。
@@ -180,8 +235,88 @@ let quitConfirmed = false
  */
 const CLOSE_FALLBACK_MS = 5000
 
+/**
+ * 会话级安全加固：CSP 注入 + 权限请求全拒。
+ *
+ * 两件事都必须在 whenReady 之后、创建窗口之前完成，
+ * 否则首个页面加载时还没有响应头改写器可用。
+ */
+function applySessionHardening(): void {
+  applyContentSecurityPolicy()
+  applyPermissionPolicy()
+}
+
+/**
+ * CSP 注入（响应头方式）。
+ *
+ * ⚠️ 为什么还要在 index.html 里放 meta CSP：
+ * 生产环境走 loadFile 的 `file://` 协议，onHeadersReceived **不会**对
+ * file:// 响应生效。两条路径互补：
+ *   · file://（生产）→ 由 index.html 的 <meta> 兜底
+ *   · http://（开发/未来自定义协议）→ 由这里的响应头兜底
+ * 任意一条缺失都会让 CSP 实质失效，所以两处都要有。
+ */
+function applyContentSecurityPolicy(): void {
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    const responseHeaders = { ...details.responseHeaders }
+    responseHeaders['Content-Security-Policy'] = [isDev ? CSP_DEV : CSP_PROD]
+    callback({ responseHeaders })
+  })
+
+  trace('csp installed', { dev: isDev, devServer: DEV_SERVER_URL || null })
+}
+
+/**
+ * 权限请求全拒。
+ *
+ * 本应用不需要摄像头 / 麦克风 / 地理位置 / 通知 / 剪贴板读取等任何
+ * Chromium 权限；默认行为是弹窗询问，等于把决定权交给用户 ——
+ * 直接拒绝更符合桌面数据库工具的定位。
+ */
+function applyPermissionPolicy(): void {
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+    trace('permission denied', { permission })
+    callback(false)
+  })
+  // 同步拒绝权限查询（部分 API 用 checkHandler 探测而非申请）
+  session.defaultSession.setPermissionCheckHandler(() => false)
+}
+
 /** 兜底关闭计时器（只允许存在一个） */
 let closeFallbackTimer: NodeJS.Timeout | null = null
+
+/**
+ * 外链白名单：只放行 https，且限定在受信任域。
+ *
+ * 与 update-service.ts 的 openUpdatePage 同一套口径 —— 那里是「检查更新」
+ * 的专用入口，这里覆盖所有由渲染层发起的外链请求（window.open、
+ * target=_blank 等）。两处规则必须一致，否则会出现"某个入口校验了、
+ * 另一个入口漏了"的短板效应。
+ *
+ * 拒绝时静默丢弃并写 trace：用户视角不该看到任何反馈，
+ * 但排查时需要知道有被拦下的地址。
+ */
+const ALLOWED_EXTERNAL_HOSTS = ['github.com', 'gitee.com']
+
+function openExternalIfSafe(rawUrl: string): boolean {
+  let parsed: URL
+  try {
+    parsed = new URL(rawUrl)
+  } catch {
+    trace('openExternal rejected: invalid url', { url: String(rawUrl).slice(0, 120) })
+    return false
+  }
+  if (parsed.protocol !== 'https:') {
+    trace('openExternal rejected: non-https', { url: parsed.href.slice(0, 120) })
+    return false
+  }
+  if (!ALLOWED_EXTERNAL_HOSTS.includes(parsed.hostname)) {
+    trace('openExternal rejected: host not allowed', { host: parsed.hostname })
+    return false
+  }
+  void shell.openExternal(parsed.href)
+  return true
+}
 
 function createMainWindow(): void {
   mainWindow = new BrowserWindow({
@@ -202,7 +337,18 @@ function createMainWindow(): void {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      /*
+       * 渲染进程沙箱。
+       *
+       * 开启后渲染层与 preload 都跑在 Chromium 沙箱内，拿不到完整的 Node
+       * （require / process / module / Buffer 均为 undefined），只能通过
+       * contextBridge 暴露的 redisApi 走 IPC。
+       *
+       * 前提已满足：preload 打包后只保留 require("electron")，不依赖
+       * __dirname / process / 任何 node 内置模块，因此沙箱下可正常加载。
+       * 实测（.qa/sandbox-ipc.js）：10 组 API 暴露完整，invoke 往返正常。
+       */
+      sandbox: true,
     },
   })
 
@@ -220,10 +366,38 @@ function createMainWindow(): void {
   mainWindow.on('maximize', sendWindowState)
   mainWindow.on('unmaximize', sendWindowState)
 
-  // 外链一律交给系统浏览器，不在应用内打开
+  /*
+   * 外链一律交给系统浏览器，不在应用内打开。
+   *
+   * ⚠️ 这里必须校验 scheme / host，不能拿到 url 就直接 openExternal：
+   * 渲染层传入的地址一旦被注入（例如某个值被当成链接渲染后点击），
+   * openExternal 会把 file:// 或自定义协议直接交给系统处理。
+   * 与 update-service.ts 的 openUpdatePage 保持同一套白名单口径。
+   */
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    void shell.openExternal(url)
+    void openExternalIfSafe(url)
     return { action: 'deny' }
+  })
+
+  /*
+   * 阻止一切应用内导航。
+   *
+   * 本应用是单页 file:// 应用，正常操作不会触发整页跳转；
+   * 一旦发生跳转，说明渲染层被注入或出现异常链接 —— 直接拦下。
+   * 开发态要放行 dev server 的 HMR 相关刷新，否则热更新会失效。
+   */
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    const current = mainWindow?.webContents.getURL() ?? ''
+    if (url === current) return
+    if (isDev && DEV_SERVER_URL && url.startsWith(DEV_SERVER_URL)) return
+    event.preventDefault()
+    trace('navigation blocked', { url })
+  })
+
+  /* 禁用 <webview>：本应用不用，留着只是多一个攻击面 */
+  mainWindow.webContents.on('will-attach-webview', (event) => {
+    event.preventDefault()
+    trace('webview attach blocked')
   })
 
   /*
@@ -327,6 +501,7 @@ if (!gotTheLock) {
     syncMainLocale()
     // 骨架阶段先隐藏系统菜单，后续按需改成自定义菜单
     Menu.setApplicationMenu(null)
+    applySessionHardening()
     registerIpcHandlers()
     // 启动时清一次超出保留天数的历史日志
     pruneOldLogs()
