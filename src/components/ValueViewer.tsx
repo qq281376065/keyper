@@ -1324,58 +1324,30 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
     <>
       {value ? (
         <>
-          {/*
-            值区头部 —— 票根 + 水印（design/key-header-avant.html 方案 05）
-
-            结构：
-              ┌─┬──────────────────────────────────┐
-              │竖│  键名                    ⋮ 菜单  │
-              │排│  TTL | encoding | 大小           │
-              │类│              ⌜S⌝ 大字水印        │
-              └─┴──────────────────────────────────┘
-              ↑ 26px 存根，右侧一排半圆撕口，旁边虚线压痕
-
-            为什么这样设计：
-              · 存根把"类型"从一行的第一个徽标挪到侧边竖排 —— 腾出整行给键名，
-                长键名能多显示约 40px；
-              · 半圆撕口 + 虚线压痕构成"可撕凭证"的隐喻，与"这是某条数据的
-                快照"语义契合，比纯文字头部更有辨识度；
-              · 水印是类型首字母，压在票面右侧、键名之下（z-index 低于文字），
-                72px 字号在本就空着的右侧占位，不干扰阅读。
-            高度固定 75px：三个部件（存根竖排字、两行文字、水印）都能容纳。
-          */}
-          <header className="viewer-head ticket-head" data-letter={value.type.charAt(0).toUpperCase()}>
-            {/* 存根：竖排类型名 + 右侧一排半圆撕口 */}
-            <div className="ticket-stub" aria-hidden="true">
-              <span>{value.type}</span>
+          {/* 值区头部 · 报头（design/key-info-20-schemes.html 方案 11） */}
+          <header className="viewer-head masthead" data-type={value.type}>
+            <span className="mast-eyebrow">{value.type}</span>
+            <div className="mast-actions">
+              <ValueActions onRename={() => setRenameVisible(true)} onSetTtl={() => setTtlVisible(true)} />
             </div>
-            {/* 虚线压痕：与撕口平行，强化"可撕"的观感 */}
-            <div className="ticket-perf" aria-hidden="true" />
 
-            <div className="ticket-body">
-              <div className="key-line">
-                <span className="key-name mono ellipsis" {...tipProps(value.key)}>
-                  {value.key}
-                </span>
+            <span className="key-name ellipsis" {...tipProps(value.key)}>
+              {value.key}
+            </span>
 
-                <span className="spacer" />
-
-                <ValueActions onRename={() => setRenameVisible(true)} onSetTtl={() => setTtlVisible(true)} />
-              </div>
-
-              <div className="meta-line">
-                <span>
-                  {t('valueViewer.ttlLabel')}<b className="mono">{ttlLabel}</b>
-                </span>
-                <span className="sep">|</span>
-                <span>
-                  {t('valueViewer.encodingLabel')}<b className="mono">{value.encoding ?? '-'}</b>
-                </span>
-                <span className="sep">|</span>
-                <span>
-                  {t('memcachedValueViewer.size')}<b className="mono">{value.length ?? '-'}</b>
-                </span>
-              </div>
+            <div className="meta-line">
+              <span>
+                <em>{t('valueViewer.ttlLabel')}</em>
+                <b className="mono">{ttlLabel}</b>
+              </span>
+              <span>
+                <em>{t('valueViewer.encodingLabel')}</em>
+                <b className="mono">{value.encoding ?? '-'}</b>
+              </span>
+              <span>
+                <em>{t('memcachedValueViewer.size')}</em>
+                <b className="mono">{value.length ?? '-'}</b>
+              </span>
             </div>
           </header>
 
@@ -2544,23 +2516,16 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
 function SkeletonValue() {
   return (
     <>
-      {/*
-        骨架屏要复用票根外壳，而不是另写一个 .viewer-head。
-        实际头部是 75px 的 ticket（存根 + 压痕 + 票面），骨架若是旧的
-        10/8px padding 双行头，数据到达的瞬间整块高度会跳一下。
-        data-letter 留空：骨架阶段还不知道类型，别印错字母。
-      */}
-      <header className="viewer-head ticket-head" data-letter="">
-        <div className="ticket-stub" aria-hidden="true" />
-        <div className="ticket-perf" aria-hidden="true" />
-
-        <div className="ticket-body">
-          <div className="key-line">
-            <span className="sk sk-title" />
-          </div>
-          <div className="meta-line">
-            <span className="sk sk-meta" />
-          </div>
+      {/* 骨架沿用报头外壳，数据到达时不跳高度 */}
+      <header className="viewer-head masthead">
+        <span className="mast-eyebrow">
+          <span className="sk sk-eyebrow" />
+        </span>
+        <span className="key-name">
+          <span className="sk sk-title" />
+        </span>
+        <div className="meta-line">
+          <span className="sk sk-meta" />
         </div>
       </header>
 

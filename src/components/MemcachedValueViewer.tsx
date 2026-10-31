@@ -998,45 +998,35 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
 
   return renderSection(
     <>
-      {/*
-        票根式头部：与 Redis ValueViewer 同构。
-        存根写值形态（bytes），水印取首字母 M；元信息按 Memcached 真实字段展示。
-      */}
-      <header className="viewer-head ticket-head" data-letter="M">
-        <div className="ticket-stub" aria-hidden="true">
-          <span>bytes</span>
+      {/* 值区头部 · 报头，与 Redis ValueViewer 同构 */}
+      <header className="viewer-head masthead" data-type="bytes">
+        <span className="mast-eyebrow">bytes</span>
+        <div className="mast-actions">
+          <McValueActions
+            onRename={() => setRenaming(true)}
+            onCopyKey={copyKeyName}
+            onRefresh={() => void refreshValue()}
+            onDelete={remove}
+          />
         </div>
-        <div className="ticket-perf" aria-hidden="true" />
 
-        <div className="ticket-body">
-          <div className="key-line">
-            <span className="key-name mono ellipsis" {...tipProps(value.key)}>
-              {value.key}
-            </span>
+        <span className="key-name ellipsis" {...tipProps(value.key)}>
+          {value.key}
+        </span>
 
-            <span className="spacer" />
-
-            <McValueActions
-              onRename={() => setRenaming(true)}
-              onCopyKey={copyKeyName}
-              onRefresh={() => void refreshValue()}
-              onDelete={remove}
-            />
-          </div>
-
-          <div className="meta-line">
-            <span {...tipProps(value.ttl === undefined ? t('memcachedValueViewer.serverNotSupportMeta') : t('memcachedValueViewer.remainingTtl'))}>
-              TTL：<b className="mono">{value.ttl === undefined ? '—' : formatTtl(value.ttl)}</b>
-            </span>
-            <span className="sep">|</span>
-            <span>
-              {t('memcachedValueViewer.size')}<b className="mono">{formatBytes(value.bytes)}</b>
-            </span>
-            <span className="sep">|</span>
-            <span>
-              flags：<b className="mono">{value.flags}</b>
-            </span>
-          </div>
+        <div className="meta-line">
+          <span {...tipProps(value.ttl === undefined ? t('memcachedValueViewer.serverNotSupportMeta') : t('memcachedValueViewer.remainingTtl'))}>
+            <em>TTL：</em>
+            <b className="mono">{value.ttl === undefined ? '—' : formatTtl(value.ttl)}</b>
+          </span>
+          <span>
+            <em>{t('memcachedValueViewer.size')}</em>
+            <b className="mono">{formatBytes(value.bytes)}</b>
+          </span>
+          <span>
+            <em>flags：</em>
+            <b className="mono">{value.flags}</b>
+          </span>
         </div>
       </header>
 
@@ -1171,20 +1161,19 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
   )
 }
 
-/** 骨架屏：读取中保留票根外壳与工具栏尺寸，避免内容出现时整块跳变 */
+/** 骨架屏：读取中保留报头外壳与工具栏尺寸，避免内容出现时整块跳变 */
 function McSkeleton() {
   return (
     <>
-      <header className="viewer-head ticket-head" data-letter="">
-        <div className="ticket-stub" aria-hidden="true" />
-        <div className="ticket-perf" aria-hidden="true" />
-        <div className="ticket-body">
-          <div className="key-line">
-            <span className="sk sk-title" />
-          </div>
-          <div className="meta-line">
-            <span className="sk sk-meta" />
-          </div>
+      <header className="viewer-head masthead">
+        <span className="mast-eyebrow">
+          <span className="sk sk-eyebrow" />
+        </span>
+        <span className="key-name">
+          <span className="sk sk-title" />
+        </span>
+        <div className="meta-line">
+          <span className="sk sk-meta" />
         </div>
       </header>
 
