@@ -1116,8 +1116,11 @@ semantic colour tokens that follow all nine skins. Supports SSH tunnels and mult
 
 ## Roadmap
 
-1. **Connection coverage**: Sentinel / Cluster mode, connection import and export
-2. **Distribution**: macOS notarisation and signing, stable / beta update channels
+1. **Import / export** (next up): native JSON profiles covering both engines and SSH settings, with
+   credentials excluded by default; batch URI import.
+2. **Distribution**: Windows code signing, macOS notarisation and signing, stable / beta update
+   channels.
+3. **Quality and security**: renderer CSP and sandbox hardening.
 
 ---
 
