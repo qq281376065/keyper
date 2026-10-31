@@ -268,7 +268,7 @@ export interface UpdateCheckResult {
   /**
    * 是否支持应用内下载并安装。
    * 只有打包版走 electron-updater 检查时为 true；开发态 / 回退到
-   * Gitee 版本页时为 false，界面只提供「查看下载」。
+   * GitHub 版本页时为 false，界面只提供「查看下载」。
    */
   canAutoUpdate: boolean
   /** 更新包大小（字节）；更新源未提供时为 null */

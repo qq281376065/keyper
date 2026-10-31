@@ -1180,7 +1180,7 @@ semantic colour tokens that follow all nine skins. Supports SSH tunnels and mult
   first-paint theme script is written by `scripts/csp-hash.mjs` at build time and can be verified with
   `npm run csp:check`
 - In-app navigation, `<webview>` attachment and Chromium permission requests are all denied; external
-  links are handed to the system browser and only https URLs on trusted hosts (GitHub / Gitee) pass
+  links are handed to the system browser and only https URLs on trusted hosts (GitHub) pass
 
 
 

@@ -293,10 +293,12 @@ let closeFallbackTimer: NodeJS.Timeout | null = null
  * target=_blank 等）。两处规则必须一致，否则会出现"某个入口校验了、
  * 另一个入口漏了"的短板效应。
  *
+ * 仓库已迁到 GitHub，不再放行 gitee.com。
+ *
  * 拒绝时静默丢弃并写 trace：用户视角不该看到任何反馈，
  * 但排查时需要知道有被拦下的地址。
  */
-const ALLOWED_EXTERNAL_HOSTS = ['github.com', 'gitee.com']
+const ALLOWED_EXTERNAL_HOSTS = ['github.com']
 
 function openExternalIfSafe(rawUrl: string): boolean {
   let parsed: URL

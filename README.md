@@ -984,4 +984,4 @@ K 用矢量笔画手绘而非字体 —— 字体字形墨迹只有字号的 66%
   开发环境由主进程注入带 HMR 放行的另一套策略。首屏主题脚本的 sha256 由
   `scripts/csp-hash.mjs` 在构建时自动写入，`npm run csp:check` 可校验是否失配
 - 应用内导航、`<webview>` 挂载、Chromium 权限请求一律拒绝；外链交由系统浏览器打开，
-  且只放行 https 与受信任域（GitHub / Gitee）
+  且只放行 https 与受信任域（GitHub）

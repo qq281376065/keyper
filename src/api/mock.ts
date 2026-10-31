@@ -774,7 +774,7 @@ export const mockApi: RedisDesktopApi = {
         latestVersion: APP_VERSION,
         hasUpdate: false,
         notes: null,
-        pageUrl: 'https://gitee.com/jack_ssdddd/redis-docter/tags',
+        pageUrl: 'https://github.com/qq281376065/keyper/tags',
         checkedAt: new Date().toISOString(),
         notice: '浏览器预览模式不会真的联网检查',
         canAutoUpdate: false,

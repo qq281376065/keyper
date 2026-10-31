@@ -67,7 +67,7 @@ export function onUpdateState(listener: (state: UpdateDownloadState) => void): v
 /**
  * 打包版才启用。
  * 开发态没有 app-update.yml，electron-updater 会直接拒绝运行；
- * 这里提前判掉，让上层回退到 Gitee 版本页检查。
+ * 这里提前判掉，让上层回退到 GitHub 版本页检查。
  */
 export function isAutoUpdateEnabled(): boolean {
   return app.isPackaged

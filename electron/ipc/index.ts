@@ -479,7 +479,7 @@ export function registerIpcHandlers(): void {
   // -------------------------------------------------------- 检查更新
   /*
    * 打包版优先走 electron-updater（能下载、能增量、能安装）；
-   * 开发态或更新源不可达时回退到 Gitee tags 检查，保证"有没有新版"
+   * 开发态或更新源不可达时回退到 GitHub tags 检查，保证"有没有新版"
    * 这个问题总有一个答案，而不是只剩一条网络错误。
    */
   handle<UpdateCheckResult>(IPC.updateCheck, async () => {
