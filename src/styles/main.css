@@ -1010,6 +1010,14 @@ body {
   color: var(--badge-stream-fg);
   background: var(--badge-stream-bg);
 }
+/*
+ * Memcached 值区：无键类型概念，统一用紫色区分于 Redis 的六种结构。
+ * 与 .masthead[data-type='bytes'] 曾经的取色一致。
+ */
+.type-bytes {
+  color: var(--purple);
+  background: color-mix(in srgb, var(--purple) 14%, transparent);
+}
 .type-none {
   color: var(--badge-none-fg);
   background: var(--badge-none-bg);

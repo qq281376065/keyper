@@ -1391,30 +1391,39 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
     <>
       {value ? (
         <>
-          {/* 值区头部 · 报头（design/key-info-20-schemes.html 方案 11） */}
-          <header className="viewer-head masthead" data-type={value.type}>
-            <span className="mast-eyebrow">
-              <span className="mast-pill">{value.type}</span>
-            </span>
-            <div className="mast-actions">
+          {/*
+            值区头部：
+              第一行  胶囊类型 | key 名                ⋮
+              第二行  TTL | encoding | 大小
+
+            胶囊用 .type-badge + type-${type} 取该类型的徽标色，
+            全称而非单字母缩写 —— 头部空间充足，全称更易读。
+          */}
+          <header className="viewer-head">
+            <div className="key-line">
+              <span className={`type-badge type-${value.type}`}>{value.type}</span>
+              <span className="key-name mono ellipsis" {...tipProps(value.key)}>
+                {value.key}
+              </span>
+
+              <span className="spacer" />
+
               <ValueActions onRename={() => setRenameVisible(true)} onSetTtl={() => setTtlVisible(true)} />
             </div>
 
-            <span className="key-name ellipsis" {...tipProps(value.key)}>
-              {value.key}
-            </span>
-
             <div className="meta-line">
               <span>
-                <em>{t('valueViewer.ttlLabel')}</em>
+                {t('valueViewer.ttlLabel')}
                 <b className="mono">{ttlLabel}</b>
               </span>
+              <span className="sep">|</span>
               <span>
-                <em>{t('valueViewer.encodingLabel')}</em>
+                {t('valueViewer.encodingLabel')}
                 <b className="mono">{value.encoding ?? '-'}</b>
               </span>
+              <span className="sep">|</span>
               <span>
-                <em>{t('memcachedValueViewer.size')}</em>
+                {t('memcachedValueViewer.size')}
                 <b className="mono">{value.length ?? '-'}</b>
               </span>
             </div>
@@ -2635,16 +2644,12 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
 function SkeletonValue() {
   return (
     <>
-      {/* 骨架沿用报头外壳，数据到达时不跳高度 */}
-      <header className="viewer-head masthead">
-        <span className="mast-eyebrow">
-          <span className="mast-pill sk-pill">
-            <span className="sk sk-eyebrow" />
-          </span>
-        </span>
-        <span className="key-name">
+      {/* 骨架沿用头部外壳，数据到达时不跳高度 */}
+      <header className="viewer-head">
+        <div className="key-line">
+          <span className="sk sk-badge" />
           <span className="sk sk-title" />
-        </span>
+        </div>
         <div className="meta-line">
           <span className="sk sk-meta" />
         </div>

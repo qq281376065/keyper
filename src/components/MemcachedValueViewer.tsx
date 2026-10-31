@@ -1005,12 +1005,16 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
 
   return renderSection(
     <>
-      {/* 值区头部 · 报头，与 Redis ValueViewer 同构 */}
-      <header className="viewer-head masthead" data-type="bytes">
-        <span className="mast-eyebrow">
-          <span className="mast-pill">bytes</span>
-        </span>
-        <div className="mast-actions">
+      {/* 值区头部：胶囊类型 | key，与 Redis ValueViewer 同构 */}
+      <header className="viewer-head">
+        <div className="key-line">
+          <span className="type-badge type-bytes">bytes</span>
+          <span className="key-name mono ellipsis" {...tipProps(value.key)}>
+            {value.key}
+          </span>
+
+          <span className="spacer" />
+
           <McValueActions
             onRename={() => setRenaming(true)}
             onCopyKey={copyKeyName}
@@ -1019,22 +1023,18 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
           />
         </div>
 
-        <span className="key-name ellipsis" {...tipProps(value.key)}>
-          {value.key}
-        </span>
-
         <div className="meta-line">
           <span {...tipProps(value.ttl === undefined ? t('memcachedValueViewer.serverNotSupportMeta') : t('memcachedValueViewer.remainingTtl'))}>
-            <em>TTL：</em>
-            <b className="mono">{value.ttl === undefined ? '—' : formatTtl(value.ttl)}</b>
+            TTL：<b className="mono">{value.ttl === undefined ? '—' : formatTtl(value.ttl)}</b>
           </span>
+          <span className="sep">|</span>
           <span>
-            <em>{t('memcachedValueViewer.size')}</em>
+            {t('memcachedValueViewer.size')}
             <b className="mono">{formatBytes(value.bytes)}</b>
           </span>
+          <span className="sep">|</span>
           <span>
-            <em>flags：</em>
-            <b className="mono">{value.flags}</b>
+            flags：<b className="mono">{value.flags}</b>
           </span>
         </div>
       </header>
@@ -1170,19 +1170,15 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
   )
 }
 
-/** 骨架屏：读取中保留报头外壳与工具栏尺寸，避免内容出现时整块跳变 */
+/** 骨架屏：读取中保留头部外壳与工具栏尺寸，避免内容出现时整块跳变 */
 function McSkeleton() {
   return (
     <>
-      <header className="viewer-head masthead">
-        <span className="mast-eyebrow">
-          <span className="mast-pill sk-pill">
-            <span className="sk sk-eyebrow" />
-          </span>
-        </span>
-        <span className="key-name">
+      <header className="viewer-head">
+        <div className="key-line">
+          <span className="sk sk-badge" />
           <span className="sk sk-title" />
-        </span>
+        </div>
         <div className="meta-line">
           <span className="sk sk-meta" />
         </div>
