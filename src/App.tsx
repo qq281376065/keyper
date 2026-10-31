@@ -77,14 +77,17 @@ export function App() {
    * 初始值拉取一次，之后靠主进程的 maximize/unmaximize 事件推送。
    */
   const [windowMaximized, setWindowMaximized] = useState(false)
-  const [toastVisible, setToastVisible] = useState(true)
 
-  useEffect(() => {
-    setToastVisible(true)
-    if (!global.toast) return
-    const timer = setTimeout(() => setToastVisible(false), 200)
-    return () => clearTimeout(timer)
-  }, [global.toast])
+  /*
+   * toast 的显隐完全由 store 负责：
+   *   · notify() 写入 global.toast 并启动 TOAST_DURATION 计时（ok 5s / err 6.5s）
+   *   · 计时结束把 global.toast 置 null，条件渲染自然卸载元素
+   *
+   * ⚠️ 不要再在这里加「延时隐藏」的定时器。
+   * 历史上这里写过 setTimeout(() => setToastVisible(false), 200)，
+   * 导致 toast 只活 200ms，store 配置的 5 秒毫无意义 ——
+   * 表现为「复制键名后右下角提示一闪而过」，从 1.0.0 起一直存在。
+   */
 
   useEffect(() => {
     let unlistenWindowState: (() => void) | null = null
@@ -386,7 +389,7 @@ export function App() {
 
       <ConfirmDialog />
 
-      {global.toast && toastVisible ? <div className={`toast ${global.toast.kind}`}>{global.toast.text}</div> : null}
+      {global.toast ? <div className={`toast ${global.toast.kind}`}>{global.toast.text}</div> : null}
 
       {/* 全局提示层：所有 tooltip 共用一个实例，挂在最外层避免被局部容器裁剪 */}
       <AppTooltip />

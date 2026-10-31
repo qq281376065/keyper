@@ -267,19 +267,41 @@ function applyContentSecurityPolicy(): void {
 }
 
 /**
- * 权限请求全拒。
+ * 权限请求策略：默认全拒，仅放行剪贴板读写。
  *
- * 本应用不需要摄像头 / 麦克风 / 地理位置 / 通知 / 剪贴板读取等任何
- * Chromium 权限；默认行为是弹窗询问，等于把决定权交给用户 ——
- * 直接拒绝更符合桌面数据库工具的定位。
+ * ⚠️ 为什么必须放行剪贴板（而且必须包括 read）：
+ *
+ * 1. 复制是本应用的核心操作 —— 「复制键名 / 复制值 / 复制连接地址」
+ *    等 16 处都走 navigator.clipboard.writeText。
+ * 2. 粘贴是导入流程的入口 —— ImportUriDialog 的「从剪贴板粘贴」
+ *    显式调用 navigator.clipboard.readText()。
+ * 3. 关键：Chromium 的 writeText 在写入前会先发**clipboard-read**
+ *    权限请求做探测（实测权限名就是 clipboard-read，不是
+ *    clipboard-sanitized-write）。只放行 write 类权限，writeText 依然
+ *    抛 NotAllowedError，而降级路径 document.execCommand('copy')
+ *    在新版 Chromium 已废弃、同样返回 false ——
+ *    结果是复制整体失效，用户只看到"复制失败，请检查剪贴板权限"。
+ *
+ * 因此这里放行 clipboard-read（覆盖读写两种用途）。
+ * 其余（摄像头 / 麦克风 / 定位 / 通知 / MIDI / 串口 / 全屏等）一律拒绝 ——
+ * 桌面数据库工具用不到。
  */
+const ALLOWED_PERMISSIONS = new Set<string>(['clipboard-read', 'clipboard-sanitized-write'])
+
 function applyPermissionPolicy(): void {
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
-    trace('permission denied', { permission })
-    callback(false)
+    const allowed = ALLOWED_PERMISSIONS.has(permission)
+    if (!allowed) trace('permission denied', { permission })
+    callback(allowed)
   })
-  // 同步拒绝权限查询（部分 API 用 checkHandler 探测而非申请）
-  session.defaultSession.setPermissionCheckHandler(() => false)
+  /*
+   * checkHandler 要按权限逐项判断，不能一律 false ——
+   * clipboard API 在真正发起请求前会先用它探测，一律 false
+   * 会让请求根本发不出来，直接抛 NotAllowedError。
+   */
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) =>
+    ALLOWED_PERMISSIONS.has(permission),
+  )
 }
 
 /** 兜底关闭计时器（只允许存在一个） */
