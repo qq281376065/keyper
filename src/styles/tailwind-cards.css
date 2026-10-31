@@ -607,7 +607,9 @@
 .update-foot {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
+  row-gap: 6px;
   margin-top: 12px;
   padding-top: 10px;
   border-top: 1px solid var(--border);
@@ -620,6 +622,46 @@
 .update-time {
   font-size: var(--fs-xs);
   color: var(--text-muted);
+}
+
+/* 下载进度：细长条 + 一行统计（百分比 / 已下载 / 速度） */
+.update-download {
+  margin-top: 10px;
+}
+
+.update-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.update-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 0.25s linear;
+}
+
+.update-download-stats {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 6px 0 0;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.update-download-stats span:first-child {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.update-download-error {
+  margin-top: 10px;
 }
 
 /* ---------------------------------------------------------------------------

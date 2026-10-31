@@ -568,6 +568,17 @@ class MemcachedManager {
       : { ok: false, message: t('type.keyNotExist') }
   }
 
+  /** 更新过期时间（touch）。ttlSeconds < 0 表示永久；0 仍按"即将过期"处理 */
+  async touch(id: string, key: string, ttlSeconds: number): Promise<OperationResult> {
+    const managed = this.require(id)
+    const exptime = ttlSeconds < 0 ? 0 : exptimeFromTtl(ttlSeconds)
+    const touched = await managed.pool.run((client) => client.touch(key, exptime))
+    if (touched) this.invalidateKeys(managed)
+    return touched
+      ? { ok: true, message: t('session.ttlUpdated') }
+      : { ok: false, message: t('type.keyNotExist') }
+  }
+
   /** 清空全部数据 —— 破坏性操作，调用方必须先确认 */
   async flush(id: string): Promise<OperationResult> {
     const managed = this.require(id)

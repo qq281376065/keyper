@@ -8,10 +8,13 @@ import type {
   EnvInfo,
   ErrorReport,
   KeyValue,
+  KeyspaceConfig,
+  KeyspaceEvent,
   LogEntry,
   LogFileInfo,
   LogQuery,
   MemoryAnalysis,
+  MetricsSample,
   OperationResult,
   CacheConnectionConfig,
   MemcachedKeyList,
@@ -33,6 +36,12 @@ import type {
   PubsubState,
   VersionInfo,
   UpdateCheckResult,
+  UpdateDownloadState,
+  ValuePageOptions,
+  ValuePageResult,
+  ValueReadOptions,
+  RefreshKeysOptions,
+  RefreshKeysResult,
 } from './types'
 
 /**
@@ -56,6 +65,17 @@ export interface RedisDesktopApi {
     check: () => Promise<ApiResponse<UpdateCheckResult>>
     /** 在系统浏览器中打开指定地址（下载页 / 版本说明） */
     openPage: (url: string) => Promise<ApiResponse<OperationResult>>
+    /** 当前下载 / 安装状态（面板重新打开时恢复进度） */
+    state: () => Promise<ApiResponse<UpdateDownloadState>>
+    /**
+     * 开始下载更新（electron-updater 增量下载）。
+     * 必须在 check() 返回 hasUpdate=true 且 canAutoUpdate=true 后调用。
+     */
+    download: (version: string) => Promise<ApiResponse<UpdateDownloadState>>
+    /** 退出应用并安装已下载的更新 */
+    install: () => Promise<ApiResponse<OperationResult>>
+    /** 订阅下载 / 安装状态变化，返回取消订阅函数 */
+    onStateChange: (listener: (state: UpdateDownloadState) => void) => () => void
   }
 
   settings: {
@@ -154,6 +174,11 @@ export interface RedisDesktopApi {
 
   redis: {
     info: (id: string) => Promise<ApiResponse<ServerInfo>>
+    /**
+     * 监控采样：一次返回 INFO 中的数值指标 + 当前库 DBSIZE。
+     * 供概览「监控」页签的高频轮询使用（只传数字，不传文案）。
+     */
+    metrics: (id: string) => Promise<ApiResponse<MetricsSample>>
     /** 服务端详细信息（按 INFO 段落分组） */
     versionInfo: (id: string) => Promise<ApiResponse<VersionInfo>>
     /**
@@ -181,6 +206,26 @@ export interface RedisDesktopApi {
      */
     onPubsubMessage: (listener: (message: PubsubMessage) => void) => () => void
     /**
+     * 键空间通知配置。
+     *
+     * CONFIG GET 在托管 Redis 上常被禁用 —— 失败时按 ApiResponse 错误返回，
+     * 由面板提示「去控制台改参数」，而不是假装配置为空。
+     */
+    keyspaceConfig: (id: string) => Promise<ApiResponse<KeyspaceConfig>>
+    /** 修改 notify-keyspace-events（CONFIG SET，可能被服务端拒绝） */
+    setKeyspaceConfig: (id: string, events: string) => Promise<ApiResponse<OperationResult>>
+    /**
+     * 订阅键空间事件。与 Pub/Sub 一样使用独立连接（订阅模式无法执行普通命令），
+     * 但另开一条，避免与 Pub/Sub 面板互相干扰（各自的停止 / 退订互不牵连）。
+     * patterns 通常是 `__keyevent@*__:*`（事件名在频道、键名在消息体）。
+     */
+    keyspaceSubscribe: (id: string, patterns: string[]) => Promise<ApiResponse<PubsubState>>
+    keyspaceUnsubscribe: (id: string, patterns: string[]) => Promise<ApiResponse<PubsubState>>
+    /** 断开该连接的键空间订阅连接（面板关闭 / 切换连接时调用） */
+    keyspaceStop: (id: string) => Promise<ApiResponse<OperationResult>>
+    /** 订阅键空间事件推送（主 → 渲染），返回取消订阅函数 */
+    onKeyspaceEvent: (listener: (event: KeyspaceEvent) => void) => () => void
+    /**
      * 键内存分析：SCAN 全库 + MEMORY USAGE，按前缀聚合。
      * ⚠️ 逐键探测是重操作，主进程有扫描上限（超限截断并在结果中标记），
      * 因此面板不自动加载，由用户显式触发。
@@ -200,7 +245,15 @@ export interface RedisDesktopApi {
     searchCancel: (id: string) => Promise<ApiResponse<OperationResult>>
     /** 订阅全库搜索进度推送（主 → 渲染），返回取消订阅函数。与 onPubsubMessage 相同的桥接模式 */
     onSearchProgress: (listener: (progress: SearchProgress) => void) => () => void
-    value: (id: string, key: string) => Promise<ApiResponse<KeyValue>>
+    /**
+     * 键列表增量刷新：从游标 0 重扫当前模式，一次返回整批新元信息。
+     * 与 scan 的区别：无逐页 IPC、无骨架屏语义，供「重新扫描」原地替换列表。
+     */
+    refreshKeys: (id: string, options?: RefreshKeysOptions) => Promise<ApiResponse<RefreshKeysResult>>
+    /** 单键首屏（大 key 只取一页，返回 nextCursor 供 valuePage 续读） */
+    value: (id: string, key: string, options?: ValueReadOptions) => Promise<ApiResponse<KeyValue>>
+    /** 读取大 key 的后续一页 */
+    valuePage: (id: string, key: string, options: ValuePageOptions) => Promise<ApiResponse<ValuePageResult>>
     setValue: (
       id: string,
       key: string,
@@ -349,6 +402,11 @@ export interface RedisDesktopApi {
      * 保留 flags，服务端支持 meta 时同时保留剩余 TTL；目标键已存在则拒绝。
      */
     rename: (id: string, key: string, newKey: string) => Promise<ApiResponse<OperationResult>>
+    /**
+     * 修改键的过期时间（touch 命令）。
+     * seconds < 0 表示移除过期（exptime=0，永久）；键不存在时返回 ok:false。
+     */
+    touch: (id: string, key: string, seconds: number) => Promise<ApiResponse<OperationResult>>
     /** 清空全部数据（flush_all），破坏性 */
     flush: (id: string) => Promise<ApiResponse<OperationResult>>
   }
@@ -388,6 +446,11 @@ export const IPC = {
 
   updateCheck: 'update:check',
   updateOpenPage: 'update:openPage',
+  updateState: 'update:state',
+  updateDownload: 'update:download',
+  updateInstall: 'update:install',
+  /** 主 → 渲染：下载 / 安装状态推送（非 invoke 型） */
+  updateStateChanged: 'update:stateChanged',
 
   settingsGet: 'settings:get',
   settingsSave: 'settings:save',
@@ -418,6 +481,7 @@ export const IPC = {
   connectionStatus: 'connection:status',
 
   redisInfo: 'redis:info',
+  redisMetrics: 'redis:metrics',
   redisVersionInfo: 'redis:versionInfo',
   redisSlowlog: 'redis:slowlog',
   redisSlowlogReset: 'redis:slowlogReset',
@@ -429,6 +493,14 @@ export const IPC = {
   pubsubStop: 'pubsub:stop',
   /** 主 → 渲染：Pub/Sub 消息推送（非 invoke 型，由 preload 直接监听） */
   pubsubMessage: 'pubsub:message',
+
+  redisKeyspaceConfig: 'redis:keyspaceConfig',
+  redisKeyspaceSetConfig: 'redis:keyspaceSetConfig',
+  keyspaceSubscribe: 'keyspace:subscribe',
+  keyspaceUnsubscribe: 'keyspace:unsubscribe',
+  keyspaceStop: 'keyspace:stop',
+  /** 主 → 渲染：键空间通知事件推送（非 invoke 型） */
+  keyspaceEvent: 'keyspace:event',
   /** 主 → 渲染：全库搜索进度推送（非 invoke 型，由 preload 直接监听） */
   redisSearchProgress: 'redis:searchProgress',
   redisSearchAll: 'redis:searchAll',
@@ -436,7 +508,9 @@ export const IPC = {
   redisDatabases: 'redis:databases',
   redisScan: 'redis:scan',
   redisLookupKey: 'redis:lookupKey',
+  redisRefreshKeys: 'redis:refreshKeys',
   redisValue: 'redis:value',
+  redisValuePage: 'redis:valuePage',
   redisSetValue: 'redis:setValue',
   redisDelete: 'redis:delete',
   redisSetTtl: 'redis:setTtl',
@@ -474,6 +548,7 @@ export const IPC = {
   memcachedSet: 'memcached:set',
   memcachedRemove: 'memcached:remove',
   memcachedRename: 'memcached:rename',
+  memcachedTouch: 'memcached:touch',
   memcachedFlush: 'memcached:flush',
 
   windowMinimize: 'window:minimize',

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { DialogIcon, type DialogIconName } from '@/components/DialogIcon'
+import { MetricsCard } from '@/components/MetricsCard'
 import { tipProps } from '@/components/tip'
 import { useI18n } from '@/i18n'
 import { api } from '@/api'
@@ -26,11 +27,12 @@ import type { MemcachedOverview, MemcachedSlab } from '@shared/types'
  *      0 会被读成"确实是零"，而 `—` 表示"没拿到"。
  */
 
-type Tab = 'stats' | 'settings'
+type Tab = 'stats' | 'settings' | 'monitor'
 
 const TABS: Array<{ key: Tab; label: MsgKey; icon: DialogIconName }> = [
   { key: 'stats', label: 'memcachedOverview.stats', icon: 'info' },
   { key: 'settings', label: 'memcachedOverview.settings', icon: 'settings' },
+  { key: 'monitor', label: 'metricsCard.title', icon: 'chart' },
 ]
 
 /** 取数值，缺失时给 undefined 而不是 0 —— 让界面能区分"零"与"没数据" */
@@ -284,134 +286,135 @@ export function MemcachedOverview() {
             ))}
           </nav>
 
-          {tab === 'stats' ? (
-            <div className="ov-tab-pane">
-              <section className="mc-pane-card">
-                <header className="mc-pane-head">
-                  <h4 className="mc-pane-title">{t('memcachedOverview.allStats')}</h4>
-                  <span className="mc-pane-count mono">
-                    {statRows.length === Object.keys(stats).length
-                      ? t('memcachedOverview.countItems', { count: statRows.length })
-                      : `${statRows.length} / ${Object.keys(stats).length}`}
-                  </span>
-                  <span className="spacer" />
-                  {/*
-                    统计项搜索：胶囊输入 + 精确开关。
-                    Memcached 的 stats 有近百项（slab 越多越多），
-                    没有筛选时想找一个具体字段只能靠肉眼扫。
-                  */}
-                  <div className={`mc-search${statExact ? ' exact' : ''}`}>
-                    <DialogIcon name="search" size={11} className="mc-search-icon" />
-                    <input
-                      value={statFilter}
-                      onChange={(event) => setStatFilter(event.target.value)}
-                      className="mc-search-input mono"
-                      placeholder={statExact ? t('memcachedOverview.fullFieldName') : t('memcachedOverview.searchFieldNames')}
-                      spellCheck={false}
-                    />
-                    {statFilter ? (
-                      <button
-                        className="mc-search-clear"
-                        {...tipProps(t('memcachedOverview.clear'))}
-                        onClick={() => setStatFilter('')}
-                      >
-                        <DialogIcon name="cancel" size={10} />
-                      </button>
-                    ) : null}
+          {/* 页签常驻、display 切换：监控采样历史与统计筛选状态都靠组件存活保留 */}
+          <div className="ov-tab-pane" style={tab === 'stats' ? undefined : { display: 'none' }}>
+            <section className="mc-pane-card">
+              <header className="mc-pane-head">
+                <h4 className="mc-pane-title">{t('memcachedOverview.allStats')}</h4>
+                <span className="mc-pane-count mono">
+                  {statRows.length === Object.keys(stats).length
+                    ? t('memcachedOverview.countItems', { count: statRows.length })
+                    : `${statRows.length} / ${Object.keys(stats).length}`}
+                </span>
+                <span className="spacer" />
+                {/*
+                  统计项搜索：胶囊输入 + 精确开关。
+                  Memcached 的 stats 有近百项（slab 越多越多），
+                  没有筛选时想找一个具体字段只能靠肉眼扫。
+                */}
+                <div className={`mc-search${statExact ? ' exact' : ''}`}>
+                  <DialogIcon name="search" size={11} className="mc-search-icon" />
+                  <input
+                    value={statFilter}
+                    onChange={(event) => setStatFilter(event.target.value)}
+                    className="mc-search-input mono"
+                    placeholder={statExact ? t('memcachedOverview.fullFieldName') : t('memcachedOverview.searchFieldNames')}
+                    spellCheck={false}
+                  />
+                  {statFilter ? (
                     <button
-                      className={`mc-search-exact${statExact ? ' on' : ''}`}
-                      role="checkbox"
-                      aria-checked={statExact}
-                      {...tipProps(statExact ? t('memcachedOverview.exactMatch') : t('memcachedOverview.fuzzyMatch'))}
-                      onClick={() => setStatExact((v) => !v)}
+                      className="mc-search-clear"
+                      {...tipProps(t('memcachedOverview.clear'))}
+                      onClick={() => setStatFilter('')}
                     >
-                      Aa
+                      <DialogIcon name="cancel" size={10} />
                     </button>
-                  </div>
-                </header>
-                {statRows.length ? (
-                  <div className="mc-stat-grid">
-                    {statRows.map(([key, value]) => (
-                      <div key={key} className="mc-stat">
-                        <span className="mc-stat-key mono" {...tipProps(key)}>
-                          {key}
-                        </span>
-                        <span className="mc-stat-val mono" {...tipProps(value)}>
-                          {value}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="mc-empty">
-                    {t('memcachedOverview.noStatsItemsMatchFilter', { filter: statFilter })}
-                    {statExact ? t('memcachedOverview.exactMatchHint') : ''}
-                  </p>
-                )}
-              </section>
-
-              <section className="mc-pane-card">
-                <header className="mc-pane-head">
-                  <h4 className="mc-pane-title">{t('memcachedOverview.slabDistribution')}</h4>
-                  <span className="mc-pane-count mono">{t('memcachedOverview.countClasses', { count: slabs.length })}</span>
-                </header>
-                {slabs.length ? (
-                  <table className="mc-table">
-                    <thead>
-                      <tr>
-                        <th>slab</th>
-                        <th>{t('memcachedOverview.entries')}</th>
-                        <th>{t('memcachedOverview.oldestEntry')}</th>
-                        <th>{t('memcachedOverview.evictions')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {slabs.map((slab) => (
-                        <tr key={slab.slab}>
-                          <td className="mono">{slab.slab}</td>
-                          <td className="mono">{slab.count}</td>
-                          <td className="mono">{formatUptime(slab.age, t)}</td>
-                          <td className={`mono${slab.evicted > 0 ? ' bad' : ''}`.trim()}>{slab.evicted}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : (
-                  <p className="mc-empty">{t('memcachedOverview.currentInstanceNoCached')}</p>
-                )}
-              </section>
-            </div>
-          ) : null}
-
-          {tab === 'settings' ? (
-            <div className="ov-tab-pane">
-              <section className="mc-pane-card">
-                <header className="mc-pane-head">
-                  <h4 className="mc-pane-title">{t('memcachedOverview.runtimeParameters')}</h4>
-                  <span className="mc-pane-count mono">{t('memcachedOverview.countItems', { count: Object.keys(overview?.settings ?? {}).length })}</span>
-                  <span className="spacer" />
-                  <button className="mc-run danger" onClick={() => void flushAll()}>
-                    <DialogIcon name="trash" size={12} className="ti" />
-                    {t('memcachedOverview.clearAllData')}
+                  ) : null}
+                  <button
+                    className={`mc-search-exact${statExact ? ' on' : ''}`}
+                    role="checkbox"
+                    aria-checked={statExact}
+                    {...tipProps(statExact ? t('memcachedOverview.exactMatch') : t('memcachedOverview.fuzzyMatch'))}
+                    onClick={() => setStatExact((v) => !v)}
+                  >
+                    Aa
                   </button>
-                </header>
-                {Object.keys(overview?.settings ?? {}).length ? (
-                  <div className="mc-stat-grid">
-                    {Object.entries(overview!.settings).map(([key, value]) => (
-                      <div key={key} className="mc-stat">
-                        <span className="mc-stat-key mono">{key}</span>
-                        <span className="mc-stat-val mono">{value}</span>
-                      </div>
+                </div>
+              </header>
+              {statRows.length ? (
+                <div className="mc-stat-grid">
+                  {statRows.map(([key, value]) => (
+                    <div key={key} className="mc-stat">
+                      <span className="mc-stat-key mono" {...tipProps(key)}>
+                        {key}
+                      </span>
+                      <span className="mc-stat-val mono" {...tipProps(value)}>
+                        {value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mc-empty">
+                  {t('memcachedOverview.noStatsItemsMatchFilter', { filter: statFilter })}
+                  {statExact ? t('memcachedOverview.exactMatchHint') : ''}
+                </p>
+              )}
+            </section>
+
+            <section className="mc-pane-card">
+              <header className="mc-pane-head">
+                <h4 className="mc-pane-title">{t('memcachedOverview.slabDistribution')}</h4>
+                <span className="mc-pane-count mono">{t('memcachedOverview.countClasses', { count: slabs.length })}</span>
+              </header>
+              {slabs.length ? (
+                <table className="mc-table">
+                  <thead>
+                    <tr>
+                      <th>slab</th>
+                      <th>{t('memcachedOverview.entries')}</th>
+                      <th>{t('memcachedOverview.oldestEntry')}</th>
+                      <th>{t('memcachedOverview.evictions')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {slabs.map((slab) => (
+                      <tr key={slab.slab}>
+                        <td className="mono">{slab.slab}</td>
+                        <td className="mono">{slab.count}</td>
+                        <td className="mono">{formatUptime(slab.age, t)}</td>
+                        <td className={`mono${slab.evicted > 0 ? ' bad' : ''}`.trim()}>{slab.evicted}</td>
+                      </tr>
                     ))}
-                  </div>
-                ) : (
-                  <p className="mc-empty">
-                    {t('memcachedOverview.instanceNotReturnSettings')}
-                  </p>
-                )}
-              </section>
-            </div>
-          ) : null}
+                  </tbody>
+                </table>
+              ) : (
+                <p className="mc-empty">{t('memcachedOverview.currentInstanceNoCached')}</p>
+              )}
+            </section>
+          </div>
+
+          <div className="ov-tab-pane" style={tab === 'settings' ? undefined : { display: 'none' }}>
+            <section className="mc-pane-card">
+              <header className="mc-pane-head">
+                <h4 className="mc-pane-title">{t('memcachedOverview.runtimeParameters')}</h4>
+                <span className="mc-pane-count mono">{t('memcachedOverview.countItems', { count: Object.keys(overview?.settings ?? {}).length })}</span>
+                <span className="spacer" />
+                <button className="mc-run danger" onClick={() => void flushAll()}>
+                  <DialogIcon name="trash" size={12} className="ti" />
+                  {t('memcachedOverview.clearAllData')}
+                </button>
+              </header>
+              {Object.keys(overview?.settings ?? {}).length ? (
+                <div className="mc-stat-grid">
+                  {Object.entries(overview!.settings).map(([key, value]) => (
+                    <div key={key} className="mc-stat">
+                      <span className="mc-stat-key mono">{key}</span>
+                      <span className="mc-stat-val mono">{value}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mc-empty">
+                  {t('memcachedOverview.instanceNotReturnSettings')}
+                </p>
+              )}
+            </section>
+          </div>
+
+          <div className="ov-tab-pane" style={tab === 'monitor' ? undefined : { display: 'none' }}>
+            <MetricsCard active={tab === 'monitor'} engine="memcached" />
+          </div>
         </>
       )}
     </div>

@@ -19,7 +19,7 @@ import { copyText } from '@/utils/clipboard'
 import { formatBytes, formatTtl, ttlTone } from '@/utils/format'
 import { buildKeyTree, collectParents, type KeyTreeNode } from '@/utils/keyTree'
 import { emitMcKeysChanged, onMcKeysChanged } from '@/utils/memcachedEvents'
-import type { MemcachedKeyList, RedisKeyItem } from '@shared/types'
+import type { MemcachedKeyItem, MemcachedKeyList, RedisKeyItem } from '@shared/types'
 
 /**
  * Memcached 的键浏览器（左栏）。
@@ -80,7 +80,7 @@ function appendKeys(current: MemcachedKeyList, page: MemcachedKeyList): Memcache
 
 export function MemcachedKeyBrowser() {
   const { t } = useI18n()
-  const { state, notify, markSelected, askConfirm } = useRedis()
+  const { state, notify, markSelected, askConfirm, openMcBulkTask } = useRedis()
   useObservable(useSessionStore())
   const id = state.activeId
 
@@ -388,15 +388,42 @@ export function MemcachedKeyBrowser() {
 
   /* ---------------------------------------------------------------- 删除 */
 
+  /** 勾选目标 → 批量面板条目（优先取列表里的完整元信息） */
+  function itemsOf(list: string[]): MemcachedKeyItem[] {
+    return list.map((key) => {
+      const fromList = keys?.items.find((item) => item.key === key)
+      if (fromList) return { ...fromList }
+      const row = rows.find((item) => item.key === key)
+      return {
+        key,
+        bytes: row?.bytes ?? 0,
+        expiresAt: row?.expiresAt ?? 0,
+        slab: row?.slab ?? 0,
+      }
+    })
+  }
+
+  /** 清空勾选并退出选择模式（批量面板接管后） */
+  function clearSelection(): void {
+    setPicked(new Set())
+    setSelecting(false)
+  }
+
   /**
    * 删除键（单个 / 批量共用）。
    *
-   * 与 Redis 的 deleteKeys 保持同一套二次确认：标题 + 结构化明细 +
-   * 预览（批量时逐行列出）+ 风险提示，并尊重设置里的「删除键前确认」开关。
-   * Memcached 没有 DEL 多键命令，只能逐个执行；失败数如实回报。
+   * 与 Redis 的 deleteKeys 保持同一套阈值：**单键弹确认框**，
+   * 2 个及以上进值区批量面板 —— 面板有完整空间核对清单与进度，
+   * 且对单键保留确认框能核对大小 / TTL 的轻量路径。
+   * Memcached 没有 DEL 多键命令，面板里逐个执行；失败数如实回报。
    */
   async function removeKeys(list: string[], fromSelection = false): Promise<void> {
     if (!id || !list.length) return
+    if (list.length > 1) {
+      openMcBulkTask('delete', itemsOf(list))
+      if (fromSelection) clearSelection()
+      return
+    }
     const single = list.length === 1
     /* 单键时带上元信息，便于确认删对了对象；批量只给数量与清单 */
     const target = single
@@ -465,6 +492,21 @@ export function MemcachedKeyBrowser() {
   function confirmBulkDelete(): void {
     if (!picked.size) return
     void removeKeys([...picked], true)
+  }
+
+  /**
+   * 勾选栏的批量动作入口。
+   * 删除 1 个仍走确认弹窗；删除 ≥2 个、以及 TTL / 重命名一律进批量面板。
+   */
+  function openPickedTask(action: 'delete' | 'ttl' | 'rename'): void {
+    if (!picked.size) return
+    const list = [...picked]
+    if (action === 'delete' && list.length === 1) {
+      void removeKeys(list, true)
+      return
+    }
+    openMcBulkTask(action, itemsOf(list))
+    clearSelection()
   }
 
   /* ---------------------------------------------------------------- 右键菜单 */
@@ -798,6 +840,22 @@ export function MemcachedKeyBrowser() {
           <button className="btn tiny" onClick={toggleSelecting}>
             <DialogIcon name="cancel" size={11} />
             {t('common.cancel')}
+          </button>
+          <button
+            className="btn tiny"
+            disabled={!picked.size}
+            onClick={() => openPickedTask('ttl')}
+          >
+            <DialogIcon name="clock" size={12} />
+            {t('bulkOpsPanel.bulkSetTtl')}
+          </button>
+          <button
+            className="btn tiny"
+            disabled={!picked.size}
+            onClick={() => openPickedTask('rename')}
+          >
+            <DialogIcon name="edit" size={12} />
+            {t('bulkOpsPanel.bulkRename')}
           </button>
           <button
             className="btn tiny btn-danger"

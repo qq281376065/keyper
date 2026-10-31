@@ -291,6 +291,32 @@ export function BulkOpsPanel() {
         </div>
 
         {/* TTL 参数：统一秒数 + 快捷档（只在未开始时出现） */}
+        {!started && task.action === 'ttl' ? (
+          <div className="param-box">
+            <span className="param-label">{t('bulkOpsPanel.ttlSecondsLabel')}</span>
+            <input
+              value={ttlText}
+              onChange={(event) => syncTtl(event.target.value)}
+              className="param-input mono"
+              inputMode="numeric"
+            />
+            <span className="param-presets">
+              {TTL_PRESETS.map((preset) => (
+                <button
+                  key={preset.value}
+                  className={`chip${task.ttlSeconds === preset.value ? ' on' : ''}`}
+                  onClick={() => syncTtl(String(preset.value))}
+                >
+                  {t(preset.label)}
+                </button>
+              ))}
+            </span>
+            <span className={`param-hint${ttlValid ? '' : ' warn'}`}>
+              {ttlValid ? t('bulkOpsPanel.target', { target: ttlTargetText }) : t('bulkOpsPanel.ttlInvalid')}
+            </span>
+          </div>
+        ) : null}
+
         {/* 重命名参数：原前缀 → 新前缀（只在未开始时出现） */}
         {!started && task.action === 'rename' ? (
           <div className="param-box">

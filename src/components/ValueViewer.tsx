@@ -4,6 +4,7 @@ import { api } from '@/api'
 import { BulkOpsPanel } from '@/components/BulkOpsPanel'
 import { DialogIcon } from '@/components/DialogIcon'
 import { VirtualStringLines } from '@/components/VirtualStringLines'
+import { VirtualRows } from '@/components/VirtualRows'
 import { EditHashFieldDialog } from '@/components/EditHashFieldDialog'
 import { EditHashFieldTtlDialog } from '@/components/EditHashFieldTtlDialog'
 import { EditListElementDialog } from '@/components/EditListElementDialog'
@@ -38,6 +39,10 @@ import type { KeyValue } from '@shared/types'
 
 /** 支持搜索的类型：含多个元素的容器按行过滤 */
 const SEARCHABLE_TYPES = ['hash', 'list', 'set', 'zset', 'stream']
+
+/** 虚拟滚动的稳定取键函数（模块级：避免每次渲染触发窗口重算） */
+const keyByField = (row: { field: string }): string => row.field
+const keyByIndex = (row: { index: number }): number => row.index
 
 /** 自动刷新间隔（仅 hash / list / set / zset / stream 提供开关） */
 const AUTO_REFRESH_INTERVAL = 5000
@@ -372,7 +377,19 @@ export function ValueViewer() {
       if (!tabValues[key] && !state.loadingValue) void selectKey(key)
       return
     }
-    void selectKey(key, tabValues[key] ? { silent: true } : undefined)
+    const cached = tabValues[key]
+    /*
+     * 按缓存里已加载的条数重读：大 key 翻过几页后切走再切回，
+     * 若按默认首页读取，已加载的后续页会凭空消失。
+     */
+    const loaded = cached
+      ? Array.isArray(cached.value)
+        ? cached.value.length
+        : cached.value
+          ? Object.keys(cached.value).length
+          : 0
+      : 0
+    void selectKey(key, cached ? { silent: true, limit: loaded || undefined } : undefined)
   }
 
   function activateTab(key: string): void {
@@ -883,6 +900,38 @@ export function ValueViewer() {
   )
 }
 
+/**
+ * 大 key 分页的「加载更多」按钮。
+ *
+ * 只在 nextCursor 非空（还有未加载元素）时出现；已加载量与总数一起显示，
+ * 让用户知道当前看到的只是键的一部分，而不是全部内容。
+ */
+function LoadMoreButton({
+  value,
+  loading,
+  onLoad,
+}: {
+  value: KeyValue
+  loading: boolean
+  onLoad: () => void
+}) {
+  const { t } = useI18n()
+  if (value.nextCursor == null) return null
+  const loaded = Array.isArray(value.value) ? value.value.length : value.value ? Object.keys(value.value).length : 0
+  const total = value.length ?? loaded
+  return (
+    <button
+      className="btn btn-ghost load-more"
+      disabled={loading}
+      onClick={onLoad}
+      {...tipProps(t('valueViewer.loadMoreHint'))}
+    >
+      <DialogIcon name="arrow-down" size={12} className={loading ? 'spin' : undefined} />
+      {loading ? t('valueViewer.loadingMore') : t('valueViewer.loadMoreCount', { loaded, total })}
+    </button>
+  )
+}
+
 interface ValueDetailPaneProps {
   /** 该标签对应键的值快照（由书签层缓存并传入） */
   value: KeyValue | null
@@ -904,7 +953,15 @@ interface ValueDetailPaneProps {
  * 切回来无需重新挂载。数据由外层缓存传入，刷新走同一个 store。
  */
 function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: ValueDetailPaneProps) {
-  const { activeConnection, renameKey, setTtl, notify, refreshSelected } = useRedis()
+  const {
+    state: sessionState,
+    activeConnection,
+    renameKey,
+    setTtl,
+    notify,
+    refreshSelected,
+    loadMoreValue,
+  } = useRedis()
   /* 订阅：本标签的会话（或全局）任一写入都重渲染 —— 与 Vue 的响应式粒度一致 */
   useObservable(useSessionStore())
   const { t } = useI18n()
@@ -1077,7 +1134,17 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
         largest = index + 1
       }
     })
-    return { total: items.length, bytes, largest: largest > 0 ? `#${largest}` : '-' }
+    /*
+     * total 用服务端总数而不是已加载条数：分页后界面只持有前几页，
+     * 「追加到末尾 / 删除确认里的第 N 项，共 M 项」必须以真实总数为准；
+     * loaded 保留本地条数，供复制、字节统计等只针对已加载内容的逻辑使用。
+     */
+    return {
+      total: value?.length ?? items.length,
+      loaded: items.length,
+      bytes,
+      largest: largest > 0 ? `#${largest}` : '-',
+    }
   }, [value])
 
   const stringEditor = useStringEditor(ctx)
@@ -1326,7 +1393,9 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
         <>
           {/* 值区头部 · 报头（design/key-info-20-schemes.html 方案 11） */}
           <header className="viewer-head masthead" data-type={value.type}>
-            <span className="mast-eyebrow">{value.type}</span>
+            <span className="mast-eyebrow">
+              <span className="mast-pill">{value.type}</span>
+            </span>
             <div className="mast-actions">
               <ValueActions onRename={() => setRenameVisible(true)} onSetTtl={() => setTtlVisible(true)} />
             </div>
@@ -1447,7 +1516,7 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
               <button
                 className="tool"
                 {...tipProps(t('valueViewer.appendElementEnd'))}
-                onClick={() => listEditor.openInsertDialog({ index: listStats.total - 1, text: '' }, 'after')}
+                onClick={() => listEditor.openInsertDialog({ index: listStats.total, text: '' }, 'after')}
               >
                 <DialogIcon name="add" size={12} className="ti" />
                 {t('valueViewer.append')}
@@ -1716,7 +1785,11 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                     ) : null}
                     <span className="th ops-head">{t('common.operation')}</span>
                   </div>
-                  {hashEditor.hashView.rows.map((row) => (
+                  <VirtualRows
+                    rows={hashEditor.hashView.rows}
+                    rowKey={keyByField}
+                    scrollRef={tableRef}
+                    renderRow={(row) => (
                     <div
                       key={row.field}
                       className={`pair-row${capabilities.hashFieldTtl ? ' with-ttl' : ''}${
@@ -1774,7 +1847,8 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                         </button>
                       </span>
                     </div>
-                  ))}
+                    )}
+                  />
                   {/* 底部占位：始终渲染，承接 flex 剩余空间，保证表格底边不悬空 */}
                   <p className="row-tip">
                     <span className="tip-text">
@@ -1784,13 +1858,18 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                           ? t('valueViewer.noMatchingFieldsClearSearch')
                           : t('valueViewer.hashNoFieldsYetUse')}
                     </span>
+                    <LoadMoreButton
+                      value={value}
+                      loading={sessionState.loadingMoreValue}
+                      onLoad={() => void loadMoreValue()}
+                    />
                     <span className="readonly-tag" {...tipProps(t('valueViewer.tableReadOnlyUseContext'))}>
                       {t('valueViewer.readOnly')}
                     </span>
                   </p>
                 </div>
               ) : value.type === 'list' ? (
-                <div className="pair-table">
+                <div ref={tableRef} className="pair-table">
                   <div className="pair-head list-head">
                     <span className="th idx-head">#</span>
                     <button className={`th sortable${sortKey === 'value' ? ' on' : ''}`} onClick={() => toggleSort('value')}>
@@ -1799,7 +1878,11 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                     </button>
                     <span className="th ops-head">{t('common.operation')}</span>
                   </div>
-                  {lineView.rows.map((row) => (
+                  <VirtualRows
+                    rows={lineView.rows}
+                    rowKey={keyByIndex}
+                    scrollRef={tableRef}
+                    renderRow={(row) => (
                     <div
                       key={row.index}
                       className={`pair-row list-row${selectedListIndex === row.index ? ' selected' : ''}`}
@@ -1853,7 +1936,8 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                         </button>
                       </span>
                     </div>
-                  ))}
+                    )}
+                  />
                   <p className="row-tip">
                     <span className="tip-text">
                       {lineView.rows.length
@@ -1862,6 +1946,11 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                           ? t('valueViewer.noMatchingElementsClearSearch')
                           : t('valueViewer.listNoElementsYet')}
                     </span>
+                    <LoadMoreButton
+                      value={value}
+                      loading={sessionState.loadingMoreValue}
+                      onLoad={() => void loadMoreValue()}
+                    />
                     <span className="readonly-tag" {...tipProps(t('valueViewer.tableReadOnlyUseContext'))}>
                       {t('valueViewer.readOnly')}
                     </span>
@@ -1869,13 +1958,17 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                 </div>
               ) : value.type === 'set' ? (
                 /* set：表格形态，但无序 —— 无排序、无插入，表头仅序号 / member / 操作 */
-                <div className="pair-table">
+                <div ref={tableRef} className="pair-table">
                   <div className="pair-head list-head">
                     <span className="th idx-head">#</span>
                     <span className="th">member</span>
                     <span className="th ops-head">{t('common.operation')}</span>
                   </div>
-                  {lineView.rows.map((row) => (
+                  <VirtualRows
+                    rows={lineView.rows}
+                    rowKey={keyByIndex}
+                    scrollRef={tableRef}
+                    renderRow={(row) => (
                     <div
                       key={row.index}
                       className={`pair-row list-row${selectedListIndex === row.index ? ' selected' : ''}`}
@@ -1929,7 +2022,8 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                         </button>
                       </span>
                     </div>
-                  ))}
+                    )}
+                  />
                   <p className="row-tip">
                     <span className="tip-text">
                       {lineView.rows.length
@@ -1938,6 +2032,11 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                           ? t('valueViewer.noMatchingMembersClearSearch')
                           : t('valueViewer.setNoMembersYet')}
                     </span>
+                    <LoadMoreButton
+                      value={value}
+                      loading={sessionState.loadingMoreValue}
+                      onLoad={() => void loadMoreValue()}
+                    />
                     <span className="readonly-tag" {...tipProps(t('valueViewer.tableReadOnlyUseContext'))}>
                       {t('valueViewer.readOnly')}
                     </span>
@@ -1975,7 +2074,11 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                     </div>
                     <span className="th ops-head">{t('common.operation')}</span>
                   </div>
-                  {lineView.rows.map((row) => (
+                  <VirtualRows
+                    rows={lineView.rows}
+                    rowKey={keyByIndex}
+                    scrollRef={tableRef}
+                    renderRow={(row) => (
                     <div
                       key={row.index}
                       className={`pair-row zset-row${selectedListIndex === row.index ? ' selected' : ''}`}
@@ -2032,7 +2135,8 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                         </button>
                       </span>
                     </div>
-                  ))}
+                    )}
+                  />
                   <p className="row-tip">
                     <span className="tip-text">
                       {lineView.rows.length
@@ -2041,6 +2145,11 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                           ? t('valueViewer.noMatchingMembersClearSearch')
                           : t('valueViewer.zsetNoMembersYet')}
                     </span>
+                    <LoadMoreButton
+                      value={value}
+                      loading={sessionState.loadingMoreValue}
+                      onLoad={() => void loadMoreValue()}
+                    />
                     <span className="readonly-tag" {...tipProps(t('valueViewer.tableReadOnlyUseContext'))}>
                       {t('valueViewer.readOnly')}
                     </span>
@@ -2048,7 +2157,7 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                 </div>
               ) : (
                 /* stream：表格形态，entry ID / 字段 两列；只读，操作列仅复制与查看 */
-                <div className="pair-table" style={colVars as React.CSSProperties}>
+                <div ref={tableRef} className="pair-table" style={colVars as React.CSSProperties}>
                   <div className="pair-head stream-head">
                     <span className="th idx-head">#</span>
                     <button className={`th sortable${sortKey === 'member' ? ' on' : ''}`} onClick={() => toggleSort('member')}>
@@ -2061,7 +2170,11 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                     </div>
                     <span className="th ops-head">{t('common.operation')}</span>
                   </div>
-                  {streamEditor.streamView.rows.map((row) => (
+                  <VirtualRows
+                    rows={streamEditor.streamView.rows}
+                    rowKey={keyByIndex}
+                    scrollRef={tableRef}
+                    renderRow={(row) => (
                     <div
                       key={row.index}
                       className={`pair-row stream-row${selectedListIndex === row.index ? ' selected' : ''}`}
@@ -2117,7 +2230,8 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                         </button>
                       </span>
                     </div>
-                  ))}
+                    )}
+                  />
                   <div className="row-tip">
                     <span className="tip-text">
                       {streamEditor.streamView.rows.length
@@ -2126,6 +2240,11 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                           ? t('valueViewer.noMatchingEntriesClearSearch')
                           : t('valueViewer.streamNoEntriesYet')}
                     </span>
+                    <LoadMoreButton
+                      value={value}
+                      loading={sessionState.loadingMoreValue}
+                      onLoad={() => void loadMoreValue()}
+                    />
                     <span className="readonly-tag" {...tipProps(t('valueViewer.streamAppendOnlyLogHistorical'))}>
                       {t('valueViewer.readOnly')}
                     </span>
@@ -2519,7 +2638,9 @@ function SkeletonValue() {
       {/* 骨架沿用报头外壳，数据到达时不跳高度 */}
       <header className="viewer-head masthead">
         <span className="mast-eyebrow">
-          <span className="sk sk-eyebrow" />
+          <span className="mast-pill sk-pill">
+            <span className="sk sk-eyebrow" />
+          </span>
         </span>
         <span className="key-name">
           <span className="sk sk-title" />

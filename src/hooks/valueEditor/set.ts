@@ -17,7 +17,7 @@ export function useSetEditor(
 ) {
   const { getValue } = ctx
   const { setSelectedListIndex } = deps
-  const { state, notify, askConfirm, dropElementLocally, insertElementLocally } = useRedis()
+  const { state, notify, askConfirm, dropElementLocally, insertElementLocally, readWholeValue } = useRedis()
 
   /** set 行右键菜单 / 编辑弹窗的目标（按成员内容定位 —— set 无序，下标无操作意义） */
   const [setMenu, setSetMenu] = useState<{
@@ -80,9 +80,20 @@ export function useSetEditor(
     setEditingSetMember({ member: row.text, value: row.text })
   }
 
+  /**
+   * 全部成员 —— 复制与导出共用。
+   * 分页时界面只加载了前几页，这里按键的总数把剩余成员补齐。
+   */
+  async function allSetItems(): Promise<string[]> {
+    const current = getValue()
+    const loaded = Array.isArray(current?.value) ? (current!.value as string[]) : []
+    if (!current || current.nextCursor == null) return loaded
+    const full = await readWholeValue()
+    return Array.isArray(full?.value) ? (full!.value as string[]) : loaded
+  }
+
   /** 全部成员按行拼接 —— 复制与导出共用 */
-  function setAsText(): string {
-    const items = Array.isArray(getValue()?.value) ? (getValue()!.value as string[]) : []
+  function setAsText(items: string[]): string {
     return items.join('\n')
   }
 
@@ -114,21 +125,23 @@ export function useSetEditor(
     return { bytes, longest }
   }, [setItems])
   const setStats = {
-    total: setItems.length,
+    total: getValue()?.length ?? setItems.length,
+    loaded: setItems.length,
     bytes: setBytes,
     longest: setLongest > 0 ? `#${setLongest}` : '-',
   }
 
   async function copySetAll(): Promise<void> {
-    if (!setStats.total) {
+    const items = await allSetItems()
+    if (!items.length) {
       notify('err', t('valueEditorSet.setNoMembers'))
       return
     }
-    const done = await copyText(setAsText())
+    const done = await copyText(setAsText(items))
     notify(
       done ? 'ok' : 'err',
       done
-        ? t('valueEditorSet.copiedCountMembers', { count: setStats.total })
+        ? t('valueEditorSet.copiedCountMembers', { count: items.length })
         : t('common.copyFailedCheckClipboardPermissions'),
     )
   }
@@ -137,7 +150,7 @@ export function useSetEditor(
     const key = getValue()?.key ?? 'set'
     const res = await api.file.saveText({
       suggestedName: `${key.replace(/[\\/:*?"<>|]/g, '_')}.txt`,
-      content: setAsText(),
+      content: setAsText(await allSetItems()),
     })
     if (!res.ok) {
       notify('err', res.error)

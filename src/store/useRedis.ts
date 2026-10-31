@@ -137,10 +137,12 @@ function sessionHolderOf(session: RedisSessionApi): AppStore<AppState> {
 function pickSessionActions(session: RedisSessionApi): Record<string, unknown> {
   const out: Record<string, unknown> = {}
   const keys = [
-    'loadDatabases', 'loadServerInfo', 'loadKeys', 'loadMore', 'loadAll', 'switchDb',
-    'selectKey', 'markSelected', 'refreshSelected', 'dropElementLocally',
+    'loadDatabases', 'loadServerInfo', 'loadKeys', 'loadMore', 'loadAll', 'refreshKeys', 'switchDb',
+    'selectKey', 'markSelected', 'refreshSelected', 'loadMoreValue', 'readWholeValue', 'dropElementLocally',
     'insertElementLocally', 'replaceElementLocally', 'renameFieldLocally', 'deleteKeys',
-    'openBulkTask', 'runBulkTask', 'cancelBulkTask', 'closeBulkTask', 'saveValue', 'setTtl',
+    'openBulkTask', 'runBulkTask', 'cancelBulkTask', 'closeBulkTask',
+    'openMcBulkTask', 'runMcBulkTask', 'cancelMcBulkTask', 'closeMcBulkTask',
+    'saveValue', 'setTtl',
     'renameKey', 'runCli', 'clearCli', 'stopRemoteSearch', 'searchCurrentDb',
   ]
   for (const key of keys) {
@@ -170,6 +172,7 @@ const EMPTY_STATE = {
   cursor: '0',
   pattern: '*',
   loadingKeys: false,
+  refreshingKeys: false,
   keysDataset: '',
   keyFilter: '',
   keyFilterExact: false,
@@ -179,12 +182,14 @@ const EMPTY_STATE = {
   selectedValue: null,
   loadingValue: false,
   refreshingValue: false,
+  loadingMoreValue: false,
   serverInfo: null,
   cliEntries: [],
   cliRunning: false,
   cliHistory: [],
   cliHistoryIndex: -1,
   bulkTask: null,
+  mcBulkTask: null,
   toast: null,
   confirm: null,
   tabs: [],

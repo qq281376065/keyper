@@ -17,7 +17,7 @@ export function useZsetEditor(
 ) {
   const { getValue } = ctx
   const { setSelectedListIndex } = deps
-  const { state, notify, askConfirm, dropElementLocally, refreshSelected } = useRedis()
+  const { state, notify, askConfirm, dropElementLocally, refreshSelected, readWholeValue } = useRedis()
 
   /**
    * zset 成员定位一律用「member 名」而非下标。
@@ -213,28 +213,41 @@ export function useZsetEditor(
     }
   }
   const zsetStats = {
-    total: zsetItems.length,
+    total: getValue()?.length ?? zsetItems.length,
+    loaded: zsetItems.length,
     bytes: zsetBytes,
     max: zsetItems.length ? max : 0,
     min: zsetItems.length ? min : 0,
   }
 
+  /**
+   * 全部成员 —— 复制与导出共用。
+   * 分页时界面只加载了前几页，这里按键的总数把剩余成员补齐。
+   */
+  async function allZsetItems(): Promise<string[]> {
+    const current = getValue()
+    const loaded = Array.isArray(current?.value) ? (current!.value as string[]) : []
+    if (!current || current.nextCursor == null) return loaded
+    const full = await readWholeValue()
+    return Array.isArray(full?.value) ? (full!.value as string[]) : loaded
+  }
+
   /** 全部成员按行拼接（复制 / 导出共用） */
-  function zsetAsText(): string {
-    const items = Array.isArray(getValue()?.value) ? (getValue()!.value as string[]) : []
+  function zsetAsText(items: string[]): string {
     return items.map((raw) => splitPair(raw).join(' :: ')).join('\n')
   }
 
   async function copyZsetAll(): Promise<void> {
-    if (!zsetStats.total) {
+    const items = await allZsetItems()
+    if (!items.length) {
       notify('err', t('valueEditorZset.zsetNoMembers'))
       return
     }
-    const done = await copyText(zsetAsText())
+    const done = await copyText(zsetAsText(items))
     notify(
       done ? 'ok' : 'err',
       done
-        ? t('valueEditorSet.copiedCountMembers', { count: zsetStats.total })
+        ? t('valueEditorSet.copiedCountMembers', { count: items.length })
         : t('common.copyFailedCheckClipboardPermissions'),
     )
   }
@@ -243,7 +256,7 @@ export function useZsetEditor(
     const key = getValue()?.key ?? 'zset'
     const res = await api.file.saveText({
       suggestedName: `${key.replace(/[\\/:*?"<>|]/g, '_')}.txt`,
-      content: zsetAsText(),
+      content: zsetAsText(await allZsetItems()),
     })
     if (!res.ok) {
       notify('err', res.error)

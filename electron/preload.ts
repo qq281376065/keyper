@@ -11,10 +11,14 @@ import type {
   EnvInfo,
   ErrorReport,
   KeyValue,
+  KeyspaceConfig,
+  KeyspaceEvent,
   LogEntry,
   LogFileInfo,
   LogQuery,
+  MetricsSample,
   UpdateCheckResult,
+  UpdateDownloadState,
   MemoryAnalysis,
   MemcachedKeyList,
   MemcachedOverview,
@@ -35,6 +39,11 @@ import type {
   PubsubMessage,
   PubsubState,
   VersionInfo,
+  ValuePageOptions,
+  ValuePageResult,
+  ValueReadOptions,
+  RefreshKeysOptions,
+  RefreshKeysResult,
 } from '../shared/types'
 
 function invoke<T>(channel: string, ...args: unknown[]): Promise<ApiResponse<T>> {
@@ -98,6 +107,18 @@ const api: RedisDesktopApi = {
   update: {
     check: () => invoke<UpdateCheckResult>(IPC.updateCheck),
     openPage: (url: string) => invoke<OperationResult>(IPC.updateOpenPage, url),
+    state: () => invoke<UpdateDownloadState>(IPC.updateState),
+    download: (version: string) => invoke<UpdateDownloadState>(IPC.updateDownload, version),
+    install: () => invoke<OperationResult>(IPC.updateInstall),
+    /* 主进程推送下载进度：与 window.onStateChange 相同的桥接模式 */
+    onStateChange: (listener) => {
+      const raw = (_event: Electron.IpcRendererEvent, payload: UpdateDownloadState): void =>
+        listener(payload)
+      ipcRenderer.on(IPC.updateStateChanged, raw)
+      return () => {
+        ipcRenderer.removeListener(IPC.updateStateChanged, raw)
+      }
+    },
   },
 
   log: {
@@ -145,6 +166,20 @@ const api: RedisDesktopApi = {
     slowlog: (id, count) => invoke<SlowlogOverview>(IPC.redisSlowlog, id, count),
     slowlogReset: (id) => invoke<OperationResult>(IPC.redisSlowlogReset, id),
     memoryAnalysis: (id, depth) => invoke<MemoryAnalysis>(IPC.redisMemoryAnalysis, id, depth),
+    metrics: (id) => invoke<MetricsSample>(IPC.redisMetrics, id),
+    keyspaceConfig: (id) => invoke<KeyspaceConfig>(IPC.redisKeyspaceConfig, id),
+    setKeyspaceConfig: (id, events) =>
+      invoke<OperationResult>(IPC.redisKeyspaceSetConfig, id, events),
+    keyspaceSubscribe: (id, patterns) => invoke<PubsubState>(IPC.keyspaceSubscribe, id, patterns),
+    keyspaceUnsubscribe: (id, patterns) => invoke<PubsubState>(IPC.keyspaceUnsubscribe, id, patterns),
+    keyspaceStop: (id) => invoke<OperationResult>(IPC.keyspaceStop, id),
+    onKeyspaceEvent: (listener) => {
+      const raw = (_event: Electron.IpcRendererEvent, payload: KeyspaceEvent): void => listener(payload)
+      ipcRenderer.on(IPC.keyspaceEvent, raw)
+      return () => {
+        ipcRenderer.removeListener(IPC.keyspaceEvent, raw)
+      }
+    },
     pubsubSubscribe: (id, targets, pattern) => invoke<PubsubState>(IPC.pubsubSubscribe, id, targets, pattern),
     pubsubUnsubscribe: (id, targets, pattern) => invoke<PubsubState>(IPC.pubsubUnsubscribe, id, targets, pattern),
     pubsubPublish: (id, channel, message) => invoke<number>(IPC.pubsubPublish, id, channel, message),
@@ -176,7 +211,11 @@ const api: RedisDesktopApi = {
     lookupKey: (id, key, db) => invoke<RedisKeyItem | null>(IPC.redisLookupKey, id, key, db),
     searchAll: (id, options) => invoke<SearchAllResult>(IPC.redisSearchAll, id, options),
     searchCancel: (id) => invoke<OperationResult>(IPC.redisSearchCancel, id),
-    value: (id, key) => invoke<KeyValue>(IPC.redisValue, id, key),
+    refreshKeys: (id, options?: RefreshKeysOptions) =>
+      invoke<RefreshKeysResult>(IPC.redisRefreshKeys, id, options),
+    value: (id, key, options?: ValueReadOptions) => invoke<KeyValue>(IPC.redisValue, id, key, options),
+    valuePage: (id, key, options: ValuePageOptions) =>
+      invoke<ValuePageResult>(IPC.redisValuePage, id, key, options),
     setValue: (
       id: string,
       key: string,
@@ -239,6 +278,7 @@ const api: RedisDesktopApi = {
     set: (id, key, value, options) =>
       invoke<OperationResult>(IPC.memcachedSet, id, key, value, options),
     remove: (id, key) => invoke<OperationResult>(IPC.memcachedRemove, id, key),
+    touch: (id, key, seconds) => invoke<OperationResult>(IPC.memcachedTouch, id, key, seconds),
     rename: (id, key, newKey) =>
       invoke<OperationResult>(IPC.memcachedRename, id, key, newKey),
     flush: (id) => invoke<OperationResult>(IPC.memcachedFlush, id),

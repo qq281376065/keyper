@@ -21,7 +21,7 @@ export function useListEditor(
 ) {
   const { getValue } = ctx
   const { listStats, setSelectedListIndex } = deps
-  const { state, notify, askConfirm, replaceElementLocally, insertElementLocally, dropElementLocally } =
+  const { state, notify, askConfirm, replaceElementLocally, insertElementLocally, dropElementLocally, readWholeValue } =
     useRedis()
 
   /** list 行右键菜单 / 编辑弹窗的目标 */
@@ -39,21 +39,29 @@ export function useListEditor(
   const LIST_MENU_WIDTH = 200
   const LIST_MENU_HEIGHT = 220
 
-  /** 全部元素按行拼接 —— 复制与导出共用 */
-  function listAsText(): string {
-    const items = Array.isArray(getValue()?.value) ? (getValue()!.value as string[]) : []
-    return items.join('\n')
+  /**
+   * 全部元素 —— 复制与导出共用。
+   * 分页时界面只加载了前几页，这里按键的总数把剩余页补齐，
+   * 否则「复制全部 / 导出」会静默漏掉后面的元素。
+   */
+  async function allListItems(): Promise<string[]> {
+    const current = getValue()
+    const loaded = Array.isArray(current?.value) ? (current!.value as string[]) : []
+    if (!current || current.nextCursor == null) return loaded
+    const full = await readWholeValue()
+    return Array.isArray(full?.value) ? (full!.value as string[]) : loaded
   }
 
   async function copyListAll(): Promise<void> {
-    if (!listStats.total) {
+    const items = await allListItems()
+    if (!items.length) {
       notify('err', t('valueEditorList.listNoElements'))
       return
     }
-    const done = await copyText(listAsText())
+    const done = await copyText(items.join('\n'))
     notify(
       done ? 'ok' : 'err',
-      done ? t('valueEditorList.copiedCountItems', { count: listStats.total }) : t('common.copyFailedCheckClipboardPermissions'),
+      done ? t('valueEditorList.copiedCountItems', { count: items.length }) : t('common.copyFailedCheckClipboardPermissions'),
     )
   }
 
@@ -61,7 +69,7 @@ export function useListEditor(
     const key = getValue()?.key ?? 'list'
     const res = await api.file.saveText({
       suggestedName: `${key.replace(/[\\/:*?"<>|]/g, '_')}.txt`,
-      content: listAsText(),
+      content: (await allListItems()).join('\n'),
     })
     if (!res.ok) {
       notify('err', res.error)
@@ -238,11 +246,11 @@ export function useListEditor(
       return
     }
     notify('ok', res.data.message ?? t('common.deleted'))
+    // 最后一个元素被删除时 Redis 会移除整个键，清空选中态避免停留在空壳上
+    const wasLast = listStats.total === 1
     // 本地移除该行，避免整表重读导致的骨架屏闪现；
     // 用真实下标匹配，与删除时使用的 row.index 保持一致
-    const wasLast = (getValue()?.value as string[] | undefined)?.length === 1
     dropElementLocally((_item, index) => index === row.index)
-    // 最后一个元素被删除时 Redis 会移除整个键，清空选中态避免停留在空壳上
     if (wasLast) state.selectedValue = null
   }
 
@@ -252,7 +260,6 @@ export function useListEditor(
     setEditingListIndex,
     insertingList,
     setInsertingList,
-    listAsText,
     copyListAll,
     exportList,
     copyListRow,

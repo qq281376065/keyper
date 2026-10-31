@@ -1289,6 +1289,9 @@ body.dialog-dragging * {
 .cta-animate,
 .db-chip,
 .ps-btn,
+/* 键空间通知面板：配置开关胶囊与配置刷新小圆钮（其余按钮以 -btn 结尾，走兜底） */
+.ks-flag,
+.ks-mini,
 .trigger,
 .chip,
 .pill,

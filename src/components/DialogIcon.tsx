@@ -90,6 +90,9 @@ export type DialogIconName =
   | 'chevron-right'
     /* 语言切换：地球（经线 + 纬线） */
   | 'globe'
+    /* 概览监控页签：折线坐标轴 / 键空间通知：铃铛 */
+  | 'chart'
+  | 'bell'
   /** 尺寸（px），默认 13 */
 
 export interface DialogIconProps {
@@ -718,6 +721,24 @@ function renderGlyph(name: DialogIconName): React.ReactElement | null {
         <circle cx="8" cy="8" r="5.8" />
         <path d="M2.2 8h11.6" />
         <path d="M8 2.2c1.7 1.6 2.6 3.6 2.6 5.8S9.7 12.2 8 13.8C6.3 12.2 5.4 10.2 5.4 8S6.3 3.8 8 2.2z" />
+      </g>
+    )
+  }
+  /** 监控：坐标系 + 折线（小尺寸下不做数据点，避免糊成墨点） */
+  if (name === 'chart') {
+    return (
+      <g>
+        <path d="M2.6 2.6v10.2a.6.6 0 0 0 .6.6h10.2" />
+        <path d="M4.8 10.6 7.2 7.8l2 1.6 3-4" />
+      </g>
+    )
+  }
+  /** 键空间通知：铃铛 + 铃舌 */
+  if (name === 'bell') {
+    return (
+      <g>
+        <path d="M3.6 11.4h8.8l-1-1.5V7.2a3.4 3.4 0 0 0-6.8 0v2.7z" />
+        <path d="M6.5 13.2a1.6 1.6 0 0 0 3 0" />
       </g>
     )
   }

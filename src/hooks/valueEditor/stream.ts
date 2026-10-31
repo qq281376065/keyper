@@ -19,7 +19,7 @@ export function useStreamEditor(
 ) {
   const { getValue } = ctx
   const { lineView, setSelectedListIndex } = deps
-  const { state, notify, refreshSelected } = useRedis()
+  const { state, notify, refreshSelected, readWholeValue } = useRedis()
 
   /**
    * stream 是**只读**的：它是消息日志，entry 一旦写入即固化。
@@ -152,7 +152,8 @@ export function useStreamEditor(
   const streamBytes = streamItems.reduce((sum, item) => sum + utf8Bytes(item), 0)
   const ids = streamItems.map((item) => splitPair(item)[0]).filter(Boolean)
   const streamStats = {
-    total: streamItems.length,
+    total: getValue()?.length ?? streamItems.length,
+    loaded: streamItems.length,
     matched: streamView.rows.length,
     bytes: streamBytes,
     /** entry ID 即毫秒时间戳，首末 ID 反映消息的时间跨度 */
@@ -160,37 +161,50 @@ export function useStreamEditor(
     lastId: ids.length ? ids.reduce((a, b) => (compareEntryId(a, b) >= 0 ? a : b)) : '',
   }
 
+  /**
+   * 全部 entry —— 复制与导出共用。
+   * 分页时界面只加载了前几页，这里按键的总数把剩余 entry 补齐。
+   */
+  async function allStreamItems(): Promise<string[]> {
+    const current = getValue()
+    const loaded = Array.isArray(current?.value) ? (current!.value as string[]) : []
+    if (!current || current.nextCursor == null) return loaded
+    const full = await readWholeValue()
+    return Array.isArray(full?.value) ? (full!.value as string[]) : loaded
+  }
+
   /** 把全部 entry 序列化为可读文本，用于「复制全部」与导出 */
-  function streamAsText(): string {
-    const items = Array.isArray(getValue()?.value) ? (getValue()!.value as string[]) : []
+  function streamAsText(items: string[]): string {
     // 原样输出（entry ID + Tab + 字段），不做格式化 —— 导出的用途是离线排查，保持原始形态便于 grep
     return items.map((item) => splitPair(item).join('\t')).join('\n')
   }
 
   async function copyStreamAll(): Promise<void> {
-    if (!streamStats.total) {
+    const items = await allStreamItems()
+    if (!items.length) {
       notify('err', t('valueEditorStream.streamNoEntries'))
       return
     }
-    const done = await copyText(streamAsText())
+    const done = await copyText(streamAsText(items))
     notify(
       done ? 'ok' : 'err',
       done
-        ? t('valueEditorStream.copiedCountEntries', { count: streamStats.total })
+        ? t('valueEditorStream.copiedCountEntries', { count: items.length })
         : t('common.copyFailedCheckClipboardPermissions'),
     )
   }
 
   /** 导出为本地文件（主进程保存对话框；浏览器预览走 Blob 下载） */
   async function exportStream(): Promise<void> {
-    if (!streamStats.total) {
+    const items = await allStreamItems()
+    if (!items.length) {
       notify('err', t('valueEditorStream.streamNoEntries'))
       return
     }
     const key = getValue()?.key ?? 'stream'
     const res = await api.file.saveText({
       suggestedName: `${key.replace(/[\\/:*?"<>|]/g, '_')}.txt`,
-      content: streamAsText(),
+      content: streamAsText(items),
     })
     if (!res.ok) {
       notify('err', res.error)

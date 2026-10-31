@@ -3,10 +3,12 @@ import { t } from '@/i18n'
 import { settings } from '@/services/settings'
 import { defineStore, type AppStore } from '@/store'
 import { renamedKey } from '@/utils/renamedKey'
+import { emitMcKeysChanged } from '@/utils/memcachedEvents'
 import type {
   ConnectionStatus,
   DatabaseInfo,
   MemcachedConnectionConfig,
+  MemcachedKeyItem,
   RedisConnectionConfig,
   KeyValue,
   RedisKeyItem,
@@ -118,6 +120,27 @@ export interface BulkTask {
   renameTo: string
 }
 
+/**
+ * Memcached 批量任务。
+ *
+ * 与 Redis 的 BulkTask 同构，但条目是 Mc 键元信息（大小 / 到期时间 / slab），
+ * 且执行走 api.memcached.*：Memcached 没有多键 DEL，TTL 用 touch，
+ * 重命名仍是主进程的组合实现。
+ */
+export interface McBulkTask {
+  action: BulkAction
+  items: MemcachedKeyItem[]
+  done: number
+  succeeded: string[]
+  failed: Array<{ key: string; reason: string }>
+  running: boolean
+  cancelled: boolean
+  /** ttl：目标秒数，-1 表示永久（touch 的 exptime=0） */
+  ttlSeconds: number
+  renameFrom: string
+  renameTo: string
+}
+
 /** 会话状态：一个标签页独占一份 */
 export interface RedisState {
   ready: boolean
@@ -129,6 +152,8 @@ export interface RedisState {
   cursor: string
   pattern: string
   loadingKeys: boolean
+  /** 增量刷新键列表（原地更新，不闪骨架屏、不清空选中） */
+  refreshingKeys: boolean
   /**
    * 当前 `keys` 数组**属于哪个数据集**（`连接|库|模式`）。
    *
@@ -163,6 +188,8 @@ export interface RedisState {
   loadingValue: boolean
   /** 刷新当前键（键未变）：值区叠加轻量 loading，不走骨架屏 */
   refreshingValue: boolean
+  /** 大 key 分页：正在读取下一页（底部「加载更多」转圈） */
+  loadingMoreValue: boolean
   serverInfo: ServerInfo | null
   cliEntries: CliEntry[]
   cliRunning: boolean
@@ -177,6 +204,8 @@ export interface RedisState {
    * 改为在值区开一个独立面板，能滚动浏览、搜索筛选、逐个执行看进度。
    */
   bulkTask: BulkTask | null
+  /** Memcached 批量任务；非空时 Mc 值区让位给 MemcachedBulkOpsPanel */
+  mcBulkTask: McBulkTask | null
 }
 
 /**
@@ -316,10 +345,16 @@ export interface RedisSessionApi {
   loadKeys: (reset?: boolean) => Promise<void>
   loadMore: () => Promise<void>
   loadAll: () => Promise<void>
+  /** 键列表增量刷新：重扫当前模式，原地替换列表（不闪骨架屏） */
+  refreshKeys: () => Promise<void>
   switchDb: (db: number) => Promise<void>
-  selectKey: (key: string, options?: { silent?: boolean }) => Promise<void>
+  selectKey: (key: string, options?: { silent?: boolean; limit?: number }) => Promise<void>
   markSelected: (key: string | null) => void
   refreshSelected: (options?: { silent?: boolean }) => Promise<void>
+  /** 大 key：读取并追加下一页元素 */
+  loadMoreValue: () => Promise<void>
+  /** 读取当前键的完整内容（复制 / 导出等「全部」语义），不改动界面状态 */
+  readWholeValue: () => Promise<KeyValue | null>
   dropElementLocally: (match: (item: string, index: number) => boolean) => void
   insertElementLocally: (value: string, index?: number, position?: 'before' | 'after') => void
   replaceElementLocally: (target: { index: number } | { field: string }, value: string) => void
@@ -329,6 +364,10 @@ export interface RedisSessionApi {
   runBulkTask: () => Promise<void>
   cancelBulkTask: () => void
   closeBulkTask: () => void
+  openMcBulkTask: (action: BulkAction, items: MemcachedKeyItem[]) => void
+  runMcBulkTask: () => Promise<void>
+  cancelMcBulkTask: () => void
+  closeMcBulkTask: () => void
   saveValue: (
     key: string,
     type: KeyValue['type'],
@@ -377,6 +416,7 @@ export function createSession(
     cursor: '0',
     pattern: snapshot?.pattern ?? '*',
     loadingKeys: false,
+    refreshingKeys: false,
     keysDataset: '',
     keyFilter: snapshot?.keyFilter ?? '',
     keyFilterExact: snapshot?.keyFilterExact ?? false,
@@ -386,6 +426,7 @@ export function createSession(
     selectedValue: null,
     loadingValue: false,
     refreshingValue: false,
+    loadingMoreValue: false,
     serverInfo: null,
     cliEntries: [
       {
@@ -397,6 +438,7 @@ export function createSession(
     cliHistory: [],
     cliHistoryIndex: -1,
     bulkTask: null,
+    mcBulkTask: null,
     toast: null,
     confirm: null,
     tabs: [],
@@ -550,6 +592,69 @@ export function createSession(
   }
 
   /**
+   * 键列表增量刷新：重扫当前匹配模式，原地替换列表。
+   *
+   * 与 loadKeys(true) 的差别：
+   *   · 不清空列表、不闪骨架屏 —— 旧数据一直可见，结果回来才整体替换；
+   *   · 以当前已加载数量为目标扫一批（主进程一次完成），不退回单页；
+   *   · 未变化的键复用原对象引用，列表组件按 key 复用行，减少重绘；
+   *   · 选中键若不在新结果里，先用 lookupKey 核实是否真的被删，
+   *     只有确认不存在才清空值区 —— SCAN 结果本就不保证包含全部键。
+   */
+  async function refreshKeys(): Promise<void> {
+    if (!state.activeId || state.refreshingKeys) return
+
+    const connIdNow = state.activeId
+    const db = state.activeDb
+    const match = state.pattern
+    const identity = `${connIdNow}|${db}|${match}`
+    // 至少一页：空列表点刷新时也应是「加载一页」而不是「刷新 0 条」
+    const target = Math.max(state.keys.length, settings.pageSize)
+
+    state.refreshingKeys = true
+    try {
+      const res = await api.redis.refreshKeys(connIdNow, { db, match, limit: target })
+      if (!res.ok) throw new Error(res.error)
+
+      // 过期响应丢弃（与 loadKeys 同一判定）
+      if (datasetIdentity() !== identity && state.keys.length > 0) return
+
+      const previous = new Map(state.keys.map((item) => [item.key, item]))
+      const nextKeys = res.data.keys.map((item) => {
+        const old = previous.get(item.key)
+        // 元信息没变就复用旧对象：列表行不重绘，滚动更稳
+        return old && old.type === item.type && old.ttl === item.ttl ? old : item
+      })
+
+      const fresh = new Set(nextKeys.map((item) => item.key))
+      state.keys = nextKeys
+      state.cursor = res.data.cursor
+      state.keysDataset = identity
+
+      if (state.selectedKey && !fresh.has(state.selectedKey)) {
+        const selected = state.selectedKey
+        const check = await api.redis.lookupKey(connIdNow, selected, db)
+        if (check.ok && check.data === null && datasetIdentity() === identity) {
+          state.selectedKey = null
+          state.selectedValue = null
+        }
+      }
+    } catch (error) {
+      failure(error, t('session.failedScanKeys'))
+    } finally {
+      state.refreshingKeys = false
+    }
+  }
+
+  /** 值区已加载的元素数（hash 为字段数，其余为数组长度） */
+  function loadedValueCount(value: KeyValue | null): number {
+    if (!value) return 0
+    if (Array.isArray(value.value)) return value.value.length
+    if (value.value && typeof value.value === 'object') return Object.keys(value.value).length
+    return 0
+  }
+
+  /**
    * 仅标记选中，不读取值。
    *
    * 用于右键唤出菜单的场景：用户此时只是想看看有哪些操作，
@@ -570,10 +675,15 @@ export function createSession(
    */
   let valueLoadSeq = 0
 
-  async function selectKey(key: string, options?: { silent?: boolean }): Promise<void> {
+  async function selectKey(
+    key: string,
+    options?: { silent?: boolean; limit?: number },
+  ): Promise<void> {
     if (!state.activeId) return
     const seq = ++valueLoadSeq
     state.selectedKey = key
+    // 切换 / 重读键会丢弃在途分页：旧游标属于上一份 value
+    state.loadingMoreValue = false
 
     /*
      * silent 用于「刷新当前键」：键没有变，只是重新读取内容。
@@ -586,7 +696,11 @@ export function createSession(
 
     const startedAt = Date.now()
     try {
-      const res = await api.redis.value(state.activeId, key)
+      const res = await api.redis.value(
+        state.activeId,
+        key,
+        options?.limit && options.limit > 0 ? { limit: options.limit } : undefined,
+      )
       if (seq !== valueLoadSeq) return
       if (!res.ok) throw new Error(res.error)
 
@@ -618,8 +732,99 @@ export function createSession(
    * @param silent 用于「刷新」场景：不触发骨架屏，改由值区叠加轻量 loading
    */
   async function refreshSelected(options?: { silent?: boolean }): Promise<void> {
-    if (state.selectedKey) await selectKey(state.selectedKey, options)
+    if (!state.selectedKey) return
+    /*
+     * 按已加载数量重读：大 key 翻了几页后，5 秒自动刷新若只读回第一页，
+     * 用户刚加载的内容会突然消失。limit 保证刷新前后页数一致。
+     */
+    const loaded = loadedValueCount(state.selectedValue)
+    await selectKey(state.selectedKey, { silent: options?.silent, limit: loaded || undefined })
     state.keys = state.keys.map((item) => ({ ...item }))
+  }
+
+  /**
+   * 大 key：读取下一页并追加到当前值。
+   *
+   * 合并规则按类型区分：hash 合并对象、set 去重后追加，其余数组直接拼接。
+   * 用 valueLoadSeq 判定竞态：翻页途中切换了键，旧页结果直接丢弃；
+   * loadingMoreValue 只由最新一次请求复位，避免旧请求提前熄灭转圈。
+   */
+  async function loadMoreValue(): Promise<void> {
+    const current = state.selectedValue
+    if (!state.activeId || !current) return
+    if (current.nextCursor == null || state.loadingMoreValue) return
+
+    const seq = valueLoadSeq
+    const key = current.key
+    const cursor = current.nextCursor
+    state.loadingMoreValue = true
+    try {
+      const res = await api.redis.valuePage(state.activeId, key, {
+        type: current.type,
+        cursor,
+      })
+      if (seq !== valueLoadSeq) return
+      if (!res.ok) throw new Error(res.error)
+
+      const latest = state.selectedValue
+      if (!latest || latest.key !== key) return
+
+      let merged = latest.value
+      const page = res.data.value
+      if (
+        latest.value &&
+        !Array.isArray(latest.value) &&
+        typeof latest.value === 'object' &&
+        page &&
+        !Array.isArray(page) &&
+        typeof page === 'object'
+      ) {
+        merged = { ...latest.value, ...page }
+      } else if (Array.isArray(latest.value) && Array.isArray(page)) {
+        if (latest.type === 'set') {
+          // SSCAN 跨页可能重复返回同一成员，按「已有集合」过滤后再追加
+          const seen = new Set(latest.value)
+          merged = [...latest.value, ...page.filter((member) => !seen.has(member))]
+        } else {
+          merged = [...latest.value, ...page]
+        }
+      } else if (page != null) {
+        merged = page
+      }
+
+      state.selectedValue = {
+        ...latest,
+        value: merged,
+        length: res.data.length ?? latest.length,
+        nextCursor: res.data.nextCursor,
+      }
+    } catch (error) {
+      if (seq === valueLoadSeq) failure(error, t('session.failedLoadMoreValue'))
+    } finally {
+      if (seq === valueLoadSeq) state.loadingMoreValue = false
+    }
+  }
+
+  /**
+   * 读取当前键的完整内容，供「复制全部 / 导出全部」使用。
+   *
+   * 分页之后界面里只有前几页，直接拿 selectedValue 会把部分数据当成全部；
+   * 这里按服务端总数重新读一次，结果只作返回值，不改界面状态（不打断当前分页）。
+   * 服务端仍有单次读取上限，超出时返回已能读到的部分。
+   */
+  async function readWholeValue(): Promise<KeyValue | null> {
+    const current = state.selectedValue
+    const id = state.activeId
+    if (!id || !current) return null
+    const loaded = loadedValueCount(current)
+    const total = current.length ?? loaded
+    if (current.nextCursor == null || total <= loaded) return current
+    const res = await api.redis.value(id, current.key, { limit: total })
+    if (!res.ok) {
+      failure(res.error, t('session.failedLoadKeyValue'))
+      return null
+    }
+    return res.data
   }
 
   /**
@@ -696,10 +901,22 @@ export function createSession(
 
     items.splice(at, 0, value)
 
+    /*
+     * length 是服务端总数（可能大于已加载数）：在旧总数上 +1。
+     * list 的 nextCursor 是下一段偏移量，插入新元素后整体后移一位；
+     * set 的游标是 SCAN 游标（不透明），不能做算术。
+     */
+    const total = (current.length ?? items.length - 1) + 1
+    const nextCursor =
+      current.type === 'list' && current.nextCursor != null
+        ? String(Math.max(Number(current.nextCursor) || 0, 0) + 1)
+        : current.nextCursor
+
     state.selectedValue = {
       ...current,
       value: items,
-      length: items.length,
+      length: total,
+      nextCursor,
     }
     state.keys = state.keys.map((item) => ({ ...item }))
   }
@@ -721,13 +938,20 @@ export function createSession(
 
     if (Array.isArray(current.value)) {
       const next = current.value.filter((item, index) => !match(item, index))
-      if (next.length === current.value.length) return
+      const removed = current.value.length - next.length
+      if (!removed) return
 
+      // list / zset 的游标是偏移量：删掉已加载元素后，后续元素的真实位置整体前移
+      const numericCursor =
+        (current.type === 'list' || current.type === 'zset') && current.nextCursor != null
       state.selectedValue = {
         ...current,
         value: next,
-        // 最后一个元素被删除时 Redis 会连带移除键，此处保持 length 与实际一致
-        length: next.length,
+        // 总数减去删除数；最后一个元素被删除时 Redis 会连带移除键，结果为 0
+        length: Math.max((current.length ?? current.value.length) - removed, 0),
+        nextCursor: numericCursor
+          ? String(Math.max((Number(current.nextCursor) || 0) - removed, 0))
+          : current.nextCursor,
       }
       state.keys = state.keys.map((item) => ({ ...item }))
       return
@@ -735,19 +959,20 @@ export function createSession(
 
     if (current.value && typeof current.value === 'object') {
       const record = { ...(current.value as Record<string, string>) }
-      let removed = false
+      let removedCount = 0
       Object.keys(record).forEach((field, index) => {
         if (match(field, index)) {
           delete record[field]
-          removed = true
+          removedCount++
         }
       })
-      if (!removed) return
+      if (!removedCount) return
 
       state.selectedValue = {
         ...current,
         value: record,
-        length: Object.keys(record).length,
+        // hash 游标是 SCAN 游标，不随字段增删调整；只校正总数
+        length: Math.max((current.length ?? Object.keys(current.value).length) - removedCount, 0),
       }
       state.keys = state.keys.map((item) => ({ ...item }))
     }
@@ -1012,7 +1237,7 @@ export function createSession(
   }
 
   /** 完成通知：按操作类型给出结果数量 */
-  function resultSummary(task: BulkTask): string {
+  function resultSummary(task: Pick<BulkTask, 'action' | 'ttlSeconds' | 'succeeded'>): string {
     const count = task.succeeded.length
     if (task.action === 'delete') return t('session.deletedCountKeys', { count })
     if (task.action === 'ttl')
@@ -1032,6 +1257,112 @@ export function createSession(
   function closeBulkTask(): void {
     if (state.bulkTask?.running) return
     state.bulkTask = null
+  }
+
+  /* ---------------------------------------------------------------- Memcached 批量 */
+
+  /**
+   * 把一批 Mc 键装进批量面板。
+   *
+   * 与 Redis 的 openBulkTask 同语义：面板本身即确认环节，
+   * 删除单键仍走键栏的确认弹窗（那条路径能核对大小 / TTL）。
+   */
+  function openMcBulkTask(action: BulkAction, items: MemcachedKeyItem[]): void {
+    if (!state.activeId || !items.length) return
+    state.mcBulkTask = {
+      action,
+      items: items.map((item) => ({ ...item })),
+      done: 0,
+      succeeded: [],
+      failed: [],
+      running: false,
+      cancelled: false,
+      ttlSeconds: 3600,
+      renameFrom: '',
+      renameTo: '',
+    }
+    state.selectedKey = null
+    state.selectedValue = null
+
+    /* 与 Redis 一致：关闭删除确认时，多键删除直接开跑并展示进度 */
+    if (action === 'delete' && !settings.confirmDelete) {
+      void Promise.resolve().then(() => runMcBulkTask())
+    }
+  }
+
+  async function runMcBulkTask(): Promise<void> {
+    const task = state.mcBulkTask
+    if (!task || task.running || !state.activeId) return
+
+    const connIdNow = state.activeId
+    task.running = true
+    task.cancelled = false
+
+    for (const item of task.items) {
+      if (task.cancelled) break
+      if (state.activeId !== connIdNow) {
+        task.cancelled = true
+        break
+      }
+
+      try {
+        if (task.action === 'delete') {
+          const res = await api.memcached.remove(connIdNow, item.key)
+          if (!res.ok) throw new Error(res.error)
+          if (!res.data.ok) throw new Error(res.data.message ?? t('common.deleteFailed'))
+        } else if (task.action === 'ttl') {
+          const res = await api.memcached.touch(connIdNow, item.key, task.ttlSeconds)
+          if (!res.ok) throw new Error(res.error)
+          if (!res.data.ok) throw new Error(res.data.message ?? t('session.failedSetTtl'))
+        } else {
+          const next = renamedKey(item.key, task.renameFrom, task.renameTo)
+          if (next !== item.key) {
+            const res = await api.memcached.rename(connIdNow, item.key, next)
+            if (!res.ok) throw new Error(res.error)
+            if (!res.data.ok) throw new Error(res.data.message ?? t('common.renameFailed'))
+          }
+          /* 前缀未命中的键不发请求，直接记成功（与 Redis 面板一致） */
+        }
+        task.succeeded.push(item.key)
+      } catch (error) {
+        task.failed.push({
+          key: item.key,
+          reason: error instanceof Error ? error.message : String(error),
+        })
+      } finally {
+        task.done += 1
+      }
+    }
+
+    task.running = false
+
+    if (task.succeeded.length) {
+      if (state.selectedKey && task.succeeded.includes(state.selectedKey)) {
+        state.selectedKey = null
+        state.selectedValue = null
+      }
+      /*
+       * 只广播一次：键栏收到通知会整页重枚举，
+       * 在循环里逐键发会让 1000 条任务触发 1000 次 metadump。
+       */
+      emitMcKeysChanged()
+    }
+
+    if (task.failed.length) {
+      notify('err', bulkFailureSummary(task.action, task.failed.length))
+    } else if (!task.cancelled) {
+      notify('ok', resultSummary(task))
+    }
+  }
+
+  function cancelMcBulkTask(): void {
+    if (state.mcBulkTask?.running) state.mcBulkTask.cancelled = true
+    else state.mcBulkTask = null
+  }
+
+  function closeMcBulkTask(): void {
+    if (state.mcBulkTask?.running) return
+    state.mcBulkTask = null
   }
 
   async function saveValue(
@@ -1262,6 +1593,7 @@ export function createSession(
   function dispose(): void {
     state.activeId = null
     if (state.bulkTask?.running) state.bulkTask.cancelled = true
+    if (state.mcBulkTask?.running) state.mcBulkTask.cancelled = true
     state.cliRunning = false
     remoteSearchSeq++
   }
@@ -1294,10 +1626,13 @@ export function createSession(
     loadKeys,
     loadMore,
     loadAll,
+    refreshKeys,
     switchDb,
     selectKey,
     markSelected,
     refreshSelected,
+    loadMoreValue,
+    readWholeValue,
     dropElementLocally,
     insertElementLocally,
     replaceElementLocally,
@@ -1307,6 +1642,10 @@ export function createSession(
     runBulkTask,
     cancelBulkTask,
     closeBulkTask,
+    openMcBulkTask,
+    runMcBulkTask,
+    cancelMcBulkTask,
+    closeMcBulkTask,
     saveValue,
     setTtl,
     renameKey,

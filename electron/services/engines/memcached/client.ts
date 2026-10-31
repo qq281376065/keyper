@@ -429,6 +429,15 @@ export class MemcachedClient extends EventEmitter {
     return text === 'DELETED'
   }
 
+  /** 更新过期时间；键不存在返回 false */
+  async touch(key: string, exptime: number): Promise<boolean> {
+    const raw = await this.exec(
+      Buffer.from(`touch ${key} ${exptime}${CRLF}`, 'utf8'),
+      MemcachedClient.untilLine,
+    )
+    return this.readLine(raw) === 'TOUCHED'
+  }
+
   /** 自增 / 自减。键不存在时抛 NOT_FOUND —— 与协议一致，由上层决定是否提示 */
   async incr(key: string, delta: number, mode: 'incr' | 'decr' = 'incr'): Promise<number> {
     const raw = await this.exec(

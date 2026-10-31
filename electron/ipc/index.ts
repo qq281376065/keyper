@@ -27,6 +27,14 @@ import { loadSettings, saveSettings } from '../services/settings-store'
 import { configInfo } from '../services/config-path'
 import { CLOSE_CONFIRM, CLOSE_HANDLED, closeSignal } from '../services/close-signal'
 import { checkForUpdate, openUpdatePage } from '../services/update-service'
+import {
+  checkForAutoUpdate,
+  downloadAutoUpdate,
+  getUpdateState,
+  installAutoUpdate,
+  isAutoUpdateEnabled,
+  onUpdateState,
+} from '../services/auto-update'
 import type {
   ApiResponse,
   AppSettings,
@@ -36,13 +44,16 @@ import type {
   EnvInfo,
   ErrorReport,
   KeyValue,
+  KeyspaceConfig,
   LogEntry,
   LogFileInfo,
   LogQuery,
   MemoryAnalysis,
+  MetricsSample,
   OperationResult,
   RedisConnectionConfig,
   UpdateCheckResult,
+  UpdateDownloadState,
   RedisKeyItem,
   RedisValueType,
   ScanOptions,
@@ -54,6 +65,11 @@ import type {
   SlowlogOverview,
   PubsubState,
   VersionInfo,
+  ValuePageOptions,
+  ValuePageResult,
+  ValueReadOptions,
+  RefreshKeysOptions,
+  RefreshKeysResult,
 } from '../../shared/types'
 
 function ok<T>(data: T): ApiResponse<T> {
@@ -117,6 +133,7 @@ const LOG_ACTIONS: Record<string, string> = {
   /* Memcached：只记录写入类操作与清空，读操作不进日志（与 Redis 一致） */
   [IPC.memcachedSet]: '写入键',
   [IPC.memcachedRemove]: '删除键',
+  [IPC.memcachedTouch]: '设置 TTL',
   [IPC.memcachedRename]: '重命名键',
   [IPC.memcachedFlush]: '清空数据',
 }
@@ -161,6 +178,12 @@ function describe(
         }
       case IPC.memcachedRemove:
         return { connectionName, engine, detail: String(args[1] ?? '') }
+      case IPC.memcachedTouch:
+        return {
+          connectionName,
+          engine,
+          detail: `${args[1]} → ${(args[2] as number) < 0 ? t('bulkOpsPanel.notSet') : `${args[2]}s`}`,
+        }
       case IPC.memcachedRename:
         return { connectionName, engine, detail: `${args[1]} → ${args[2]}` }
       case IPC.memcachedFlush:
@@ -325,6 +348,20 @@ export function registerIpcHandlers(): void {
     }
   })
 
+  /* 键空间事件推送：与 Pub/Sub 同构，由独立的 keyspace 连接触发广播 */
+  connectionManager.onKeyspaceEvent((event) => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send(IPC.keyspaceEvent, event)
+    }
+  })
+
+  /* 更新下载进度 / 完成 / 失败：面板关掉也不丢状态，重开时先拉一次快照 */
+  onUpdateState((update) => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send(IPC.updateStateChanged, update)
+    }
+  })
+
   // -------------------------------------------------------- 窗口控制
   /*
    * 不走通用 handle：窗口操作没有日志价值，
@@ -420,7 +457,34 @@ export function registerIpcHandlers(): void {
   })
 
   // -------------------------------------------------------- 检查更新
-  handle<UpdateCheckResult>(IPC.updateCheck, () => checkForUpdate())
+  /*
+   * 打包版优先走 electron-updater（能下载、能增量、能安装）；
+   * 开发态或更新源不可达时回退到 Gitee tags 检查，保证"有没有新版"
+   * 这个问题总有一个答案，而不是只剩一条网络错误。
+   */
+  handle<UpdateCheckResult>(IPC.updateCheck, async () => {
+    if (!isAutoUpdateEnabled()) return checkForUpdate()
+
+    try {
+      return await checkForAutoUpdate()
+    } catch (error) {
+      console.error('[updater] 自动更新检查失败，回退到版本页:', error)
+      const fallback = await checkForUpdate()
+      return {
+        ...fallback,
+        notice: t('updateService.autoUpdateUnavailable'),
+        canAutoUpdate: false,
+      }
+    }
+  })
+
+  handle<UpdateDownloadState>(IPC.updateState, () => getUpdateState())
+
+  handle<UpdateDownloadState>(IPC.updateDownload, (version) =>
+    downloadAutoUpdate(String(version ?? '')),
+  )
+
+  handle<OperationResult>(IPC.updateInstall, () => installAutoUpdate())
 
   handle<OperationResult>(IPC.updateOpenPage, async (url) => openUpdatePage(String(url ?? '')))
 
@@ -582,6 +646,30 @@ export function registerIpcHandlers(): void {
     connectionManager.memoryAnalysis(id as string, depth as number | undefined),
   )
 
+  // -------------------------------------------------------- 监控采样 / 键空间通知
+  handle<MetricsSample>(IPC.redisMetrics, (id) => connectionManager.metrics(id as string))
+
+  handle<KeyspaceConfig>(IPC.redisKeyspaceConfig, (id) =>
+    connectionManager.keyspaceConfig(id as string),
+  )
+
+  handle<OperationResult>(IPC.redisKeyspaceSetConfig, (id, events) =>
+    connectionManager.setKeyspaceConfig(id as string, events as string),
+  )
+
+  handle<PubsubState>(IPC.keyspaceSubscribe, (id, patterns) =>
+    connectionManager.keyspaceSubscribe(id as string, (patterns ?? []) as string[]),
+  )
+
+  handle<PubsubState>(IPC.keyspaceUnsubscribe, (id, patterns) =>
+    connectionManager.keyspaceUnsubscribe(id as string, (patterns ?? []) as string[]),
+  )
+
+  handle<OperationResult>(IPC.keyspaceStop, (id) => {
+    connectionManager.keyspaceStop(id as string)
+    return { ok: true }
+  })
+
   // -------------------------------------------------------- Pub/Sub
   handle<PubsubState>(IPC.pubsubSubscribe, (id, targets, pattern) =>
     connectionManager.pubsubSubscribe(id as string, (targets ?? []) as string[], pattern as boolean | undefined),
@@ -618,7 +706,11 @@ export function registerIpcHandlers(): void {
     connectionManager.cancelSearch(id as string),
   )
 
-  handle<KeyValue>(IPC.redisValue, async (id, key) => {
+  handle<RefreshKeysResult>(IPC.redisRefreshKeys, (id, options) =>
+    connectionManager.refreshKeys(id as string, (options ?? {}) as RefreshKeysOptions),
+  )
+
+  handle<KeyValue>(IPC.redisValue, async (id, key, options) => {
     /*
      * 取值耗时日志（KEYPER_DEBUG=1 时打印）。
      * 只在这一条通道上加：它是"点键 → 看到值"的必经路径，
@@ -627,12 +719,28 @@ export function registerIpcHandlers(): void {
      * "网络/Redis 慢" 与 "界面渲染慢"。
      */
     const t0 = Date.now()
-    const result = await connectionManager.getValue(id as string, key as string)
+    const result = await connectionManager.getValue(
+      id as string,
+      key as string,
+      (options ?? {}) as ValueReadOptions,
+    )
     if (process.env.KEYPER_DEBUG || process.env.REDISDOCTER_DEBUG) {
-      console.log(`[ipc] getValue ${key} 用时 ${Date.now() - t0}ms（type=${result.type}）`)
+      console.log(
+        `[ipc] getValue ${key} 用时 ${Date.now() - t0}ms（type=${result.type}, 已加载 ${
+          Array.isArray(result.value) ? `${result.value.length}/${result.length ?? '-'}` : result.length ?? '-'
+        }）`,
+      )
     }
     return result
   })
+
+  handle<ValuePageResult>(IPC.redisValuePage, (id, key, options) =>
+    connectionManager.valuePage(
+      id as string,
+      key as string,
+      (options ?? {}) as ValuePageOptions,
+    ),
+  )
 
   handle<OperationResult>(IPC.redisSetValue, (id, key, type, payload, ttl, isNew) =>
     connectionManager.setValue(
@@ -780,6 +888,9 @@ export function registerIpcHandlers(): void {
   )
   handle<OperationResult>(IPC.memcachedRemove, (id, key) =>
     memcachedManager.remove(id as string, key as string),
+  )
+  handle<OperationResult>(IPC.memcachedTouch, (id, key, seconds) =>
+    memcachedManager.touch(id as string, key as string, seconds as number),
   )
   handle<OperationResult>(IPC.memcachedRename, (id, key, newKey) =>
     memcachedManager.rename(id as string, key as string, newKey as string),

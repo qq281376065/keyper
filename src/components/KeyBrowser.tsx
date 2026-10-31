@@ -67,6 +67,7 @@ export function KeyBrowser() {
     loadKeys,
     loadMore,
     loadAll,
+    refreshKeys,
     switchDb,
     selectKey,
     markSelected,
@@ -753,11 +754,21 @@ export function KeyBrowser() {
   /* ---------------------------------------------------------------- 动作 */
 
   function applyPattern(): void {
+    const next = draftPattern.trim() || '*'
+    /*
+     * 模式没变 = 用户点的是「重新扫描」：走增量刷新，
+     * 列表原地替换，不闪骨架屏、不丢滚动位置与当前选中。
+     * 模式变了才需要重置数据集，重新从游标 0 分页。
+     */
+    if (next === state.pattern) {
+      void refreshKeys()
+      return
+    }
     /*
      * 只需改 pattern：datasetKey 会随之变化，
      * 上游的 effect 负责在新数据到位后折叠。
      */
-    state.pattern = draftPattern.trim() || '*'
+    state.pattern = next
     void loadKeys(true)
   }
 
@@ -1081,8 +1092,17 @@ export function KeyBrowser() {
           }}
         />
 
-        <button className="btn-ghost icon" {...tipProps(t('keyBrowser.rescan'))} disabled={!connected} onClick={applyPattern}>
-          <DialogIcon name="refresh" size={13} className={state.loadingKeys ? 'spin' : undefined} />
+        <button
+          className="btn-ghost icon"
+          {...tipProps(t('keyBrowser.rescan'))}
+          disabled={!connected || state.refreshingKeys}
+          onClick={applyPattern}
+        >
+          <DialogIcon
+            name="refresh"
+            size={13}
+            className={state.loadingKeys || state.refreshingKeys ? 'spin' : undefined}
+          />
         </button>
         <button className="btn-ghost icon add" {...tipProps(t('common.newKey'))} disabled={!connected} onClick={openCreateRoot}>
           <DialogIcon name="add" size={14} />
@@ -1526,6 +1546,8 @@ export function KeyBrowser() {
         <span className="spacer" />
         {state.loadingKeys ? (
           <span className="mono scanning">{t('keyBrowser.scanning')}</span>
+        ) : state.refreshingKeys ? (
+          <span className="mono scanning">{t('keyBrowser.refreshing')}</span>
         ) : remoteActive ? (
           state.remoteSearch?.scanning ? (
             <span className="mono scanning">{t('keyBrowser.scanningAllDatabasesShort')}</span>

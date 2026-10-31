@@ -65,8 +65,10 @@ export default defineConfig(({ command, mode }) => {
                        * ssh2 依赖可选原生模块（cpu-features）与自己的流实现，
                        * 打进 bundle 会破坏其内部相对路径解析导致运行时崩溃，
                        * 因此与 ioredis 一样保持 external，由 node_modules 提供。
+                       * electron-updater 从 app-update.yml / latest.yml 读取配置，
+                       * 运行时还要按平台选择 updater 实现，同样不打包。
                        */
-                      external: ['electron', 'ioredis', 'ssh2'],
+                      external: ['electron', 'ioredis', 'ssh2', 'electron-updater'],
                       output: {
                         format: 'cjs',
                         entryFileNames: '[name].js',

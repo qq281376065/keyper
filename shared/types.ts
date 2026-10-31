@@ -173,6 +173,39 @@ export interface UpdateCheckResult {
   checkedAt: string
   /** 远端确实可达但拿不到版本信息时的说明（例如仓库尚无 tag） */
   notice: string | null
+  /**
+   * 是否支持应用内下载并安装。
+   * 只有打包版走 electron-updater 检查时为 true；开发态 / 回退到
+   * Gitee 版本页时为 false，界面只提供「查看下载」。
+   */
+  canAutoUpdate: boolean
+  /** 更新包大小（字节）；更新源未提供时为 null */
+  packageSize: number | null
+}
+
+/** 应用内更新的运行时阶段 */
+export type UpdateDownloadPhase = 'idle' | 'downloading' | 'downloaded' | 'error'
+
+/**
+ * 下载 / 安装阶段的状态快照。
+ *
+ * 由主进程维护并推送：面板关掉再打开时先用 update.state() 拉一次，
+ * 不会因为错过进度事件而"回到未下载"。
+ */
+export interface UpdateDownloadState {
+  phase: UpdateDownloadPhase
+  /** 本次更新目标版本；没有进行中的任务时为 null */
+  version: string | null
+  /** 0–100，总量未知时为 null */
+  percent: number | null
+  /** 已下载字节数 */
+  transferred: number
+  /** 总字节数，未知时为 null */
+  total: number | null
+  /** 实时速度（字节/秒） */
+  bytesPerSecond: number | null
+  /** 失败原因（phase 为 error 时） */
+  message: string | null
 }
 
 /** 连接运行时状态（与引擎无关的公共部分） */
@@ -281,11 +314,66 @@ export interface KeyValue {
   type: RedisValueType
   ttl: number
   encoding?: string
-  /** 元素个数（hash/list/set/zset）或字符串长度 */
+  /**
+   * 元素总数：hash/list/set/zset/stream 为服务端真实总数，
+   * 而 value 只包含已加载的部分（见 nextCursor）。
+   */
   length?: number
   /** 内存占用（字节） */
   size?: number
   value: string | string[] | Record<string, string> | null
+  /**
+   * 下一页游标；null / undefined 表示已全部加载。
+   * hash/set 为 SCAN 游标，list/zset 为下一个偏移量，stream 为最后一条条目 ID。
+   */
+  nextCursor?: string | null
+}
+
+/** 首屏取值选项（大 key 只读一页，避免整键回传卡死界面） */
+export interface ValueReadOptions {
+  /** 单页元素上限，缺省 500，主进程钳制 1..20000 */
+  limit?: number
+}
+
+/** 分页读取后续元素 */
+export interface ValuePageOptions {
+  /** 键类型（首屏已确定，省一次 TYPE 往返） */
+  type: RedisValueType
+  /** 首屏 / 上一页返回的 nextCursor */
+  cursor: string
+  /** 单页元素上限，缺省 500，主进程钳制 1..20000 */
+  limit?: number
+}
+
+export interface ValuePageResult {
+  key: string
+  type: RedisValueType
+  /** 服务端最新元素总数（分页期间可能变化），用于更新底部计数 */
+  length?: number
+  /** 本页元素：hash 为对象，其余为数组 */
+  value: string | string[] | Record<string, string> | null
+  /** 下一页游标；null 表示已到末尾 */
+  nextCursor: string | null
+}
+
+/** 键列表增量刷新入参 */
+export interface RefreshKeysOptions {
+  db?: number
+  /** SCAN MATCH 模式，缺省 '*' */
+  match?: string
+  /**
+   * 最多收集多少键（0 / 缺省 = 扫完整个库）。
+   * 扫描到的最后一批即使超出该值也会完整返回，避免游标越过未展示的键。
+   */
+  limit?: number
+}
+
+export interface RefreshKeysResult {
+  keys: RedisKeyItem[]
+  /** 停止处的 SCAN 游标：'0' 表示已扫完整个库 */
+  cursor: string
+  /** 本次扫描的库 */
+  db: number
 }
 
 export interface ServerInfo {
@@ -302,6 +390,71 @@ export interface ServerInfo {
   totalKeys: number
   hitRate: number
   opsPerSec: number
+}
+
+/**
+ * 一次监控采样（只含数值指标，供曲线绘制）。
+ *
+ * 与 ServerInfo 分开的原因：曲线需要高频轮询，而 ServerInfo 里
+ * 混着版本 / 操作系统等字符串与人工摘要，反复传输纯属浪费；
+ * 数值从 INFO 原样解析，不在主进程做展示格式（单位换算在渲染层）。
+ *
+ * 命中率是**累计值**（进程启动至今），不是采样区间命中率；
+ * 同时给出 hits / misses 原始计数，渲染层可自行按增量计算区间命中率。
+ */
+export interface MetricsSample {
+  /** 采样时刻（毫秒时间戳，主进程生成） */
+  at: number
+  /** used_memory（字节） */
+  usedMemory: number
+  /** used_memory_peak（字节） */
+  usedMemoryPeak: number
+  /** maxmemory（字节），0 表示未设置上限 */
+  maxMemory: number
+  /** instantaneous_ops_per_sec */
+  opsPerSec: number
+  connectedClients: number
+  blockedClients: number
+  /** 当前库的键数（DBSIZE） */
+  totalKeys: number
+  /** 累计命中率（百分比，一位小数） */
+  hitRate: number
+  keyspaceHits: number
+  keyspaceMisses: number
+  /** 累计淘汰 / 过期键数 */
+  evictedKeys: number
+  expiredKeys: number
+  /** 累计处理命令数 */
+  totalCommands: number
+  /** 累计网络入口 / 出口字节数 */
+  netInputBytes: number
+  netOutputBytes: number
+}
+
+/** 键空间通知配置（notify-keyspace-events 的原始值） */
+export interface KeyspaceConfig {
+  /** 形如 "KEA" / "gxE" / 空串（关闭） */
+  events: string
+}
+
+/**
+ * 键空间通知事件（主进程 → 渲染层推送）。
+ *
+ * 统一订阅 `__keyevent@*__:*`：频道名带事件类型、消息体是键名，
+ * 一次订阅即可覆盖全部库；库号从频道名解析后单独给出，
+ * 界面不用再去拆字符串。
+ */
+export interface KeyspaceEvent {
+  connectionId: string
+  /** 事件发生的库号 */
+  db: number
+  /** 事件类型：set / del / expire / hset / ... */
+  event: string
+  /** 触发事件的键名 */
+  key: string
+  /** 原始频道名（排查时可对照 Redis 文档） */
+  channel: string
+  timestamp: number
 }
 
 export interface DatabaseInfo {

@@ -123,6 +123,8 @@ export async function checkForUpdate(): Promise<UpdateCheckResult> {
       pageUrl: `https://gitee.com/${OWNER}/${REPO}/tags`,
       checkedAt: new Date().toISOString(),
       notice: t('updateService.noVersionTagsRepositoryYet'),
+      canAutoUpdate: false,
+      packageSize: null,
     }
   }
 
@@ -137,6 +139,8 @@ export async function checkForUpdate(): Promise<UpdateCheckResult> {
     pageUrl: `https://gitee.com/${OWNER}/${REPO}/tags`,
     checkedAt: new Date().toISOString(),
     notice: null,
+    canAutoUpdate: false,
+    packageSize: null,
   }
 }
 

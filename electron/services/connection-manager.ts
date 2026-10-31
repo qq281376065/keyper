@@ -7,8 +7,11 @@ import type {
   ConnectionState,
   DatabaseInfo,
   KeyValue,
+  KeyspaceConfig,
+  KeyspaceEvent,
   MemoryAnalysis,
   MemoryBucket,
+  MetricsSample,
   OperationResult,
   RedisConnectionConfig,
   RedisKeyItem,
@@ -25,12 +28,92 @@ import type {
   PubsubState,
   VersionInfo,
   VersionInfoGroup,
+  ValuePageOptions,
+  ValuePageResult,
+  ValueReadOptions,
+  RefreshKeysOptions,
+  RefreshKeysResult,
 } from '../../shared/types'
 import { memoryPrefixOf, MEMORY_BUCKET_LIMIT } from '../../shared/keyspace'
 import { t } from '@shared/i18n'
 
 /** 详情视图中单次返回的元素上限，避免大 key 把 UI 拖死 */
 const VALUE_PAGE_SIZE = 500
+/** 分页上限：过大失去分页意义，过小会让用户频繁点击「加载更多」 */
+const VALUE_PAGE_MAX = 20000
+/** 键列表增量刷新的扫描批大小（与 scan 的全库搜索批一致） */
+const REFRESH_SCAN_COUNT = 5000
+/** 键列表增量刷新一次最多描述多少键，防止异常调用把主进程压满 */
+const REFRESH_KEY_MAX = 20000
+
+/** 请求分页大小时统一钳制，避免 0 / NaN / 过大值传到 Redis */
+function clampValuePageLimit(requested?: number): number {
+  const value = requested == null || !Number.isFinite(requested) ? VALUE_PAGE_SIZE : Math.floor(requested)
+  return Math.min(Math.max(value, 1), VALUE_PAGE_MAX)
+}
+
+/** HSCAN / SSCAN 一页的通用结果：cursor 为 null 表示已到末尾 */
+interface ScannedPage<T> {
+  value: T
+  cursor: string | null
+}
+
+/**
+ * 逐批 HSCAN 直到攒够 limit 或游标归零。
+ *
+ * 不裁剪最后一批：SCAN 的游标已经越过整批，裁剪会让被裁掉的字段
+ * 在后续分页中永久丢失。页大小因此是「约等于 limit」的软上限。
+ * 同一批次内的重复字段（SCAN 在 rehash 时可能返回）用对象自身去重。
+ */
+async function readHashPage(
+  client: Redis,
+  key: string,
+  startCursor: string,
+  limit: number,
+): Promise<ScannedPage<Record<string, string>>> {
+  const out: Record<string, string> = {}
+  let cursor = startCursor || '0'
+  let collected = 0
+  do {
+    const [next, pairs] = await client.hscan(key, cursor, 'COUNT', Math.max(limit - collected, 1))
+    for (let i = 0; i + 1 < pairs.length; i += 2) {
+      if (pairs[i] in out) continue
+      out[pairs[i]] = pairs[i + 1]
+      collected++
+    }
+    cursor = next
+  } while (cursor !== '0' && collected < limit)
+  return { value: out, cursor: cursor === '0' ? null : cursor }
+}
+
+/** 逐批 SSCAN 直到攒够 limit 或游标归零；批内去重，同上不裁剪 */
+async function readSetPage(
+  client: Redis,
+  key: string,
+  startCursor: string,
+  limit: number,
+): Promise<ScannedPage<string[]>> {
+  const out = new Set<string>()
+  let cursor = startCursor || '0'
+  do {
+    const [next, members] = await client.sscan(key, cursor, 'COUNT', Math.max(limit - out.size, 1))
+    for (const member of members) out.add(member)
+    cursor = next
+  } while (cursor !== '0' && out.size < limit)
+  return { value: [...out], cursor: cursor === '0' ? null : cursor }
+}
+
+/** ZRANGE WITHSCORES 的扁平数组 → `member :: score` 行 */
+function flattenZsetRows(rows: string[]): string[] {
+  const pairs: string[] = []
+  for (let i = 0; i + 1 < rows.length; i += 2) pairs.push(`${rows[i]} :: ${rows[i + 1]}`)
+  return pairs
+}
+
+/** XRANGE 条目 → `entryId :: {fields}` 行（与旧实现保持同一格式） */
+function flattenStreamEntries(entries: ReadonlyArray<[string, string[]]>): string[] {
+  return entries.map(([entryId, fields]) => `${entryId} :: ${JSON.stringify(fields)}`)
+}
 
 /** 实际连接端点：直连时为配置地址，走隧道时为本机回环端口 */
 interface Endpoint {
@@ -68,6 +151,18 @@ interface PubsubClient {
   /** 精确频道订阅集合（SUBSCRIBE） */
   channels: Set<string>
   /** 模式订阅集合（PSUBSCRIBE） */
+  patterns: Set<string>
+}
+
+/**
+ * 键空间通知专用连接。
+ *
+ * 不复用 PubsubClient：PubsubCard 在关闭面板时会 pubsubStop 整条连接，
+ * 键空间监听是概览页签的常驻功能，共用会让两边互相拆台。
+ */
+interface KeyspaceClient {
+  client: Redis
+  /** 已 PSUBSCRIBE 的模式集合 */
   patterns: Set<string>
 }
 
@@ -219,6 +314,12 @@ class ConnectionManager {
 
   /** Pub/Sub 消息订阅者（ipc 层注册，转发到渲染层） */
   private pubsubListeners = new Set<(message: PubsubMessage) => void>()
+
+  /** 键空间通知专用连接池（与 Pub/Sub 分开，理由见 KeyspaceClient 注释） */
+  private keyspaceClients = new Map<string, KeyspaceClient>()
+
+  /** 键空间事件订阅者（ipc 层注册，转发到渲染层） */
+  private keyspaceListeners = new Set<(event: KeyspaceEvent) => void>()
 
   /*
    * 全库搜索取消令牌（按连接隔离）。
@@ -515,6 +616,7 @@ class ConnectionManager {
     const managed = this.pool.get(id)
     // Pub/Sub 专用连接随主连接一起断，避免残留只收不推的幽灵连接
     this.pubsubStop(id)
+    this.keyspaceStop(id)
     // 作废在途全库搜索的令牌：断开后扫描循环下一批即停（不留幽灵扫描）
     this.searchTokens.set(id, (this.searchTokens.get(id) ?? 0) + 1)
     // 隧道无论是否有活跃客户端都要关：可能是 connect 失败后残留
@@ -547,6 +649,9 @@ class ConnectionManager {
     this.searchTokens.clear()
     for (const id of [...this.pubsubClients.keys()]) {
       this.pubsubStop(id)
+    }
+    for (const id of [...this.keyspaceClients.keys()]) {
+      this.keyspaceStop(id)
     }
     tunnelManager.closeAll()
   }
@@ -591,6 +696,50 @@ class ConnectionManager {
       totalKeys: dbsize,
       hitRate: total > 0 ? Math.round((hits / total) * 1000) / 10 : 0,
       opsPerSec: Number(read('instantaneous_ops_per_sec')) || 0,
+    }
+  }
+
+  /**
+   * 监控页签的一次采样。
+   *
+   * 与 serverInfo 分开而不是复用：监控曲线 2s 一次，只需要数值字段；
+   * 用 pipeline 把 INFO + DBSIZE 合并成一次往返，经 SSH 隧道时省一半 RTT。
+   * 命中率同时回传累计 hits/misses 的原始值，渲染层可按区间增量重算瞬时命中率。
+   */
+  async metrics(id: string): Promise<MetricsSample> {
+    const client = this.mustGet(id)
+    const [[infoErr, info], [, dbsize]] = (await client
+      .pipeline()
+      .info()
+      .dbsize()
+      .exec()) as unknown as [[Error | null, string], [Error | null, number]]
+    if (infoErr) throw infoErr
+    const raw = info ?? ''
+    const read = (field: string): string =>
+      new RegExp(`${field}:([^\\r\\n]+)`).exec(raw)?.[1]?.trim() ?? ''
+    const num = (field: string): number => Number(read(field)) || 0
+
+    const hits = num('keyspace_hits')
+    const misses = num('keyspace_misses')
+    const total = hits + misses
+
+    return {
+      at: Date.now(),
+      usedMemory: num('used_memory'),
+      usedMemoryPeak: num('used_memory_peak'),
+      maxMemory: num('maxmemory'),
+      opsPerSec: num('instantaneous_ops_per_sec'),
+      connectedClients: num('connected_clients'),
+      blockedClients: num('blocked_clients'),
+      totalKeys: Number(dbsize) || 0,
+      hitRate: total > 0 ? Math.round((hits / total) * 1000) / 10 : 0,
+      keyspaceHits: hits,
+      keyspaceMisses: misses,
+      evictedKeys: num('evicted_keys'),
+      expiredKeys: num('expired_keys'),
+      totalCommands: num('total_commands_processed'),
+      netInputBytes: num('total_net_input_bytes'),
+      netOutputBytes: num('total_net_output_bytes'),
     }
   }
 
@@ -867,6 +1016,101 @@ class ConnectionManager {
     }
   }
 
+  // ---------------------------------------------------------------- 键空间通知
+
+  /** 订阅键空间事件（ipc 层注册后转发到渲染层） */
+  onKeyspaceEvent(listener: (event: KeyspaceEvent) => void): () => void {
+    this.keyspaceListeners.add(listener)
+    return () => this.keyspaceListeners.delete(listener)
+  }
+
+  private emitKeyspaceEvent(event: KeyspaceEvent): void {
+    for (const listener of this.keyspaceListeners) listener(event)
+  }
+
+  private async ensureKeyspaceClient(id: string): Promise<KeyspaceClient> {
+    const existing = this.keyspaceClients.get(id)
+    if (existing) return existing
+
+    const managed = this.pool.get(id)
+    if (!managed) throw new Error(t('connectionManager.connectionClosed'))
+
+    const endpoint = await this.resolveEndpoint(managed.config)
+    const client = this.buildClient(managed.config, endpoint)
+    client.on('pmessage', (_pattern, channel, message) => {
+      /*
+       * 只订 __keyevent@*__:* 就够了：两种通知的载荷互为镜像
+       * （keyevent 的频道带事件名、payload 是键名；keyspace 相反）。
+       * 两者都订会让一次操作推两条重复事件。
+       */
+      const match = /^__(keyevent|keyspace)@(\d+)__:(.+)$/.exec(channel)
+      if (!match) return
+      const isKeyevent = match[1] === 'keyevent'
+      this.emitKeyspaceEvent({
+        connectionId: id,
+        db: Number(match[2]) || 0,
+        event: isKeyevent ? match[3] : message,
+        key: isKeyevent ? message : match[3],
+        channel,
+        timestamp: Date.now(),
+      })
+    })
+    await client.connect()
+
+    const entry: KeyspaceClient = { client, patterns: new Set() }
+    this.keyspaceClients.set(id, entry)
+    return entry
+  }
+
+  /** 读取 notify-keyspace-events 当前配置（托管实例可能禁用 CONFIG，会抛错） */
+  async keyspaceConfig(id: string): Promise<KeyspaceConfig> {
+    const client = this.mustGet(id)
+    const result = (await client.config('GET', 'notify-keyspace-events')) as string[] | null
+    return { events: Array.isArray(result) ? (result[1] ?? '') : '' }
+  }
+
+  async setKeyspaceConfig(id: string, events: string): Promise<OperationResult> {
+    const client = this.mustGet(id)
+    await client.config('SET', 'notify-keyspace-events', events)
+    return { ok: true }
+  }
+
+  /** 模式订阅键空间频道；已订阅项幂等跳过 */
+  async keyspaceSubscribe(id: string, patterns: string[]): Promise<PubsubState> {
+    const entry = await this.ensureKeyspaceClient(id)
+    for (const target of patterns) {
+      const name = target.trim()
+      if (!name || entry.patterns.has(name)) continue
+      await entry.client.psubscribe(name)
+      entry.patterns.add(name)
+    }
+    return { channels: [], patterns: [...entry.patterns] }
+  }
+
+  async keyspaceUnsubscribe(id: string, patterns: string[]): Promise<PubsubState> {
+    const entry = this.keyspaceClients.get(id)
+    if (!entry) return { channels: [], patterns: [] }
+    for (const target of patterns) {
+      const name = target.trim()
+      if (!name || !entry.patterns.has(name)) continue
+      await entry.client.punsubscribe(name)
+      entry.patterns.delete(name)
+    }
+    return { channels: [], patterns: [...entry.patterns] }
+  }
+
+  /** 断开键空间连接：订阅模式下同样只能强断 */
+  keyspaceStop(id: string): void {
+    const entry = this.keyspaceClients.get(id)
+    if (!entry) return
+    this.keyspaceClients.delete(id)
+    try {
+      entry.client.disconnect()
+    } catch {
+      /* ignore */
+    }
+  }
+
   async databases(id: string): Promise<DatabaseInfo[]> {
     const client = this.mustGet(id)
     /*
@@ -1036,8 +1280,9 @@ class ConnectionManager {
     return { ok: true }
   }
 
-  async getValue(id: string, key: string): Promise<KeyValue> {
+  async getValue(id: string, key: string, options: ValueReadOptions = {}): Promise<KeyValue> {
     const client = this.mustGet(id)
+    const limit = clampValuePageLimit(options.limit)
     /*
      * type / ttl / encoding 合并成一次往返。
      *
@@ -1065,43 +1310,212 @@ class ConnectionManager {
     const encoding = typeof rawEncoding === 'string' ? rawEncoding : undefined
     const base = { key, type, ttl, encoding }
 
+    /*
+     * 集合类只取第一页：length 仍是服务端真实总数，
+     * value 只是已加载部分，nextCursor 非空时界面显示「加载更多」。
+     * string 无法分页（GET 本身就是整值），保持一次读完。
+     */
     switch (type) {
       case 'string': {
         const value = await client.get(key)
-        return { ...base, length: value?.length ?? 0, value }
+        return { ...base, length: value?.length ?? 0, value, nextCursor: null }
       }
       case 'hash': {
-        const flat = await client.hgetall(key)
-        return { ...base, length: Object.keys(flat).length, value: flat }
+        const [page, total] = await Promise.all([
+          readHashPage(client, key, '0', limit),
+          client.hlen(key),
+        ])
+        return { ...base, length: total, value: page.value, nextCursor: page.cursor }
       }
       case 'list': {
-        const list = await client.lrange(key, 0, VALUE_PAGE_SIZE - 1)
-        return { ...base, length: await client.llen(key), value: list }
+        const [list, total] = await Promise.all([
+          client.lrange(key, 0, limit - 1),
+          client.llen(key),
+        ])
+        return {
+          ...base,
+          length: total,
+          value: list,
+          nextCursor: total > list.length ? String(list.length) : null,
+        }
       }
       case 'set': {
-        const [members, total] = await Promise.all([
-          client.sscan(key, 0, 'COUNT', VALUE_PAGE_SIZE).then(([, items]) => items),
+        const [page, total] = await Promise.all([
+          readSetPage(client, key, '0', limit),
           client.scard(key),
         ])
-        return { ...base, length: total, value: members }
+        return { ...base, length: total, value: page.value, nextCursor: page.cursor }
       }
       case 'zset': {
         const [rows, total] = await Promise.all([
-          client.zrange(key, 0, VALUE_PAGE_SIZE - 1, 'WITHSCORES'),
+          client.zrange(key, 0, limit - 1, 'WITHSCORES'),
           client.zcard(key),
         ])
-        const pairs: string[] = []
-        for (let i = 0; i < rows.length; i += 2) pairs.push(`${rows[i]} :: ${rows[i + 1]}`)
-        return { ...base, length: total, value: pairs }
+        const pairs = flattenZsetRows(rows)
+        return {
+          ...base,
+          length: total,
+          value: pairs,
+          nextCursor: total > pairs.length ? String(pairs.length) : null,
+        }
       }
       case 'stream': {
-        const entries = await client.xrange(key, '-', '+', 'COUNT', VALUE_PAGE_SIZE)
-        const flat = entries.map(([entryId, fields]) => `${entryId} :: ${JSON.stringify(fields)}`)
-        return { ...base, length: await client.xlen(key), value: flat }
+        // 多取一条用于判断「还有更多」，避免额外的 XLEN 之外再发往返
+        const [entries, total] = await Promise.all([
+          client.xrange(key, '-', '+', 'COUNT', limit + 1),
+          client.xlen(key),
+        ])
+        const hasMore = entries.length > limit
+        const kept = hasMore ? entries.slice(0, limit) : entries
+        return {
+          ...base,
+          length: total,
+          value: flattenStreamEntries(kept),
+          nextCursor: hasMore ? kept[kept.length - 1]?.[0] ?? null : null,
+        }
       }
       default:
-        return { ...base, value: null }
+        return { ...base, value: null, nextCursor: null }
     }
+  }
+
+  /**
+   * 读取大 key 的后续一页。
+   *
+   * 游标格式按类型区分：
+   *   hash / set —— SCAN 游标（跨页可能重复，调用方负责去重）；
+   *   list / zset —— 下一个偏移量（分页期间增删会让偏移漂移，属可接受的弱一致）；
+   *   stream —— 上一页最后一条条目 ID（含边界重读一条后丢弃，兼容不支持
+   *               排他区间的旧版本，不依赖 Redis 6.2 的 `(` 语法）。
+   */
+  async valuePage(id: string, key: string, options: ValuePageOptions): Promise<ValuePageResult> {
+    const client = this.mustGet(id)
+    const limit = clampValuePageLimit(options.limit)
+    const cursor = options.cursor ?? ''
+    const type = options.type
+
+    switch (type) {
+      case 'hash': {
+        const [page, total] = await Promise.all([
+          readHashPage(client, key, cursor || '0', limit),
+          client.hlen(key),
+        ])
+        return { key, type, length: total, value: page.value, nextCursor: page.cursor }
+      }
+      case 'set': {
+        const [page, total] = await Promise.all([
+          readSetPage(client, key, cursor || '0', limit),
+          client.scard(key),
+        ])
+        return { key, type, length: total, value: page.value, nextCursor: page.cursor }
+      }
+      case 'list': {
+        const offset = Math.max(Number(cursor) || 0, 0)
+        const [items, total] = await Promise.all([
+          client.lrange(key, offset, offset + limit - 1),
+          client.llen(key),
+        ])
+        const end = offset + items.length
+        return {
+          key,
+          type,
+          length: total,
+          value: items,
+          nextCursor: items.length > 0 && end < total ? String(end) : null,
+        }
+      }
+      case 'zset': {
+        const offset = Math.max(Number(cursor) || 0, 0)
+        const [rows, total] = await Promise.all([
+          client.zrange(key, offset, offset + limit - 1, 'WITHSCORES'),
+          client.zcard(key),
+        ])
+        const pairs = flattenZsetRows(rows)
+        const end = offset + pairs.length
+        return {
+          key,
+          type,
+          length: total,
+          value: pairs,
+          nextCursor: pairs.length > 0 && end < total ? String(end) : null,
+        }
+      }
+      case 'stream': {
+        /*
+         * 多取两条：一条可能是上一页末尾重复读到的游标条目，
+         * 另一条用于判断是否还有下一页。
+         */
+        const entries = await client.xrange(key, cursor || '-', '+', 'COUNT', limit + 2)
+        const after = cursor && entries[0]?.[0] === cursor ? entries.slice(1) : entries
+        const hasMore = after.length > limit
+        const kept = hasMore ? after.slice(0, limit) : after
+        const value = flattenStreamEntries(kept)
+        const nextCursor = hasMore ? kept[kept.length - 1]?.[0] ?? null : null
+        if (!value.length && !nextCursor) {
+          return { key, type, length: 0, value, nextCursor: null }
+        }
+        return {
+          key,
+          type,
+          length: await client.xlen(key),
+          value,
+          nextCursor,
+        }
+      }
+      case 'string': {
+        const value = await client.get(key)
+        return { key, type, length: value?.length ?? 0, value, nextCursor: null }
+      }
+      default:
+        return { key, type, value: null, nextCursor: null }
+    }
+  }
+
+  /**
+   * 键列表增量刷新：从游标 0 重扫当前模式，一次返回新元信息。
+   *
+   * 与 scan 的区别不是命令，而是**交互语义**：
+   *   · scan 是分页尾巴，渲染层每翻一页一次 IPC；
+   *   · refreshKeys 是「原地刷新」，主进程一次扫够用户已加载的键数，
+   *     渲染层用结果整体替换列表，不闪骨架屏、不丢滚动位置。
+   *
+   * limit 是「至少收集多少键」：达到后停止，但最后一批完整返回 ——
+   * 若截断批次，SCAN 游标已经越过被丢弃的键，这些键在后续分页里
+   * 永远不会出现。返回值里的 cursor 供渲染层继续「加载更多」。
+   */
+  async refreshKeys(id: string, options: RefreshKeysOptions = {}): Promise<RefreshKeysResult> {
+    const managed = this.pool.get(id)
+    if (!managed) throw new Error(t('connectionManager.connectionClosedConnectFirst'))
+    const client = managed.client
+
+    const db = options.db ?? managed.db
+    // 切库判断同 scan：用自维护的 managed.db，client.options.db 是创建时的静态配置
+    if (db !== managed.db) {
+      await client.select(db)
+      managed.db = db
+    }
+
+    const match = options.match?.trim() ? options.match.trim() : '*'
+    const limit = options.limit && options.limit > 0
+      ? Math.min(Math.floor(options.limit), REFRESH_KEY_MAX)
+      : 0
+
+    let cursor = '0'
+    const seen = new Set<string>()
+    const names: string[] = []
+    do {
+      const [next, batch] = await client.scan(cursor, 'MATCH', match, 'COUNT', REFRESH_SCAN_COUNT)
+      // SCAN 在键增删时可能重复返回同一键，去重后计入
+      for (const name of batch) {
+        if (seen.has(name)) continue
+        seen.add(name)
+        names.push(name)
+      }
+      cursor = next
+      if (limit && names.length >= limit) break
+    } while (cursor !== '0')
+
+    return { keys: await this.describeKeys(client, names), cursor, db }
   }
 
   /**

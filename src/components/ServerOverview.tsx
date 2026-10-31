@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '@/api'
 import { DialogIcon, type DialogIconName } from '@/components/DialogIcon'
+import { KeyspaceCard } from '@/components/KeyspaceCard'
 import { MemoryCard } from '@/components/MemoryCard'
+import { MetricsCard } from '@/components/MetricsCard'
 import { PubsubCard } from '@/components/PubsubCard'
 import { SlowlogCard } from '@/components/SlowlogCard'
 import { tipProps } from '@/components/tip'
@@ -12,26 +14,30 @@ import { useRedis } from '@/store/useRedis'
 import { useObservable } from '@/store/subscription'
 import type { VersionInfo } from '@shared/types'
 
-type ServerTab = 'info' | 'slowlog' | 'memory' | 'pubsub'
+type ServerTab = 'info' | 'slowlog' | 'memory' | 'pubsub' | 'monitor' | 'keyspace'
 
 /*
- * 三张概览卡片固定在页签之外，卡片之下是四个不可关闭的面板页签。
+ * 三张概览卡片固定在页签之外，卡片之下是六个不可关闭的面板页签。
  *
  * 刻意不用卸载式切换而是常驻（display 切换）：
  * - SlowlogCard 靠注册回调联动统一刷新，卸载会让回调失效；
- * - PubsubCard 的订阅挂在组件生命周期上，切页签就断订阅属于误伤；
- * - MemoryCard 的分析结果不自动重算，切走再切回应保留上次的结论。
+ * - PubsubCard / KeyspaceCard 的订阅挂在组件生命周期上，切页签就断订阅属于误伤；
+ * - MemoryCard 的分析结果不自动重算，切走再切回应保留上次的结论；
+ * - MetricsCard 的历史采样点同样要保留，切走再切回不该从零开始。
  */
 /*
  * 页签图标：只承担「这是哪一类」的快速识别。
  * 颜色随页签文字（currentColor），激活时由 .ov-tab.active 一并加深，不单独配色。
  *   info 信息卡 / clock 耗时（慢查询）/ memory 内存条 / activity 信号波（订阅）
+ *   chart 折线（监控）/ bell 铃铛（键空间通知）
  */
 const TABS: Array<{ key: ServerTab; label: MsgKey; icon: DialogIconName }> = [
   { key: 'info', label: 'serverOverview.redisInfoTab', icon: 'info' },
   { key: 'slowlog', label: 'common.slowQueryLog', icon: 'clock' },
   { key: 'memory', label: 'common.keyMemoryAnalysis', icon: 'memory' },
   { key: 'pubsub', label: 'common.pubSubSubscriptions', icon: 'activity' },
+  { key: 'monitor', label: 'metricsCard.title', icon: 'chart' },
+  { key: 'keyspace', label: 'keyspaceCard.title', icon: 'bell' },
 ]
 
 /**
@@ -194,9 +200,10 @@ export function ServerOverview() {
   /**
    * 刷新整个概览页。
    *
-   * 页面上的数据块：概览卡片（INFO 摘要）与页签内的三个数据面板。
+   * 页面上的数据块：概览卡片（INFO 摘要）与页签内的数据面板。
    * 统一从这一个入口刷新 —— 任何一块单独刷都会造成页面内数字时间点不一致。
    * 未激活页签里的面板同样要刷：面板常驻（display 切换）保证了它们的刷新入口始终有效。
+   * 监控曲线的采样与键空间通知的订阅都是「持续进行」的，不参与一次性刷新。
    */
   async function refreshAll(): Promise<void> {
     if (refreshing) return
@@ -339,7 +346,8 @@ export function ServerOverview() {
       {/*
         ================= 面板页签 =================
         与顶部一级连接页签（TabBar）刻意区分：那里是带边框、可关闭的卡片式标签；
-        这里是嵌入式二级页签 —— 固定四项、只切换、不关闭，也不做溢出处理。
+        这里是嵌入式二级页签 —— 固定六项、只切换、不关闭。
+        窄窗口下自然换行（.ov-tabs 允许 flex-wrap），不做溢出滚动。
       */}
       <nav className="ov-tabs">
         {TABS.map((item) => (
@@ -423,6 +431,16 @@ export function ServerOverview() {
       {/* ================= 页签：Pub/Sub 订阅 ================= */}
       <div className="ov-tab-pane" style={activeTab === 'pubsub' ? undefined : { display: 'none' }}>
         <PubsubCard />
+      </div>
+
+      {/* ================= 页签：监控指标曲线 ================= */}
+      <div className="ov-tab-pane" style={activeTab === 'monitor' ? undefined : { display: 'none' }}>
+        <MetricsCard active={activeTab === 'monitor'} />
+      </div>
+
+      {/* ================= 页签：键空间通知 ================= */}
+      <div className="ov-tab-pane" style={activeTab === 'keyspace' ? undefined : { display: 'none' }}>
+        <KeyspaceCard />
       </div>
     </div>
   )

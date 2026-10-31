@@ -21,6 +21,7 @@ export function useHashEditor(ctx: ValueEditorContext) {
     replaceElementLocally,
     renameFieldLocally,
     askConfirm,
+    readWholeValue,
   } = useRedis()
 
   const ROW_MENU_WIDTH = 200
@@ -80,7 +81,7 @@ export function useHashEditor(ctx: ValueEditorContext) {
       largest = field
     }
   }
-  const hashStats = { total: entries.length, bytes: hashBytes, largest }
+  const hashStats = { total: value?.length ?? entries.length, loaded: entries.length, bytes: hashBytes, largest }
 
   /**
    * 加载 hash 字段的剩余 TTL。
@@ -122,21 +123,35 @@ export function useHashEditor(ctx: ValueEditorContext) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentKey, capabilityFlag])
 
+  /**
+   * 全部字段 —— 复制与导出共用。
+   * 分页时界面只加载了前几页，这里按键的总数把剩余字段补齐。
+   */
+  async function allHashRecord(): Promise<Record<string, string>> {
+    const current = getValue()
+    const loaded = (current?.value as Record<string, string>) ?? {}
+    if (!current || current.nextCursor == null) return loaded
+    const full = await readWholeValue()
+    return (full?.value as Record<string, string>) ?? loaded
+  }
+
   /** 把全部字段序列化为 JSON —— 复制与导出共用，便于直接粘进代码 */
-  function hashAsJson(): string {
-    return JSON.stringify((getValue()?.value as Record<string, string>) ?? {}, null, 2)
+  function hashAsJson(record: Record<string, string>): string {
+    return JSON.stringify(record, null, 2)
   }
 
   async function copyHashAll(): Promise<void> {
-    if (!hashView.total) {
+    const record = await allHashRecord()
+    const count = Object.keys(record).length
+    if (!count) {
       notify('err', t('valueEditorHash.hashNoFields'))
       return
     }
-    const done = await copyText(hashAsJson())
+    const done = await copyText(hashAsJson(record))
     notify(
       done ? 'ok' : 'err',
       done
-        ? t('valueEditorHash.copiedCountFields', { count: hashView.total })
+        ? t('valueEditorHash.copiedCountFields', { count })
         : t('common.copyFailedCheckClipboardPermissions'),
     )
   }
@@ -294,7 +309,7 @@ export function useHashEditor(ctx: ValueEditorContext) {
     const key = getValue()?.key ?? 'hash'
     const res = await api.file.saveText({
       suggestedName: `${key.replace(/[\\/:*?"<>|]/g, '_')}.json`,
-      content: hashAsJson(),
+      content: hashAsJson(await allHashRecord()),
     })
     if (!res.ok) {
       notify('err', res.error)

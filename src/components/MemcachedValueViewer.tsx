@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { DialogIcon } from '@/components/DialogIcon'
 import { FilterBox } from '@/components/FilterBox'
+import { MemcachedBulkOpsPanel } from '@/components/MemcachedBulkOpsPanel'
 import { MemcachedOverview } from '@/components/MemcachedOverview'
 import { PromptDialog } from '@/components/PromptDialog'
 import { VirtualStringLines } from '@/components/VirtualStringLines'
@@ -975,6 +976,12 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
   }
 
   /*
+   * 批量任务优先于概览：面板占用值区，直到用户关闭或执行完成。
+   * 与 Redis 的 ValueViewer 先判断 bulkTask 的顺序一致。
+   */
+  if (state.mcBulkTask) return renderSection(<MemcachedBulkOpsPanel />)
+
+  /*
    * 未选中键时显示服务端概览，而不是一个空白占位。
    * 与 Redis 的行为一致（ValueViewer 在未选键时挂 ServerOverview）。
    */
@@ -1000,7 +1007,9 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
     <>
       {/* 值区头部 · 报头，与 Redis ValueViewer 同构 */}
       <header className="viewer-head masthead" data-type="bytes">
-        <span className="mast-eyebrow">bytes</span>
+        <span className="mast-eyebrow">
+          <span className="mast-pill">bytes</span>
+        </span>
         <div className="mast-actions">
           <McValueActions
             onRename={() => setRenaming(true)}
@@ -1167,7 +1176,9 @@ function McSkeleton() {
     <>
       <header className="viewer-head masthead">
         <span className="mast-eyebrow">
-          <span className="sk sk-eyebrow" />
+          <span className="mast-pill sk-pill">
+            <span className="sk sk-eyebrow" />
+          </span>
         </span>
         <span className="key-name">
           <span className="sk sk-title" />

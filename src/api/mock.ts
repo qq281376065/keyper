@@ -11,6 +11,8 @@ import type {
   EnvInfo,
   ErrorReport,
   KeyValue,
+  KeyspaceConfig,
+  KeyspaceEvent,
   LogEntry,
   LogFileInfo,
   LogQuery,
@@ -20,8 +22,10 @@ import type {
   MemcachedValue,
   MemoryAnalysis,
   MemoryBucket,
+  MetricsSample,
   OperationResult,
   UpdateCheckResult,
+  UpdateDownloadState,
   CacheConnectionConfig,
   RedisConnectionConfig,
   RedisKeyItem,
@@ -37,6 +41,11 @@ import type {
   PubsubMessage,
   PubsubState,
   VersionInfo,
+  ValuePageOptions,
+  ValuePageResult,
+  ValueReadOptions,
+  RefreshKeysOptions,
+  RefreshKeysResult,
 } from '@shared/types'
 
 /**
@@ -209,6 +218,72 @@ function pubsubStateOf(id: string): PubsubState {
     channels: subs ? [...subs.channels] : [],
     patterns: subs ? [...subs.patterns] : [],
   }
+}
+
+/*
+ * 键空间通知模拟：配置、订阅与事件监听都按连接 id 隔离。
+ * 订阅后启动一个合成事件定时器 —— 浏览器预览里没有真实 Redis 写操作，
+ * 不合成事件的话「事件流」永远是空的，无法验证界面闭环。
+ * 合成事件同样受 notify-keyspace-events 配置约束（E/A 通道 + 事件类型位）。
+ */
+const KEYSPACE_CONFIG = new Map<string, string>()
+const KEYSPACE_SUBS = new Map<string, Set<string>>()
+const KEYSPACE_TIMERS = new Map<string, ReturnType<typeof setInterval>>()
+const keyspaceListeners = new Set<(event: KeyspaceEvent) => void>()
+const MOCK_KEYSPACE_TYPES: Array<{ flag: string; event: string }> = [
+  { flag: '$', event: 'set' },
+  { flag: 'g', event: 'del' },
+  { flag: 'g', event: 'expire' },
+  { flag: 'g', event: 'rename_from' },
+  { flag: 'h', event: 'hset' },
+  { flag: 'l', event: 'rpush' },
+  { flag: 's', event: 'sadd' },
+  { flag: 'z', event: 'zadd' },
+  { flag: 'x', event: 'expired' },
+  { flag: 'e', event: 'evicted' },
+]
+
+function keyspaceEventsOf(id: string): string {
+  if (!KEYSPACE_CONFIG.has(id)) KEYSPACE_CONFIG.set(id, 'KEA')
+  return KEYSPACE_CONFIG.get(id)!
+}
+
+function emitKeyspaceEvent(event: KeyspaceEvent): void {
+  for (const listener of keyspaceListeners) listener(event)
+}
+
+function stopKeyspaceTicker(id: string): void {
+  const timer = KEYSPACE_TIMERS.get(id)
+  if (timer === undefined) return
+  clearInterval(timer)
+  KEYSPACE_TIMERS.delete(id)
+}
+
+function startKeyspaceTicker(id: string): void {
+  if (KEYSPACE_TIMERS.has(id)) return
+  const timer = setInterval(() => {
+    const patterns = KEYSPACE_SUBS.get(id)
+    if (!patterns || patterns.size === 0) return
+    const config = keyspaceEventsOf(id)
+    /* 只有 E（keyevent）或 A 才会推事件；K 是镜像通道，界面不订阅 */
+    if (!/[AE]/.test(config)) return
+    const all = config.includes('A')
+    const pool = MOCK_KEYSPACE_TYPES.filter((item) => all || config.includes(item.flag))
+    if (pool.length === 0) return
+    const picked = pool[Math.floor(Math.random() * pool.length)]!
+    const item = KEYS[Math.floor(Math.random() * KEYS.length)]!
+    const channel = `__keyevent@0__:${picked.event}`
+    if (![...patterns].some((pattern) => globToRegExp(pattern).test(channel))) return
+    emitKeyspaceEvent({
+      connectionId: id,
+      db: 0,
+      event: picked.event,
+      key: item.key,
+      channel,
+      timestamp: Date.now(),
+    })
+  }, 2400)
+  KEYSPACE_TIMERS.set(id, timer)
 }
 
 interface MockKey {
@@ -586,6 +661,26 @@ function mockValue(key: string): KeyValue {
   return { key, type: 'none', ttl: -2, value: null }
 }
 
+/** mock 分页：游标统一用「下一个偏移量」，与真实实现的类型差异见 ValuePageOptions */
+function paginateMockValue(full: KeyValue, limit: number): KeyValue {
+  const size = Math.min(Math.max(Math.floor(limit || 500), 1), 20000)
+  const raw = full.value
+  if (Array.isArray(raw)) {
+    const page = raw.slice(0, size)
+    return { ...full, value: page, nextCursor: raw.length > page.length ? String(page.length) : null }
+  }
+  if (raw && typeof raw === 'object') {
+    const entries = Object.entries(raw)
+    const page = entries.slice(0, size)
+    return {
+      ...full,
+      value: Object.fromEntries(page),
+      nextCursor: entries.length > page.length ? String(page.length) : null,
+    }
+  }
+  return { ...full, nextCursor: null }
+}
+
 export const mockApi: RedisDesktopApi = {
   app: {
     getVersion: async () => ok(APP_VERSION),
@@ -617,8 +712,33 @@ export const mockApi: RedisDesktopApi = {
         pageUrl: 'https://gitee.com/jack_ssdddd/redis-docter/tags',
         checkedAt: new Date().toISOString(),
         notice: '浏览器预览模式不会真的联网检查',
+        canAutoUpdate: false,
+        packageSize: null,
       }),
     openPage: async () => ok({ ok: true, message: '预览模式下不打开浏览器' }),
+    /* 浏览器里没有安装包可下载，保持空闲态即可 */
+    state: async (): Promise<ApiResponse<UpdateDownloadState>> =>
+      ok({
+        phase: 'idle',
+        version: null,
+        percent: null,
+        transferred: 0,
+        total: null,
+        bytesPerSecond: null,
+        message: null,
+      }),
+    download: async (version: string): Promise<ApiResponse<UpdateDownloadState>> =>
+      ok({
+        phase: 'idle',
+        version,
+        percent: null,
+        transferred: 0,
+        total: null,
+        bytesPerSecond: null,
+        message: null,
+      }),
+    install: async () => ok({ ok: true, message: '预览模式下不会重启应用' }),
+    onStateChange: () => () => {},
   },
 
   window: {
@@ -852,8 +972,10 @@ export const mockApi: RedisDesktopApi = {
       })
     },
     disconnect: async (): Promise<ApiResponse<OperationResult>> => {
-      /* 对齐主进程：断开时一并清掉 Pub/Sub 订阅状态（不留幽灵订阅） */
+      /* 对齐主进程：断开时一并清掉 Pub/Sub 与键空间订阅（不留幽灵订阅） */
       PUBSUB_SUBS.clear()
+      KEYSPACE_SUBS.clear()
+      for (const id of [...KEYSPACE_TIMERS.keys()]) stopKeyspaceTicker(id)
       return ok({ ok: true })
     },
     status: async () => ok(true),
@@ -863,6 +985,35 @@ export const mockApi: RedisDesktopApi = {
     info: async () => {
       await delay(180)
       return ok({ ...SERVER_INFO, version: activeVersion })
+    },
+    /*
+     * 监控采样：用时间驱动的平滑波形合成，两次采样之间单调字段（命中/淘汰）
+     * 只增不减 —— 与真实 INFO 的累计语义一致，曲线与「区间增量」都能演示。
+     */
+    metrics: async (): Promise<ApiResponse<MetricsSample>> => {
+      await delay(40)
+      const now = Date.now()
+      const tick = now / 1000
+      const wave = (period: number, phase = 0): number => Math.sin((tick / period) * Math.PI * 2 + phase)
+      const baseMemory = 193_600_000
+      return ok({
+        at: now,
+        usedMemory: Math.round(baseMemory + wave(30) * 3_000_000 + wave(7) * 900_000),
+        usedMemoryPeak: Math.round(baseMemory + 34_000_000),
+        maxMemory: 2_147_483_648,
+        opsPerSec: Math.max(0, Math.round(412 + wave(13) * 180 + wave(3) * 46)),
+        connectedClients: Math.max(0, Math.round(18 + wave(45) * 5)),
+        blockedClients: 0,
+        totalKeys: 1284,
+        hitRate: Math.round((98.7 + wave(19) * 0.5) * 10) / 10,
+        keyspaceHits: 8_912_440 + Math.round((now % 86_400_000) / 70),
+        keyspaceMisses: 118_764 + Math.round((now % 86_400_000) / 5200),
+        evictedKeys: 1204 + Math.round((now % 86_400_000) / 20_000),
+        expiredKeys: 48_210 + Math.round((now % 86_400_000) / 240_000),
+        totalCommands: 9_824_410 + Math.round((now % 86_400_000) / 60),
+        netInputBytes: 1_284_000_000 + Math.round((now % 86_400_000) * 14),
+        netOutputBytes: 8_640_000_000 + Math.round((now % 86_400_000) * 92),
+      })
     },
     versionInfo: async (): Promise<ApiResponse<VersionInfo>> => {
       await delay(200)
@@ -1041,6 +1192,50 @@ export const mockApi: RedisDesktopApi = {
         pubsubListeners.delete(listener)
       }
     },
+    keyspaceConfig: async (id: string): Promise<ApiResponse<KeyspaceConfig>> => {
+      await delay(60)
+      return ok({ events: keyspaceEventsOf(id) })
+    },
+    setKeyspaceConfig: async (id: string, events: string): Promise<ApiResponse<OperationResult>> => {
+      await delay(80)
+      KEYSPACE_CONFIG.set(id, events)
+      return ok({ ok: true })
+    },
+    keyspaceSubscribe: async (id: string, patterns: string[]): Promise<ApiResponse<PubsubState>> => {
+      await delay(60)
+      const subs = KEYSPACE_SUBS.get(id) ?? new Set<string>()
+      for (const target of patterns) {
+        const name = target.trim()
+        if (name) subs.add(name)
+      }
+      KEYSPACE_SUBS.set(id, subs)
+      startKeyspaceTicker(id)
+      return ok({ channels: [], patterns: [...subs] })
+    },
+    keyspaceUnsubscribe: async (id: string, patterns: string[]): Promise<ApiResponse<PubsubState>> => {
+      await delay(60)
+      const subs = KEYSPACE_SUBS.get(id)
+      if (subs) {
+        for (const target of patterns) {
+          const name = target.trim()
+          if (name) subs.delete(name)
+        }
+        if (subs.size === 0) stopKeyspaceTicker(id)
+      }
+      return ok({ channels: [], patterns: subs ? [...subs] : [] })
+    },
+    keyspaceStop: async (id: string): Promise<ApiResponse<OperationResult>> => {
+      await delay(40)
+      KEYSPACE_SUBS.delete(id)
+      stopKeyspaceTicker(id)
+      return ok({ ok: true })
+    },
+    onKeyspaceEvent: (listener: (event: KeyspaceEvent) => void): (() => void) => {
+      keyspaceListeners.add(listener)
+      return () => {
+        keyspaceListeners.delete(listener)
+      }
+    },
     scan: async (_id: string, options): Promise<ApiResponse<ScanResult>> => {
       await delay(150)
       const match = options?.match?.trim()
@@ -1065,6 +1260,19 @@ export const mockApi: RedisDesktopApi = {
       await delay(60)
       const found = KEYS.find((item) => item.key === key)
       return ok(found ? { ...found } : null)
+    },
+    refreshKeys: async (_id: string, options?: RefreshKeysOptions): Promise<ApiResponse<RefreshKeysResult>> => {
+      await delay(120)
+      const match = options?.match?.trim() || '*'
+      const matched =
+        match === '*'
+          ? KEYS
+          : match.includes('*')
+            ? KEYS.filter((item) => item.key.includes(match.replace(/\*/g, '')))
+            : KEYS.filter((item) => item.key === match)
+      const limit = options?.limit && options.limit > 0 ? Math.min(Math.floor(options.limit), 20000) : 0
+      const keys = (limit ? matched.slice(0, limit) : matched).map((item) => ({ ...item }))
+      return ok({ keys, cursor: '0', db: options?.db ?? 0 })
     },
     /*
      * 全库搜索：SCAN 循环下沉主进程后的渲染层新入口。
@@ -1114,9 +1322,45 @@ export const mockApi: RedisDesktopApi = {
         searchProgressListeners.delete(listener)
       }
     },
-    value: async (_id: string, key: string) => {
+    value: async (_id: string, key: string, options?: ValueReadOptions) => {
       await delay(120)
-      return ok(mockValue(key))
+      return ok(paginateMockValue(mockValue(key), options?.limit ?? 500))
+    },
+    valuePage: async (
+      _id: string,
+      key: string,
+      options: ValuePageOptions,
+    ): Promise<ApiResponse<ValuePageResult>> => {
+      await delay(90)
+      const full = mockValue(key)
+      const limit = Math.min(Math.max(Math.floor(options.limit ?? 500), 1), 20000)
+      // mock 的游标统一是偏移量（真实 hash/set 用 SCAN 游标，但两者都是不透明字符串）
+      const offset = Math.max(Number(options.cursor) || 0, 0)
+      const raw = full.value
+      if (Array.isArray(raw)) {
+        const page = raw.slice(offset, offset + limit)
+        const end = offset + page.length
+        return ok({
+          key,
+          type: full.type,
+          length: full.length,
+          value: page,
+          nextCursor: end < raw.length ? String(end) : null,
+        })
+      }
+      if (raw && typeof raw === 'object') {
+        const entries = Object.entries(raw)
+        const page = entries.slice(offset, offset + limit)
+        const end = offset + page.length
+        return ok({
+          key,
+          type: full.type,
+          length: full.length,
+          value: Object.fromEntries(page),
+          nextCursor: end < entries.length ? String(end) : null,
+        })
+      }
+      return ok({ key, type: full.type, length: full.length, value: raw, nextCursor: null })
     },
     setValue: async (): Promise<ApiResponse<OperationResult>> => {
       await delay(180)
@@ -1624,6 +1868,16 @@ export const mockApi: RedisDesktopApi = {
       const store = MOCK_MC_KEYS[id]
       if (!store || !store.delete(key)) return ok({ ok: false, message: '键不存在' })
       return ok({ ok: true, message: '已删除' })
+    },
+
+    touch: async (id: string, key: string, seconds: number): Promise<ApiResponse<OperationResult>> => {
+      await delay(60)
+      const store = MOCK_MC_KEYS[id]
+      const item = store?.get(key)
+      if (!store || !item) return ok({ ok: false, message: '键不存在' })
+      const exptime = seconds < 0 ? 0 : Math.max(1, seconds)
+      item.expiresAt = exptime > 0 ? Math.floor(Date.now() / 1000) + exptime : 0
+      return ok({ ok: true, message: 'TTL 已更新' })
     },
 
     rename: async (id: string, key: string, newKey: string): Promise<ApiResponse<OperationResult>> => {
