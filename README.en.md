@@ -40,6 +40,27 @@ What changed in this release (1.0.6 → 1.0.7):
   previously had size only, with no hover or selected feedback; they now match the Redis key browser.
 - **English README added**: `README.en.md` mirrors the Chinese edition section by section, table by
   table and screenshot by screenshot, and the two link to each other at the top.
+- **Native tooltips replaced across the app**: native `title` attributes in 13 components —
+  connection tabs, the slow-log table, the split-pane handle, the value-area bookmarks and their
+  "⋯ more" panel, welcome-page buttons, settings paths and five edit dialogs — now use the project's
+  `tipProps` instead (OS-drawn tooltips appear after about a second and pop a bright bubble in dark
+  themes). This also fixes a nested-tooltip bug: moving the pointer from a bookmark's close × back
+  onto the bookmark itself made the tooltip disappear for good.
+- **Home-card colours follow the skin**: the card surface was pure white on all nine light skins —
+  the override lived inside `@layer components` and was silently beaten by Tailwind's utilities
+  layer. It is now computed from panel + page background, and Mint / Mist / Aurora mix in their own
+  accent so the three are instantly distinguishable. The feature grid and the info card became
+  transparent, separated by dashed lines, with hover using the global `--bg-hover`.
+- **Semantic icons on the value-area sub-tabs**: Redis info / slow log / key memory analysis /
+  Pub-Sub, plus Memcached stats / settings, now carry an icon before the label, tinted by the tab's
+  own text colour.
+- **Layout fix**: the + in the "New connection" button sat 1.5px above the text's centre (the
+  content layer had no flex and laid out on the baseline); it is now centred.
+- **Value header becomes a masthead**: it replaces the previous ticket-stub + watermark — a 9px
+  uppercase type eyebrow in that type's badge colour on top, an 18px key name with right-aligned
+  TTL / encoding / size beneath, and the ⋮ menu anchored at the top right. The string value toolbar
+  also folds its six actions into one segmented control, making the split from the key-level ⋮ menu
+  clearer.
 
 Previous release (1.0.4 → 1.0.6):
 
@@ -460,10 +481,10 @@ field-level TTL column), zset as a member + score table.
   <img src="docs/screenshots/key-value-string-light.png" width="49%" alt="string value · light" />
 </p>
 
-The value header is a **ticket stub with a watermark**: a 26px stub on the left carries the type name
-vertically, a mask bites a semicircular tear out of the right edge, and a 72px type-initial watermark
-sits on the right of the face. Moving the type from "a badge at the start of the row" to a vertical
-strip at the side frees the whole row for the key name — about 40px more for long keys.
+The value header is a **masthead**: a 9px uppercase eyebrow in that type's badge colour, an 18px key
+name with TTL / encoding / size right-aligned on the same line, and the ⋮ action menu anchored at the
+top right. Moving the type out of a leading badge gives the key name the whole row — about 40px more
+for long keys.
 
 #### Server information panel
 
@@ -533,9 +554,11 @@ semantic colour tokens that follow all nine skins. Supports SSH tunnels and mult
   Container types support search: hash **matches on field only**; list/set/zset/stream filter by
   content (string is a single value, so no search).
 - **string value toolbar**: sits above the value area (clearly separated from the key-level ⋮ menu at
-  the top right) — copy everything, JSON beautification toggle, word-wrap toggle (off means long
-  lines scroll horizontally, handy for comparing long strings), export to a local file (main-process
-  save dialog), refresh; character and line counts on the right.
+  the top right). Six actions share one segmented control — edit, copy, JSON beautify, word wrap,
+  export, refresh; JSON beautify and word wrap are view toggles that stay on by default, so they read
+  as raised blocks and separate at a glance from the action buttons. With word wrap off, long lines
+  scroll horizontally, which helps when comparing long strings; export goes through the main-process
+  save dialog; character and line counts sit on the right.
 - **hash value table**: the first column is a fixed-width (40px) **row-number column** that does not
   stretch or sort; numbers are re-issued in display order (after sorting it still reads 1, 2, 3…,
   meaning "the nth row"). field / value both sort on header click; the footer summarises field count,
@@ -918,6 +941,9 @@ semantic colour tokens that follow all nine skins. Supports SSH tunnels and mult
   (`maxWidth: 320px`) while short labels stay on one line; clamped horizontally inside the viewport;
   hides on scroll / resize / click / unmount.
   The positioning algorithm is covered by `tests/unit` and by browser probe scripts.
+  **Nested bindings** (a tab that contains its own close ×) get dedicated handling: moving the
+  pointer from the child back onto the parent restores the parent's tooltip instead of losing it —
+  the pointer never left the parent, so the parent's `mouseenter` never fires again.
   ⚠️ **`tipProps` and `title` must not coexist** — the browser still shows the native tooltip and the two
   bubbles overlap. Note also that `title` on components such as `PromptDialog` is a **component prop**
   (the dialog title), not a tooltip; do not "fix" it.
