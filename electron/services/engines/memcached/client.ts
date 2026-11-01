@@ -190,7 +190,13 @@ export class MemcachedClient extends EventEmitter {
       this.drainQueue()
       return
     }
-    if (end < 0) return
+    /*
+     * end 可能大于当前缓冲：像 `VA <size>\r\n` 这种"头行说明后面还有多少字节"的响应，
+     * 头行与数据块常被拆成两个 TCP 段送达（Linux/容器尤其明显，Windows 回环往往合并成一段）。
+     * 此时算"还没收齐"，必须等下一块，否则会把只有头行的字节流当完整响应交出去，
+     * 解析结果为空字符串。
+     */
+    if (end < 0 || end > this.buffer.length) return
 
     const payload = this.buffer.subarray(0, end)
     this.buffer = this.buffer.subarray(end)

@@ -41,8 +41,12 @@ function createServer(options = {}) {
   }
   /** 记录收到的命令，便于断言 */
   const received = []
+  /** 当前活动连接，close 时强制断开（见 return.close） */
+  const sockets = new Set()
 
   const server = net.createServer((socket) => {
+    sockets.add(socket)
+    socket.on('close', () => sockets.delete(socket))
     let buffer = Buffer.alloc(0)
 
     socket.on('data', (chunk) => {
@@ -285,7 +289,16 @@ function createServer(options = {}) {
     stats,
     received,
     listen: (port = 0) => new Promise((resolve) => server.listen(port, '127.0.0.1', () => resolve(server.address().port))),
-    close: () => new Promise((resolve) => server.close(resolve)),
+    /*
+     * 断言失败会跳过 client.disconnect()，此时连接还挂在 server 上，
+     * server.close() 要等所有连接关完才回调 —— afterAll 就这样超时。
+     * 测试收尾不需要优雅关闭，先强制断开再关监听。
+     */
+    close: () => {
+      for (const socket of sockets) socket.destroy()
+      sockets.clear()
+      return new Promise((resolve) => server.close(resolve))
+    },
     /** 强制断开所有连接，用于验证重连 */
     dropConnections: () => server._connections === 0,
   }
