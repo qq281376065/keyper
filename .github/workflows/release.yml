@@ -14,10 +14,12 @@ on:
 permissions:
   contents: write
 
-# 重发同一个版本用下面 workflow_dispatch 里的 publish 开关，不要用
-# 「删标签再推」：GitHub 删标签会连带删掉该标签的 Release（而且删除任务是异步的）。
-# 1.0.11 实测踩过：12:54 删标签 → 排入删除任务 → CI 在 12:58 把资产传进新 Release →
-# 那个延迟几分钟的删除任务随后把整份 Release 连资产一起删掉，校验步骤只剩 404。
+# 标签一旦推上去就不要再动它：不要删除，也不要强推 / 移到别的提交。
+# GitHub 会把它当成「标签被删」，异步任务在几分钟后连带删掉该标签的 Release（含刚上传的资产）。
+# 1.0.11 连踩两次：12:54 删标签重推 → 12:59 Release 没了；13:14 强推移标签 → 13:3x 又没了。
+# 两次都是 Prepare / Build and publish 全绿、只有最后的下载校验拿到 404。
+# 重发同一版本用下面 workflow_dispatch 里的 publish 开关，或者直接在 Actions 里 Re-run 失败作业
+# —— 这两条路都不碰标签。
 
 concurrency:
   group: release-${{ github.ref }}

@@ -554,12 +554,13 @@ installs automatically when the app quits.
   `EP_GH_IGNORE_TIME` — only append assets to the one that stayed; the three download URLs are then
   probed with retries, because the route can lag a freshly uploaded asset. Local
   `dist:win:publish` still races, so publishing belongs to CI.
-- **Re-publishing means a manual run, never delete-and-re-push the tag**: deleting a tag also deletes
-  the Release that carries it, and GitHub runs that deletion asynchronously. Observed on 1.0.11 —
-  tag deleted at 12:54, deletion queued, CI uploaded the assets into a fresh Release at 12:58, then
-  the queued deletion removed the whole Release with its assets, leaving only 404s in the check step.
-  A manual run reads the release notes from the same tag annotation, so neither the Release body nor
-  the in-app panel comes out empty.
+- **Never move a tag once it is pushed**: deleting it, force-pushing it or pointing it at another
+  commit all read as "tag deleted", and GitHub then removes the Release bound to that tag — assets
+  included — a few minutes later, asynchronously. 1.0.11 hit this twice (delete-and-re-push at 12:54,
+  force-move at 13:14); both runs passed Prepare and Build and publish and only the final download
+  check came back 404. To ship the same version again, run the Release workflow manually with
+  `publish` ticked, or re-run the failed job in Actions — neither touches the tag, and both still
+  read the release notes from the tag annotation.
 
 ---
 
