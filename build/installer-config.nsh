@@ -11,21 +11,21 @@
 ;
 ;   目标行为：
 ;     · 升级 / 覆盖安装：配置原样保留（无论机器上装的是哪个旧版本）
-;     · 手动交互卸载：询问是否清理配置，默认保留
+;     · 手动交互卸载：由卸载选项页询问是否清理配置，默认保留
 ;     · 静默卸载（/S，含升级时被静默调用的场景）：一律保留
 ;     · 卸载选择保留时：配置挪到 <安装目录父>\Keyper-config，
+;       不再放回安装目录（避免卸载后凭空重建一个只剩 config 的目录）；
 ;       之后重装回同一目录会自动接回，继续免配置
 ;
 ;   两套机制，缺一不可：
 ;     A. 卸载器 customRemoveFiles（对本版本及之后的卸载器生效）：
-;        uninstaller.nsh:145 —— 一旦定义了 customRemoveFiles，模板的
+;        uninstaller.nsh —— 一旦定义了 customRemoveFiles，模板的
 ;        默认删除段（atomicRMDir + RMDir /r $INSTDIR）整段被替换，
 ;        删除动作完全由本宏接管：先把 config 挪出安装目录，
-;        删完程序文件后再按用户选择恢复或清理。
+;        删完程序文件后再按 $RdDelConfig 处理。
 ;     B. 安装器备份 / 恢复（对旧版本的卸载器也生效）：
-;        已装 0.0.3~0.0.6 的机器升级时，跑的仍是旧卸载器（没有 A），
-;        config 照删不误 —— 所以 customInit 先把 config 复制一份到
-;        $APPDATA，customInstall 再合并回去。
+;        已装旧版本的机器升级时，跑的仍是旧卸载器，config 可能被删 ——
+;        所以 customInit 先把 config 复制一份到 $APPDATA，customInstall 再合并回去。
 ; ============================================================================
 
 !include "LogicLib.nsh"
@@ -143,6 +143,7 @@ Var RdConfigBackup
 !ifdef BUILD_UNINSTALLER
 Var RdConfigKeep
 Var RdDelConfig
+Var RdConfigExisted
 !endif
 
 ;
@@ -151,54 +152,79 @@ Var RdDelConfig
 ; ⚠️ 一旦定义此宏，模板的 atomicRMDir + RMDir /r $INSTDIR 整段被替换，
 ; 必须由本宏自己完成 RMDir —— 漏写等于「卸载后程序文件全留下」。
 ;
-; 流程：挪出 config →（交互时）询问是否清理 → 删除程序文件 → 处置 config。
+; 流程：挪出 config → 删除程序文件 → 按 $RdDelConfig 处置 config。
+; $RdDelConfig 由卸载选项页写入（1=删除，0=保留），静默卸载在
+; customUnInit 里固定为 0，因此不会再弹窗询问。
+;
+; ⚠️ 保留配置时不要再把目录移回 $INSTDIR\config：
+;    那会在卸载后重建一个只剩 config 的安装目录，用户在资源管理器里
+;    看到"程序没卸干净"。保留位置就是 <安装目录父>\Keyper-config。
 ;
 ; ⚠️ 卸载器里的 MessageBox 必须带 /SD：升级流程会以 /S 静默调用卸载器，
 ; 没有 /SD 的弹窗会把 ExecWait 卡死（installUtil.nsh 的重试循环最多 5 次，
 ; 每次都在同一个弹窗上挂起）。
 ;
+; ⚠️ 本段跑在「段线程」里，任何窗口操作（SetWindowPos / SetWindowText /
+; MoveWindow）都会排队到整段结束才被 UI 线程处理 —— 实测宏本身 0.56s 就跑完，
+; 界面却到 4.4s 才变。所以卸载进度页的尺寸只能在 UI 线程（选项页 LEAVE）处理，
+; 见 installer-resize.nsh 的 RdShrinkDialog。
+
 !macro customRemoveFiles
   StrCpy $RdConfigKeep ""
-  StrCpy $RdDelConfig 0
+  StrCpy $RdConfigExisted 0
 
   ; ① 把 config 挪出安装目录（同盘 Rename 是瞬移，不复制数据）
-  IfFileExists "$INSTDIR\config\*.*" 0 rd_rm_ask
-    ClearErrors
-    Rename "$INSTDIR\config" "$INSTDIR\..\Keyper-config"
-    ${If} ${Errors}
+  IfFileExists "$INSTDIR\config\*.*" 0 rd_rm_files
+    StrCpy $RdConfigExisted 1
+
+    ; 目标已存在：上一次卸载保留的目录还在（例如重装到了同一父目录的
+    ; 另一个子目录）。直接 Rename 会失败，随后 RMDir 会把配置一并删掉；
+    ; 这里改成覆盖写入同一个保留目录，重装时仍能自动接回。
+    IfFileExists "$INSTDIR\..\Keyper-config\*.*" 0 rd_rm_rename
       ClearErrors
-      ${IfNot} ${Silent}
-        MessageBox MB_OK|MB_ICONEXCLAMATION "无法自动保留配置目录（$INSTDIR\config 可能被其他程序占用）。$\r$\n$\r$\n如需保留连接配置与设置，请先手动复制该目录，再继续卸载。" /SD IDOK
-      ${EndIf}
-    ${Else}
-      StrCpy $RdConfigKeep "$INSTDIR\..\Keyper-config"
-    ${EndIf}
-  rd_rm_ask:
-
-  ; ② 交互卸载才询问；静默（升级流程 /S）一律保留
-  ${If} $RdConfigKeep != ""
-  ${AndIfNot} ${Silent}
-    MessageBox MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2 "是否同时删除配置数据？$\r$\n$\r$\n包含：连接配置、界面设置、操作日志。$\r$\n选择「否」将保留到 $INSTDIR\..\Keyper-config，重装时可自动恢复。" /SD IDNO IDYES rd_rm_yes
-    Goto rd_rm_do
-    rd_rm_yes:
-    StrCpy $RdDelConfig 1
-    rd_rm_do:
-  ${EndIf}
-
-  ; ③ 删除程序文件（customRemoveFiles 已接管默认删除动作）
-  RMDir /r "$INSTDIR"
-
-  ; ④ 处置挪出的配置
-  ${If} $RdConfigKeep != ""
-    ${If} $RdDelConfig == 1
-      RMDir /r "$RdConfigKeep"
-    ${Else}
-      CreateDirectory "$INSTDIR"
-      ClearErrors
-      Rename "$RdConfigKeep" "$INSTDIR\config"
+      CopyFiles /SILENT "$INSTDIR\config\*.*" "$INSTDIR\..\Keyper-config"
       ${If} ${Errors}
         ClearErrors
+        ${IfNot} ${Silent}
+          MessageBox MB_OK|MB_ICONEXCLAMATION "无法把配置写入已有的保留目录（$INSTDIR\..\Keyper-config）。$\r$\n$\r$\n如需保留连接配置与设置，请先手动复制 $INSTDIR\config，再继续卸载。" /SD IDOK
+        ${EndIf}
+      ${Else}
+        StrCpy $RdConfigKeep "$INSTDIR\..\Keyper-config"
       ${EndIf}
-    ${EndIf}
+      RMDir /r "$INSTDIR\config"
+      Goto rd_rm_files
+
+    rd_rm_rename:
+      ClearErrors
+      Rename "$INSTDIR\config" "$INSTDIR\..\Keyper-config"
+      ${If} ${Errors}
+        ClearErrors
+        ; Rename 失败（被占用）：退化为复制，尽量保住配置文件
+        CreateDirectory "$INSTDIR\..\Keyper-config"
+        CopyFiles /SILENT "$INSTDIR\config\*.*" "$INSTDIR\..\Keyper-config"
+        ${If} ${Errors}
+          ClearErrors
+          ${IfNot} ${Silent}
+            MessageBox MB_OK|MB_ICONEXCLAMATION "无法自动保留配置目录（$INSTDIR\config 可能被其他程序占用）。$\r$\n$\r$\n如需保留连接配置与设置，请先手动复制该目录，再继续卸载。" /SD IDOK
+          ${EndIf}
+        ${Else}
+          StrCpy $RdConfigKeep "$INSTDIR\..\Keyper-config"
+        ${EndIf}
+      ${Else}
+        StrCpy $RdConfigKeep "$INSTDIR\..\Keyper-config"
+      ${EndIf}
+  rd_rm_files:
+
+  ; ② 删除程序文件（customRemoveFiles 已接管默认删除动作）
+  ; 必须先离开 $INSTDIR：un.onInit 把 OutPath 设成安装目录，进程的工作目录
+  ; 停在里面时 RMDir /r 只能清空却删不掉目录本身（模板默认分支也有这一步）。
+  SetOutPath $TEMP
+  RMDir /r "$INSTDIR"
+
+  ; ③ 处置挪出的配置：仅当用户在选项页明确选择删除时才清理
+  ; 不在这里清空 $RdConfigKeep —— 完成页要靠它区分「已删除」与「未发现配置」
+  ${If} $RdConfigKeep != ""
+  ${AndIf} $RdDelConfig == 1
+    RMDir /r "$RdConfigKeep"
   ${EndIf}
 !macroend
