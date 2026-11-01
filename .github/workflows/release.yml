@@ -215,6 +215,10 @@ jobs:
           version=$(node -p "require('./package.json').version")
           exe="Keyper-$version-win-x64.exe"
           base="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG"
+          # 先打印这份 Release 的真实状态：404 多半不是没上传，而是被打成草稿（见文件头注释）
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" \
+            --jq '"目标 Release: id=\(.id) draft=\(.draft) 资产=\([.assets[].name] | join(", "))"' \
+            || echo "::warning::带令牌也查不到标签 $TAG 的 Release"
           # 资产刚传完时 GitHub 的下载路由可能还没同步完，先重试再判失败
           probe() {
             for attempt in 1 2 3 4 5; do
@@ -226,7 +230,7 @@ jobs:
               echo "$2 -> $code（第 $attempt 次）"
               sleep 20
             done
-            echo "::error::标签 $TAG 的 $2 下载不到，客户端查不到这个更新"
+            echo "::error::标签 $TAG 的 $2 下载不到（先看上面 draft 是不是 true：草稿的路由恒 404），客户端查不到这个更新"
             return 1
           }
           for f in "latest.yml" "$exe" "$exe.blockmap"; do
