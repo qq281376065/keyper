@@ -43,6 +43,11 @@ What changed in this release (1.0.10 → 1.0.11):
 - **Connection hover identity panel**: hovering a connection in the list now shows its
   name, address, engine, SSH tunnel and credential state, replacing the old route through
   the edit dialog that every check required.
+- **Fixed empty Memcached values when a response is split across segments**: for replies whose
+  header line declares how many bytes follow (`VA <size>\r\n`), the header and the data block are
+  often delivered as two TCP segments on Linux / macOS (Windows loopback usually coalesces them). The
+  parser accepted the header-only buffer as a complete response and decoded an empty string; the
+  framing check now compares against the buffered length and waits for the rest.
 - **Official site and download links added at the top of the README.**
 
 Previous release (1.0.9 → 1.0.10):
