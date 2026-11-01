@@ -19,8 +19,11 @@ permissions:
 # 且 /releases/download/<标签>/<文件> 恒 404，客户端查不到这个更新；带令牌的 CI 请求
 # 却能正常往里传资产，于是表现为「打包全绿、只有最后的下载校验失败」。
 # 1.0.11 实测：12:54 删标签重推、13:14 强推移标签，两次都把 430569726 打成草稿。
-# 下面的 Prepare 步骤会自动取消草稿；重发同一版本用 workflow_dispatch 勾 publish，
-# 或在 Actions 里 Re-run 失败作业 —— 都不要再动标签。
+# 下面的 Prepare 步骤会自动取消草稿。要重发同一个版本：
+#   ① 资产齐的话，直接在 Release 页面点「Publish draft release」，不用再跑构建；
+#   ② 或者 Release 工作流手动运行勾 publish —— 手动运行读的是默认分支这份 YAML，
+#     带得上修复；Re-run 失败作业沿用触发那一刻的 YAML（旧提交里的），修不了草稿。
+# 两条路都不要碰标签。
 
 concurrency:
   group: release-${{ github.ref }}

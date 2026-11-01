@@ -467,8 +467,10 @@ KEYPER_DEBUG_LOG=/tmp/rd.log ./Keyper.exe
   恒返回 404，客户端就查不到这个更新；而带 `GITHUB_TOKEN` 的 CI 请求照样能看见它、往里传资产，
   于是表现为"打包与上传全绿，只有最后的下载校验失败"。1.0.11 连踩两次（12:54 删标签重推、
   13:14 强推移标签），都是这个原因。Prepare 步骤现在会先取消草稿再让 electron-builder 追加资产；
-  要重发同一个版本，用 Release 工作流的手动运行勾上 `publish`，或在 Actions 里 Re-run 失败的作业
-  —— 这两条路都不碰标签，也同样会从标签附注取发版说明。
+  要补发同一个版本，按省事程度排序：资产已经齐的话，直接在 Release 页面点 **Publish draft release**，
+  不用再跑一遍构建；要重跑就用 Release 工作流的手动运行勾上 `publish`（手动运行读的是默认分支那份
+  workflow，带得上修复），Actions 里的 **Re-run 失败作业**沿用触发那一刻的旧 workflow，学不到这次
+  修复，草稿态下照样校验失败。这几条路都不碰标签，发版说明同样取自标签附注。
 
 ---
 

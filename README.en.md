@@ -561,9 +561,12 @@ installs automatically when the app quits.
   while CI requests carrying `GITHUB_TOKEN` still see the Release and upload into it — which is why
   every run looked green up to "Build and publish" and only the final download check failed
   (1.0.11 hit this twice: delete-and-re-push at 12:54, force-move at 13:14). Prepare now clears the
-  draft flag before electron-builder appends assets. To ship the same version again, run the Release
-  workflow manually with `publish` ticked, or re-run the failed job in Actions — neither touches the
-  tag, and both still read the release notes from the tag annotation.
+  draft flag before electron-builder appends assets. To heal a draft whose assets are already there,
+  the cheapest fix is **Publish draft release** on the Release page — no rebuild needed. To run the
+  pipeline again, trigger the Release workflow manually with `publish` ticked: a manual run reads the
+  workflow from the default branch, so it carries the fix, whereas **Re-run failed jobs** replays the
+  workflow as it existed at the triggering commit and stays blind to it. Either way the tag is left
+  alone and the release notes still come from the tag annotation.
 
 ---
 
