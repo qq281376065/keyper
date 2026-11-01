@@ -56,14 +56,13 @@ nsis:
   oneClick: false
   perMachine: false
   allowElevation: true
-  allowToChangeInstallationDirectory: true
+  # 安装位置与快捷方式由 build/installer.nsh 的「准备」页接管：
+  # 关闭内置目录页，避免出现两套选目录界面；桌面/开始菜单快捷方式
+  # 也关闭默认创建，统一按用户在准备页的勾选创建与清理。
+  allowToChangeInstallationDirectory: false
   # 增量更新：保留 blockmap，electron-updater 只下载变化的二进制分块
   differentialPackage: true
-  createDesktopShortcut: true
-  # 开始菜单快捷方式改为安装时勾选决定（默认勾选）：
-  # electron-builder 25.1.8 的 assisted 安装器没有快捷方式勾选框机制，
-  # true = 静默总是创建。这里关闭默认创建，由 build/installer.nsh 的
-  # 「附加选项」勾选页（ShortcutsPageCreate）接管创建与卸载清理。
+  createDesktopShortcut: false
   createStartMenuShortcut: false
   shortcutName: Keyper
   deleteAppDataOnUninstall: false
@@ -71,6 +70,8 @@ nsis:
   installerIcon: build/icon.ico
   uninstallerIcon: build/icon.ico
   installerHeaderIcon: build/icon.ico
+  # 助手型安装器顶部品牌头图（150×57 BMP，MUI 头部右侧）
+  installerHeader: build/installerHeader.bmp
   # 自定义安装逻辑：环境检查页 + 写入用户 PATH
   include: build/installer.nsh
   # 中文界面（默认跟随系统语言，显式列出保证中文用户看到的都是中文）

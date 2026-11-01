@@ -3,152 +3,121 @@
 ; ============================================================================
 ; electron-builder 通过 nsis.include 引入本文件，并按约定调用以下宏：
 ;
-;   customWelcomePage        —— **替代**内置欢迎页（不是追加）
+;   customInstallMode        —— 安装模式页创建前（本包固定为当前用户）
 ;   customPageAfterChangeDir —— 目录页之后、开始安装之前的插入点
+;   customFinishPage         —— 替代内置完成页
 ;   customInit               —— .onInit 内部
 ;   customInstall            —— 安装段末尾
 ;   customUnInstall          —— 卸载段
+;   customUnWelcomePage      —— 替代卸载欢迎页（卸载选项页）
+;   customUninstallPage      —— 卸载进度页之后（自定义卸载完成页）
+;   customUnInit             —— 卸载器 .onInit
 ;
 ; ----------------------------------------------------------------------------
-; 页面顺序（顺序本身有语义）：
+; 页面顺序（方案 B：三段向导）：
 ;
-;   欢迎 → [许可] → [安装模式] → 目录选择 → **环境检查** → 安装 → 完成
+;   安装： 准备（环境 / 路径 / 选项）→ 正在安装 → 完成
+;   卸载： 卸载选项（保留 / 删除配置）→ 正在卸载 → 完成
 ;
-; 环境检查必须排在目录选择之后：目录页会在 instFilesPre 里改写 $INSTDIR
-; （自动补全应用子目录名）；检查页若在前，磁盘空间与写入权限
-; 测的就是用户最终并不会使用的路径 —— 测了等于没测。
-; 为此使用官方钩子 customPageAfterChangeDir，而不是 customWelcomePage。
+; electron-builder.yml 已关闭内置目录页，因此「准备」页是用户看到的第一屏；
+; 安装模式页由 customInstallMode 跳过（固定当前用户安装，不请求管理员权限）。
 ; ============================================================================
 
 !include "LogicLib.nsh"
 !include "WinMessages.nsh"
 !include "WordFunc.nsh"
-; 开始菜单勾选页需要 nsDialogs 的 NSD_* 控件宏与 BST_CHECKED 状态常量
 !include "nsDialogs.nsh"
 
-; 注意：这里**不要** !include "StrContains.nsh"。
-; 本文件会被安装器与卸载器各编译一次，而 StrContains 函数只在安装段调用，
-; 卸载器那趟会报 warning 6010（函数未引用）；electron-builder 把 NSIS
-; 警告当错误处理，于是整次打包直接失败。PATH 判重改用 WordReplace 完成。
-
-/*
- * 环境检查页的函数与变量。
- *
- * 必须在**顶层** include，不能塞进 customHeader 宏里：
- * electron-builder 是把本文件拼在安装主脚本的最前面（scriptGenerator + originalScript），
- * 此时尚在顶层作用域；而 customHeader 是在主脚本内部被 !insertmacro 展开的，
- * 在宏体内再 !include 定义 Function，展开时机与 Var 声明顺序都不可靠 ——
- * 实测结果是函数虽然定义了却"未被引用"，检查页根本没进安装流程。
- */
-!include "${BUILD_RESOURCES_DIR}\installer-env.nsh"
-
-/*
- * 已安装检测与升级。
- * 同样必须在顶层 include：它定义了 Var 与 Function，塞进宏里声明时机不可靠
- * （原因同上面 installer-env.nsh 的注释）。
- *
- * 依赖 ${UNINSTALL_APP_KEY} / ${APP_FILENAME} / ${APP_EXECUTABLE_FILENAME}，
- * 这些由 electron-builder 在拼接本文件之前就已定义好。
- */
-!include "${BUILD_RESOURCES_DIR}\installer-upgrade.nsh"
-
-/*
- * 用户配置的保留与清理（升级保留 config、卸载可选清理）。
- * 同样在顶层 include：它定义了 Var 与 customRemoveFiles 宏。
- */
-!include "${BUILD_RESOURCES_DIR}\installer-config.nsh"
-
-; 自定义 Var 必须声明在所有 Section / Function 之前
+; ---------------------------------------------------------------------------
+; 自定义 Var 必须声明在所有 Section / Function 之前（下面 include 的文件
+; 会在顶层定义函数，所以先声明本文件的变量）。
+; ---------------------------------------------------------------------------
 Var RdPrevPath
 Var RdNewPath
 
-; ---------------------------------------------------------------------------
-; 开始菜单快捷方式 · 安装时勾选（2026-10 用户需求，默认勾选）
-;
-; electron-builder 25.1.8 的 assisted 安装器没有快捷方式勾选框机制：
-; createStartMenuShortcut 只能「总是静默创建」(true) 或「不创建」(false)。
-; 因此 electron-builder.yml 里设为 false 关掉默认创建，由本节接管：
-;
-;   勾选页（ShortcutsPageCreate）→ 状态存 $RdSmChecked
-;   → customInstall 按 ${BST_CHECKED} 创建（路径与默认机制完全一致：
-;      $SMPROGRAMS\${SHORTCUT_NAME}.lnk，AUMI 同 ${APP_ID}，卸载分组不破坏）
-;   → customUnInstall 对称清理（默认卸载清理已被 false 关闭，必须自理）
-;
-; 静默安装（升级流程内部、/S 参数）：SilentInstall 下 custom 页自动跳过，
-; $RdSmChecked 保持 customInit 里设置的初始值 1（勾选）→ 照常创建，
-; 与「默认勾选」语义一致。
-;
-; 页面函数与页面专属变量都必须用 !ifndef BUILD_UNINSTALLER 包裹：本文件被
-; 安装器与卸载器各编译一次，安装侧专属的东西出现在卸载趟会触发 NSIS 警告
-; （函数未引用 = 6010，变量未引用 = 6001），而 electron-builder 把警告当
-; 错误，整次打包直接失败。
-;
-; ⚠ Var 声明**不**是「两趟都安全」—— 卸载趟不展开 customInit/customInstall，
-;   这三个变量在卸载趟零引用，照样报 warning 6001。实测踩过，别再挪出去。
-; ---------------------------------------------------------------------------
+; 主题宏的临时句柄；安装器与卸载器两趟都会展开主题宏，所以声明在这里。
+Var RdCtlScratch
+
+; 以下两个只在安装器趟使用；卸载器趟没有 customInit/customInstall，
+; 声明了却零引用会吃 warning 6001（electron-builder 把警告当错误）。
 !ifndef BUILD_UNINSTALLER
-Var RdSmChecked
-Var RdSmDlg
-Var RdSmCheckbox
-Function ShortcutsPageCreate
-  ; 页面标题由 customPageAfterChangeDir 宏在 Page 声明前用
-  ; MUI_PAGE_HEADER_TEXT 指定（同环境检查页的做法）。
-
-  nsDialogs::Create 1018
-  Pop $RdSmDlg
-  ${If} $RdSmDlg == error
-    Abort
-  ${EndIf}
-
-  ${NSD_CreateCheckbox} 0 6u 100% 12u "创建开始菜单快捷方式"
-  Pop $RdSmCheckbox
-  ${NSD_SetState} $RdSmCheckbox ${BST_CHECKED}
-
-  nsDialogs::Show
-FunctionEnd
-
-Function ShortcutsPageLeave
-  ${NSD_GetState} $RdSmCheckbox $RdSmChecked
-FunctionEnd
+Var RdPathWasPresent     ; 升级前用户 PATH 里是否已有安装目录
+Var RdPathEnsure         ; 本次安装是否应确保 PATH 含安装目录
 !endif
 
-; WordFunc.nsh 用 !define 把 ${WordReplace} 定义为插入宏的别名，
-; include 后即可直接使用，不要再 !insertmacro 它（没有 WordReplaceCall 这个入口）
-
 /*
- * 环境检查页的插入点：customPageAfterChangeDir
+ * 顶层 include 的顺序就是符号可用性依赖的顺序：
+ *   env      → 安装器环境检测（Install 侧 Var/Function）
+ *   upgrade  → 已安装检测 / 升级目录（Install 侧）
+ *   config   → 配置备份恢复 + customRemoveFiles 宏（两趟都参与）
+ *   theme    → 色块/描边/文字/圆形宏（两趟都参与）
+ *   resize   → 运行时窗体放大（依赖 theme 的 RD_PAGE_*，两趟都参与）
+ *   prep     → 安装准备页（Install 侧）
+ *   finish   → 安装完成页（Install 侧）
+ *   uninstall→ 卸载选项/完成页（Uninstall 侧）
  *
- * 为什么不用 customWelcomePage：
- * 那个宏在 assistedInstaller.nsh 里是最先被展开的，用来**替代**默认欢迎页；
- * 而安装目录页（MUI_PAGE_DIRECTORY）在它之后，且目录页会在
- * instFilesPre 里改写 $INSTDIR（自动补全应用子目录名）。
- * 若把检查页放在欢迎页位置，磁盘空间与写入权限测的是用户最终不会用的路径。
- *
- * customPageAfterChangeDir 是 electron-builder 官方预留的钩子，注释写明
- * "after change installation directory and before install start" ——
- * 此时 $INSTDIR 已是最终值，正好适合做磁盘与写入权限检测。
+ * installer-env / installer-upgrade 只能在顶层 include：它们定义 Var 与
+ * Function，塞进宏里展开的时机与声明顺序都不可靠（实测函数会"未被引用"）。
+ * 每个文件内部都用 !ifndef/!ifdef BUILD_UNINSTALLER 做了隔离，避免另一趟
+ * 编译时出现 warning 6001/6010 —— electron-builder 用 -WX 把警告当错误。
  */
-!macro customPageAfterChangeDir
-  !define MUI_PAGE_HEADER_TEXT "环境检查"
-  !define MUI_PAGE_HEADER_SUBTEXT "确认系统满足运行条件后再继续安装"
-  Page custom EnvPageCreate EnvPageLeave
-  !undef MUI_PAGE_HEADER_TEXT
-  !undef MUI_PAGE_HEADER_SUBTEXT
+!include "${BUILD_RESOURCES_DIR}\installer-env.nsh"
+!include "${BUILD_RESOURCES_DIR}\installer-upgrade.nsh"
+!include "${BUILD_RESOURCES_DIR}\installer-config.nsh"
+!include "${BUILD_RESOURCES_DIR}\installer-theme.nsh"
+!include "${BUILD_RESOURCES_DIR}\installer-resize.nsh"
+!include "${BUILD_RESOURCES_DIR}\installer-prep.nsh"
+!include "${BUILD_RESOURCES_DIR}\installer-finish.nsh"
+!include "${BUILD_RESOURCES_DIR}\installer-uninstall.nsh"
 
-  ; 开始菜单快捷方式勾选页：排在环境检查之后 —— 检查通过才问用户
-  ; 要什么附加选项；「下一步」即进入安装页，勾选结果立即可见。
-  !define MUI_PAGE_HEADER_TEXT "附加选项"
-  !define MUI_PAGE_HEADER_SUBTEXT "选择要创建的快捷方式"
-  Page custom ShortcutsPageCreate ShortcutsPageLeave
-  !undef MUI_PAGE_HEADER_TEXT
-  !undef MUI_PAGE_HEADER_SUBTEXT
+; ---------------------------------------------------------------------------
+; 窗口标题见 installer-resize.nsh 的 RdGrowDialog：
+; makensis v3.04 不认 WindowName 命令（实测 Invalid command），只能运行时发
+; WM_SETTEXT；卸载器默认标题取自简体中文语言包 2010 版的「解除安装」，
+; 与页内一律使用的「卸载」对不上，需要覆盖。
+; ---------------------------------------------------------------------------
+
+; ---------------------------------------------------------------------------
+; 固定「当前用户安装」
+;
+; 本包 perMachine=false，启动时不请求管理员权限。electron-builder 的模式页
+; 在多用户环境下会先问"为谁安装"，与三段向导的第一屏重复；这里强制当前
+; 用户并 Abort，让模板跳过该页（multiUserUi.nsh 的 $isForceCurrentInstall 分支）。
+;
+; 卸载器不强制：模板在"只存在当前用户安装"时会自动跳过模式页；
+; 若旧版本曾被装成机器级，强行切到当前用户会把 $INSTDIR 指到默认目录，
+; 反而卸错位置。
+; ---------------------------------------------------------------------------
+!macro customInstallMode
+  !ifndef BUILD_UNINSTALLER
+    StrCpy $isForceCurrentInstall "1"
+  !endif
+!macroend
+
+; ---------------------------------------------------------------------------
+; 安装准备页（三段向导第 1 步）
+;
+; 环境检查放在这里而不是更早：用户可能在本页修改安装路径，离开时会重新
+; 检测磁盘与写入权限。页面内部自己完成路径确定，随后模板的
+; MUI_PAGE_INSTFILES 直接开始安装。
+; ---------------------------------------------------------------------------
+!macro customPageAfterChangeDir
+  Page custom PrepPageCreate PrepPageLeave
+
+  ; 给紧随其后的安装进度页设定标题；运行时 RdInstFilesShow 会按
+  ; 「全新 / 升级」再改一次（见 installer-prep.nsh）。
+  !define MUI_PAGE_HEADER_TEXT "正在安装 Keyper"
+  !define MUI_PAGE_HEADER_SUBTEXT "第 2 步，共 3 步 · 正在写入程序文件，请勿关闭此窗口。"
+  !define MUI_PAGE_CUSTOMFUNCTION_SHOW RdInstFilesShow
 !macroend
 
 !macro customInit
-  ; 开始菜单勾选的默认值：勾选。必须在此初始化而不是依赖页面函数 ——
-  ; 静默安装（升级流程 / /S）会跳过所有 custom 页，用户的「默认勾选」
-  ; 语义只能靠这个初始值兜底。
-  StrCpy $RdSmChecked "${BST_CHECKED}"
+  ; 选项默认值：快捷方式默认创建，PATH 默认不修改（减少系统变更）。
+  ; 静默安装（/S）不会创建任何页面，用户没有机会改，所以必须在这里兜底。
+  StrCpy $RdOptDesktop ${BST_CHECKED}
+  StrCpy $RdOptStartMenu ${BST_CHECKED}
+  StrCpy $RdOptLaunch ${BST_CHECKED}
+  StrCpy $RdOptPath ${BST_UNCHECKED}
 
   ; .onInit 阶段 $INSTDIR 还是初始值，此处的检测结果只用于
   ; 「32 位系统」这种与目录无关的硬性判断，避免用户一路点到安装才被拒。
@@ -164,8 +133,8 @@ FunctionEnd
    * 已安装检测 → 决定走升级还是全新安装。
    *
    * 必须在 .onInit 里做，而不是等到安装段：
-   *   · 升级时要改 $INSTDIR 回到原目录，只有在目录页创建之前改才生效；
-   *   · 提示要在用户看到界面之前给出，否则他已经在目录页重选了路径。
+   *   · 升级时要改 $INSTDIR 回原目录，只有在这里改才来得及；
+   *   · 配置备份也要在旧卸载器运行之前完成。
    */
   Call DetectInstalled
 
@@ -179,21 +148,43 @@ FunctionEnd
     !insertmacro RdApplyUpgradeDir
 
     /*
+     * 记录升级前的 PATH 状态。
+     *
+     * 升级会静默运行旧卸载器，而卸载器会删除安装目录在用户 PATH 里的条目；
+     * 新安装器的 PATH 选项在升级页不展示（也不能改），若不补回，
+     * 用户原本可用的 keyper 命令会在升级后凭空消失。
+     */
+    StrCpy $RdPathWasPresent 0
+    ReadRegStr $RdPrevPath HKCU "Environment" "Path"
+    ${If} $RdPrevPath != ""
+      StrCpy $RdPrevPath ";$RdPrevPath;"
+      ${WordReplace} "$RdPrevPath" ";$INSTDIR;" ";" "+" $RdNewPath
+      ${If} $RdNewPath != $RdPrevPath
+        StrCpy $RdPathWasPresent 1
+      ${EndIf}
+    ${EndIf}
+
+    /*
      * 备份 <INSTDIR>\config：升级流程稍后会静默运行旧卸载器，
-     * 旧卸载器会 RMDir /r $INSTDIR 连 config 一起删（0.0.6 及更早版本
-     * 没有 customRemoveFiles 保护）。备份在 customInstall 里恢复。
+     * 旧卸载器可能把 config 一起删掉（旧版本没有 customRemoveFiles 保护）。
+     * 备份在 customInstall 里恢复。
      */
     !insertmacro RdBackupConfig
-  ${EndIf}
 
-  ; 告知用户本次是升级还是全新安装（静默安装下自动跳过）
-  !insertmacro RdShowInstallNotice
+    ; 升级沿用旧安装的快捷方式状态：旧版本没有桌面图标就别凭空补一个。
+    IfFileExists "$DESKTOP\${SHORTCUT_NAME}.lnk" rd_ci_desk_yes 0
+      StrCpy $RdOptDesktop ${BST_UNCHECKED}
+    rd_ci_desk_yes:
+    IfFileExists "$SMPROGRAMS\${SHORTCUT_NAME}.lnk" rd_ci_sm_yes 0
+      StrCpy $RdOptStartMenu ${BST_UNCHECKED}
+    rd_ci_sm_yes:
+  ${EndIf}
 !macroend
 
 ; ---------------------------------------------------------------------------
-; 安装完成：把安装目录写入当前用户 PATH
+; 安装完成：按准备页的勾选创建快捷方式，按需写入用户 PATH
 ;
-; 三个必须遵守的细节：
+; PATH 的三个必须遵守的细节：
 ;
 ; 1. **用户级 PATH**（HKCU\Environment），不碰系统级。
 ;    本包 perMachine=false，是当前用户安装；改系统 PATH 需要额外提权，
@@ -215,59 +206,71 @@ FunctionEnd
   ; 恢复配置目录：先接回卸载时保留的，再合并升级备份（顺序见宏内注释）
   !insertmacro RdRestoreConfig
 
-  ; 开始菜单快捷方式：按「附加选项」页的勾选状态创建。
-  ; 路径/AUMI 与 electron-builder 默认机制完全一致（$SMPROGRAMS\${SHORTCUT_NAME}.lnk
-  ; + WinShell::SetLnkAUMI ${APP_ID}）—— 升级前的旧链接指向同一个位置，
-  ; 任务栏分组与跳转列表不受影响；$appExe 在 Section 开头已赋值。
-  ${If} $RdSmChecked == ${BST_CHECKED}
+  ; 桌面快捷方式
+  ${If} $RdOptDesktop == ${BST_CHECKED}
+    CreateShortCut "$DESKTOP\${SHORTCUT_NAME}.lnk" "$appExe" "" "$appExe" 0 "" "" "${APP_DESCRIPTION}"
+    ClearErrors
+    WinShell::SetLnkAUMI "$DESKTOP\${SHORTCUT_NAME}.lnk" "${APP_ID}"
+  ${EndIf}
+
+  ; 开始菜单快捷方式
+  ${If} $RdOptStartMenu == ${BST_CHECKED}
     CreateShortCut "$SMPROGRAMS\${SHORTCUT_NAME}.lnk" "$appExe" "" "$appExe" 0 "" "" "${APP_DESCRIPTION}"
     ClearErrors
     WinShell::SetLnkAUMI "$SMPROGRAMS\${SHORTCUT_NAME}.lnk" "${APP_ID}"
   ${EndIf}
 
-  ReadRegStr $RdPrevPath HKCU "Environment" "Path"
-
-  ${If} $RdPrevPath == ""
-    StrCpy $RdNewPath "$INSTDIR"
+  ; PATH 的写入条件：
+  ;   · 全新安装：只有用户勾选才写；
+  ;   · 升级：不展示选项，按「保持现状」处理 —— 升级前有就补回，
+  ;     升级前没有就不新增（旧卸载器已经把旧条目删掉了）。
+  ${If} $RdOptPath == ${BST_CHECKED}
+    StrCpy $RdPathEnsure 1
+  ${ElseIf} $RdInstalled == 1
+  ${AndIf} $RdPathWasPresent == 1
+    StrCpy $RdPathEnsure 1
   ${Else}
-    StrCpy $RdNewPath ";$RdPrevPath;"
-    ${WordReplace} "$RdNewPath" ";$INSTDIR;" ";" "+" $RdNewPath
-
-    ; 替换后去掉首尾分号，得到规范形式
-    StrCpy $RdNewPath $RdNewPath "" 1
-    StrCpy $0 $RdNewPath -1
-    ${If} $0 == ";"
-      StrCpy $RdNewPath $RdNewPath -1
-    ${EndIf}
-
-    ; 判断是否本来就已存在：把结果再替换一次，长度变了说明刚才是命中的
-    StrCpy $1 ";$RdNewPath;"
-    ${WordReplace} "$1" ";$INSTDIR;" ";" "+" $1
-    ${If} $1 == ";$RdNewPath;"
-      ; 未命中 → 追加
-      StrCpy $RdNewPath "$RdPrevPath;$INSTDIR"
-    ${EndIf}
+    StrCpy $RdPathEnsure 0
   ${EndIf}
 
-  WriteRegExpandStr HKCU "Environment" "Path" "$RdNewPath"
-  ; 广播环境变更：已打开的「运行」对话框与新开的 cmd 才能立刻识别
-  SendMessage ${HWND_BROADCAST} ${WM_WININICHANGE} 0 "STR:Environment" /TIMEOUT=5000
+  ${If} $RdPathEnsure == 1
+    ReadRegStr $RdPrevPath HKCU "Environment" "Path"
+
+    ${If} $RdPrevPath == ""
+      StrCpy $RdNewPath "$INSTDIR"
+    ${Else}
+      ; 用「;目录;」形式判断是否已存在，再做一次替换比较：
+      ; 命中时结果变短，未命中时原样返回。按分号边界匹配，
+      ; 不会把 C:\...\Keyper2 误判成 C:\...\Keyper。
+      StrCpy $1 ";$RdPrevPath;"
+      ${WordReplace} "$1" ";$INSTDIR;" ";" "+" $2
+      ${If} $2 == $1
+        StrCpy $RdNewPath "$RdPrevPath;$INSTDIR"
+      ${Else}
+        StrCpy $RdNewPath "$RdPrevPath"
+      ${EndIf}
+    ${EndIf}
+
+    WriteRegExpandStr HKCU "Environment" "Path" "$RdNewPath"
+    ; 广播环境变更：已打开的「运行」对话框与新开的 cmd 才能立刻识别
+    SendMessage ${HWND_BROADCAST} ${WM_WININICHANGE} 0 "STR:Environment" /TIMEOUT=5000
+  ${EndIf}
 !macroend
 
 ; ---------------------------------------------------------------------------
-; 卸载：移除 PATH 条目与开始菜单快捷方式
+; 卸载：移除快捷方式与 PATH 条目
 ;
 ; 不清理的话，卸载后 PATH 会留一条指向空目录的项目，
 ; 既轻微拖慢命令解析，也让用户以为没卸干净。
 ;
-; 开始菜单快捷方式同理必须在此自理：electron-builder.yml 的
-; createStartMenuShortcut: false 同时关闭了**卸载器**的默认清理
-; （uninstaller.nsh 的 !ifndef DO_NOT_CREATE_START_MENU_SHORTCUT 分支），
-; 自定义勾选创建的链接若不删，卸载后会在开始菜单留下死链接。
-; 用户没勾选安装时 Delete 落空（文件不存在）是幂等无害操作。
+; 快捷方式必须在此自理：electron-builder.yml 把 createDesktopShortcut /
+; createStartMenuShortcut 都设为 false，模板的卸载清理分支
+;（uninstaller.nsh 的 DO_NOT_CREATE_* 判断）会整段跳过。
+; 用户没勾选时 Delete 落空（文件不存在）是幂等无害操作。
 ; ---------------------------------------------------------------------------
 !macro customUnInstall
-  ; 开始菜单快捷方式（安装时勾选创建的那个）
+  WinShell::UninstShortcut "$DESKTOP\${SHORTCUT_NAME}.lnk"
+  Delete "$DESKTOP\${SHORTCUT_NAME}.lnk"
   WinShell::UninstShortcut "$SMPROGRAMS\${SHORTCUT_NAME}.lnk"
   Delete "$SMPROGRAMS\${SHORTCUT_NAME}.lnk"
 
