@@ -498,7 +498,7 @@ KEYPER_DEBUG_LOG=/tmp/rd.log ./Keyper.exe
 | Workflow | Trigger | Content |
 | --- | --- | --- |
 | `.github/workflows/ci.yml` | push (any branch) / PR to master | `npm ci` → `i18n:check` → `typecheck` → `vitest` → `vite build` |
-| `.github/workflows/release.yml` | `v*` tag / manual run | Verifies the tag matches `package.json` → exports `release-notes.md` from the tag annotation → builds NSIS on Windows → uploads the installer, `latest.yml` and blockmaps; a tag publishes the Release, a manual run only builds by default |
+| `.github/workflows/release.yml` | `v*` tag / manual run | Verifies the tag matches `package.json` → exports `release-notes.md` from the tag annotation (one copy at the root, one in `build/`) → builds NSIS on Windows → uploads the installer, `latest.yml` and blockmaps; a tag publishes the Release, a manual run only builds by default |
 
 ### In-app updates
 
@@ -516,10 +516,25 @@ installs automatically when the app quits.
   falls back to the release-page check (it only reports the new version and opens the download page).
 - Publish with `npm run dist:win:publish` (needs `GH_TOKEN`), or push a `v*` tag matching the version
   and let CI build it.
-- Release notes are written exactly once, in the annotated tag body (`git tag -a`). The Release
-  workflow exports it to `release-notes.md` at the project root, and electron-builder reuses that one
-  text for both the GitHub Release body and the `releaseNotes` field of `latest.yml` — which is what
-  the in-app "Check for updates" panel shows. The file is a CI artifact and stays out of git.
+- Release notes are authored exactly once, in the annotated tag body (`git tag -a`). The Release
+  workflow exports that text into two identical `release-notes.md` files, because electron-builder
+  resolves the two readers against different base directories: the copy at the project root becomes
+  the GitHub Release body (`PublishManager.resolveReleaseBody` always reads the root), and the copy in
+  `build/` is embedded as `releaseNotes` in `latest.yml` (the default resource name is only searched
+  under `buildResources`) — that is what the in-app "Check for updates" panel shows. Both are CI
+  artifacts and stay out of git. To ship notes with a local build, generate the root copy from the
+  tag annotation with the same logic the workflow uses, then copy it into `build/`:
+
+  ```bash
+  # by convention the first line of the annotated tag body is the tag name; the command
+  # substitution also drops trailing blank lines, matching exactly what CI gets from gh api
+  notes=$(git for-each-ref refs/tags/v<version> --format='%(contents)' \
+    | tail -n +2 | awk '{ if (NF > 0) p = 1; if (p) print }')
+  printf '%s\n' "$notes" > release-notes.md
+  cp release-notes.md build/release-notes.md
+  ```
+
+  Regenerate both for every release, so an old changelog never rides into a new package.
 - The incremental metadata (`latest.yml` and `*.blockmap`) must be uploaded together with the
   installer, otherwise clients can only download the full package.
 

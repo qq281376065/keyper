@@ -66,10 +66,11 @@ jobs:
           fi
 
       # 发版说明只有一个来源：附注标签的正文（git tag -a 写的那段）。
-      # electron-builder 会自动读取项目根目录的 release-notes.md，
-      # 同一份文案既成为 GitHub Release 正文，也写进 latest.yml 的 releaseNotes，
-      # 客户端「检查更新」面板显示的就是它 —— 不必再手工补正文。
-      # 取不到时只警告、不中断：装包发布比正文完整度重要。
+      # electron-builder 从两个位置各读一次，所以同一份文案要落两个文件：
+      # - 项目根 release-notes.md → GitHub Release 正文（PublishManager 固定读根目录）
+      # - build/release-notes.md → latest.yml 的 releaseNotes（默认资源名只在 buildResources 目录里找）
+      # 客户端「检查更新」面板显示的是后者，不写就会一直是空白。
+      # 取不到附注时只警告、不中断：安装包发布比正文完整度重要。
       - name: Collect release notes from tag annotation
         if: startsWith(github.ref, 'refs/tags/')
         shell: bash
@@ -92,10 +93,13 @@ jobs:
           if [ "$(printf '%s\n' "$notes" | head -n 1)" = "$TAG" ]; then
             notes=$(printf '%s\n' "$notes" | tail -n +2)
           fi
-          # 标签正文第二行往往是空行；客户端更新面板按纯文本显示，开头留白会显得错位
-          notes=$(printf '%s\n' "$notes" | sed -e '/./,$!d')
+          # 标签正文第二行往往是空行；客户端更新面板按纯文本显示，开头留白会显得错位。
+          # 这里用 awk 而不是 sed '/./,$!d'：Windows runner 的 git-bash 会把以 / 开头的
+          # 参数当路径改写，sed 表达式会因此损坏。
+          notes=$(printf '%s\n' "$notes" | awk '{ if (NF > 0) p = 1; if (p) print }')
           printf '%s\n' "$notes" > release-notes.md
-          echo "发版说明 $(wc -l < release-notes.md) 行，取自标签附注"
+          cp release-notes.md build/release-notes.md
+          echo "发版说明 $(wc -l < release-notes.md) 行，取自标签附注（根目录 + build/ 各一份）"
 
       - name: Build and publish (tag)
         if: startsWith(github.ref, 'refs/tags/')

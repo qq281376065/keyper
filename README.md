@@ -419,7 +419,7 @@ KEYPER_DEBUG_LOG=/tmp/rd.log ./Keyper.exe
 | 工作流 | 触发 | 内容 |
 | --- | --- | --- |
 | `.github/workflows/ci.yml` | push（任意分支）/ PR 到 master | `npm ci` → `i18n:check` → `typecheck` → `vitest` → `vite build` |
-| `.github/workflows/release.yml` | 推送 `v*` 标签 / 手动运行 | 校验标签与 `package.json` 版本一致 → 从标签附注导出 `release-notes.md` → Windows 打包 → 上传安装包、`latest.yml` 与 blockmap；标签触发自动发布 Release，手动运行默认只构建 |
+| `.github/workflows/release.yml` | 推送 `v*` 标签 / 手动运行 | 校验标签与 `package.json` 版本一致 → 从标签附注导出 `release-notes.md`（根目录与 `build/` 各一份）→ Windows 打包 → 上传安装包、`latest.yml` 与 blockmap；标签触发自动发布 Release，手动运行默认只构建 |
 
 ### 应用内更新
 
@@ -433,9 +433,23 @@ KEYPER_DEBUG_LOG=/tmp/rd.log ./Keyper.exe
   （目录内放 `latest.yml` 与安装包即可），覆盖打包时写入的配置；
 - 开发态 / 未打包版本没有 `app-update.yml`，自动更新直接跳过，回退到版本页检查（只提示新版本并打开下载页）；
 - 发布：`npm run dist:win:publish`（需 `GH_TOKEN`），或推送与版本号一致的 `v*` 标签由 CI 构建；
-- 发版说明只写一处：附注标签正文（`git tag -a`）由 Release 工作流导出为项目根目录的
-  `release-notes.md`，electron-builder 自动把同一份文案同时用作 GitHub Release 正文与
-  `latest.yml` 的 `releaseNotes`（客户端「检查更新」面板显示的就是它）；该文件是 CI 产物，不入库；
+- 发版说明只写一处：附注标签正文（`git tag -a`）。Release 工作流把它导出成同内容的两份
+  `release-notes.md`，因为 electron-builder 的两次读取走的是不同基准目录：
+  项目根那份成为 GitHub Release 正文（`PublishManager.resolveReleaseBody` 固定读根目录），
+  `build/` 那份写进 `latest.yml` 的 `releaseNotes`（默认资源名只在 `buildResources` 目录里找，
+  客户端「检查更新」面板显示的就是它）。两份都是 CI 产物，不入库；本地打包也要带上说明，
+  先用工作流同款的逻辑从标签附注生成根目录那份，再 `cp release-notes.md build/release-notes.md`：
+
+  ```bash
+  # 约定：附注标签正文的第一行就是标签名。命令替换会顺带去掉结尾空行，
+  # 与 CI 里 gh api 取到的正文完全一致
+  notes=$(git for-each-ref refs/tags/v<版本> --format='%(contents)' \
+    | tail -n +2 | awk '{ if (NF > 0) p = 1; if (p) print }')
+  printf '%s\n' "$notes" > release-notes.md
+  cp release-notes.md build/release-notes.md
+  ```
+
+  换版本时要重新生成，免得上一版的说明被写进新包。
 - 增量元数据（`latest.yml` 与 `*.blockmap`）必须与安装包一同上传，否则客户端只能全量下载。
 
 ---

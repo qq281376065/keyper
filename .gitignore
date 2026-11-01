@@ -38,7 +38,9 @@ design/
 # 官网站点与本地预览服务（本地迭代，不入库）
 site/
 
-# CI 从标签附注生成的发版说明（electron-builder 自动读取，本地跑发布流程时同样会生成）
+# 从标签附注生成的发版说明，不入库。electron-builder 两处都要读：
+# 根目录那份 → GitHub Release 正文；build/ 那份 → latest.yml 的 releaseNotes。
+# 这条模式不带斜杠，因此同时覆盖两个位置。
 release-notes.md
 
 # 开发期脚本整体不入库：探针、复现、测量脚本都在这里。
