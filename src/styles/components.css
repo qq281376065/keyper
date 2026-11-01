@@ -1822,6 +1822,397 @@
 }
 
 
+/* ConnectionTooltip.tsx —— 作用域 .s-connection-tooltip */
+/*
+ * 连接项悬浮面板（方案 C · 身份链路）。
+ *
+ * 浮层 portal 到 body：连接列表是滚动容器，面板挂在里面会被裁切。
+ * pointer-events 关闭 —— 鼠标移出磁贴即隐藏，面板不参与命中测试，
+ * 避免「指针移到面板上算不算离开」造成的闪烁。
+ */
+.s-connection-tooltip.conn-tip-float, .s-connection-tooltip .conn-tip-float{
+  position: fixed;
+  z-index: 60;
+  pointer-events: none;
+  animation: conn-tip-in 0.16s ease-out;
+}
+@keyframes conn-tip-in{
+  from{
+    opacity: 0;
+    transform: translateX(-5px);
+  }
+  to{
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@media (prefers-reduced-motion: reduce){
+  .s-connection-tooltip.conn-tip-float, .s-connection-tooltip .conn-tip-float{
+    animation: none;
+  }
+}
+/*
+ * 指向磁贴的小箭头：旋转 45° 的方块，只露出左半。
+ * 底色取 --bg-elevated —— 箭头落点始终在头带高度内，
+ * 用面板底色会与头带形成一条能看出来的色差。
+ */
+.s-connection-tooltip .conn-tip-caret{
+  position: absolute;
+  z-index: 0;
+  left: -5px;
+  width: 9px;
+  height: 9px;
+  border-left: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  border-radius: 0 0 0 1px;
+  background: var(--bg-elevated);
+  transform: rotate(45deg);
+}
+.s-connection-tooltip .conn-tip-panel{
+  position: relative;
+  z-index: 1;
+  width: 332px;
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow:
+    0 2px 6px rgb(var(--shadow-ink) / 0.12),
+    0 18px 40px -12px rgb(var(--shadow-ink) / 0.38);
+  font-size: var(--fs-md);
+  line-height: 1.45;
+  overflow: hidden;
+}
+/* 引擎色：Redis 取强调色，Memcached 取紫色（与列表里的图形标识同色系） */
+.s-connection-tooltip .conn-tip-panel.engine-redis{
+  --conn-tip-color: var(--accent);
+  --conn-tip-soft: var(--accent-soft);
+}
+.s-connection-tooltip .conn-tip-panel.engine-memcached{
+  --conn-tip-color: color-mix(in srgb, var(--purple) 78%, var(--text-primary));
+  --conn-tip-soft: color-mix(in srgb, var(--purple) 16%, transparent);
+}
+
+/* ---------------------------------------------------------------- 身份头带 */
+.conn-tip-band{
+  padding: 12px 14px 11px;
+  border-bottom: 1px solid var(--border);
+  background:
+    linear-gradient(135deg, var(--conn-tip-soft), transparent 72%),
+    var(--bg-elevated);
+}
+.conn-tip-top{
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.conn-tip-glyph{
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: 9px;
+  background: var(--conn-tip-soft);
+  color: var(--conn-tip-color);
+}
+.conn-tip-id{
+  flex: 1;
+  min-width: 0;
+}
+.conn-tip-name-line{
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+.conn-tip-name{
+  font-size: var(--fs-base);
+  font-weight: 600;
+  line-height: 1.32;
+  overflow-wrap: anywhere;
+}
+.conn-tip-pin{
+  flex: 0 0 auto;
+  margin-top: 3px;
+  color: var(--text-muted);
+}
+.conn-tip-sub{
+  margin-top: 2px;
+  font-size: var(--fs-xs);
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+}
+.conn-tip-top .conn-tip-status{
+  margin-top: 1px;
+}
+
+/* ---------------------------------------------------------------- 状态胶囊 */
+.conn-tip-status{
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 8px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.conn-tip-status-dot{
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: currentColor;
+}
+.conn-tip-status.ok{
+  color: var(--green);
+  background: var(--ok-soft);
+}
+.conn-tip-status.warn{
+  color: var(--amber);
+  background: var(--amber-soft);
+}
+.conn-tip-status.err{
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+.conn-tip-status.muted{
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--bg-hover) 70%, transparent);
+}
+
+/* ---------------------------------------------------------------- 主体 */
+.conn-tip-body{
+  padding: 11px 14px 12px;
+}
+.conn-tip-endpoint{
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 9px;
+  background: var(--bg-elevated);
+}
+.conn-tip-endpoint .k{
+  font-size: var(--fs-2xs);
+  color: var(--text-muted);
+}
+.conn-tip-endpoint .v{
+  margin-top: 1px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-base);
+  overflow-wrap: anywhere;
+}
+
+.conn-tip-chips{
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.conn-tip-endpoint .conn-tip-chips{
+  margin-top: 6px;
+}
+.conn-tip-chip{
+  display: inline-flex;
+  align-items: center;
+  height: 17px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.conn-tip-chip.mono{
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+.conn-tip-chip.accent{
+  background: var(--conn-tip-soft);
+  color: var(--conn-tip-color);
+}
+
+.conn-tip-metrics{
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.conn-tip-metric{
+  min-width: 0;
+  padding: 0 9px;
+  border-left: 1px solid var(--border);
+}
+.conn-tip-metric:first-child{
+  padding-left: 0;
+  border-left: 0;
+}
+.conn-tip-metric .k{
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.conn-tip-metric .v{
+  margin-top: 2px;
+  font-size: var(--fs-base);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.conn-tip-metric .v.mono{
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+.conn-tip-metric .v.ok{
+  color: var(--green);
+}
+.conn-tip-metric .v.dim{
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* ---------------------------------------------------------------- 就近提示 */
+.conn-tip-notice{
+  display: flex;
+  gap: 6px;
+  margin-top: 9px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  text-align: left;
+}
+.conn-tip-notice svg{
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+.conn-tip-notice.danger{
+  color: var(--danger);
+  background: var(--danger-soft);
+  border: 1px solid color-mix(in srgb, var(--danger) 28%, transparent);
+}
+.conn-tip-notice.warn{
+  color: var(--amber);
+  background: var(--amber-soft);
+  border: 1px solid color-mix(in srgb, var(--amber) 30%, transparent);
+}
+.conn-tip-notice .body{
+  min-width: 0;
+}
+.conn-tip-notice .label{
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  opacity: 0.88;
+}
+.conn-tip-notice .text{
+  margin-top: 1px;
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.conn-tip-notice .text.mono{
+  font-family: var(--font-mono);
+}
+
+/* ---------------------------------------------------------------- SSH 链路 */
+.conn-tip-route{
+  margin-top: 9px;
+}
+.conn-tip-route-head{
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+.conn-tip-route-head .r{
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.conn-tip-nodes{
+  margin-top: 4px;
+}
+/*
+ * 节点用绝对定位的竖线串联：最后一项不画线，
+ * 上一项的线从圆点下方一直落到下一项，形成连续链路。
+ */
+.conn-tip-node{
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 20px;
+}
+.conn-tip-node:not(:last-child)::before{
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 16px;
+  bottom: -7px;
+  width: 1px;
+  background: var(--border-strong);
+}
+.conn-tip-node-dot{
+  position: relative;
+  z-index: 1;
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  border: 1.5px solid var(--conn-tip-color);
+  border-radius: 50%;
+  background: var(--bg-panel);
+}
+.conn-tip-node.is-local .conn-tip-node-dot{
+  background: var(--conn-tip-color);
+}
+.conn-tip-node.is-target .conn-tip-node-dot{
+  background: var(--conn-tip-color);
+  box-shadow: 0 0 0 3px var(--conn-tip-soft);
+}
+.conn-tip-node .txt{
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.conn-tip-node .txt.plain{
+  font-family: var(--font-ui);
+  color: var(--text-muted);
+}
+.conn-tip-node .conn-tip-chip{
+  margin-left: auto;
+  flex: 0 0 auto;
+  background: var(--bg-elevated);
+}
+
+/* ---------------------------------------------------------------- 底栏 */
+.conn-tip-foot{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-elevated);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+.conn-tip-foot .r{
+  margin-left: auto;
+  font-family: var(--font-mono);
+}
+
+
 /* CreateKeyDialog.vue —— 作用域 .s-create-key-dialog */
 .s-create-key-dialog.mask, .s-create-key-dialog .mask{
   position: fixed;

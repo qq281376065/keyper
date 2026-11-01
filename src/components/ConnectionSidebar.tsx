@@ -1,5 +1,6 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ConnectionActions } from '@/components/ConnectionActions'
+import { ConnectionTooltip } from '@/components/ConnectionTooltip'
 import { DialogIcon } from '@/components/DialogIcon'
 import { EngineGlyph } from '@/components/EngineGlyph'
 import { tipProps } from '@/components/tip'
@@ -23,6 +24,15 @@ export interface ConnectionSidebarProps {
 
 /** 批量删除入口的显隐门槛：连接数 ≥3 才有批量价值 */
 const BULK_CONN_MIN = 3
+
+/**
+ * 连接项悬浮面板的出现延迟。
+ *
+ * 不做「悬停即显示」：指针从列表顶部移到下方时必然扫过若干磁贴，
+ * 立即弹出会让面板一路追着鼠标闪。350 ms 足够滤掉穿行，
+ * 停留查看时又几乎无感。移出立即隐藏，不需要退场等待。
+ */
+const CONNECTION_TIP_DELAY = 350
 
 /**
  * 左侧连接列表（展开 / 收起两态），含批量删除多选与拖拽排序。
@@ -51,6 +61,42 @@ export function ConnectionSidebar({
   useObservable(holder)
   const [busyId, setBusyId] = useState<string | null>(null)
 
+  /*
+   * 悬浮面板的挂起目标：延迟计时器 + 真正显示时记录的磁贴元素。
+   *
+   * 只存 id 与锚点、不存 conn 快照：连接状态（连接中 → 已连接、
+   * 错误信息出现）会在面板展示期间变化，面板必须跟着实时更新。
+   */
+  const [tipTarget, setTipTarget] = useState<{ id: string; anchor: HTMLElement } | null>(null)
+  const tipTimer = useRef<number | null>(null)
+
+  function clearTipTimer(): void {
+    if (tipTimer.current !== null) {
+      window.clearTimeout(tipTimer.current)
+      tipTimer.current = null
+    }
+  }
+
+  function hideConnectionTip(): void {
+    clearTipTimer()
+    setTipTarget(null)
+  }
+
+  function scheduleConnectionTip(item: ConnectionItem, body: HTMLElement): void {
+    /* 多选态下整行是勾选区，再弹信息面板会干扰选择 */
+    if (bulkMode) return
+    clearTipTimer()
+    /* 锚点取整张磁贴：面板要与卡片右缘保持间距，而不是 conn-body 的内边距 */
+    const anchor = (body.closest('.conn-item') as HTMLElement | null) ?? body
+    tipTimer.current = window.setTimeout(() => {
+      tipTimer.current = null
+      setTipTarget({ id: item.id, anchor })
+    }, CONNECTION_TIP_DELAY)
+  }
+
+  /* 卸载时清掉计时器，避免连接列表切换 / 收起后回调再写状态 */
+  useEffect(() => () => clearTipTimer(), [])
+
   /**
    * 展示顺序：置顶的排前面，同组保持数组先后。
    *
@@ -61,6 +107,11 @@ export function ConnectionSidebar({
   const sortedConnections = [...state.connections].sort(
     (a, b) => Number(b.pinned ?? false) - Number(a.pinned ?? false),
   )
+
+  /* 悬浮面板展示的是实时连接对象；连接被删后自然消失 */
+  const tipConn = tipTarget
+    ? (sortedConnections.find((item) => item.id === tipTarget.id) ?? null)
+    : null
 
   const showBulkBtn = sortedConnections.length >= BULK_CONN_MIN
   const [bulkMode, setBulkMode] = useState(false)
@@ -75,6 +126,8 @@ export function ConnectionSidebar({
   const bulkCandidates = sortedConnections.filter((item) => !item.pinned)
 
   function toggleBulkMode(): void {
+    /* 多选与信息面板互斥：先收起悬停面板，避免标签盖住勾选操作 */
+    hideConnectionTip()
     setBulkMode((prev) => !prev)
     /* 进入即清空上次残留勾选；退出同样清，避免隐式记住旧选择 */
     setBulkChecked(new Set())
@@ -134,6 +187,7 @@ export function ConnectionSidebar({
   function onDragStart(item: ConnectionItem, event: React.DragEvent): void {
     /* 多选模式下拖拽已禁用（draggable=false），此处守卫兜底防误触 */
     if (bulkMode) return
+    hideConnectionTip()
     setDragId(item.id)
     event.dataTransfer?.setData('text/plain', item.id)
     if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
@@ -347,6 +401,8 @@ export function ConnectionSidebar({
                 )}`.trim()}
                 draggable={!bulkMode}
                 onClick={() => {
+                  /* 点击已做出动作（连接 / 切换 / 勾选），面板留着只会挡住结果 */
+                  hideConnectionTip()
                   if (bulkMode) {
                     if (!item.pinned) toggleBulkCheck(item.id)
                   } else {
@@ -372,7 +428,15 @@ export function ConnectionSidebar({
                   </span>
                 ) : null}
                 <span className="rail" />
-                <div className="conn-body">
+                {/*
+                  悬停区只取 conn-body，不含右侧 ⋮：
+                  指针移到操作按钮时应准备开菜单，而不是再弹信息面板。
+                */}
+                <div
+                  className="conn-body"
+                  onMouseEnter={(event) => scheduleConnectionTip(item, event.currentTarget)}
+                  onMouseLeave={hideConnectionTip}
+                >
                   <div className="conn-line">
                     {/*
                       引擎图形放名称行：扫列表时视线不用下移到地址行，
@@ -481,6 +545,15 @@ export function ConnectionSidebar({
               <span className="ellipsis">{state.envLabel}</span>
             </footer>
           )}
+
+          {/* 面板 portal 到 body，挂在 aside 里只是为了跟随展开 / 收起生命周期 */}
+          {tipConn && tipTarget ? (
+            <ConnectionTooltip
+              conn={tipConn}
+              anchor={tipTarget.anchor}
+              active={tipConn.id === state.activeId}
+            />
+          ) : null}
         </>
       )}
     </aside>
