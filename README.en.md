@@ -20,9 +20,32 @@ registering it; no existing code path has to change.
 > shared type contracts and packaging configuration follow that structure; the renderer has been
 > rebuilt around a multi-engine architecture.
 
-Current version: `1.0.10`
+Current version: `1.0.11`
 
-What changed in this release (1.0.9 → 1.0.10):
+What changed in this release (1.0.10 → 1.0.11):
+
+- **Installer rebuilt as a three-step wizard**: install runs "Prepare → Installing →
+  Finish", uninstall runs "Options → Uninstalling → Finish", with a step bar pinned at the
+  top of every page. The Prepare page gathers the environment self-check, the install
+  location (native folder picker) and the shortcut / PATH checkboxes — desktop and Start
+  Menu are on by default, "add to user PATH" is off by default.
+- **Larger wizard window**: the inner page grows from the template's 450×210 to 600×315 and
+  every control is re-laid-out for the new canvas; the step dots and the finish badge are
+  clipped round by the window region plus a glyph, replacing the pre-rendered bitmaps that
+  faked transparency with a filled background.
+- **Uninstall keeps configuration by default**: `config/` is moved to
+  `Keyper-config` next to the install directory and is picked up again on reinstall;
+  it is only deleted when "also delete configuration data" is explicitly ticked on the
+  uninstall options page.
+- **Upgrades reuse the original directory**: when an existing install is detected the
+  location is locked and the kept configuration is reattached, so there are no longer two
+  competing directory pickers.
+- **Connection hover identity panel**: hovering a connection in the list now shows its
+  name, address, engine, SSH tunnel and credential state, replacing the old route through
+  the edit dialog that every check required.
+- **Official site and download links added at the top of the README.**
+
+Previous release (1.0.9 → 1.0.10):
 
 - **Unified transfer dialogs**: import connections / export connections / import from connection
   string now share one `DialogShell`, so dragging, the close button, focus handling and the
@@ -45,7 +68,7 @@ What changed in this release (1.0.9 → 1.0.10):
 - **Extracted shared components**: `Tag`, `InlineNotice`, `SwitchRow` and `EngineTag` replace the
   duplicated status pills, notices, switch rows and engine tags in the transfer dialogs.
 
-Previous release (1.0.8 → 1.0.9):
+Earlier (1.0.8 → 1.0.9):
 
 - **Fixed: copy operations were failing.** The permission hardening denied every permission
   probe, so `navigator.clipboard.writeText` threw `NotAllowedError`, and the
@@ -339,7 +362,7 @@ to zh-CN and zh-TW → call `t('ns.key', { … })` in the source → run `npm ru
 | Redis client | ioredis 5 | TLS / ACL / paged SCAN |
 | In-app updates | electron-updater 6 | Blockmap differential downloads, progress, install on quit |
 | CI / releases | GitHub Actions | Full checks on push / PR; tagged builds for Windows published to Releases |
-| Packaging | electron-builder 25 | Windows NSIS / macOS DMG / Linux AppImage + deb; only three UI locales bundled |
+| Packaging | electron-builder 26 | Windows NSIS / macOS DMG / Linux AppImage + deb; only three UI locales bundled |
 
 ---
 
@@ -420,7 +443,7 @@ npm run dist:win:alt # Build Windows into release/<version>-final (keeps the pre
 npm run dist:win:publish # Build and publish to GitHub Releases (needs GH_TOKEN; version must match the tag)
 ```
 
-Build output lands in `release/<version>/` as `Keyper-1.0.10-win-x64.exe`; the same folder also
+Build output lands in `release/<version>/` as `Keyper-1.0.11-win-x64.exe`; the same folder also
 contains `latest.yml`, `*.blockmap` (differential-update block index) and, inside the install
 directory, `app-update.yml` (the update feed configuration).
 
@@ -501,15 +524,32 @@ installs automatically when the app quits.
 ## Installer (NSIS customization)
 
 The installer is customized by the NSIS scripts under `build/`. `installer.nsh` is the single entry
-point (`nsis.include` in `electron-builder.yml`); it `!include`s the other three:
+point (`nsis.include` in `electron-builder.yml`); it `!include`s the others:
 
 | File | Responsibility |
 | --- | --- |
-| `installer.nsh` | Aggregating entry: mounts hooks, writes and cleans PATH, includes the three below |
-| `installer-env.nsh` | Environment check page: detection logic and nsDialogs UI |
+| `installer.nsh` | Aggregating entry: mounts hooks, writes and cleans PATH, includes the files below |
+| `installer-env.nsh` | Environment detection: Windows build / architecture / disk / directory write probe |
+| `installer-prep.nsh` | Install "Prepare" page: environment cards + install location + shortcut and PATH checkboxes |
+| `installer-finish.nsh` | Install "Finish" page: version, directory, shortcuts, PATH, configuration summary |
+| `installer-uninstall.nsh` | Uninstall "Options" page (keep / delete config) and uninstall "Finish" page |
+| `installer-theme.nsh` | Shared drawing macros: palette, cards, text, region-clipped dots, native buttons |
+| `installer-resize.nsh` | Runtime window growth and shrinkage back to the template (see "Window size") |
 | `installer-upgrade.nsh` | Existing-install detection: upgrade mode reuses the original directory and keeps user data |
-| `installer-config.nsh` | Preserving and cleaning user config (upgrades never delete `config/`) |
-| `icon.ico` / `icon.png` | Application and installer icons (already committed) |
+| `installer-config.nsh` | Preserving and cleaning user config (uninstall moves `config/` away by default) |
+| `icon.ico` / `installerHeader.bmp` | Application icon and wizard header artwork (both committed) |
+
+### The three-step wizard
+
+Install and uninstall both run "Prepare / Options → Progress → Finish", with a step bar pinned at
+the top of every page.
+
+| Scenario | Pages | Notes |
+| --- | --- | --- |
+| Fresh install | Prepare → Installing → Finish | directory is editable (native folder picker); desktop and Start Menu shortcuts are ticked by default, "add to user PATH" is not |
+| Upgrade / reinstall | Prepare (directory locked) → Installing → Finish | reuses the original directory and automatically reattaches `<parent of install dir>\Keyper-config` |
+| Uninstall | Options → Uninstalling → Finish | configuration is kept by default and only removed when deletion is explicitly ticked; Back and Cancel are disabled |
+| `/S` silent | skips every custom page | the old uninstaller invoked by the upgrade always keeps the configuration; any `MessageBox` in the uninstall flow needs `/SD` or `ExecWait` hangs |
 
 ### What the environment check actually does
 
@@ -518,26 +558,47 @@ ioredis and ssh2 are bundled libraries. The main process **never invokes an exte
 the traditional "check VC++ / .NET / Node.js" page would be pure theatre — extra clicks, zero
 protection.
 
-What it checks instead are the conditions that make "installed but won't start" happen. The page
-sits **after directory selection**, where `$INSTDIR` is final and disk and permission probes are
-meaningful:
+What it checks instead are the conditions that make "installed but won't start" happen. The results
+are drawn directly on the Prepare page's environment cards (at that point `$INSTDIR` is final, so
+the disk and permission probes are meaningful):
 
 | Check | Rule | On failure |
 | --- | --- | --- |
-| Windows version | Build ≥ 17763 (Win10 1809) | Warn, user may opt to continue |
+| Windows version | Build ≥ 17763 (Win10 1809) | Card turns red; continuing requires ticking "I understand the risks above and want to continue" |
 | Architecture | x64 required | **Hard stop** |
-| Disk space | ≥ 600 MB | Warn, user may opt to continue |
-| Install directory | Write a probe file and verify | Warn, user may opt to continue |
+| Disk space | ≥ 600 MB | Card turns red; ticking the confirmation is required to continue |
+| Install directory | Write a probe file and verify | Card turns red; ticking the confirmation is required to continue |
+
+Leaving the Prepare page also validates the install location: it must be a full drive-letter or UNC
+path, a trailing separator is trimmed, and picking only a parent directory (`C:\Apps`) appends the
+application subdirectory automatically (`C:\Apps\Keyper`).
+
+### Window size
+
+The NSIS template pins the inner page at 300×140 DLU (450×210 px at 96 dpi), and MUI2 only takes the
+handle to colour it — it never re-lays out the controls. `installer-resize.nsh` grows the canvas at
+runtime to 400×210 DLU (600×315 px) and re-lays out the header, the rule, the footer, the three
+buttons and the in-page controls with it. Two hard constraints:
+
+1. Every mutation must be issued from the **UI thread**. The uninstall section runs on the section
+   thread, where `SetWindowPos` / `SetWindowText` queue until the whole section finishes, so the
+   uninstall progress page instead shrinks back to the template size before the section and grows
+   again on the finish page; the install progress page does get a SHOW callback and grows directly.
+2. The template progress page (instfiles) keeps its controls in a `#32770` child dialog under
+   `$HWNDPARENT`. The discriminator is "that dialog contains a `msctls_progress32` child" — not
+   visibility, and not control IDs, because nsDialogs self-drawn controls are numbered from 1000 too.
 
 ### PATH environment variable
 
-On install the directory is appended to the **current user's** PATH (`HKCU\Environment`) and removed
-on uninstall:
+The directory is written to the **current user's** PATH (`HKCU\Environment`) only when the Prepare
+page checkbox is ticked — it is off by default — and is removed on uninstall:
 
 - `WriteRegExpandStr` keeps the value `REG_EXPAND_SZ`, so `%USERPROFILE%`-style variables are not
   frozen into absolute paths
 - idempotent: reinstalling does not create duplicate entries (verified)
 - uninstall compares by semicolon boundaries, so `Keyper2` is never mistaken for `Keyper`
+- when the directory was already on PATH before an upgrade it is recorded as `RdPathWasPresent`, so
+  the reinstall never drops the entry even if the checkbox is not ticked again
 
 ### Pitfalls (read before editing)
 
@@ -546,10 +607,23 @@ on uninstall:
    `un.`-prefixed functions inside `!ifdef BUILD_UNINSTALLER`. Otherwise you get
    `warning 6010 / 6001 / 6020`, and electron-builder **treats NSIS warnings as errors** — packaging
    fails with nothing but a single `Error output:` line.
-2. **Hook the check page with `customPageAfterChangeDir`**, never `customWelcomePage` (the latter
-   replaces the welcome page and runs before the directory page).
-3. Adding your own `!include "StrContains.nsh"` outside `-D` triggers an unreferenced-symbol warning;
+2. **Every `build/*.nsh` carries a UTF-8 BOM.** The local makensis is the 3.04 ANSI build; without
+   the BOM it reads Chinese comments and copy through the local codepage and produces mojibake.
+3. **The custom page slots are fixed**: the install side uses `customPageAfterChangeDir` (the
+   environment-check / Prepare page) and `customFinishPage` (the finish page), the uninstall side
+   uses `customUnWelcomePage` (the options page) and `customUninstallPage`. The latter expands
+   **after** the template's `MUI_UNPAGE_INSTFILES` and **before** `MUI_UNPAGE_FINISH`, which is what
+   lets it hang a `PRE` + `Abort` on the template finish page to skip it.
+   `MUI_PAGE_CUSTOMFUNCTION_SHOW` is one-shot: the MUI2 page macros `Call` it and then `!undef` it,
+   so it has to be defined before the target page macro expands. On the uninstall side the
+   "install/uninstall for whom" page that immediately precedes the progress page
+   (`PAGE_INSTALL_MODE` in `multiUserUi.nsh`) swallows it first, so the uninstall progress page gets
+   no SHOW hook while the install progress page does (`RdInstFilesShow`).
+4. Adding your own `!include "StrContains.nsh"` outside `-D` triggers an unreferenced-symbol warning;
    build the PATH duplicate check with semicolon-boundary concatenation instead.
+5. Step dots and badges are rounded by **clipping the window region** (a solid STATIC plus a text
+   glyph). Do not go back to pre-rendered BMPs with a filled background pretending to be transparent
+   — GDI bitmaps have no alpha channel, so a different skin or DPI exposes the colour blocks.
 
 ### Icon
 

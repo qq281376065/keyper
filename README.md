@@ -18,9 +18,24 @@
 > 本项目起源于 RedisDesktop（Vue 3 版）的 React 移植；主进程、preload、IPC、
 > shared 类型契约、打包配置沿用其结构，渲染层已按多引擎架构重构。
 
-当前版本：`1.0.10`
+当前版本：`1.0.11`
 
-当前版本变更（1.0.9 → 1.0.10）：
+当前版本变更（1.0.10 → 1.0.11）：
+
+- **安装器重做为三段向导**：安装「准备 → 正在安装 → 完成」，卸载「选项 → 正在卸载 →
+  完成」，页顶常驻步骤条。「准备」页集中环境自检、安装位置（原生按钮选目录）与
+  快捷方式 / PATH 勾选 —— 桌面与开始菜单默认勾选，写入用户 PATH 默认不勾选
+- **向导窗体放大**：内页从模板的 450×210 放大到 600×315 并按新画布重排；步骤圆点
+  与完成徽标改用窗口 region 裁圆 + 文字字形，去掉预渲染位图铺底色冒充透明的做法
+- **卸载默认保留配置**：`config/` 移到安装目录同级的 `Keyper-config`，重装时自动接回；
+  只有在卸载选项页明确勾选「同时删除配置数据」才会清理
+- **升级沿用原目录**：检测到已安装时锁定安装目录并接回保留配置，
+  不再出现两套选目录界面
+- **连接项悬停身份链路面板**：连接列表悬停即显示名称、地址、引擎、SSH 隧道与
+  凭据状态，替代原先必须点进编辑弹窗才能确认的排查路径
+- **README 顶部补官网与下载入口**
+
+上一版（1.0.9 → 1.0.10）：
 
 - **传输弹窗统一**：导入连接 / 导出连接 / 从连接串导入三个弹窗接入同一套
   `DialogShell`，拖拽、关闭按钮、焦点管理与无障碍描述一致；
@@ -41,7 +56,7 @@
 - **公共组件抽取**：新增 `Tag` / `InlineNotice` / `SwitchRow` / `EngineTag`，
   把传输弹窗里重复的状态胶囊、警示条、开关行与引擎标签收敛为单一样式
 
-上一版（1.0.8 → 1.0.9）：
+更早（1.0.8 → 1.0.9）：
 
 - **修复复制功能失效**：权限收紧时一律拒绝权限探测，导致
   `navigator.clipboard.writeText` 抛 `NotAllowedError`，而
@@ -269,7 +284,7 @@ string 值实底行号槽；安装器开始菜单快捷方式勾选页；
 | Redis 客户端 | ioredis 5 | 支持 TLS / ACL / 分页 SCAN |
 | 应用内更新 | electron-updater 6 | blockmap 差分下载、下载进度、退出时自动安装 |
 | CI / 发布 | GitHub Actions | push / PR 全量校验；打标签构建 Windows 安装包并发布 Release |
-| 打包 | electron-builder 25 | Windows NSIS / macOS DMG / Linux AppImage+deb；仅打包 3 个界面语言 |
+| 打包 | electron-builder 26 | Windows NSIS / macOS DMG / Linux AppImage+deb；仅打包 3 个界面语言 |
 
 ---
 
@@ -350,7 +365,7 @@ npm run dist:win:alt # 打包 Windows 到 release/<版本>-final（保留上一�
 npm run dist:win:publish # 打包并发布到 GitHub Releases（需 GH_TOKEN，版本号须与标签一致）
 ```
 
-构建产物落在 `release/<版本>/`，文件名形如 `Keyper-1.0.10-win-x64.exe`；
+构建产物落在 `release/<版本>/`，文件名形如 `Keyper-1.0.11-win-x64.exe`；
 同目录还会生成 `latest.yml`、`*.blockmap`（增量更新分块索引）与打包进安装目录的
 `app-update.yml`（更新源配置）。
 
@@ -425,15 +440,31 @@ KEYPER_DEBUG_LOG=/tmp/rd.log ./Keyper.exe
 ## 安装器（NSIS 定制）
 
 安装包由 `build/` 下的 NSIS 脚本定制。`installer.nsh` 是唯一入口
-（`electron-builder.yml` 的 `nsis.include`），其余三个由它 `!include`：
+（`electron-builder.yml` 的 `nsis.include`），其余脚本由它 `!include`：
 
 | 文件 | 职责 |
 | --- | --- |
-| `installer.nsh` | 汇总入口：挂载钩子、写入/清理 PATH，并 include 下面三个 |
-| `installer-env.nsh` | 环境检查页：检测逻辑、nsDialogs 界面 |
-| `installer-upgrade.nsh` | 已安装检测：升级模式沿用原目录、保留用户数据 |
-| `installer-config.nsh` | 用户配置的保留与清理（升级不会删掉 `config/`） |
-| `icon.ico` / `icon.png` | 应用图标与安装器图标（已入库） |
+| `installer.nsh` | 汇总入口：挂载钩子、写入/清理 PATH，并 include 下面各文件 |
+| `installer-env.nsh` | 环境检测：系统版本 / 位数 / 磁盘 / 目录可写探针 |
+| `installer-prep.nsh` | 安装「准备」页：环境卡片 + 安装位置 + 快捷方式与 PATH 勾选 |
+| `installer-finish.nsh` | 安装「完成」页：版本、目录、快捷方式、PATH、配置摘要 |
+| `installer-uninstall.nsh` | 卸载「选项」页（保留 / 删除配置）与卸载「完成」页 |
+| `installer-theme.nsh` | 共用绘制宏：色板、卡片、文字、region 圆点、原生按钮 |
+| `installer-resize.nsh` | 窗体运行时放大与缩回模板（见「窗体尺寸」） |
+| `installer-upgrade.nsh` | 已安装检测：升级模式沿用原目录、接回用户数据 |
+| `installer-config.nsh` | 配置的保留与清理（卸载默认移走 `config/`） |
+| `icon.ico` / `installerHeader.bmp` | 应用图标与向导头部品牌图（已入库） |
+
+### 三段向导
+
+安装与卸载都是「准备 / 选项 → 进度 → 完成」三步，步骤条常驻页顶。
+
+| 场景 | 页面 | 要点 |
+| --- | --- | --- |
+| 全新安装 | 准备 → 正在安装 → 完成 | 目录可改（原生按钮选文件夹）；桌面与开始菜单默认勾选，写入用户 PATH 默认不勾选 |
+| 升级 / 重装 | 准备（目录锁定）→ 正在安装 → 完成 | 沿用原目录，自动接回 `<安装目录同级>\Keyper-config` |
+| 卸载 | 选项 → 正在卸载 → 完成 | 配置默认保留，只有明确勾选删除才清理；不允许后退与取消 |
+| `/S` 静默 | 跳过全部自定义页 | 升级流程调用旧卸载器时一律保留配置；卸载里的 `MessageBox` 必须带 `/SD`，否则卡死 `ExecWait` |
 
 ### 环境检查做了什么
 
@@ -441,23 +472,40 @@ KEYPER_DEBUG_LOG=/tmp/rd.log ./Keyper.exe
 随包的库，主进程**不调用任何外部程序**。因此传统意义上的「检查 VC++ / .NET / Node.js」
 在这里是无效检查 —— 装一个只看不用的检查页只会增加点击，一个失败案例也拦不住。
 
-实际检测的是会导致「装完打不开」的系统条件，安装页面位于**目录选择之后**（此时
-`$INSTDIR` 已是最终值，磁盘与权限才测得准）：
+实际检测的是会导致「装完打不开」的系统条件，结果直接画在「准备」页的环境卡片上
+（此时 `$INSTDIR` 已是最终值，磁盘与权限才测得准）：
 
 | 检查项 | 判定 | 不通过时 |
 | --- | --- | --- |
-| Windows 版本 | 内部版本 ≥ 17763（Win10 1809） | 提示后可勾选继续 |
+| Windows 版本 | 内部版本 ≥ 17763（Win10 1809） | 卡片标红，需勾选「我了解上述风险，仍然继续安装」 |
 | 系统位数 | 必须 x64 | **硬性中止** |
-| 磁盘空间 | ≥ 600 MB | 提示后可勾选继续 |
-| 安装目录 | 实写探针文件验证 | 提示后可勾选继续 |
+| 磁盘空间 | ≥ 600 MB | 卡片标红，需勾选确认后继续 |
+| 安装目录 | 实写探针文件验证 | 卡片标红，需勾选确认后继续 |
+
+「准备」页离开时还会校验安装位置：必须是盘符或 UNC 完整路径，尾部分隔符自动去掉，
+只选到父目录（`C:\Apps`）时自动补上应用子目录（`C:\Apps\Keyper`）。
+
+### 窗体尺寸
+
+NSIS 模板的内页固定 300×140 DLU（96dpi 下 450×210），MUI2 只取句柄配色、不重排控件。
+`installer-resize.nsh` 在运行时按实测尺寸把画布放大到 400×210 DLU（600×315 px），
+并连带重排头部、分隔线、页脚、三个按钮与页内控件。两条硬约束：
+
+1. 改动必须由 **UI 线程**发出。卸载段跑在段线程，段线程的 `SetWindowPos` /
+   `SetWindowText` 会排队到整段结束才生效，所以卸载进度页改为「进段前缩回模板尺寸、
+   完成页再放大」；安装进度页能拿到 SHOW 回调，直接放大即可。
+2. 模板进度页（instfiles）的控件在 `$HWNDPARENT` 下的一个 `#32770` 子对话框里，
+   判据用「该对话框内存在 `msctls_progress32` 子窗」—— 不能用可见性，
+   也不能用控件 ID（nsDialogs 自绘控件同样从 1000 起编）。
 
 ### PATH 环境变量
 
-安装完成把安装目录写入**当前用户** PATH（`HKCU\Environment`），卸载时移除：
+「准备」页勾选后才把安装目录写入**当前用户** PATH（`HKCU\Environment`），默认不勾选；卸载时移除：
 
 - 用 `WriteRegExpandStr` 写 `REG_EXPAND_SZ`，保留 `%USERPROFILE%` 一类变量不被固化
 - 幂等：重复安装不会产生重复条目（实测验证）
 - 卸载按分号边界逐段比对，不会把 `Keyper2` 误伤成 `Keyper`
+- 升级前 PATH 里已有该目录时记为 `RdPathWasPresent`，即使用户没再勾选也不会被重装过程丢掉
 
 ### 踩过的坑（修改时注意）
 
@@ -465,10 +513,20 @@ KEYPER_DEBUG_LOG=/tmp/rd.log ./Keyper.exe
    `Var` / `Function` 必须包在 `!ifndef BUILD_UNINSTALLER` 里，`un.` 前缀函数必须包在
    `!ifdef BUILD_UNINSTALLER` 里。否则会报 `warning 6010 / 6001 / 6020`，而
    electron-builder **默认把 NSIS 警告当错误**，打包直接失败且报错信息里只有一行 `Error output:`。
-2. **环境检查页用 `customPageAfterChangeDir` 钩子**，不要用 `customWelcomePage`
-   （后者会替代默认欢迎页，且位置在目录页之前）。
-3. 在 `-D` 之外自行 `!include "StrContains.nsh"` 会触发未引用警告，PATH 判重改用
+2. **`build/*.nsh` 一律带 UTF-8 BOM**。本机 makensis 是 3.04 ANSI 版，没有 BOM 会把中文
+   注释与文案按本地码解析成乱码。
+3. **自定义页的槽位是固定的**：安装侧用 `customPageAfterChangeDir`（环境检查/准备页）与
+   `customFinishPage`（完成页），卸载侧用 `customUnWelcomePage`（选项页）与
+   `customUninstallPage`。后者在模板 `MUI_UNPAGE_INSTFILES` **之后**、`MUI_UNPAGE_FINISH`
+   **之前**展开，因此可以用它给模板完成页挂 `PRE` + `Abort` 实现跳页。
+   `MUI_PAGE_CUSTOMFUNCTION_SHOW` 是一次性的：MUI2 的页面宏 `Call` 完就 `!undef`，
+   所以它必须定义在目标页宏展开之前；卸载侧紧跟在进度页前面的「为谁安装/卸载」页
+   （`multiUserUi.nsh` 的 `PAGE_INSTALL_MODE`）会先把它吞掉，卸载进度页拿不到 SHOW 钩子，
+   安装进度页则能正常拿到（`RdInstFilesShow`）。
+4. 在 `-D` 之外自行 `!include "StrContains.nsh"` 会触发未引用警告，PATH 判重改用
    分号边界拼接即可。
+5. 步骤圆点与徽标用**窗口 region 裁圆**（纯色 STATIC + 文字字形），不要再用预渲染 BMP
+   铺底色冒充透明 —— GDI 位图没有 alpha 通道，换皮肤或换 DPI 就会露出色块边。
 
 ### 图标
 
