@@ -24,6 +24,7 @@
     "dev:web": "vite --mode web",
     "preview": "vite preview --port 4173",
     "preview:title": "vite --mode web --open /preview-title.html",
+    "preview:tooltip": "vite --mode web --open /preview-connection-tooltip.html",
     "typecheck": "tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.node.json",
     "test": "vitest run",
     "build": "npm run typecheck && vite build && node scripts/csp-hash.mjs",
