@@ -422,7 +422,7 @@ KEYPER_DEBUG_LOG=/tmp/rd.log ./Keyper.exe
 | 工作流 | 触发 | 内容 |
 | --- | --- | --- |
 | `.github/workflows/ci.yml` | push（任意分支）/ PR 到 master | `npm ci` → `i18n:check` → `typecheck` → `vitest` → `vite build` |
-| `.github/workflows/release.yml` | 推送 `v*` 标签 / 手动运行 | 校验标签与 `package.json` 版本一致 → 从标签附注导出 `release-notes.md`（根目录与 `build/` 各一份）→ Windows 打包 → 上传安装包、`latest.yml` 与 blockmap；标签触发自动发布 Release，手动运行默认只构建 |
+| `.github/workflows/release.yml` | 推送 `v*` 标签 / 手动运行 | 校验标签与 `package.json` 版本一致 → 从标签附注导出 `release-notes.md`（根目录与 `build/` 各一份）→ 清空该标签的 Release 并预建唯一一份 → Windows 打包并由 electron-builder 追加安装包、blockmap 与 `latest.yml` → 逐个校验下载地址；标签触发自动发布 Release，手动运行默认只构建 |
 
 ### 应用内更新
 
@@ -435,7 +435,8 @@ KEYPER_DEBUG_LOG=/tmp/rd.log ./Keyper.exe
   可用环境变量 `KEYPER_UPDATE_URL` 指向内网 / 镜像的 generic 更新源
   （目录内放 `latest.yml` 与安装包即可），覆盖打包时写入的配置；
 - 开发态 / 未打包版本没有 `app-update.yml`，自动更新直接跳过，回退到版本页检查（只提示新版本并打开下载页）；
-- 发布：`npm run dist:win:publish`（需 `GH_TOKEN`），或推送与版本号一致的 `v*` 标签由 CI 构建；
+- 发布走推送与版本号一致的 `v*` 标签，由 CI 建 Release；`npm run dist:win:publish`（需 `GH_TOKEN`）
+  只作应急，并发下容易留下重复 Release；
 - 发版说明只写一处：附注标签正文（`git tag -a`）。Release 工作流把它导出成同内容的两份
   `release-notes.md`，因为 electron-builder 的两次读取走的是不同基准目录：
   项目根那份成为 GitHub Release 正文（`PublishManager.resolveReleaseBody` 固定读根目录），
@@ -453,7 +454,18 @@ KEYPER_DEBUG_LOG=/tmp/rd.log ./Keyper.exe
   ```
 
   换版本时要重新生成，免得上一版的说明被写进新包。
-- 增量元数据（`latest.yml` 与 `*.blockmap`）必须与安装包一同上传，否则客户端只能全量下载。
+- 增量元数据（`latest.yml` 与 `*.blockmap`）必须与安装包一同上传，否则客户端只能全量下载；
+- **一个标签只能挂一个 Release**：electron-builder 为每个待上传文件（安装包 / blockmap / latest.yml）
+  各起一个 publisher，它们并发执行「查 Release，没有就建」，同一标签因此出现两份；而 GitHub 的
+  `releases/download/<标签>/<文件>` 只解析到 id 更小的那份，落在另一份里的 `latest.yml` 与安装包全部
+  404，客户端直接查不到更新（1.0.10、1.0.11 首推即如此）。Release 工作流现在先清空该标签的 Release、
+  预建唯一一份，electron-builder 带 `EP_GH_IGNORE_TIME` 只往里追加资产，发布后再逐个校验下载地址。
+- **同一标签只能有一个 Release**：electron-builder 为每个待上传文件各建一个 publisher，
+  它们并发执行「查 Release，没有就建」，于是同一标签下出现两份 Release；而 GitHub 的
+  `releases/download/<标签>/<文件>` 只解析到 id 更小的那份，落在另一份里的 `latest.yml` 与安装包
+  全部 404，客户端直接查不到更新（1.0.10、1.0.11 首推即如此）。Release 工作流因此先清空该标签
+  的 Release、预建唯一一份，electron-builder 带着 `EP_GH_IGNORE_TIME` 只往里追加资产，
+  发布后再逐个校验三类下载地址；本地 `dist:win:publish` 仍有并发风险，发布统一交给 CI。
 
 ---
 

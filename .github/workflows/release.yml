@@ -101,22 +101,78 @@ jobs:
           cp release-notes.md build/release-notes.md
           echo "发版说明 $(wc -l < release-notes.md) 行，取自标签附注（根目录 + build/ 各一份）"
 
-      - name: Build and publish (tag)
-        if: startsWith(github.ref, 'refs/tags/')
+      # electron-builder 给每个待上传文件（安装包 / blockmap / latest.yml）各建一个 publisher，
+      # 每个 publisher 独立执行「查 Release，没有就建」—— 并发下会各建一份，同一个标签因此挂两个
+      # Release。而 GitHub 的 /releases/download/<标签>/<文件> 只会解析到 id 更小的那一个，
+      # 落在另一份里的 latest.yml 与安装包直接 404，客户端「检查更新」就废了
+      # （1.0.10、1.0.11 首推正是这样：latest.yml 与 exe 都是 404，只有 blockmap 能下）。
+      # 所以先把该标签下的 Release 清干净、只建一份，publisher 之后只会往同一份里追加资产。
+      - name: Prepare a single release for the tag
+        if: ${{ startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.publish) }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./package.json').version")
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            tag="$GITHUB_REF_NAME"
+          else
+            tag="v$version"
+          fi
+          echo "TAG=$tag" >> "$GITHUB_ENV"
+          for id in $(gh api "repos/$GITHUB_REPOSITORY/releases" --jq "[] | .[] | select(.tag_name==\"$tag\") | .id"); do
+            echo "删除同标签的旧 Release $id（连同其资产）"
+            gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/$id"
+          done
+          if [ -f release-notes.md ]; then
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$version" --notes-file release-notes.md
+          else
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$version" --notes "构建提交 $GITHUB_SHA"
+          fi
+
+      - name: Build and publish
+        if: ${{ startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.publish) }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 预建的 Release 就算放超过两小时也要复用；否则 electron-builder 会拒绝追加资产，
+          # 重跑作业时会漏传文件
+          EP_GH_IGNORE_TIME: true
         run: npm run dist:win:publish
 
-      # 手动触发默认只打包验证；勾选 publish 才会上传 Release
-      - name: Build installer (manual)
+      # 手动触发默认只打包验证，不碰 Release
+      - name: Build installer (manual, no publish)
         if: ${{ github.event_name == 'workflow_dispatch' && !inputs.publish }}
         run: npm run dist:win
 
-      - name: Build and publish (manual)
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
+      # 上面那个 404 只有真发一次才测得出来，所以发布后立刻按客户端实际用的下载链接验一遍
+      - name: Verify the release is downloadable
+        if: ${{ startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.publish) }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run dist:win:publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./package.json').version")
+          exe="Keyper-$version-win-x64.exe"
+          base="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG"
+          for f in "latest.yml" "$exe" "$exe.blockmap"; do
+            # GitHub 会 302 到对象存储，必须跟跳转；只看首个响应的状态码会误判
+            code=$(curl -sSL -o /dev/null -w "%{http_code}" "$base/$f")
+            echo "$f -> $code"
+            if [ "$code" != "200" ]; then
+              echo "::error::标签 $TAG 的 $f 下载不到，客户端查不到这个更新"
+              exit 1
+            fi
+          done
+          count=$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq "[] | .[] | select(.tag_name==\"$TAG\") | .id" | wc -l)
+          if [ "$count" != "1" ]; then
+            echo "::error::标签 $TAG 挂着 $count 个 Release，下载路径只会解析到其中一个"
+            exit 1
+          fi
+          if ! curl -sSL "$base/latest.yml" | grep -q "^releaseNotes"; then
+            echo "::warning::latest.yml 里没有 releaseNotes，客户端「检查更新」面板会是空的"
+          fi
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

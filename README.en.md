@@ -503,7 +503,7 @@ KEYPER_DEBUG_LOG=/tmp/rd.log ./Keyper.exe
 | Workflow | Trigger | Content |
 | --- | --- | --- |
 | `.github/workflows/ci.yml` | push (any branch) / PR to master | `npm ci` → `i18n:check` → `typecheck` → `vitest` → `vite build` |
-| `.github/workflows/release.yml` | `v*` tag / manual run | Verifies the tag matches `package.json` → exports `release-notes.md` from the tag annotation (one copy at the root, one in `build/`) → builds NSIS on Windows → uploads the installer, `latest.yml` and blockmaps; a tag publishes the Release, a manual run only builds by default |
+| `.github/workflows/release.yml` | `v*` tag / manual run | Verifies the tag matches `package.json` → exports `release-notes.md` from the tag annotation (one copy at the root, one in `build/`) → deletes the tag's Releases and pre-creates exactly one → builds NSIS on Windows while electron-builder appends the installer, blockmap and `latest.yml` → probes every download URL; a tag publishes the Release, a manual run only builds by default |
 
 ### In-app updates
 
@@ -519,8 +519,9 @@ installs automatically when the app quits.
   generic feed (a directory with `latest.yml` and the installer) and overrides that configuration.
 - Dev and unpackaged builds have no `app-update.yml`, so the in-app updater is skipped and the panel
   falls back to the release-page check (it only reports the new version and opens the download page).
-- Publish with `npm run dist:win:publish` (needs `GH_TOKEN`), or push a `v*` tag matching the version
-  and let CI build it.
+- Publish by pushing a `v*` tag that matches the version and letting CI create the Release;
+  `npm run dist:win:publish` (needs `GH_TOKEN`) is only an escape hatch — run locally it still races
+  and can leave duplicate Releases behind.
 - Release notes are authored exactly once, in the annotated tag body (`git tag -a`). The Release
   workflow exports that text into two identical `release-notes.md` files, because electron-builder
   resolves the two readers against different base directories: the copy at the project root becomes
@@ -542,6 +543,15 @@ installs automatically when the app quits.
   Regenerate both for every release, so an old changelog never rides into a new package.
 - The incremental metadata (`latest.yml` and `*.blockmap`) must be uploaded together with the
   installer, otherwise clients can only download the full package.
+- **One tag may own exactly one Release**: electron-builder creates a publisher per artifact
+  (installer, blockmap, `latest.yml`) and each one concurrently runs "look up the Release, create it
+  if missing", which ends up with two Releases on the same tag. GitHub's
+  `releases/download/<tag>/<file>` route then resolves to the lower Release id, so the `latest.yml`
+  and installer parked in the other Release return 404 and the app simply cannot see the update
+  (that is what happened to the first pushes of 1.0.10 and 1.0.11). The Release workflow therefore
+  clears the tag's Releases and pre-creates a single one, lets electron-builder — with
+  `EP_GH_IGNORE_TIME` — only append assets to it, and afterwards checks every download URL. Local
+  `dist:win:publish` still races, so publishing belongs to CI.
 
 ---
 
