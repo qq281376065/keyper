@@ -503,7 +503,7 @@ KEYPER_DEBUG_LOG=/tmp/rd.log ./Keyper.exe
 | Workflow | Trigger | Content |
 | --- | --- | --- |
 | `.github/workflows/ci.yml` | push (any branch) / PR to master | `npm ci` → `i18n:check` → `typecheck` → `vitest` → `vite build` |
-| `.github/workflows/release.yml` | `v*` tag / manual run | Verifies the tag matches `package.json` → exports `release-notes.md` from the tag annotation (one copy at the root, one in `build/`) → deletes the tag's Releases and pre-creates exactly one → builds NSIS on Windows while electron-builder appends the installer, blockmap and `latest.yml` → probes every download URL; a tag publishes the Release, a manual run only builds by default |
+| `.github/workflows/release.yml` | `v*` tag / manual run | Verifies the tag matches `package.json` → exports `release-notes.md` from the tag annotation (one copy at the root, one in `build/`; a manual run reads the same annotation for `v<version>`) → keeps the tag's Release with the most assets and deletes the rest, creating one only when none exists → builds NSIS on Windows while electron-builder appends the installer, blockmap and `latest.yml` → probes the three download URLs with retries and re-checks the Release count; a tag publishes, a manual run only builds unless `publish` is ticked |
 
 ### In-app updates
 
@@ -519,9 +519,10 @@ installs automatically when the app quits.
   generic feed (a directory with `latest.yml` and the installer) and overrides that configuration.
 - Dev and unpackaged builds have no `app-update.yml`, so the in-app updater is skipped and the panel
   falls back to the release-page check (it only reports the new version and opens the download page).
-- Publish by pushing a `v*` tag that matches the version and letting CI create the Release;
-  `npm run dist:win:publish` (needs `GH_TOKEN`) is only an escape hatch — run locally it still races
-  and can leave duplicate Releases behind.
+- Publish by pushing a `v*` tag that matches the version and letting CI create the Release. To ship
+  the same version again, run the Release workflow manually with `publish` ticked (see the note about
+  deleting tags below). `npm run dist:win:publish` (needs `GH_TOKEN`) is a last-resort escape hatch —
+  run locally it still races and can leave duplicate Releases behind.
 - Release notes are authored exactly once, in the annotated tag body (`git tag -a`). The Release
   workflow exports that text into two identical `release-notes.md` files, because electron-builder
   resolves the two readers against different base directories: the copy at the project root becomes
@@ -549,9 +550,16 @@ installs automatically when the app quits.
   `releases/download/<tag>/<file>` route then resolves to the lower Release id, so the `latest.yml`
   and installer parked in the other Release return 404 and the app simply cannot see the update
   (that is what happened to the first pushes of 1.0.10 and 1.0.11). The Release workflow therefore
-  clears the tag's Releases and pre-creates a single one, lets electron-builder — with
-  `EP_GH_IGNORE_TIME` — only append assets to it, and afterwards checks every download URL. Local
+  keeps the tag's Release with the most assets, deletes the rest, and lets electron-builder — with
+  `EP_GH_IGNORE_TIME` — only append assets to the one that stayed; the three download URLs are then
+  probed with retries, because the route can lag a freshly uploaded asset. Local
   `dist:win:publish` still races, so publishing belongs to CI.
+- **Re-publishing means a manual run, never delete-and-re-push the tag**: deleting a tag also deletes
+  the Release that carries it, and GitHub runs that deletion asynchronously. Observed on 1.0.11 —
+  tag deleted at 12:54, deletion queued, CI uploaded the assets into a fresh Release at 12:58, then
+  the queued deletion removed the whole Release with its assets, leaving only 404s in the check step.
+  A manual run reads the release notes from the same tag annotation, so neither the Release body nor
+  the in-app panel comes out empty.
 
 ---
 

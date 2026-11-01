@@ -14,6 +14,11 @@ on:
 permissions:
   contents: write
 
+# 重发同一个版本用下面 workflow_dispatch 里的 publish 开关，不要用
+# 「删标签再推」：GitHub 删标签会连带删掉该标签的 Release（而且删除任务是异步的）。
+# 1.0.11 实测踩过：12:54 删标签 → 排入删除任务 → CI 在 12:58 把资产传进新 Release →
+# 那个延迟几分钟的删除任务随后把整份 Release 连资产一起删掉，校验步骤只剩 404。
+
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
@@ -72,25 +77,31 @@ jobs:
       # 客户端「检查更新」面板显示的是后者，不写就会一直是空白。
       # 取不到附注时只警告、不中断：安装包发布比正文完整度重要。
       - name: Collect release notes from tag annotation
-        if: startsWith(github.ref, 'refs/tags/')
+        if: ${{ startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.publish) }}
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
-          TAG: ${{ github.ref_name }}
         run: |
-          sha=$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq .object.sha 2>/dev/null || true)
+          # 标签推送用当前标签；手动补发同一版本时用 package.json 推出来的 v<版本>，
+          # 这样 workflow_dispatch 这条路也带得上发版说明，不会发出空正文的 Release
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            tag="$GITHUB_REF_NAME"
+          else
+            tag="v$(node -p "require('./package.json').version")"
+          fi
+          sha=$(gh api "repos/$REPO/git/ref/tags/$tag" --jq .object.sha 2>/dev/null || true)
           notes=""
           if [ -n "$sha" ]; then
             # 附注标签的正文在 tag 对象里；轻量标签会走这里失败，下面按空处理
             notes=$(gh api "repos/$REPO/git/tags/$sha" --jq .message 2>/dev/null || true)
           fi
           if [ -z "$notes" ]; then
-            echo "::warning::无法从标签 $TAG 读取附注正文，Release 正文与客户端更新说明将为空"
+            echo "::warning::无法从标签 $tag 读取附注正文，Release 正文与客户端更新说明将为空"
             exit 0
           fi
           # 正文首行通常就是标签名本身，Release 页面已有标题，去掉它
-          if [ "$(printf '%s\n' "$notes" | head -n 1)" = "$TAG" ]; then
+          if [ "$(printf '%s\n' "$notes" | head -n 1)" = "$tag" ]; then
             notes=$(printf '%s\n' "$notes" | tail -n +2)
           fi
           # 标签正文第二行往往是空行；客户端更新面板按纯文本显示，开头留白会显得错位。
@@ -191,20 +202,31 @@ jobs:
           version=$(node -p "require('./package.json').version")
           exe="Keyper-$version-win-x64.exe"
           base="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG"
+          # 资产刚传完时 GitHub 的下载路由可能还没同步完，先重试再判失败
+          probe() {
+            for attempt in 1 2 3 4 5; do
+              code=$(curl -sIL -o /dev/null -m 60 -w "%{http_code}" "$1")
+              if [ "$code" = "200" ]; then
+                echo "$2 -> 200"
+                return 0
+              fi
+              echo "$2 -> $code（第 $attempt 次）"
+              sleep 20
+            done
+            echo "::error::标签 $TAG 的 $2 下载不到，客户端查不到这个更新"
+            return 1
+          }
           for f in "latest.yml" "$exe" "$exe.blockmap"; do
             # 用 HEAD 探状态，别把 81MB 的安装包再下一遍；GitHub 会 302 到对象存储，必须跟跳转
-            code=$(curl -sIL -o /dev/null -m 60 -w "%{http_code}" "$base/$f")
-            echo "$f -> $code"
-            if [ "$code" != "200" ]; then
-              echo "::error::标签 $TAG 的 $f 下载不到，客户端查不到这个更新"
-              exit 1
-            fi
+            probe "$base/$f" "$f" || exit 1
           done
           count=$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq "[] | .[] | select(.tag_name==\"$TAG\") | .id" | wc -l)
           if [ "$count" != "1" ]; then
             echo "::error::标签 $TAG 挂着 $count 个 Release，下载路径只会解析到其中一个"
             exit 1
           fi
+          # 最终状态也写成注解，以后排查不用去要管理员才看得到的日志
+          echo "::notice::$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" --jq '"\(.tag_name): id=\(.id) 资产=\([.assets[].name] | join(", "))"')"
           if ! curl -sSL "$base/latest.yml" | grep -q "^releaseNotes"; then
             echo "::warning::latest.yml 里没有 releaseNotes，客户端「检查更新」面板会是空的"
           fi
