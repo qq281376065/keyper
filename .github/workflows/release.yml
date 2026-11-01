@@ -103,17 +103,19 @@ jobs:
 
       # electron-builder 给每个待上传文件（安装包 / blockmap / latest.yml）各建一个 publisher，
       # 每个 publisher 独立执行「查 Release，没有就建」—— 并发下会各建一份，同一个标签因此挂两个
-      # Release。而 GitHub 的 /releases/download/<标签>/<文件> 只会解析到 id 更小的那一个，
-      # 落在另一份里的 latest.yml 与安装包直接 404，客户端「检查更新」就废了
-      # （1.0.10、1.0.11 首推正是这样：latest.yml 与 exe 都是 404，只有 blockmap 能下）。
-      # 所以先把该标签下的 Release 清干净、只建一份，publisher 之后只会往同一份里追加资产。
+      # Release。而 GitHub 的 /releases/download/<标签>/<文件> 只会解析到其中一个，落在另一份里的
+      # latest.yml 与安装包直接 404，客户端「检查更新」就废了（1.0.10、1.0.11 首推正是这样：
+      # latest.yml 与 exe 都是 404，只有 blockmap 能下）。
+      # 这里保留资产最全的那份、删掉其余，一份都没有时才新建；electron-builder 只负责往留下的
+      # 那份里补齐资产。日志只有仓库管理员能看，所以每一步都把结论写成注解（::notice:: / ::error::），
+      # 出问题时用 check-runs/{job}/annotations 就能看到细节。
       - name: Prepare a single release for the tag
         if: ${{ startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.publish) }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
           version=$(node -p "require('./package.json').version")
           if [[ "$GITHUB_REF" == refs/tags/* ]]; then
             tag="$GITHUB_REF_NAME"
@@ -121,14 +123,47 @@ jobs:
             tag="v$version"
           fi
           echo "TAG=$tag" >> "$GITHUB_ENV"
-          for id in $(gh api "repos/$GITHUB_REPOSITORY/releases" --jq "[] | .[] | select(.tag_name==\"$tag\") | .id"); do
-            echo "删除同标签的旧 Release $id（连同其资产）"
-            gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/$id"
-          done
-          if [ -f release-notes.md ]; then
-            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$version" --notes-file release-notes.md
+
+          ids=$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq "[.[] | select(.tag_name==\"$tag\")] | .[].id")
+          if [ -z "$ids" ]; then
+            # 查询失败与「确实没有」都返回空，用总数区分一下
+            total=$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq "length" 2>&1)
+            if [[ "$total" =~ ^[0-9]+$ ]]; then
+              echo "::notice::标签 $tag 还没有 Release"
+            else
+              echo "::error::查询 Release 列表失败：$(echo "$total" | tr '\n' ' ')"
+              exit 1
+            fi
           else
-            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$version" --notes "构建提交 $GITHUB_SHA"
+            echo "::notice::标签 $tag 现有 Release：$(echo "$ids" | tr '\n' ' ')（保留资产最全的一份）"
+            keep=$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq "[.[] | select(.tag_name==\"$tag\")] | max_by(.assets | length) | .id")
+            for id in $ids; do
+              if [ "$id" = "$keep" ]; then
+                count=$(gh api "repos/$GITHUB_REPOSITORY/releases/$id" --jq ".assets | length")
+                echo "::notice::保留 Release $id，已有 $count 个资产，缺的由 electron-builder 补"
+                continue
+              fi
+              if ! out=$(gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/$id" 2>&1); then
+                echo "::error::删除 Release $id 失败：$(echo "$out" | tr '\n' ' ')"
+                exit 1
+              fi
+              echo "已删除 Release $id"
+            done
+          fi
+
+          rest=$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq "[.[] | select(.tag_name==\"$tag\")] | length")
+          if [ -z "$rest" ]; then
+            echo "::error::查询标签 $tag 的 Release 数量失败"
+            exit 1
+          fi
+          if [ "$rest" = "0" ]; then
+            notes_args=(--notes "构建提交 $GITHUB_SHA")
+            [ -f release-notes.md ] && notes_args=(--notes-file release-notes.md)
+            if ! out=$(gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$version" "${notes_args[@]}" 2>&1); then
+              echo "::error::创建 Release $tag 失败：$(echo "$out" | tr '\n' ' ')"
+              exit 1
+            fi
+            echo "::notice::已新建 Release $tag"
           fi
 
       - name: Build and publish
@@ -157,8 +192,8 @@ jobs:
           exe="Keyper-$version-win-x64.exe"
           base="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG"
           for f in "latest.yml" "$exe" "$exe.blockmap"; do
-            # GitHub 会 302 到对象存储，必须跟跳转；只看首个响应的状态码会误判
-            code=$(curl -sSL -o /dev/null -w "%{http_code}" "$base/$f")
+            # 用 HEAD 探状态，别把 81MB 的安装包再下一遍；GitHub 会 302 到对象存储，必须跟跳转
+            code=$(curl -sIL -o /dev/null -m 60 -w "%{http_code}" "$base/$f")
             echo "$f -> $code"
             if [ "$code" != "200" ]; then
               echo "::error::标签 $TAG 的 $f 下载不到，客户端查不到这个更新"
