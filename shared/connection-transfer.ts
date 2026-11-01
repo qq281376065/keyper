@@ -281,6 +281,37 @@ function normalizeConfig(raw: unknown, index: number): CacheConnectionConfig {
   }
 }
 
+/**
+ * 校验一组配置条目。
+ *
+ * 传输文件与 URI 批量导入共用：两条路径都接收渲染层传来的任意对象，
+ * 必须走同一套字段白名单，避免 URI 路径绕过传输格式的校验规则。
+ */
+export function validateConnectionEntries(entries: unknown[]): {
+  configs: CacheConnectionConfig[]
+  issues: ConnectionImportIssue[]
+} {
+  const configs: CacheConnectionConfig[] = []
+  const issues: ConnectionImportIssue[] = []
+  const seenIds = new Set<string>()
+
+  entries.forEach((entry, index) => {
+    try {
+      const config = normalizeConfig(entry, index)
+      if (seenIds.has(config.id)) throw new ItemError(t('connectionTransfer.duplicateId'))
+      seenIds.add(config.id)
+      configs.push(config)
+    } catch (error) {
+      issues.push({
+        index,
+        message: error instanceof Error ? error.message : String(error),
+      })
+    }
+  })
+
+  return { configs, issues }
+}
+
 /** 与导出互逆：把文件文本解析成配置列表；文件级错误直接抛，条目级错误进 issues */
 export function parseTransferText(raw: string): ParsedTransfer {
   const textWithoutBom = raw.replace(/^\uFEFF/, '')
@@ -317,23 +348,7 @@ export function parseTransferText(raw: string): ParsedTransfer {
     )
   }
 
-  const configs: CacheConnectionConfig[] = []
-  const issues: ConnectionImportIssue[] = []
-  const seenIds = new Set<string>()
-
-  file.connections.forEach((entry, index) => {
-    try {
-      const config = normalizeConfig(entry, index)
-      if (seenIds.has(config.id)) throw new ItemError(t('connectionTransfer.duplicateId'))
-      seenIds.add(config.id)
-      configs.push(config)
-    } catch (error) {
-      issues.push({
-        index,
-        message: error instanceof Error ? error.message : String(error),
-      })
-    }
-  })
+  const { configs, issues } = validateConnectionEntries(file.connections)
 
   return {
     formatVersion: version,

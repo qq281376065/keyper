@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { api } from '@/api'
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
+import { DialogShell } from '@/components/DialogShell'
 import { DialogIcon } from '@/components/DialogIcon'
 import { EngineGlyph } from '@/components/EngineGlyph'
-import { useDialogDrag } from '@/hooks/useDialogDrag'
+import { InlineNotice } from '@/components/InlineNotice'
+import { SwitchRow } from '@/components/SwitchRow'
+import { Tag } from '@/components/Tag'
 import { useRedis } from '@/store/useRedis'
-import { engineMeta } from '@/utils/engine'
 import { useI18n } from '@/i18n'
 import type { ConnectionImportPreview, ConnectionImportPreviewItem } from '@shared/types'
 
@@ -38,7 +38,6 @@ function credentialTags(item: ConnectionImportPreviewItem): string[] {
  * 不会重建内存里的客户端，界面显示新地址、会话仍连旧实例。
  */
 export function ImportConnectionsDialog({ onClose }: ImportConnectionsDialogProps) {
-  const { style, onDragStart } = useDialogDrag()
   const { t, locale } = useI18n()
   const { notify, applyImportedConnections } = useRedis()
 
@@ -133,7 +132,7 @@ export function ImportConnectionsDialog({ onClose }: ImportConnectionsDialogProp
   const hasIdConflict = !!preview?.items.some((item) => item.conflict === 'id')
   const exportedAt = formatExportedAt(preview?.exportedAt, locale)
 
-  function renderItem(item: ConnectionImportPreviewItem): React.ReactNode {
+  function renderItem(item: ConnectionImportPreviewItem): ReactNode {
     const tags = credentialTags(item)
     return (
       <div key={item.index} className={`transfer-item${item.connected ? ' is-skipped' : ''}`}>
@@ -151,21 +150,25 @@ export function ImportConnectionsDialog({ onClose }: ImportConnectionsDialogProp
         </div>
         <div className="transfer-item-tags">
           {tags.map((tag) => (
-            <span key={tag} className="transfer-tag cred">
-              {t(tag === 'password' ? 'connectionTransfer.passwordIncluded' : 'connectionTransfer.sshCredentialIncluded')}
-            </span>
+            <Tag key={tag} tone="accent">
+              {t(
+                tag === 'password'
+                  ? 'connectionTransfer.passwordIncluded'
+                  : 'connectionTransfer.sshCredentialIncluded',
+              )}
+            </Tag>
           ))}
           {!tags.length ? (
-            <span className="transfer-tag muted">{t('connectionTransfer.noCredentials')}</span>
+            <Tag tone="neutral">{t('connectionTransfer.noCredentials')}</Tag>
           ) : null}
           {item.connected ? (
-            <span className="transfer-tag danger">{t('connectionTransfer.connectedSkip')}</span>
+            <Tag tone="danger">{t('connectionTransfer.connectedSkip')}</Tag>
           ) : item.conflict === 'id' ? (
-            <span className="transfer-tag warn">{t('connectionTransfer.conflictId')}</span>
+            <Tag tone="warn">{t('connectionTransfer.conflictId')}</Tag>
           ) : item.conflict === 'name' ? (
-            <span className="transfer-tag warn">{t('connectionTransfer.conflictName')}</span>
+            <Tag tone="warn">{t('connectionTransfer.conflictName')}</Tag>
           ) : (
-            <span className="transfer-tag muted">{t('connectionTransfer.newBadge')}</span>
+            <Tag tone="neutral">{t('connectionTransfer.newBadge')}</Tag>
           )}
         </div>
       </div>
@@ -173,152 +176,119 @@ export function ImportConnectionsDialog({ onClose }: ImportConnectionsDialogProp
   }
 
   return (
-    <Dialog open onOpenChange={(next) => (!next ? closeDialog() : undefined)}>
-      <DialogContent
-        className="dialog dlg transfer-dialog"
-        style={style}
-        showCloseButton={false}
-        onPointerDownOutside={(event) => event.preventDefault()}
-      >
-        <div className="dlg-shell">
-          <header className="dlg-head" onMouseDown={onDragStart}>
-            <div className="dlg-head-main">
-              <div className="dlg-head-top">
-                <span className="dlg-head-icon">
-                  <DialogIcon name="import" size={15} />
-                </span>
-                <DialogTitle className="dlg-title">{t('connectionTransfer.importTitle')}</DialogTitle>
-              </div>
-              <DialogDescription className="dlg-sub">{t('connectionTransfer.importSubtitle')}</DialogDescription>
-            </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="dlg-close"
-              aria-label={t('common.close')}
-              onClick={closeDialog}
-            >
-              <DialogIcon name="cancel" size={13} />
+    <DialogShell
+      icon="import"
+      title={t('connectionTransfer.importTitle')}
+      description={t('connectionTransfer.importSubtitle')}
+      className="transfer-dialog"
+      onClose={closeDialog}
+      footer={
+        <>
+          <span className="spacer" />
+          <Button type="button" variant="ghost" className="foot-btn foot-quiet" onClick={closeDialog}>
+            <DialogIcon name="cancel" size={13} />
+            {t('common.cancel')}
+          </Button>
+          {error ? (
+            <Button type="button" className="foot-btn foot-primary" onClick={() => void pickFile()}>
+              <DialogIcon name="folder-open" size={13} />
+              {t('connectionTransfer.chooseAnotherFile')}
             </Button>
-          </header>
-
-          <div className="dlg-body">
-            {loading ? (
-              <p className="transfer-loading">
-                <DialogIcon name="refresh" size={14} />
-                {t('connectionTransfer.readingFile')}
-              </p>
-            ) : error ? (
-              <p className="transfer-warn is-error">
-                <DialogIcon name="warning" size={13} />
-                <span>{error}</span>
-              </p>
-            ) : preview ? (
-              <>
-                <div className="transfer-file">
-                  <DialogIcon name="document" size={13} />
-                  <span className="mono ellipsis">{preview.fileName}</span>
-                  <span className={`transfer-tag ${preview.includesCredentials ? 'warn' : 'muted'}`}>
-                    {t(
-                      preview.includesCredentials
-                        ? 'connectionTransfer.fileHasCredentials'
-                        : 'connectionTransfer.fileNoCredentials',
-                    )}
-                  </span>
-                </div>
-
-                <div className="transfer-meta">
-                  <span>{t('connectionTransfer.validOfTotal', { valid: preview.valid, total: preview.total })}</span>
-                  {exportedAt ? (
-                    <span>
-                      {t('connectionTransfer.exportedFrom', { date: exportedAt })}
-                      {preview.appVersion ? ` · v${preview.appVersion}` : ''}
-                    </span>
-                  ) : null}
-                </div>
-
-                {preview.items.length ? (
-                  <div className="transfer-list">{preview.items.map(renderItem)}</div>
-                ) : (
-                  <p className="transfer-warn">
-                    <DialogIcon name="warning" size={13} />
-                    <span>{t('connectionTransfer.noValidEntries')}</span>
-                  </p>
+          ) : null}
+          {preview ? (
+            <>
+              <Button
+                type="button"
+                variant="secondary"
+                className="foot-btn"
+                disabled={applying}
+                onClick={() => void pickFile(true)}
+              >
+                <DialogIcon name="folder-open" size={13} />
+                {t('connectionTransfer.pickDifferentFile')}
+              </Button>
+              <Button
+                type="button"
+                className="foot-btn foot-primary"
+                disabled={!preview.valid || applying}
+                onClick={() => void handleApply()}
+              >
+                <DialogIcon name="import" size={13} />
+                {applying
+                  ? t('connectionTransfer.importing')
+                  : t('connectionTransfer.importApplyCount', { count: preview.valid })}
+              </Button>
+            </>
+          ) : null}
+        </>
+      }
+    >
+      {loading ? (
+        <p className="transfer-loading">
+          <DialogIcon name="refresh" size={14} />
+          {t('connectionTransfer.readingFile')}
+        </p>
+      ) : error ? (
+        <InlineNotice tone="danger">{error}</InlineNotice>
+      ) : preview ? (
+        <>
+          <div className="transfer-source">
+            <div className="transfer-file">
+              <DialogIcon name="document" size={13} />
+              <span className="mono ellipsis">{preview.fileName}</span>
+              <Tag tone={preview.includesCredentials ? 'warn' : 'neutral'}>
+                {t(
+                  preview.includesCredentials
+                    ? 'connectionTransfer.fileHasCredentials'
+                    : 'connectionTransfer.fileNoCredentials',
                 )}
+              </Tag>
+            </div>
 
-                {preview.issues.length ? (
-                  <div className="transfer-issues">
-                    <div className="transfer-issues-head">
-                      {t('connectionTransfer.invalidEntries', { count: preview.issues.length })}
-                    </div>
-                    {preview.issues.map((issue) => (
-                      <div className="transfer-issue" key={issue.index}>
-                        <span className="transfer-issue-index mono">
-                          {t('connectionTransfer.entryNumber', { index: issue.index + 1 })}
-                        </span>
-                        <span>{issue.message}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-
-                {hasIdConflict ? (
-                  <div className="transfer-toggle">
-                    <span className="transfer-toggle-text">
-                      <span className="transfer-toggle-title">{t('connectionTransfer.overwriteExisting')}</span>
-                      <span className="transfer-toggle-hint">{t('connectionTransfer.overwriteHint')}</span>
-                    </span>
-                    <Switch
-                      checked={overwrite}
-                      onCheckedChange={setOverwrite}
-                      aria-label={t('connectionTransfer.overwriteExisting')}
-                    />
-                  </div>
-                ) : null}
-              </>
-            ) : null}
+            <div className="transfer-meta">
+              <span>{t('connectionTransfer.validOfTotal', { valid: preview.valid, total: preview.total })}</span>
+              {exportedAt ? (
+                <span>
+                  {t('connectionTransfer.exportedFrom', { date: exportedAt })}
+                  {preview.appVersion ? ` · v${preview.appVersion}` : ''}
+                </span>
+              ) : null}
+            </div>
           </div>
 
-          <footer className="dlg-foot">
-            <span className="spacer" />
-            <Button type="button" variant="ghost" className="foot-btn foot-quiet" onClick={closeDialog}>
-              <DialogIcon name="cancel" size={13} />
-              {t('common.cancel')}
-            </Button>
-            {error ? (
-              <Button type="button" className="foot-btn foot-primary" onClick={() => void pickFile()}>
-                <DialogIcon name="folder-open" size={13} />
-                {t('connectionTransfer.chooseAnotherFile')}
-              </Button>
-            ) : null}
-            {preview ? (
-              <>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="foot-btn"
-                  disabled={applying}
-                  onClick={() => void pickFile(true)}
-                >
-                  <DialogIcon name="folder-open" size={13} />
-                  {t('connectionTransfer.pickDifferentFile')}
-                </Button>
-                <Button
-                  type="button"
-                  className="foot-btn foot-primary"
-                  disabled={!preview.valid || applying}
-                  onClick={() => void handleApply()}
-                >
-                  <DialogIcon name="import" size={13} />
-                  {applying ? t('connectionTransfer.importing') : t('connectionTransfer.importApplyCount', { count: preview.valid })}
-                </Button>
-              </>
-            ) : null}
-          </footer>
-        </div>
-      </DialogContent>
-    </Dialog>
+          {preview.items.length ? (
+            <div className="transfer-list">{preview.items.map(renderItem)}</div>
+          ) : (
+            <InlineNotice tone="warn">{t('connectionTransfer.noValidEntries')}</InlineNotice>
+          )}
+
+          {preview.issues.length ? (
+            <div className="transfer-issues" role="status">
+              <div className="transfer-issues-head">
+                {t('connectionTransfer.invalidEntries', { count: preview.issues.length })}
+              </div>
+              {preview.issues.map((issue) => (
+                <div className="transfer-issue" key={issue.index}>
+                  <span className="transfer-issue-index mono">
+                    {t('connectionTransfer.entryNumber', { index: issue.index + 1 })}
+                  </span>
+                  <span>{issue.message}</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {hasIdConflict ? (
+            <SwitchRow
+              title={t('connectionTransfer.overwriteExisting')}
+              hint={t('connectionTransfer.overwriteHint')}
+              checked={overwrite}
+              onCheckedChange={setOverwrite}
+            />
+          ) : null}
+        </>
+      ) : null}
+    </DialogShell>
   )
 }
 

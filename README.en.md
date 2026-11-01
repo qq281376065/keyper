@@ -95,8 +95,8 @@ Previous release (1.0.7 → 1.0.8):
   (en-US / zh-CN / zh-TW), and renderer dependencies moved to devDependencies so asar contains only
   production dependencies. The installer drops from 84.0 MB to 75.4 MB (-10.3%) and app.asar from
   18.9 MiB to 3.7 MiB.
-- **Connection import/export**: the sidebar ⋯ menu and the home page's "Import from connection
-  string" share one set of entry points. Export writes a format-tagged JSON profile (both engines
+- **Connection import/export**: the sidebar-header import/export button (transfer icon) and the home
+  page's "Import from connection string" share the same dialogs. Export writes a format-tagged JSON profile (both engines
   plus multi-hop SSH, credentials stripped by default with an explicit opt-in and confirmation).
   Import shows a per-entry preview first (conflicts / connected / invalid entries / credential
   badges), creates new IDs by default, can overwrite by ID while skipping connected entries, and
@@ -259,7 +259,7 @@ feature tour on the home page; vitest unit tests.
 | `src/store/global.ts` | Connection management, tabs, snapshot restore |
 | `src/store/useRedis.ts` | Context wrapper: a Context inside the tab tree, an active-session proxy outside it |
 | `src/hooks/` | Settings, theme, search history, dialog dragging, six value-type editors (`valueEditor/`) |
-| `src/components/` | 53 UI components (`.tsx`) + `ui/` primitives + `components.css` |
+| `src/components/` | 59 UI components (`.tsx`) + `ui/` primitives + `components.css` |
 
 ---
 
@@ -386,7 +386,7 @@ npm run dev:web      # Browser-only renderer debugging: Vite only, no Electron b
 npm run preview      # Preview the built output (http://127.0.0.1:4173)
 npm run preview:title # Preview the animated title page in a browser
 npm run typecheck    # Type checking (main process + renderer)
-npm run test         # vitest unit tests (tests/unit, 16 specs)
+npm run test         # vitest unit tests (tests/unit, 17 specs)
 npm run i18n:check   # Validate the three dictionaries: key sets, placeholders, source references
 npm run build        # Type check + build into dist/ and dist-electron/
 npm run dist         # Package for the current platform
@@ -971,9 +971,9 @@ semantic colour tokens that follow all nine skins. Supports SSH tunnels and mult
   zset, with initial content and an optional TTL; on success the ancestor path expands and the new key
   is selected.
   Container types require at least one element (a Redis container key only exists once it has one).
-- **Connection import/export (JSON)**: the sidebar-header ⋯ menu offers "Import connections…", "Export
-  connections…" and "Import from connection string…", and the home page's "Import from connection
-  string" button reuses the same dialog. Transfer files carry their own header,
+- **Connection import/export (JSON)**: the sidebar-header import/export button (transfer icon) opens a
+  menu with "Import connections…", "Export connections…" and "Import from connection string…", and the
+  home page's "Import from connection string" button reuses the same dialog. Transfer files carry their own header,
   `{ format: "keyper.connections", version: 1, exportedAt, appVersion, includesCredentials }`, and
   cover Redis / Memcached plus multi-hop SSH settings; export is always exhaustive in v1, with no
   per-connection selection. They are deliberately separate from the internal `connections.json`
@@ -983,7 +983,8 @@ semantic colour tokens that follow all nine skins. Supports SSH tunnels and mult
   - **Credentials are excluded by default**: Redis passwords and SSH passwords / private keys /
     passphrases are stripped unless "include credentials" is ticked, which requires a second
     confirmation and states plainly that the file will hold plaintext. Entries are built from a field
-    allowlist, so runtime fields such as `pinned` and `credentialError` never reach disk. A saved but
+    allowlist: `pinned` stays in the internal config but is not written to transfer files, and
+    `credentialError` is runtime-only; neither is exported. A saved but
     temporarily disabled tunnel is written as `sshEnabled: false`, so the importing side does not
     re-enable it just because an `ssh` block exists.
   - **Import preview**: before applying, every entry shows its engine, address, database / TLS / SSH

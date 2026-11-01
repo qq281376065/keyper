@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { api } from '@/api'
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
+import { DialogShell } from '@/components/DialogShell'
 import { DialogIcon } from '@/components/DialogIcon'
-import { useDialogDrag } from '@/hooks/useDialogDrag'
+import { EngineTag } from '@/components/EngineTag'
+import { InlineNotice } from '@/components/InlineNotice'
+import { SwitchRow } from '@/components/SwitchRow'
 import { useRedis } from '@/store/useRedis'
 import { useI18n } from '@/i18n'
+import { TRANSFER_FORMAT, TRANSFER_VERSION } from '@shared/connection-transfer'
 
 export interface ExportConnectionsDialogProps {
   onClose: () => void
@@ -19,13 +21,14 @@ export interface ExportConnectionsDialogProps {
  * 勾选后仍要过一次 force 确认，把「明文保存」这件事说清楚再落盘。
  */
 export function ExportConnectionsDialog({ onClose }: ExportConnectionsDialogProps) {
-  const { style, onDragStart } = useDialogDrag()
   const { t } = useI18n()
   const { state, askConfirm, notify } = useRedis()
   const [includeCredentials, setIncludeCredentials] = useState(false)
   const [busy, setBusy] = useState(false)
 
   const total = state.connections.length
+  const redisCount = state.connections.filter((item) => item.engine !== 'memcached').length
+  const memcachedCount = total - redisCount
 
   async function handleExport(): Promise<void> {
     if (!total || busy) return
@@ -66,80 +69,86 @@ export function ExportConnectionsDialog({ onClose }: ExportConnectionsDialogProp
   }
 
   return (
-    <Dialog open onOpenChange={(next) => (!next ? onClose() : undefined)}>
-      <DialogContent
-        className="dialog dlg transfer-dialog"
-        style={style}
-        showCloseButton={false}
-        onPointerDownOutside={(event) => event.preventDefault()}
-      >
-        <div className="dlg-shell">
-          <header className="dlg-head" onMouseDown={onDragStart}>
-            <div className="dlg-head-main">
-              <div className="dlg-head-top">
-                <span className="dlg-head-icon">
-                  <DialogIcon name="export" size={15} />
-                </span>
-                <DialogTitle className="dlg-title">{t('connectionTransfer.exportTitle')}</DialogTitle>
-              </div>
-              <DialogDescription className="dlg-sub">{t('connectionTransfer.exportSubtitle')}</DialogDescription>
-            </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="dlg-close"
-              aria-label={t('common.close')}
-              onClick={onClose}
-            >
-              <DialogIcon name="cancel" size={13} />
-            </Button>
-          </header>
-
-          <div className="dlg-body">
-            <p className="transfer-scope">{t('connectionTransfer.exportScope', { count: total })}</p>
-
-            <div className="transfer-toggle">
-              <span className="transfer-toggle-text">
-                <span className="transfer-toggle-title">{t('connectionTransfer.includeCredentials')}</span>
-                <span className="transfer-toggle-hint">{t('connectionTransfer.includeCredentialsHint')}</span>
-              </span>
-              <Switch
-                checked={includeCredentials}
-                onCheckedChange={setIncludeCredentials}
-                aria-label={t('connectionTransfer.includeCredentials')}
-              />
-            </div>
-
-            {includeCredentials ? (
-              <p className="transfer-warn">
-                <DialogIcon name="warning" size={13} />
-                <span>{t('connectionTransfer.credentialsIncludedWarning')}</span>
-              </p>
-            ) : (
-              <p className="transfer-hint">{t('connectionTransfer.credentialsExcludedHint')}</p>
-            )}
-          </div>
-
-          <footer className="dlg-foot">
-            <span className="spacer" />
-            <Button type="button" variant="ghost" className="foot-btn foot-quiet" onClick={onClose}>
-              <DialogIcon name="cancel" size={13} />
-              {t('common.cancel')}
-            </Button>
-            <Button
-              type="button"
-              className="foot-btn foot-primary"
-              disabled={!total || busy}
-              onClick={() => void handleExport()}
-            >
-              <DialogIcon name="export" size={13} />
-              {busy ? t('common.loading') : t('connectionTransfer.exportTitle')}
-            </Button>
-          </footer>
+    <DialogShell
+      icon="export"
+      title={t('connectionTransfer.exportTitle')}
+      description={t('connectionTransfer.exportSubtitle')}
+      className="transfer-dialog"
+      onClose={onClose}
+      footer={
+        <>
+          <span className="spacer" />
+          <Button type="button" variant="ghost" className="foot-btn foot-quiet" onClick={onClose}>
+            <DialogIcon name="cancel" size={13} />
+            {t('common.cancel')}
+          </Button>
+          <Button
+            type="button"
+            className="foot-btn foot-primary"
+            disabled={!total || busy}
+            onClick={() => void handleExport()}
+          >
+            <DialogIcon name="export" size={13} />
+            {busy ? t('common.loading') : t('connectionTransfer.exportTitle')}
+          </Button>
+        </>
+      }
+    >
+      <div className="transfer-summary">
+        <div className="transfer-summary-head">
+          <DialogIcon name="document" size={13} />
+          {t('connectionTransfer.summaryTitle')}
         </div>
-      </DialogContent>
-    </Dialog>
+        <dl className="transfer-summary-rows">
+          <div className="transfer-summary-row">
+            <dt>{t('connectionTransfer.summaryConnections')}</dt>
+            <dd className="mono">{total}</dd>
+          </div>
+          <div className="transfer-summary-row">
+            <dt>{t('connectionTransfer.summaryEngines')}</dt>
+            <dd className="transfer-summary-engines">
+              <span className="transfer-summary-engine">
+                <EngineTag engine="redis" />
+                <span className="mono">{redisCount}</span>
+              </span>
+              <span className="transfer-summary-engine">
+                <EngineTag engine="memcached" />
+                <span className="mono">{memcachedCount}</span>
+              </span>
+            </dd>
+          </div>
+          <div className="transfer-summary-row">
+            <dt>{t('connectionTransfer.summaryFormat')}</dt>
+            <dd className="mono">
+              {TRANSFER_FORMAT} v{TRANSFER_VERSION}
+            </dd>
+          </div>
+          <div className="transfer-summary-row">
+            <dt>{t('connectionTransfer.summaryCredentials')}</dt>
+            <dd className={includeCredentials ? 'is-warn' : undefined}>
+              {t(
+                includeCredentials
+                  ? 'connectionTransfer.summaryCredentialsIncluded'
+                  : 'connectionTransfer.summaryCredentialsExcluded',
+              )}
+            </dd>
+          </div>
+        </dl>
+      </div>
+
+      <SwitchRow
+        title={t('connectionTransfer.includeCredentials')}
+        hint={t('connectionTransfer.includeCredentialsHint')}
+        checked={includeCredentials}
+        onCheckedChange={setIncludeCredentials}
+      />
+
+      {includeCredentials ? (
+        <InlineNotice tone="warn">{t('connectionTransfer.credentialsIncludedWarning')}</InlineNotice>
+      ) : (
+        <p className="transfer-hint">{t('connectionTransfer.credentialsExcludedHint')}</p>
+      )}
+    </DialogShell>
   )
 }
 
