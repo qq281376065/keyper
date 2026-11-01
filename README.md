@@ -2,6 +2,8 @@
 
 简体中文 | [English](README.en.md)
 
+**官网 / 下载：<https://keyper-av7duw3mf53.qoder.zone/>**
+
 基于 **TypeScript + Electron + React 19 + electron-builder** 的跨平台键值缓存管理工具。
 
 **同时支持 Redis 与 Memcached**：两者作为彼此隔离的引擎模块接入 ——

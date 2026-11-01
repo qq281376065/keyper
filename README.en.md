@@ -2,6 +2,8 @@
 
 English | [简体中文](README.md)
 
+**Official site / Download: <https://keyper-av7duw3mf53.qoder.zone/>**
+
 A cross-platform key-value cache manager built with **TypeScript + Electron + React 19 + electron-builder**.
 
 **Redis and Memcached, side by side.** Each is wired in as an isolated engine module —
