@@ -18,9 +18,32 @@ registering it; no existing code path has to change.
 > shared type contracts and packaging configuration follow that structure; the renderer has been
 > rebuilt around a multi-engine architecture.
 
-Current version: `1.0.9`
+Current version: `1.0.10`
 
-What changed in this release (1.0.8 → 1.0.9):
+What changed in this release (1.0.9 → 1.0.10):
+
+- **Unified transfer dialogs**: import connections / export connections / import from connection
+  string now share one `DialogShell`, so dragging, the close button, focus handling and the
+  accessible description behave the same in all three; three copies of the dialog shell were
+  removed.
+- **Export summary card**: before exporting, the dialog shows the connection count, the Redis /
+  Memcached split, the transfer format (`keyper.connections v1`) and the credential state; ticking
+  "include credentials" switches the summary to "Included (plain text)".
+- **Import preview and switch**: engine tags use the Redis / Memcached brand colours, and
+  "overwrite by ID" is a whole-row clickable switch with hover and keyboard-focus feedback; the
+  invalid-entry list scrolls within a fixed height instead of stretching the dialog.
+- **URI batch rows stay whole**: the list shows exactly seven full rows, with the eighth onward
+  scrolling, so the last visible row is no longer clipped.
+- **Fixed: import previews expiring early.** The one-time token was consumed before the save, so a
+  failed write invalidated the preview and forced another file pick. The token is now released
+  only after a successful save, and a failed save can be retried directly.
+- **Shared entry validation**: file import and URI batch import use the same field allowlist for
+  ports, database numbers, pool sizes and duplicate IDs; runtime fields such as `pinned` and
+  `credentialError` are still never written to transfer files.
+- **Extracted shared components**: `Tag`, `InlineNotice`, `SwitchRow` and `EngineTag` replace the
+  duplicated status pills, notices, switch rows and engine tags in the transfer dialogs.
+
+Previous release (1.0.8 → 1.0.9):
 
 - **Fixed: copy operations were failing.** The permission hardening denied every permission
   probe, so `navigator.clipboard.writeText` threw `NotAllowedError`, and the
@@ -38,7 +61,7 @@ What changed in this release (1.0.8 → 1.0.9):
   (14 px between groups, 12 px font size, separate colour steps for label and value) and 14 px
   padding; fixed the right-hand ⋮ button, which sat off-centre because of inline baseline layout.
 
-Previous release (1.0.7 → 1.0.8):
+Earlier (1.0.7 → 1.0.8):
 
 - **Paged loading for large keys**: hash / list / set / zset / stream no longer read everything at
   once. The default page is 500 elements and a key caps at 20,000; "load more" continues by cursor —
@@ -395,7 +418,7 @@ npm run dist:win:alt # Build Windows into release/<version>-final (keeps the pre
 npm run dist:win:publish # Build and publish to GitHub Releases (needs GH_TOKEN; version must match the tag)
 ```
 
-Build output lands in `release/<version>/` as `Keyper-1.0.9-win-x64.exe`; the same folder also
+Build output lands in `release/<version>/` as `Keyper-1.0.10-win-x64.exe`; the same folder also
 contains `latest.yml`, `*.blockmap` (differential-update block index) and, inside the install
 directory, `app-update.yml` (the update feed configuration).
 
