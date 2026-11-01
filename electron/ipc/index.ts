@@ -18,16 +18,15 @@ import { getEngine, registerEngine } from '../services/engines/registry'
 import { loadConnections, saveConnections } from '../services/connection-store'
 import {
   MAX_TRANSFER_CONNECTIONS,
-  TRANSFER_FORMAT,
-  TRANSFER_VERSION,
   buildExportPayload,
   buildPreviewItems,
   dropImport,
   mergeImported,
   parseTransferText,
+  peekImport,
   readTransferFile,
   stashImport,
-  takeImport,
+  validateConnectionEntries,
   writeTransferFile,
 } from '../services/connection-transfer'
 import { appendErrorLog, appendLog, listLogFiles, logDir, openLogDir, readLogs } from '../services/log-service'
@@ -684,7 +683,8 @@ export function registerIpcHandlers(): void {
   })
 
   handle<ConnectionImportResult>(IPC.connectionImportApply, (token, options) => {
-    const pending = takeImport(String(token ?? ''))
+    const tokenValue = String(token ?? '')
+    const pending = peekImport(tokenValue)
     const list = loadConnections()
     const connectedIds = new Set(
       list
@@ -697,6 +697,7 @@ export function registerIpcHandlers(): void {
       connectedIds,
     })
     saveConnections(next)
+    dropImport(tokenValue)
     return { connections: next, summary, skippedConnected }
   })
 
@@ -722,16 +723,7 @@ export function registerIpcHandlers(): void {
       )
     }
 
-    const parsed = parseTransferText(
-      JSON.stringify({
-        format: TRANSFER_FORMAT,
-        version: TRANSFER_VERSION,
-        exportedAt: new Date().toISOString(),
-        appVersion: app.getVersion(),
-        includesCredentials: true,
-        connections: configs,
-      }),
-    )
+    const parsed = validateConnectionEntries(configs)
     if (parsed.issues.length) throw new Error(parsed.issues[0]!.message)
     if (!parsed.configs.length) throw new Error(t('connectionTransfer.noConnections'))
 

@@ -11301,3 +11301,143 @@ body.col-resizing .col-handle::after{
 .s-mc-browser .viewbar .spacer{
   min-width: 4px;
 }
+
+/* ===========================================================================
+ * 通用展示组件：Tag / InlineNotice / SwitchRow / EngineTag
+ *
+ * 这几个组件先在连接导入导出流程里落地；样式放在全局而不绑定 .dlg，
+ * 后续设置页、详情页可以直接复用，不必再抄一遍规格。
+ * =========================================================================== */
+
+.ui-tag{
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+  white-space: nowrap;
+}
+.ui-tag-neutral{
+  background: var(--bg-hover);
+  color: var(--text-muted);
+}
+.ui-tag-accent{
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.ui-tag-warn{
+  background: color-mix(in srgb, var(--amber) 14%, transparent);
+  border-color: color-mix(in srgb, var(--amber) 32%, transparent);
+  color: var(--amber);
+}
+.ui-tag-danger{
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 32%, transparent);
+  color: var(--danger);
+}
+.ui-tag-success{
+  background: var(--ok-soft);
+  border-color: color-mix(in srgb, var(--green) 32%, transparent);
+  color: var(--green);
+}
+
+.inline-notice{
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0;
+  padding: 9px 12px;
+  border-radius: 10px;
+  font-size: var(--fs-sm);
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+.inline-notice svg{
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+.inline-notice-warn{
+  background: color-mix(in srgb, var(--amber) 12%, transparent);
+}
+.inline-notice-warn svg{
+  color: var(--amber);
+}
+.inline-notice-danger{
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  color: var(--danger);
+}
+.inline-notice-danger svg{
+  color: var(--danger);
+}
+.inline-notice-success{
+  background: var(--ok-soft);
+  color: var(--green);
+}
+.inline-notice-success svg{
+  color: var(--green);
+}
+
+/* 开关卡片：整行是 label，点击文字区域也能切换 */
+.switch-row{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-elevated);
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+.switch-row:hover{
+  border-color: var(--border-strong);
+}
+.switch-row:focus-within{
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+.switch-row.is-disabled{
+  opacity: 0.55;
+  cursor: default;
+}
+.switch-row-text{
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.switch-row-title{
+  font-size: var(--fs-md);
+  color: var(--text-primary);
+}
+.switch-row-hint{
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+/* 引擎标签：与 .engine-chip 同一套品牌色，但带文字与真实图形 */
+.engine-tag{
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+  white-space: nowrap;
+}
+.engine-tag svg{
+  flex: 0 0 auto;
+}
+.engine-tag.engine-redis{
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.engine-tag.engine-memcached{
+  background: color-mix(in srgb, var(--purple) 18%, transparent);
+  color: color-mix(in srgb, var(--purple) 78%, var(--text-primary));
+}

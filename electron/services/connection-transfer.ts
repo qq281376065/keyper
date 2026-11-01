@@ -34,10 +34,16 @@ export function stashImport(parsed: ParsedTransfer, fileName: string): string {
   return token
 }
 
-export function takeImport(token: string): PendingImport {
+/**
+ * 读取令牌但不消费：写盘成功后再 dropImport。
+ *
+ * 如果先删令牌再 save，磁盘写入失败时预览已经失效，用户只能重新选文件。
+ */
+export function peekImport(token: string): PendingImport {
   const pending = pendingImports.get(token)
-  pendingImports.delete(token)
-  if (!pending || Date.now() - pending.createdAt > IMPORT_TOKEN_TTL_MS) {
+  if (!pending) throw new Error(t('connectionTransfer.previewExpired'))
+  if (Date.now() - pending.createdAt > IMPORT_TOKEN_TTL_MS) {
+    pendingImports.delete(token)
     throw new Error(t('connectionTransfer.previewExpired'))
   }
   return pending

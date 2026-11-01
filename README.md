@@ -68,7 +68,7 @@
 - **安装包体积优化**：Electron 运行时语言包从 50+ 种裁到界面真正使用的 3 种
   （en-US / zh-CN / zh-TW），渲染层依赖改归 devDependencies 使 asar 只含生产依赖；
   安装包从 84.0 MB 降到 75.4 MB（-10.3%），app.asar 从 18.9 MiB 降到 3.7 MiB
-- **连接导入导出**：侧栏 ⋯ 菜单与主页「从连接串导入」共用一套入口 ——
+- **连接导入导出**：侧栏头部的导入 / 导出按钮（transfer 图标）与主页「从连接串导入」共用一套弹窗 ——
   导出为带格式头的 JSON（两种引擎 + 多级 SSH，凭据默认剥离，可显式勾选并二次确认）；
   导入先出逐条预览（冲突 / 已连接 / 非法条目 / 凭据标签），默认新建 ID、可切换按 ID 覆盖，
   已连接项在覆盖时跳过；URI 批量导入支持注释、最多 200 行、逐行报错且只导入合法行
@@ -196,7 +196,7 @@ string 值实底行号槽；安装器开始菜单快捷方式勾选页；
 | `src/store/global.ts` | 连接管理、多标签、快照恢复 |
 | `src/store/useRedis.ts` | 语境包装：标签树内用 Context，标签外用激活会话代理 |
 | `src/hooks/` | 设置、主题、搜索历史、弹窗拖拽、六个值类型编辑器（`valueEditor/`） |
-| `src/components/` | 53 个界面组件（`.tsx`）+ `ui/` 原子组件 + `components.css` |
+| `src/components/` | 59 个界面组件（`.tsx`）+ `ui/` 原子组件 + `components.css` |
 
 ---
 
@@ -318,7 +318,7 @@ npm run dev:web      # 纯浏览器调试渲染层：只起 Vite，不编译/不
 npm run preview      # 预览已构建产物（http://127.0.0.1:4173）
 npm run preview:title # 浏览器预览标题动画页
 npm run typecheck    # 类型检查（主进程 + 渲染进程）
-npm run test         # vitest 单元测试（tests/unit，16 个 spec）
+npm run test         # vitest 单元测试（tests/unit，17 个 spec）
 npm run i18n:check   # 校验三份字典的键集、占位符与源码引用一致
 npm run build        # 类型检查 + 构建产物到 dist/ 与 dist-electron/
 npm run dist         # 当前平台打包
@@ -826,14 +826,14 @@ K 用矢量笔画手绘而非字体 —— 字体字形墨迹只有字号的 66%
 - **新建键**：键浏览区工具栏的 ＋ 按钮打开对话框，支持 string / hash / list / set / zset，
   填写初始内容与可选 TTL；创建成功后自动展开其祖先路径并选中该键。
   容器类型要求至少一个元素（Redis 的容器键需要有元素才会真正落库）
-- **连接导入导出（JSON）**：侧栏头部的 ⋯ 菜单提供「导入连接… / 导出连接… / 从连接串导入…」，
+- **连接导入导出（JSON）**：侧栏头部的导入 / 导出按钮（transfer 图标）展开菜单，提供「导入连接… / 导出连接… / 从连接串导入…」，
   主页的「从连接串导入」按钮复用同一个弹窗。传输文件带独立格式头
   `{ format: "keyper.connections", version: 1, exportedAt, appVersion, includesCredentials }`，
   覆盖 Redis / Memcached 与多级 SSH 配置；导出固定为全量（v1 不做逐条勾选）。传输格式与内部
   `connections.json`（裸数组、与会话密钥绑定的 `enc2:` 密文）刻意分开 —— 后者换台机器就解不开。
 
   - **凭据默认不导出**：Redis 密码与 SSH 密码 / 私钥 / 口令默认剥离；勾选「包含凭据」需二次确认，
-    并明确提示文件内是明文。条目按字段白名单构造，`pinned` / `credentialError` 等运行时字段不落盘；
+    并明确提示文件内是明文。条目按字段白名单构造：`pinned` 保留在内部配置但不写入传输文件，`credentialError` 仅运行时使用，两者都不随文件导出；
     保存了隧道但临时关闭的配置会显式写入 `sshEnabled: false`，避免导入端按「有 ssh 即启用」重新打开。
   - **导入预览**：读取文件后先逐条展示引擎、地址、库号 / TLS / SSH 跳板与凭据标签、
     与现有配置的 ID / 名称冲突、是否已连接，以及文件导出时间与应用版本；

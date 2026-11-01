@@ -6,6 +6,7 @@ import {
   buildPreviewItems,
   mergeImported,
   parseTransferText,
+  validateConnectionEntries,
 } from '@shared/connection-transfer'
 import type {
   CacheConnectionConfig,
@@ -210,6 +211,30 @@ describe('parseTransferText', () => {
     expect(parsed.configs).toHaveLength(1)
     expect(parsed.issues).toHaveLength(1)
     expect(parsed.issues[0]?.index).toBe(1)
+  })
+})
+
+describe('validateConnectionEntries', () => {
+  it('按字段白名单重建配置，条目级错误不抛异常', () => {
+    const { configs, issues } = validateConnectionEntries([
+      redisConfig({ id: 'a', pinned: true, credentialError: '解密失败' }),
+      { id: 'b', engine: 'redis', name: '坏端口', host: 'h', port: 70000, db: 0 },
+    ])
+
+    expect(configs).toHaveLength(1)
+    expect(configs[0]?.id).toBe('a')
+    expect('pinned' in configs[0]!).toBe(false)
+    expect('credentialError' in configs[0]!).toBe(false)
+    expect(issues.map((issue) => issue.index)).toEqual([1])
+  })
+
+  it('重复 ID 的第二条记为 issue', () => {
+    const { configs, issues } = validateConnectionEntries([
+      redisConfig({ id: 'dup' }),
+      redisConfig({ id: 'dup' }),
+    ])
+    expect(configs).toHaveLength(1)
+    expect(issues).toHaveLength(1)
   })
 })
 

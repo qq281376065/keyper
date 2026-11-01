@@ -51,6 +51,8 @@
   --blue: #4a9eff;
   --green: #3fbf7f;
   --amber: #e5a13a;
+  /* 危险色统一取终端错误色：换肤时文字、边框与 --danger-soft 一起走 */
+  --danger: var(--cli-error);
   --danger-soft: rgba(240, 138, 128, 0.14);
   --ok-soft: rgba(63, 191, 127, 0.14);
   --amber-soft: rgba(229, 161, 58, 0.14);
