@@ -503,7 +503,7 @@ KEYPER_DEBUG_LOG=/tmp/rd.log ./Keyper.exe
 | Workflow | Trigger | Content |
 | --- | --- | --- |
 | `.github/workflows/ci.yml` | push (any branch) / PR to master | `npm ci` → `i18n:check` → `typecheck` → `vitest` → `vite build` |
-| `.github/workflows/release.yml` | `v*` tag / manual run | Verifies the tag matches `package.json` → exports `release-notes.md` from the tag annotation (one copy at the root, one in `build/`; a manual run reads the same annotation for `v<version>`) → keeps the tag's Release with the most assets and deletes the rest, creating one only when none exists → builds NSIS on Windows while electron-builder appends the installer, blockmap and `latest.yml` → probes the three download URLs with retries and re-checks the Release count; a tag publishes, a manual run only builds unless `publish` is ticked |
+| `.github/workflows/release.yml` | `v*` tag / manual run | Verifies the tag matches `package.json` → exports `release-notes.md` from the tag annotation (one copy at the root, one in `build/`; a manual run reads the same annotation for `v<version>`) → keeps the tag's Release with the most assets (clearing the draft flag first) and deletes the rest, creating one only when none exists → builds NSIS on Windows while electron-builder appends the installer, blockmap and `latest.yml` → probes the three download URLs with retries and re-checks the Release count; a tag publishes, a manual run only builds unless `publish` is ticked |
 
 ### In-app updates
 
@@ -555,12 +555,15 @@ installs automatically when the app quits.
   probed with retries, because the route can lag a freshly uploaded asset. Local
   `dist:win:publish` still races, so publishing belongs to CI.
 - **Never move a tag once it is pushed**: deleting it, force-pushing it or pointing it at another
-  commit all read as "tag deleted", and GitHub then removes the Release bound to that tag — assets
-  included — a few minutes later, asynchronously. 1.0.11 hit this twice (delete-and-re-push at 12:54,
-  force-move at 13:14); both runs passed Prepare and Build and publish and only the final download
-  check came back 404. To ship the same version again, run the Release workflow manually with
-  `publish` ticked, or re-run the failed job in Actions — neither touches the tag, and both still
-  read the release notes from the tag annotation.
+  commit all count as "tag deleted". GitHub does not remove the Release bound to that tag — it
+  **downgrades it to a draft**. Drafts are invisible to unauthenticated requests and their
+  `releases/download/<tag>/<file>` route always returns 404, so clients stop seeing the update,
+  while CI requests carrying `GITHUB_TOKEN` still see the Release and upload into it — which is why
+  every run looked green up to "Build and publish" and only the final download check failed
+  (1.0.11 hit this twice: delete-and-re-push at 12:54, force-move at 13:14). Prepare now clears the
+  draft flag before electron-builder appends assets. To ship the same version again, run the Release
+  workflow manually with `publish` ticked, or re-run the failed job in Actions — neither touches the
+  tag, and both still read the release notes from the tag annotation.
 
 ---
 

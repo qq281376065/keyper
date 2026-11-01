@@ -422,7 +422,7 @@ KEYPER_DEBUG_LOG=/tmp/rd.log ./Keyper.exe
 | 工作流 | 触发 | 内容 |
 | --- | --- | --- |
 | `.github/workflows/ci.yml` | push（任意分支）/ PR 到 master | `npm ci` → `i18n:check` → `typecheck` → `vitest` → `vite build` |
-| `.github/workflows/release.yml` | 推送 `v*` 标签 / 手动运行 | 校验标签与 `package.json` 版本一致 → 从标签附注导出 `release-notes.md`（根目录与 `build/` 各一份；手动运行按 `v<版本>` 取同一份附注）→ 保留该标签资产最全的一份 Release、删掉其余，一份都没有才新建 → Windows 打包并由 electron-builder 追加安装包、blockmap 与 `latest.yml` → 重试探测三类下载地址并复核 Release 数量；标签触发自动发布 Release，手动运行默认只构建、勾 `publish` 才发布 |
+| `.github/workflows/release.yml` | 推送 `v*` 标签 / 手动运行 | 校验标签与 `package.json` 版本一致 → 从标签附注导出 `release-notes.md`（根目录与 `build/` 各一份；手动运行按 `v<版本>` 取同一份附注）→ 保留该标签资产最全的一份 Release（被降级成草稿的先取消草稿）、删掉其余，一份都没有才新建 → Windows 打包并由 electron-builder 追加安装包、blockmap 与 `latest.yml` → 重试探测三类下载地址并复核 Release 数量；标签触发自动发布 Release，手动运行默认只构建、勾 `publish` 才发布 |
 
 ### 应用内更新
 
@@ -462,11 +462,13 @@ KEYPER_DEBUG_LOG=/tmp/rd.log ./Keyper.exe
   全部 404，客户端直接查不到更新（1.0.10、1.0.11 首推即如此）。Release 工作流因此先保留该标签
   资产最全的一份、删掉其余（一份都没有时才预建），electron-builder 带着 `EP_GH_IGNORE_TIME`
   只往里追加资产，发布后再逐个 HEAD 探测三类下载地址（刚传完时路由可能还没同步，会重试几次）。
-- **标签推上去之后就不要再动它**：删除、强推、移到别的提交都会让 GitHub 把它当成"标签被删"，
-  异步任务在几分钟后连带删掉该标签的 Release，连刚上传的安装包一起。1.0.11 连踩两次（12:54
-  删标签重推、13:14 强推移标签），两次都是 Prepare 与 Build and publish 全绿、只有最后的下载校验
-  拿到 404。要重发同一个版本，用 Release 工作流的手动运行并勾上 `publish`，或者在 Actions 里
-  Re-run 失败的作业 —— 这两条路都不碰标签，也同样会从标签附注取发版说明。
+- **标签推上去之后就不要再动它**：删除、强推、移到别的提交都算"标签被删"。GitHub 不会删掉对应的
+  Release，而是把它**降级成草稿** —— 草稿对未登录 / 未认证的请求不可见，`releases/download/<标签>/<文件>`
+  恒返回 404，客户端就查不到这个更新；而带 `GITHUB_TOKEN` 的 CI 请求照样能看见它、往里传资产，
+  于是表现为"打包与上传全绿，只有最后的下载校验失败"。1.0.11 连踩两次（12:54 删标签重推、
+  13:14 强推移标签），都是这个原因。Prepare 步骤现在会先取消草稿再让 electron-builder 追加资产；
+  要重发同一个版本，用 Release 工作流的手动运行勾上 `publish`，或在 Actions 里 Re-run 失败的作业
+  —— 这两条路都不碰标签，也同样会从标签附注取发版说明。
 
 ---
 

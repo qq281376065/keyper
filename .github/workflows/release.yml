@@ -14,12 +14,13 @@ on:
 permissions:
   contents: write
 
-# 标签一旦推上去就不要再动它：不要删除，也不要强推 / 移到别的提交。
-# GitHub 会把它当成「标签被删」，异步任务在几分钟后连带删掉该标签的 Release（含刚上传的资产）。
-# 1.0.11 连踩两次：12:54 删标签重推 → 12:59 Release 没了；13:14 强推移标签 → 13:3x 又没了。
-# 两次都是 Prepare / Build and publish 全绿、只有最后的下载校验拿到 404。
-# 重发同一版本用下面 workflow_dispatch 里的 publish 开关，或者直接在 Actions 里 Re-run 失败作业
-# —— 这两条路都不碰标签。
+# 标签一旦推上去就不要再动它：删除、强推、移到别的提交都算「标签被删」。
+# GitHub 不会删掉对应的 Release，而是把它降级成草稿 —— 草稿对未认证请求不可见，
+# 且 /releases/download/<标签>/<文件> 恒 404，客户端查不到这个更新；带令牌的 CI 请求
+# 却能正常往里传资产，于是表现为「打包全绿、只有最后的下载校验失败」。
+# 1.0.11 实测：12:54 删标签重推、13:14 强推移标签，两次都把 430569726 打成草稿。
+# 下面的 Prepare 步骤会自动取消草稿；重发同一版本用 workflow_dispatch 勾 publish，
+# 或在 Actions 里 Re-run 失败作业 —— 都不要再动标签。
 
 concurrency:
   group: release-${{ github.ref }}
@@ -150,6 +151,16 @@ jobs:
           else
             echo "::notice::标签 $tag 现有 Release：$(echo "$ids" | tr '\n' ' ')（保留资产最全的一份）"
             keep=$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq "[.[] | select(.tag_name==\"$tag\")] | max_by(.assets | length) | .id")
+            # GitHub 删标签并不会删掉 Release，而是把它降级成草稿：草稿对未认证请求不可见，
+            # 且 /releases/download/<标签>/<文件> 恒 404，客户端就查不到这个更新。
+            # 只有带令牌的请求（就是这里）看得到它，所以传资产全部成功、校验却一直失败。
+            if [ "$(gh api "repos/$GITHUB_REPOSITORY/releases/$keep" --jq .draft)" = "true" ]; then
+              echo "::notice::Release $keep 是草稿态（删标签留下的），先取消草稿再传资产"
+              if ! out=$(gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false 2>&1); then
+                echo "::error::取消 Release $keep 的草稿态失败：$(echo "$out" | tr '\n' ' ')"
+                exit 1
+              fi
+            fi
             for id in $ids; do
               if [ "$id" = "$keep" ]; then
                 count=$(gh api "repos/$GITHUB_REPOSITORY/releases/$id" --jq ".assets | length")
