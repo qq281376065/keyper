@@ -35,24 +35,18 @@ docs/_tail.md
 # 设计稿（方案预览页）：本地迭代频繁、体积大，不进版本库
 design/
 
-# 一次性调试探针（本次迁移/排障期间生成，非项目交付物）
-scripts/_probe-crypto-stub.js
-scripts/probe-save-conn.cjs
-scripts/probe-save-password.cjs
-scripts/probe-workspace.cjs
-scripts/probe-multitab.cjs
-scripts/probe-per-tab.cjs
-scripts/probe-layout.cjs
-scripts/repro-switch2.cjs
-scripts/repro-switch3.cjs
-scripts/repro-switch4.cjs
-scripts/repro-viewer-switch.cjs
-scripts/repro-state-leak.cjs
-scripts/repro-db-switch.cjs
-scripts/repro-portal-leak.cjs
-scripts/shot-welcome-title.cjs
-scripts/measure-hero.cjs
-scripts/measure-pixel-fonts.cjs
+# 官网站点与本地预览服务（本地迭代，不入库）
+site/
+
+# CI 从标签附注生成的发版说明（electron-builder 自动读取，本地跑发布流程时同样会生成）
+release-notes.md
+
+# 开发期脚本整体不入库：探针、复现、测量脚本都在这里。
+# 注意 scripts/ 下已有 41 个入库文件（含 build 与 CI 调用的 csp-hash.mjs、
+# i18n-check.mjs、inject-scope.mjs）——已跟踪文件不受本条影响，
+# 但以后新增的要保留的脚本必须 `git add -f scripts/xxx.mjs` 显式加入。
+scripts/
+
+# 根目录的崩溃转储与量测产物
 xargs.exe.stackdump
 card-layers-*.png
-scripts/measure-card-layers.cjs

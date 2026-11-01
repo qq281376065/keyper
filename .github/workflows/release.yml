@@ -65,6 +65,38 @@ jobs:
             exit 1
           fi
 
+      # 发版说明只有一个来源：附注标签的正文（git tag -a 写的那段）。
+      # electron-builder 会自动读取项目根目录的 release-notes.md，
+      # 同一份文案既成为 GitHub Release 正文，也写进 latest.yml 的 releaseNotes，
+      # 客户端「检查更新」面板显示的就是它 —— 不必再手工补正文。
+      # 取不到时只警告、不中断：装包发布比正文完整度重要。
+      - name: Collect release notes from tag annotation
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          sha=$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq .object.sha 2>/dev/null || true)
+          notes=""
+          if [ -n "$sha" ]; then
+            # 附注标签的正文在 tag 对象里；轻量标签会走这里失败，下面按空处理
+            notes=$(gh api "repos/$REPO/git/tags/$sha" --jq .message 2>/dev/null || true)
+          fi
+          if [ -z "$notes" ]; then
+            echo "::warning::无法从标签 $TAG 读取附注正文，Release 正文与客户端更新说明将为空"
+            exit 0
+          fi
+          # 正文首行通常就是标签名本身，Release 页面已有标题，去掉它
+          if [ "$(printf '%s\n' "$notes" | head -n 1)" = "$TAG" ]; then
+            notes=$(printf '%s\n' "$notes" | tail -n +2)
+          fi
+          # 标签正文第二行往往是空行；客户端更新面板按纯文本显示，开头留白会显得错位
+          notes=$(printf '%s\n' "$notes" | sed -e '/./,$!d')
+          printf '%s\n' "$notes" > release-notes.md
+          echo "发版说明 $(wc -l < release-notes.md) 行，取自标签附注"
+
       - name: Build and publish (tag)
         if: startsWith(github.ref, 'refs/tags/')
         env:

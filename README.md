@@ -419,7 +419,7 @@ KEYPER_DEBUG_LOG=/tmp/rd.log ./Keyper.exe
 | 工作流 | 触发 | 内容 |
 | --- | --- | --- |
 | `.github/workflows/ci.yml` | push（任意分支）/ PR 到 master | `npm ci` → `i18n:check` → `typecheck` → `vitest` → `vite build` |
-| `.github/workflows/release.yml` | 推送 `v*` 标签 / 手动运行 | 校验标签与 `package.json` 版本一致 → Windows 打包 → 上传安装包、`latest.yml` 与 blockmap；标签触发自动发布 Release，手动运行默认只构建 |
+| `.github/workflows/release.yml` | 推送 `v*` 标签 / 手动运行 | 校验标签与 `package.json` 版本一致 → 从标签附注导出 `release-notes.md` → Windows 打包 → 上传安装包、`latest.yml` 与 blockmap；标签触发自动发布 Release，手动运行默认只构建 |
 
 ### 应用内更新
 
@@ -433,6 +433,9 @@ KEYPER_DEBUG_LOG=/tmp/rd.log ./Keyper.exe
   （目录内放 `latest.yml` 与安装包即可），覆盖打包时写入的配置；
 - 开发态 / 未打包版本没有 `app-update.yml`，自动更新直接跳过，回退到版本页检查（只提示新版本并打开下载页）；
 - 发布：`npm run dist:win:publish`（需 `GH_TOKEN`），或推送与版本号一致的 `v*` 标签由 CI 构建；
+- 发版说明只写一处：附注标签正文（`git tag -a`）由 Release 工作流导出为项目根目录的
+  `release-notes.md`，electron-builder 自动把同一份文案同时用作 GitHub Release 正文与
+  `latest.yml` 的 `releaseNotes`（客户端「检查更新」面板显示的就是它）；该文件是 CI 产物，不入库；
 - 增量元数据（`latest.yml` 与 `*.blockmap`）必须与安装包一同上传，否则客户端只能全量下载。
 
 ---

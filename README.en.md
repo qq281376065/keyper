@@ -498,7 +498,7 @@ KEYPER_DEBUG_LOG=/tmp/rd.log ./Keyper.exe
 | Workflow | Trigger | Content |
 | --- | --- | --- |
 | `.github/workflows/ci.yml` | push (any branch) / PR to master | `npm ci` → `i18n:check` → `typecheck` → `vitest` → `vite build` |
-| `.github/workflows/release.yml` | `v*` tag / manual run | Verifies the tag matches `package.json` → builds NSIS on Windows → uploads the installer, `latest.yml` and blockmaps; a tag publishes the Release, a manual run only builds by default |
+| `.github/workflows/release.yml` | `v*` tag / manual run | Verifies the tag matches `package.json` → exports `release-notes.md` from the tag annotation → builds NSIS on Windows → uploads the installer, `latest.yml` and blockmaps; a tag publishes the Release, a manual run only builds by default |
 
 ### In-app updates
 
@@ -516,6 +516,10 @@ installs automatically when the app quits.
   falls back to the release-page check (it only reports the new version and opens the download page).
 - Publish with `npm run dist:win:publish` (needs `GH_TOKEN`), or push a `v*` tag matching the version
   and let CI build it.
+- Release notes are written exactly once, in the annotated tag body (`git tag -a`). The Release
+  workflow exports it to `release-notes.md` at the project root, and electron-builder reuses that one
+  text for both the GitHub Release body and the `releaseNotes` field of `latest.yml` — which is what
+  the in-app "Check for updates" panel shows. The file is a CI artifact and stays out of git.
 - The incremental metadata (`latest.yml` and `*.blockmap`) must be uploaded together with the
   installer, otherwise clients can only download the full package.
 
