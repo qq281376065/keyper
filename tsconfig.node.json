@@ -41,6 +41,7 @@
     "tests/unit/memcachedClient.spec.ts",
     "tests/unit/memcachedManager.spec.ts",
     "tests/unit/engineIsolation.spec.ts",
+    "tests/unit/luaScriptStore.spec.ts",
     "lang/**/*.ts"
   ]
 }

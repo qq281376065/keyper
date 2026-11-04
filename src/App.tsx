@@ -11,6 +11,7 @@ import { ImportUriDialog } from '@/components/ImportUriDialog'
 import { ConnectionSidebar } from '@/components/ConnectionSidebar'
 import { DialogIcon } from '@/components/DialogIcon'
 import { LogPanel } from '@/components/LogPanel'
+import { LuaScriptDialog } from '@/components/LuaScriptDialog'
 import { SettingsDialog } from '@/components/SettingsDialog'
 import { TabBar } from '@/components/TabBar'
 import { ThemeSwitch } from '@/components/ThemeSwitch'
@@ -56,6 +57,8 @@ export function App() {
   const [settingsVisible, setSettingsVisible] = useState(false)
   /** 正在查看版本信息的连接 */
   const [versionTarget, setVersionTarget] = useState<ConnectionItem | null>(null)
+  /** Lua 控制台（从连接菜单打开；CLI 头部另有独立入口） */
+  const [luaVisible, setLuaVisible] = useState(false)
 
   /*
    * 操作日志抽屉的开关。
@@ -334,6 +337,7 @@ export function App() {
           onNewConnection={openNewConnection}
           onEditConnection={openEditConnection}
           onViewVersion={(item) => setVersionTarget(item)}
+          onRunLua={() => setLuaVisible(true)}
           onImportConnections={() => setImportVisible(true)}
           onExportConnections={() => setExportVisible(true)}
           onImportFromUri={() => setImportUriVisible(true)}
@@ -356,6 +360,8 @@ export function App() {
       </main>
 
       <CliConsole />
+
+      {luaVisible ? <LuaScriptDialog onClose={() => setLuaVisible(false)} /> : null}
 
       {dialogVisible ? (
         <ConnectionDialog initial={dialogInitial} onClose={() => setDialogVisible(false)} />

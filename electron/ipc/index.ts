@@ -50,6 +50,12 @@ import {
   pruneConnectionCliHistory,
   recordCliHistory,
 } from '../services/cli-history-store'
+import {
+  listLuaScripts,
+  removeLuaScript,
+  removeLuaScripts,
+  saveLuaScript,
+} from '../services/lua-script-store'
 import { loadSettings, saveSettings } from '../services/settings-store'
 import { configInfo } from '../services/config-path'
 import { CLOSE_CONFIRM, CLOSE_HANDLED, closeSignal } from '../services/close-signal'
@@ -112,6 +118,9 @@ import type {
   StreamPendingOptions,
   StreamMutationResult,
   StreamTrimOptions,
+  LuaScript,
+  LuaSaveRequest,
+  EvalOptions,
   RefreshKeysOptions,
   RefreshKeysResult,
 } from '../../shared/types'
@@ -181,6 +190,7 @@ const LOG_ACTIONS: Record<string, string> = {
   [IPC.redisStreamDel]: '删除消息',
   [IPC.redisStreamTrim]: '裁剪流',
   [IPC.redisCli]: '命令',
+  [IPC.redisEval]: '执行 Lua',
   /* Memcached：只记录写入类操作与清空，读操作不进日志（与 Redis 一致） */
   [IPC.memcachedSet]: '写入键',
   [IPC.memcachedRemove]: '删除键',
@@ -221,6 +231,15 @@ function describe(
     switch (channel) {
       case IPC.redisCli:
         return { connectionName, engine, detail: String(args[1] ?? '') }
+      case IPC.redisEval: {
+        const script = String(args[1] ?? '')
+        const options = (args[2] ?? {}) as EvalOptions
+        return {
+          connectionName,
+          engine,
+          detail: `脚本 ${script.split('\n').length} 行 · KEYS ${options.keys?.length ?? 0}`,
+        }
+      }
       case IPC.memcachedSet:
         return {
           connectionName,
@@ -1156,6 +1175,27 @@ export function registerIpcHandlers(): void {
 
   handle<CliResult>(IPC.redisCli, (id, command) =>
     connectionManager.command(id as string, command as string),
+  )
+
+  handle<CliResult>(IPC.redisEval, (id, script, options) =>
+    connectionManager.evalScript(
+      id as string,
+      script as string,
+      (options ?? { keys: [], args: [], readOnly: false }) as EvalOptions,
+    ),
+  )
+
+  handle<OperationResult>(IPC.redisScriptKill, (id) =>
+    connectionManager.scriptKill(id as string),
+  )
+
+  handle<LuaScript[]>(IPC.luaScriptsList, () => listLuaScripts())
+  handle<LuaScript[]>(IPC.luaScriptsSave, (request) =>
+    saveLuaScript((request ?? {}) as LuaSaveRequest),
+  )
+  handle<LuaScript[]>(IPC.luaScriptsRemove, (id) => removeLuaScript(String(id)))
+  handle<LuaScript[]>(IPC.luaScriptsRemoveMany, (ids) =>
+    removeLuaScripts(Array.isArray(ids) ? ids.map((id) => String(id)) : []),
   )
 
   /* -------------------------------------------------------- Memcached 专属通道 */

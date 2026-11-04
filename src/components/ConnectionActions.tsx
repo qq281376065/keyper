@@ -11,15 +11,17 @@ export interface ConnectionActionsProps {
   connection: ConnectionItem
   onEdit: (connection: ConnectionItem) => void
   onVersion: (connection: ConnectionItem) => void
+  onRunLua: (connection: ConnectionItem) => void
 }
 
 const MENU_WIDTH = 196
 
 /** 连接项右侧「更多操作」菜单（建立/断开、刷新指标、版本、测试、置顶、编辑、克隆、复制地址、删除） */
-export function ConnectionActions({ connection, onEdit, onVersion }: ConnectionActionsProps) {
+export function ConnectionActions({ connection, onEdit, onVersion, onRunLua }: ConnectionActionsProps) {
   const {
     connect,
     disconnect,
+    selectConnection,
     cloneConnection,
     removeConnection,
     pinConnection,
@@ -148,6 +150,17 @@ export function ConnectionActions({ connection, onEdit, onVersion }: ConnectionA
     onVersion(connection)
   }
 
+  /** Lua 编辑器依赖已建立的会话：先激活该连接标签，再打开控制台 */
+  function handleLua(): void {
+    setOpen(false)
+    if (!isConnected) {
+      notify('err', t('connectionActions.connectFirstRunLuaScript'))
+      return
+    }
+    selectConnection(connection.id)
+    onRunLua(connection)
+  }
+
   function handleClone(): void {
     void run(() => cloneConnection(connection))
   }
@@ -245,6 +258,16 @@ export function ConnectionActions({ connection, onEdit, onVersion }: ConnectionA
               <DialogIcon name="bolt" size={13} className="mi-icon" />
               <span>{t('connectionActions.testConnection')}</span>
             </button>
+
+            {connection.engine === 'redis' ? (
+              <button className="menu-item" onClick={handleLua}>
+                <DialogIcon name="code" size={13} className="mi-icon" />
+                <span>{t('connectionActions.runLuaScript')}</span>
+                {!isConnected ? (
+                  <span className="shortcut">{t('connectionActions.requiresConnection')}</span>
+                ) : null}
+              </button>
+            ) : null}
 
             <div className="menu-sep" />
 

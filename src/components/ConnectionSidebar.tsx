@@ -17,6 +17,7 @@ export interface ConnectionSidebarProps {
   onNewConnection: () => void
   onEditConnection: (connection: ConnectionItem) => void
   onViewVersion: (connection: ConnectionItem) => void
+  onRunLua: (connection: ConnectionItem) => void
   onImportConnections: () => void
   onExportConnections: () => void
   onImportFromUri: () => void
@@ -49,6 +50,7 @@ export function ConnectionSidebar({
   onNewConnection,
   onEditConnection,
   onViewVersion,
+  onRunLua,
   onImportConnections,
   onExportConnections,
   onImportFromUri,
@@ -493,6 +495,7 @@ export function ConnectionSidebar({
                     connection={item}
                     onEdit={onEditConnection}
                     onVersion={onViewVersion}
+                    onRunLua={onRunLua}
                   />
                 ) : null}
               </div>

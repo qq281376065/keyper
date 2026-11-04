@@ -6,6 +6,7 @@ import {
   VALUE_BINARY_MAX_BYTES,
   VALUE_DECODE_MAX_BYTES,
   VALUE_DECODE_MAX_BYTES_CAP,
+  LUA_RESULT_MAX_CHARS,
 } from '../../shared/limits'
 import type {
   CliResult,
@@ -46,6 +47,7 @@ import type {
   StreamPendingOptions,
   StreamMutationResult,
   StreamTrimOptions,
+  EvalOptions,
   RefreshKeysOptions,
   RefreshKeysResult,
 } from '../../shared/types'
@@ -2366,8 +2368,42 @@ class ConnectionManager {
 
   // ---------------------------------------------------------------- CLI
 
-  async command(id: string, raw: string): Promise<CliResult> {
-    const args = parseCommandLine(raw)
+  /** 执行 Lua 脚本：EVAL / EVAL_RO，结果按上限截断 */
+  async evalScript(id: string, script: string, options: EvalOptions): Promise<CliResult> {
+    const client = this.mustGet(id)
+    if (!script.trim()) return { output: '', error: 'empty script', costMs: 0 }
+    const started = Date.now()
+    const args = [
+      options.readOnly ? 'EVAL_RO' : 'EVAL',
+      script,
+      String(options.keys.length),
+      ...options.keys,
+      ...options.args,
+    ]
+    try {
+      const reply = await (client.call as unknown as (...a: string[]) => Promise<unknown>)(...args)
+      let output = formatReply(reply)
+      if (output.length > LUA_RESULT_MAX_CHARS) {
+        output = `${output.slice(0, LUA_RESULT_MAX_CHARS)}\n… (truncated)`
+      }
+      return { output, costMs: Date.now() - started }
+    } catch (error) {
+      return { output: '', error: toMessage(error), costMs: Date.now() - started }
+    }
+  }
+
+  /** 终止当前脚本；脚本已写入时服务端会返回 UNKILLABLE */
+  async scriptKill(id: string): Promise<OperationResult> {
+    const client = this.mustGet(id)
+    try {
+      await (client.call as unknown as (...a: string[]) => Promise<unknown>)('SCRIPT', 'KILL')
+      return { ok: true, message: 'SCRIPT KILL' }
+    } catch (error) {
+      return { ok: false, message: toMessage(error) }
+    }
+  }
+
+  async command(id: string, raw: string): Promise<CliResult> {    const args = parseCommandLine(raw)
     if (!args.length) return { output: '', costMs: 0 }
 
     /*

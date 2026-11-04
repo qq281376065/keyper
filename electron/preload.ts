@@ -61,6 +61,9 @@ import type {
   StreamPendingOptions,
   StreamMutationResult,
   StreamTrimOptions,
+  LuaScript,
+  LuaSaveRequest,
+  EvalOptions,
 } from '../shared/types'
 
 function invoke<T>(channel: string, ...args: unknown[]): Promise<ApiResponse<T>> {
@@ -132,6 +135,13 @@ const api: RedisDesktopApi = {
     get: (connId) => invoke<string[]>(IPC.cliHistoryGet, connId),
     record: (connId, command) => invoke<string[]>(IPC.cliHistoryRecord, connId, command),
     clear: (connId) => invoke<string[]>(IPC.cliHistoryClear, connId),
+  },
+
+  luaScripts: {
+    list: () => invoke<LuaScript[]>(IPC.luaScriptsList),
+    save: (request) => invoke<LuaScript[]>(IPC.luaScriptsSave, request),
+    remove: (id) => invoke<LuaScript[]>(IPC.luaScriptsRemove, id),
+    removeMany: (ids) => invoke<LuaScript[]>(IPC.luaScriptsRemoveMany, ids),
   },
 
   update: {
@@ -324,6 +334,9 @@ const api: RedisDesktopApi = {
       ttlSeconds?: number,
     ) => invoke<OperationResult>(IPC.redisCreateKey, id, key, type, payload, ttlSeconds),
     cli: (id, command) => invoke<CliResult>(IPC.redisCli, id, command),
+    evalScript: (id, script, options) =>
+      invoke<CliResult>(IPC.redisEval, id, script, options),
+    scriptKill: (id) => invoke<OperationResult>(IPC.redisScriptKill, id),
   },
 
   /*

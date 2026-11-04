@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '@/api'
 import { DialogIcon } from '@/components/DialogIcon'
+import { LuaScriptDialog } from '@/components/LuaScriptDialog'
 import { tipProps } from '@/components/tip'
 import { useSettings } from '@/services/settings'
 import { useSettingsHolder } from '@/hooks/useSettingsHolder'
@@ -36,6 +37,7 @@ export function CliConsole() {
   const [suggestDismissed, setSuggestDismissed] = useState(false)
   const [historySearch, setHistorySearch] = useState(false)
   const [historyIndex, setHistoryIndex] = useState(0)
+  const [luaOpen, setLuaOpen] = useState(false)
   const suppressSubmit = useRef(false)
   const inputRef = useRef<HTMLInputElement | null>(null)
   const { settings, save: saveSettings } = useSettings()
@@ -295,6 +297,17 @@ export function CliConsole() {
           <>
             <button
               className="btn btn-ghost tiny"
+              disabled={!connected}
+              onClick={(event) => {
+                event.stopPropagation()
+                setLuaOpen(true)
+              }}
+            >
+              <DialogIcon name="code" size={12} />
+              Lua
+            </button>
+            <button
+              className="btn btn-ghost tiny"
               disabled={!state.cliEntries.length}
               onClick={(event) => {
                 event.stopPropagation()
@@ -436,6 +449,7 @@ export function CliConsole() {
           </button>
         </div>
       </div>
+      {luaOpen ? <LuaScriptDialog onClose={() => setLuaOpen(false)} /> : null}
     </section>
   )
 }

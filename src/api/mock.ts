@@ -69,6 +69,9 @@ import type {
   StreamPendingOptions,
   StreamMutationResult,
   StreamTrimOptions,
+  LuaScript,
+  LuaSaveRequest,
+  EvalOptions,
   RefreshKeysOptions,
   RefreshKeysResult,
 } from '@shared/types'
@@ -678,6 +681,18 @@ function mockClearCliHistory(connId: string): string[] {
   return []
 }
 
+/* ---------------------------------------------------------------- Lua 脚本（预览模式） */
+
+let mockLuaScripts: LuaScript[] = [
+  {
+    id: 'sample-counter',
+    name: '原子计数器',
+    script: 'local n = redis.call("INCR", KEYS[1])\nreturn n',
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  },
+]
+
 /* ---------------------------------------------------------------- Stream 管理（预览模式） */
 
 interface MockStreamState {
@@ -1120,6 +1135,37 @@ export const mockApi: RedisDesktopApi = {
     get: async (connId: string) => ok(mockCliHistoryOf(connId)),
     record: async (connId: string, command: string) => ok(mockRecordCliHistory(connId, command)),
     clear: async (connId: string) => ok(mockClearCliHistory(connId)),
+  },
+
+  luaScripts: {
+    list: async () => ok(mockLuaScripts.map((item) => ({ ...item }))),
+    save: async (request: LuaSaveRequest) => {
+      const now = Date.now()
+      const name = request.name.trim()
+      if (!name) return { ok: false, error: 'script name is required' }
+      if (request.id) {
+        mockLuaScripts = mockLuaScripts.map((item) =>
+          item.id === request.id
+            ? { ...item, name, script: request.script, updatedAt: now }
+            : item,
+        )
+      } else {
+        mockLuaScripts = [
+          { id: `mock-${now}`, name, script: request.script, createdAt: now, updatedAt: now },
+          ...mockLuaScripts,
+        ]
+      }
+      return ok(mockLuaScripts.map((item) => ({ ...item })))
+    },
+    remove: async (id: string) => {
+      mockLuaScripts = mockLuaScripts.filter((item) => item.id !== id)
+      return ok(mockLuaScripts.map((item) => ({ ...item })))
+    },
+    removeMany: async (ids: string[]) => {
+      const remove = new Set(ids)
+      mockLuaScripts = mockLuaScripts.filter((item) => !remove.has(item.id))
+      return ok(mockLuaScripts.map((item) => ({ ...item })))
+    },
   },
 
   log: {
@@ -2237,6 +2283,20 @@ export const mockApi: RedisDesktopApi = {
       }
       return ok({ output: '(error) ERR 预览模式仅支持 PING / INFO / DBSIZE / GET', costMs: 1 })
     },
+    evalScript: async (
+      _id: string,
+      script: string,
+      _options: EvalOptions,
+    ): Promise<ApiResponse<CliResult>> => {
+      await delay(120)
+      if (!script.trim()) return ok({ output: '', error: 'empty script', costMs: 0 })
+      if (script.includes('error(')) {
+        return ok({ output: '', error: 'ERR user_script:1: mock error', costMs: 2 })
+      }
+      return ok({ output: '(integer) 1', costMs: 2 })
+    },
+    scriptKill: async (_id: string): Promise<ApiResponse<OperationResult>> =>
+      ok({ ok: true, message: 'SCRIPT KILL' }),
   },
 
   /*

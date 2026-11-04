@@ -59,6 +59,9 @@ import type {
   StreamPendingOptions,
   StreamMutationResult,
   StreamTrimOptions,
+  LuaScript,
+  LuaSaveRequest,
+  EvalOptions,
 } from './types'
 
 /**
@@ -140,6 +143,15 @@ export interface RedisDesktopApi {
     get: (connId: string) => Promise<ApiResponse<string[]>>
     record: (connId: string, command: string) => Promise<ApiResponse<string[]>>
     clear: (connId: string) => Promise<ApiResponse<string[]>>
+  }
+
+  /** Lua 脚本片段（全局） */
+  luaScripts: {
+    list: () => Promise<ApiResponse<LuaScript[]>>
+    save: (request: LuaSaveRequest) => Promise<ApiResponse<LuaScript[]>>
+    remove: (id: string) => Promise<ApiResponse<LuaScript[]>>
+    /** 批量删除，一次读写；返回删除后的完整列表 */
+    removeMany: (ids: string[]) => Promise<ApiResponse<LuaScript[]>>
   }
 
   log: {
@@ -480,6 +492,10 @@ export interface RedisDesktopApi {
       ttlSeconds?: number,
     ) => Promise<ApiResponse<OperationResult>>
     cli: (id: string, command: string) => Promise<ApiResponse<CliResult>>
+    /** 执行 Lua 脚本（EVAL / EVAL_RO） */
+    evalScript: (id: string, script: string, options: EvalOptions) => Promise<ApiResponse<CliResult>>
+    /** 终止正在运行的脚本（SCRIPT KILL） */
+    scriptKill: (id: string) => Promise<ApiResponse<OperationResult>>
   }
 
   /**
@@ -601,6 +617,13 @@ export const IPC = {
   cliHistoryGet: 'cliHistory:get',
   cliHistoryRecord: 'cliHistory:record',
   cliHistoryClear: 'cliHistory:clear',
+
+  redisEval: 'redis:eval',
+  redisScriptKill: 'redis:scriptKill',
+  luaScriptsList: 'luaScripts:list',
+  luaScriptsSave: 'luaScripts:save',
+  luaScriptsRemove: 'luaScripts:remove',
+  luaScriptsRemoveMany: 'luaScripts:removeMany',
 
   logDates: 'log:dates',
   logRead: 'log:read',
