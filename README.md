@@ -377,10 +377,12 @@ npm run preview      # 预览已构建产物（http://127.0.0.1:4173）
 npm run preview:title # 浏览器预览标题动画页
 npm run preview:tooltip # 浏览器预览连接项悬停面板
 npm run typecheck    # 类型检查（主进程 + 渲染进程）
-npm run test         # vitest 单元测试（tests/unit，21 个 spec / 208 个用例）
+npm run test         # vitest 单元测试（tests/unit，21 个 spec / 211 个用例）
 npm run i18n:check   # 校验三份字典的键集、占位符与源码引用一致
 npm run build        # 类型检查 + 构建产物到 dist/ 与 dist-electron/
 npm run csp:check    # 校验构建产物中的 CSP meta 与内联脚本 hash 一致
+npm run style:check  # 源码级校验浮起阴影 / 胶囊白名单 / Tailwind 层外覆盖（CI 用，不启浏览器）
+npm run test:e2e     # 6 条 CDP/DOM 冒烟：启动 / 连接 / 六类值 / 切标签 / 删除确认 / 主题（不截图）
 npm run dist         # 当前平台打包
 npm run dist:win     # 打包 Windows 安装包
 npm run dist:win:alt # 打包 Windows 到 release/<版本>-final（保留上一版产物时用）
@@ -440,7 +442,7 @@ KEYPER_DEBUG_LOG=/tmp/rd.log ./Keyper.exe
 
 | 工作流 | 触发 | 内容 |
 | --- | --- | --- |
-| `.github/workflows/ci.yml` | push（任意分支）/ PR 到默认分支 | `npm ci` → `i18n:check` → `typecheck` → `vitest` → `vite build` |
+| `.github/workflows/ci.yml` | push（任意分支）/ PR 到默认分支 | `npm ci` → `i18n:check` → `typecheck` → `vitest` → `vite build` → `csp-hash` / `csp:check` → `style:check` → `test:e2e`（6 条 CDP 冒烟，不截图） |
 | `.github/workflows/release.yml` | 推送 `v*` 标签 / 手动运行 | 校验标签与 `package.json` 版本一致 → 从标签附注导出 `release-notes.md`（根目录与 `build/` 各一份；手动运行按 `v<版本>` 取同一份附注）→ 保留该标签资产最全的一份 Release（被降级成草稿的先取消草稿）、删掉其余，一份都没有才新建 → Windows 打包并由 electron-builder 追加安装包、blockmap 与 `latest.yml` → 重试探测三类下载地址并复核 Release 数量；标签触发自动发布 Release，手动运行默认只构建、勾 `publish` 才发布 |
 
 ### 应用内更新

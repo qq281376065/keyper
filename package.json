@@ -33,7 +33,9 @@
     "dist:win": "npm run build && electron-builder --win",
     "dist:win:alt": "npm run build && electron-builder --win -c.directories.output=release/${version}-final",
     "dist:win:publish": "npm run build && electron-builder --win --publish always",
-    "i18n:check": "node scripts/i18n-check.mjs"
+    "i18n:check": "node scripts/i18n-check.mjs",
+    "style:check": "node scripts/check-style-conventions.mjs",
+    "test:e2e": "node tests/e2e/smoke.mjs"
   },
   "dependencies": {
     "electron-updater": "^6.8.11",

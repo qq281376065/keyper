@@ -172,8 +172,15 @@ Tailwind 的 `@custom-variant dark` **只认 dark / ocean / forest 三套暗色*
 | `scripts/check-tab-lift.mjs` | 方案 01 hover 只加影不位移、按下收影；方案 09 hover 上浮 1px、按下回 0；必须用 CDP 真触发 `:hover`；两方案手型光标、静态方案 03 默认 |
 | `scripts/csp-hash.mjs` | 指令表与 `main.ts` 的 `CSP_PROD` 一致；`--check` 下 hash 失配即退出 1；生产禁 `unsafe-inline` |
 | `scripts/i18n-check.mjs` | 第 2.2 节的 7 类检查 |
+| `scripts/check-style-conventions.mjs` | 源码级守护（`npm run style:check`，已进 CI）：`--lift-shadow` 双层几何与 9 套 alpha、999px 胶囊白名单、按钮选中态 inset + 外影、组件不硬编码浮起几何、`.bg-white` 覆盖在 `@layer` 之外。零依赖、不启浏览器 |
+| `tests/e2e/smoke.mjs` | 最小 e2e（`npm run test:e2e`，已进 CI）：自包含启动 vite web 与无头 Chrome，6 条 CDP/DOM 冒烟（启动 / mock 连接 / 六类值 / 切标签隔离 / 删除确认 / 主题切换），不截图 |
 
 前两个脚本均声明**不截图**，只用 DOM / 计算样式断言 —— 与红线一致。
+但它们是**开发期探针**：硬编码本机 Chrome 路径、依赖本地预览服务（`check-tab-lift`
+还依赖已停止跟踪的 `design/` 页面），因此不进 Ubuntu CI。CI 里的源码级断言由
+`check-style-conventions.mjs` 承担，真实渲染效果仍靠这两个探针在本地验。
+e2e 用 `CHROME_PATH` 指向系统 Chrome（CI 为 `/usr/bin/google-chrome`），
+本机自动扫描 Playwright 缓存里的 Chromium。
 
 ## 9. 易混淆 / 不适用
 

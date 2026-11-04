@@ -50,3 +50,18 @@ jobs:
       # 兜底：确认注入结果与内联脚本一致（防止脚本自身写错）
       - name: Verify CSP hashes
         run: npm run csp:check
+
+      # 样式规范守护：--lift-shadow 几何 / 9 套皮肤 alpha / 胶囊白名单 /
+      # 选中态 inset+外影 / Tailwind 层外覆盖。零依赖，只读源码不启动浏览器。
+      # 另有两个 CDP 探针（check-lift-shadow / check-tab-lift）不进 CI：
+      # 它们硬编码本机 Chrome 路径且依赖 design/ 预览页，只作本地手工验证。
+      - name: Check style conventions
+        run: npm run style:check
+
+      # 最小 e2e：脚本自包含启动 vite --mode web 与无头 Chrome，
+      # 用 CDP 读 DOM / 计算样式 / 控制台，6 条冒烟，不截图。
+      # ubuntu-latest 自带 Google Chrome，用 CHROME_PATH 指过去。
+      - name: E2E smoke (CDP, no screenshots)
+        run: npm run test:e2e
+        env:
+          CHROME_PATH: /usr/bin/google-chrome

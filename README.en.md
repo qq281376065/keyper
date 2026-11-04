@@ -462,10 +462,12 @@ npm run preview      # Preview the built output (http://127.0.0.1:4173)
 npm run preview:title # Preview the animated title page in a browser
 npm run preview:tooltip # Preview the connection hover panel in a browser
 npm run typecheck    # Type checking (main process + renderer)
-npm run test         # vitest unit tests (tests/unit, 21 specs / 208 cases)
+npm run test         # vitest unit tests (tests/unit, 21 specs / 211 cases)
 npm run i18n:check   # Validate the three dictionaries: key sets, placeholders, source references
 npm run build        # Type check + build into dist/ and dist-electron/
 npm run csp:check    # Verify the CSP meta in the build output matches its inline-script hashes
+npm run style:check  # Source-level guard for lift shadows / pill whitelist / layer order (CI, no browser)
+npm run test:e2e     # 6 CDP/DOM smoke checks: boot / connections / six value types / tab isolation / delete confirm / theme (no screenshots)
 npm run dist         # Package for the current platform
 npm run dist:win     # Build the Windows installer
 npm run dist:win:alt # Build Windows into release/<version>-final (keeps the previous output)
@@ -526,7 +528,7 @@ KEYPER_DEBUG_LOG=/tmp/rd.log ./Keyper.exe
 
 | Workflow | Trigger | Content |
 | --- | --- | --- |
-| `.github/workflows/ci.yml` | push (any branch) / PR to the default branch | `npm ci` → `i18n:check` → `typecheck` → `vitest` → `vite build` |
+| `.github/workflows/ci.yml` | push (any branch) / PR to the default branch | `npm ci` → `i18n:check` → `typecheck` → `vitest` → `vite build` → `csp-hash` / `csp:check` → `style:check` → `test:e2e` (6 CDP smoke checks, no screenshots) |
 | `.github/workflows/release.yml` | `v*` tag / manual run | Verifies the tag matches `package.json` → exports `release-notes.md` from the tag annotation (one copy at the root, one in `build/`; a manual run reads the same annotation for `v<version>`) → keeps the tag's Release with the most assets (clearing the draft flag first) and deletes the rest, creating one only when none exists → builds NSIS on Windows while electron-builder appends the installer, blockmap and `latest.yml` → probes the three download URLs with retries and re-checks the Release count; a tag publishes, a manual run only builds unless `publish` is ticked |
 
 ### In-app updates
