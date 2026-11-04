@@ -1,0 +1,42 @@
+name: Site
+
+# 开源站点（纯静态，无构建步骤）→ GitHub Pages。
+# 只在站点文件或本工作流变化时运行，日常应用改动不触发。
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - '.github/workflows/site.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: site-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # 中英词条必须一一对应、图片引用必须存在，否则不把站点发出去。
+      - name: Check the site (i18n keys, assets, tags)
+        run: node scripts/site-check.mjs
+
+      - uses: actions/configure-pages@v4
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
