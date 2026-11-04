@@ -6257,6 +6257,8 @@
   border-radius: var(--radius-md);
   background: var(--bg-panel);
   padding: 12px 8px 8px;
+  /* 信息详情的两栏/单栏切换按「卡片自身宽度」判定，见下方 @container */
+  container-type: inline-size;
 }
 .s-server-overview.ov-detail-head, .s-server-overview .ov-detail-head{
   display: flex;
@@ -6368,10 +6370,23 @@
   min-width: 0;
 }
 /*
- * 刻意不为窄视口改成「导航在上、内容在下」：
- * 方案 A 的形态就是左侧段落导航，换位置会让同一功能在窄窗口下变成另一套交互。
- * 窄窗口下导航列固定 188px，右侧内容自行收缩（字段列由 columns 自动降为单栏）。
+ * 详情区变窄时：导航从左侧竖排改为上方横排（与方案 A 预览一致）。
+ *
+ * 这里必须用容器查询而不是 @media：
+ * 值区宽度由工作区分栏的拖拽宽度决定 —— 视口很宽时详情区也可能被拖得很窄，
+ * 此时视口媒体查询完全不触发，导航会一直挤在左边。
+ * 阈值 520px ≈ 导航 188 + 间距 18 + 内容最小可用宽度。
  */
+@container (max-width: 519.9px){
+  .s-server-overview .ov-info{
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .s-server-overview .ov-info-nav{
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}
 /* 段落卡片：每段自成一块，折叠时只留标题行 */
 .s-server-overview.ov-section, .s-server-overview .ov-section{
   background: var(--bg-panel);
