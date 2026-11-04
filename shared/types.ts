@@ -903,3 +903,138 @@ export interface MemcachedValue {
   /** 剩余存活秒数：-1 永久；undefined 表示服务端不支持 meta 协议，无法得知 */
   ttl?: number
 }
+
+/** ---------------------------------------------------------------- 本地存储 */
+
+export interface FavoriteEntry {
+  key: string
+  db: number
+  /** 收藏时刻（毫秒时间戳） */
+  at: number
+}
+
+/** 桶键为连接 id；桶内新的在前 */
+export type FavoritesFile = Record<string, FavoriteEntry[]>
+
+/** 桶键为连接 id；值为命令原文，新的在前 */
+export type CliHistoryFile = Record<string, string[]>
+
+export interface LuaScript {
+  id: string
+  name: string
+  script: string
+  createdAt: number
+  updatedAt: number
+}
+
+export interface LuaScriptsFile {
+  version: 1
+  scripts: LuaScript[]
+}
+
+/** 保存入参：id 缺省表示新建 */
+export interface LuaSaveRequest {
+  id?: string
+  name: string
+  script: string
+}
+
+/** ---------------------------------------------------------------- Lua 执行 */
+
+export interface EvalOptions {
+  keys: string[]
+  args: string[]
+  readOnly: boolean
+}
+
+/** ---------------------------------------------------------------- 值查看器（二进制） */
+
+export interface ValueBinaryOptions {
+  decode?: 'gzip' | 'zlib'
+  /** 解压输出上限，主进程钳制到 [64KB, 20MB] */
+  maxOutputBytes?: number
+}
+
+export interface ValueBinaryResult {
+  /** 原始字节（按上限截断后）的 base64 */
+  base64: string
+  /** 原始值真实字节数 */
+  bytes: number
+  truncated: boolean
+  /** decode 成功时的文本 */
+  decodedText?: string
+  decodedBytes?: number
+  /** decode 失败原因；与 decodedText 互斥 */
+  decodeError?: string
+}
+
+export interface SaveBytesOptions {
+  base64: string
+  suggestedName?: string
+}
+
+export interface SaveBytesResult {
+  saved: boolean
+  path?: string
+}
+
+/** ---------------------------------------------------------------- Stream 消费组 */
+
+export interface StreamGroup {
+  name: string
+  consumers: number
+  pending: number
+  lastDeliveredId: string
+  /** Redis < 7.0 无 entries-read，为 null */
+  entriesRead: number | null
+  /** Redis < 7.0 无 lag，为 null */
+  lag: number | null
+}
+
+export interface StreamConsumer {
+  name: string
+  pending: number
+  idleMs: number
+  /** Redis < 6.2 无 inactive，为 null */
+  inactiveMs: number | null
+}
+
+export interface StreamPendingSummary {
+  count: number
+  minId: string | null
+  maxId: string | null
+}
+
+export interface StreamPendingEntry {
+  id: string
+  consumer: string
+  idleMs: number
+  deliveries: number
+}
+
+export interface StreamPendingPage {
+  entries: StreamPendingEntry[]
+  /** 不透明游标（末条 ID）；null 表示没有更多 */
+  nextCursor: string | null
+}
+
+export interface StreamPendingOptions {
+  consumer?: string
+  cursor?: string
+  /** 1..200，默认 50 */
+  count?: number
+}
+
+export type StreamTrimStrategy = 'MAXLEN' | 'MINID'
+
+export interface StreamTrimOptions {
+  strategy: StreamTrimStrategy
+  /** MAXLEN 为条数、MINID 为 ID，统一按字符串传，主进程校验 */
+  value: string
+  approx: boolean
+}
+
+/** ack / claim / del / trim 统一返回实际影响条数 */
+export interface StreamMutationResult extends OperationResult {
+  affected: number
+}

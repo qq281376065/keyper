@@ -69,6 +69,23 @@ describe('resolveCapabilities', () => {
     expect(c.versionKnown).toBe(false)
     expect(c.hashFieldTtl).toBe(false)
     expect(c.setMemberTtl).toBe(false)
+    expect(c.streamGroups).toBe(false)
+    expect(c.streamPendingIdle).toBe(false)
+    expect(c.streamLag).toBe(false)
+  })
+
+  it('5.0 起开放消费组基础能力', () => {
+    const c = resolveCapabilities('5.0.14')
+    expect(c.streamGroups).toBe(true)
+    expect(c.streamPendingIdle).toBe(false)
+    expect(c.streamLag).toBe(false)
+  })
+
+  it('6.2 起开放 XPENDING IDLE，7.0 起开放 lag', () => {
+    const c62 = resolveCapabilities('6.2.14')
+    expect(c62.streamPendingIdle).toBe(true)
+    expect(c62.streamLag).toBe(false)
+    expect(resolveCapabilities('7.0.0').streamLag).toBe(true)
   })
 })
 

@@ -25,6 +25,12 @@ export interface ServerCapabilities {
   hashFieldTtl: boolean
   /** set 成员级 TTL（SHEXPIRE / STTL），与 hash 同批引入 */
   setMemberTtl: boolean
+  /** Stream 消费组（XINFO / XGROUP），Redis >= 5.0 */
+  streamGroups: boolean
+  /** XPENDING IDLE / 消费者 inactive 时长，Redis >= 6.2 */
+  streamPendingIdle: boolean
+  /** XINFO GROUPS 的 entries-read / lag，Redis >= 7.0 */
+  streamLag: boolean
   /** 版本是否成功解析（false 表示拿不到版本，能力一律按不支持处理） */
   versionKnown: boolean
 }
@@ -61,6 +67,9 @@ export function resolveCapabilities(versionText?: string | null): ServerCapabili
     versionKnown: version !== null,
     hashFieldTtl: fieldTtl,
     setMemberTtl: fieldTtl,
+    streamGroups: versionAtLeast(version, 5, 0),
+    streamPendingIdle: versionAtLeast(version, 6, 2),
+    streamLag: versionAtLeast(version, 7, 0),
   }
 }
 
