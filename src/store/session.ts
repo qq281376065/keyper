@@ -82,6 +82,8 @@ export interface ConfirmRequest {
    * 从机制上排除"手滑点确认"的可能。
    */
   requirePhrase?: string
+  /** 紧凑宽度：用于内容很短的确认（如删除单条消息） */
+  compact?: boolean
   /** 危险级：确认按钮使用强调样式 */
   danger?: boolean
   /**

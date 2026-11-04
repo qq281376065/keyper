@@ -52,6 +52,13 @@ import type {
   SaveBytesResult,
   RefreshKeysOptions,
   RefreshKeysResult,
+  StreamGroup,
+  StreamConsumer,
+  StreamPendingSummary,
+  StreamPendingPage,
+  StreamPendingOptions,
+  StreamMutationResult,
+  StreamTrimOptions,
 } from './types'
 
 /**
@@ -400,13 +407,71 @@ export interface RedisDesktopApi {
       member: string,
       score: number,
     ) => Promise<ApiResponse<OperationResult>>
-    /** 向 stream 追加一条 entry（XADD，ID 由服务端 * 自动生成——单调约束手工填必错） */
+    /** 向 stream 追加一条 entry（XADD），支持多字段 */
     xaddEntry: (
       id: string,
       key: string,
-      field: string,
-      value: string,
+      fields: Array<[string, string]>,
     ) => Promise<ApiResponse<OperationResult>>
+    /** 消费组列表（XINFO GROUPS） */
+    streamGroups: (id: string, key: string) => Promise<ApiResponse<StreamGroup[]>>
+    /** 组内消费者（XINFO CONSUMERS） */
+    streamConsumers: (
+      id: string,
+      key: string,
+      group: string,
+    ) => Promise<ApiResponse<StreamConsumer[]>>
+    /** PEL 汇总（XPENDING） */
+    streamPendingSummary: (
+      id: string,
+      key: string,
+      group: string,
+    ) => Promise<ApiResponse<StreamPendingSummary>>
+    /** PEL 明细分页 */
+    streamPending: (
+      id: string,
+      key: string,
+      group: string,
+      options?: StreamPendingOptions,
+    ) => Promise<ApiResponse<StreamPendingPage>>
+    streamGroupCreate: (
+      id: string,
+      key: string,
+      group: string,
+      startId: string,
+      mkstream: boolean,
+    ) => Promise<ApiResponse<OperationResult>>
+    streamGroupDestroy: (id: string, key: string, group: string) => Promise<ApiResponse<OperationResult>>
+    streamGroupSetId: (
+      id: string,
+      key: string,
+      group: string,
+      startId: string,
+    ) => Promise<ApiResponse<OperationResult>>
+    streamAck: (
+      id: string,
+      key: string,
+      group: string,
+      ids: string[],
+    ) => Promise<ApiResponse<StreamMutationResult>>
+    streamClaim: (
+      id: string,
+      key: string,
+      group: string,
+      consumer: string,
+      minIdleMs: number,
+      ids: string[],
+    ) => Promise<ApiResponse<StreamMutationResult>>
+    streamDel: (
+      id: string,
+      key: string,
+      ids: string[],
+    ) => Promise<ApiResponse<StreamMutationResult>>
+    streamTrim: (
+      id: string,
+      key: string,
+      options: StreamTrimOptions,
+    ) => Promise<ApiResponse<StreamMutationResult>>
     createKey: (
       id: string,
       key: string,
@@ -613,6 +678,17 @@ export const IPC = {
   redisDelZsetMember: 'redis:delZsetMember',
   redisAddZsetMember: 'redis:addZsetMember',
   redisXaddEntry: 'redis:xaddEntry',
+  redisStreamGroups: 'redis:streamGroups',
+  redisStreamConsumers: 'redis:streamConsumers',
+  redisStreamPendingSummary: 'redis:streamPendingSummary',
+  redisStreamPending: 'redis:streamPending',
+  redisStreamGroupCreate: 'redis:streamGroupCreate',
+  redisStreamGroupDestroy: 'redis:streamGroupDestroy',
+  redisStreamGroupSetId: 'redis:streamGroupSetId',
+  redisStreamAck: 'redis:streamAck',
+  redisStreamClaim: 'redis:streamClaim',
+  redisStreamDel: 'redis:streamDel',
+  redisStreamTrim: 'redis:streamTrim',
   redisCreateKey: 'redis:createKey',
   redisCli: 'redis:cli',
 

@@ -39,6 +39,13 @@ import type {
   ValueReadOptions,
   ValueBinaryOptions,
   ValueBinaryResult,
+  StreamGroup,
+  StreamConsumer,
+  StreamPendingSummary,
+  StreamPendingPage,
+  StreamPendingOptions,
+  StreamMutationResult,
+  StreamTrimOptions,
   RefreshKeysOptions,
   RefreshKeysResult,
 } from '../../shared/types'
@@ -121,6 +128,15 @@ function flattenZsetRows(rows: string[]): string[] {
 /** XRANGE 条目 → `entryId :: {fields}` 行（与旧实现保持同一格式） */
 function flattenStreamEntries(entries: ReadonlyArray<[string, string[]]>): string[] {
   return entries.map(([entryId, fields]) => `${entryId} :: ${JSON.stringify(fields)}`)
+}
+
+/** XINFO / XPENDING 返回的扁平 [key, value, ...] → 对象 */
+function pairsOf(reply: unknown[]): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (let index = 0; index + 1 < reply.length; index += 2) {
+    out[String(reply[index])] = reply[index + 1]
+  }
+  return out
 }
 
 /** 实际连接端点：直连时为配置地址，走隧道时为本机回环端口 */
@@ -1879,19 +1895,200 @@ class ConnectionManager {
    * 单调约束，让用户填既容易出错也没有意义（与 createKey 的 stream
    * 分支同一约定）。返回生成后的 ID 便于用户在 redis-cli 对账。
    */
-  async xaddEntry(id: string, key: string, field: string, value: string): Promise<OperationResult> {
+  async xaddEntry(
+    id: string,
+    key: string,
+    fields: Array<[string, string]>,
+  ): Promise<OperationResult> {
     const client = this.mustGet(id)
-    const target = field.trim()
-    if (!target) return { ok: false, message: t('connectionManager.fieldNameCannotEmpty') }
+    const clean = fields
+      .map(([field, value]) => [field.trim(), value] as [string, string])
+      .filter(([field]) => field.length > 0)
+    if (!clean.length) return { ok: false, message: t('connectionManager.fieldNameCannotEmpty') }
 
     const exists = await client.exists(key)
-    const entryId = await client.xadd(key, '*', target, value)
+    const entryId = await client.xadd(key, '*', ...clean.flat())
     return {
       ok: true,
       message: exists
         ? t('connectionManager.appendedMessageId', { id: String(entryId) })
         : t('connectionManager.streamCreatedMessageId', { id: String(entryId) }),
     }
+  }
+
+  /* ---------------------------------------------------------------- Stream 管理 */
+
+  private async streamInfo(
+    id: string,
+    command: string,
+    key: string,
+    extra: string[] = [],
+  ): Promise<unknown> {
+    const client = this.mustGet(id)
+    return client.call(command, key, ...extra)
+  }
+
+  async streamGroups(id: string, key: string): Promise<StreamGroup[]> {
+    const reply = (await this.streamInfo(id, 'XINFO', key, ['GROUPS'])) as unknown
+    if (!Array.isArray(reply)) return []
+    return reply.filter(Array.isArray).map((row) => {
+      const info = pairsOf(row as unknown[])
+      return {
+        name: String(info.name ?? ''),
+        consumers: Number(info.consumers) || 0,
+        pending: Number(info.pending) || 0,
+        lastDeliveredId: String(info['last-delivered-id'] ?? ''),
+        entriesRead: info['entries-read'] == null ? null : Number(info['entries-read']),
+        lag: info.lag == null ? null : Number(info.lag),
+      }
+    })
+  }
+
+  async streamConsumers(id: string, key: string, group: string): Promise<StreamConsumer[]> {
+    const reply = (await this.streamInfo(id, 'XINFO', key, ['CONSUMERS', group])) as unknown
+    if (!Array.isArray(reply)) return []
+    return reply.filter(Array.isArray).map((row) => {
+      const info = pairsOf(row as unknown[])
+      return {
+        name: String(info.name ?? ''),
+        pending: Number(info.pending) || 0,
+        idleMs: Number(info.idle) || 0,
+        inactiveMs: info.inactive == null ? null : Number(info.inactive),
+      }
+    })
+  }
+
+  async streamPendingSummary(id: string, key: string, group: string): Promise<StreamPendingSummary> {
+    const client = this.mustGet(id)
+    const summary = (await client.call('XPENDING', key, group)) as unknown
+    if (!Array.isArray(summary)) return { count: 0, minId: null, maxId: null }
+    return {
+      count: Number(summary[0]) || 0,
+      minId: summary[1] == null ? null : String(summary[1]),
+      maxId: summary[2] == null ? null : String(summary[2]),
+    }
+  }
+
+  async streamPending(
+    id: string,
+    key: string,
+    group: string,
+    options: StreamPendingOptions = {},
+  ): Promise<StreamPendingPage> {
+    const client = this.mustGet(id)
+    const count = Math.min(Math.max(Number(options.count) || 50, 1), 200)
+    const start = options.cursor || '-'
+    const args: string[] = ['XPENDING', key, group, start, '+', String(count + 1)]
+    if (options.consumer) args.push(options.consumer)
+    const reply = (await (client.call as unknown as (...a: string[]) => Promise<unknown>)(...args)) as unknown
+    if (!Array.isArray(reply)) return { entries: [], nextCursor: null }
+
+    let rows = reply as unknown[][]
+    if (options.cursor && String(rows[0]?.[0] ?? '') === options.cursor) rows = rows.slice(1)
+    const hasMore = rows.length > count
+    const page = rows.slice(0, count)
+    return {
+      entries: page.map((row) => ({
+        id: String(row[0] ?? ''),
+        consumer: String(row[1] ?? ''),
+        idleMs: Number(row[2]) || 0,
+        deliveries: Number(row[3]) || 0,
+      })),
+      nextCursor: hasMore && page.length ? String(page[page.length - 1][0]) : null,
+    }
+  }
+
+  async streamGroupCreate(
+    id: string,
+    key: string,
+    group: string,
+    startId: string,
+    mkstream: boolean,
+  ): Promise<OperationResult> {
+    const client = this.mustGet(id)
+    const target = group.trim()
+    if (!target) return { ok: false, message: t('connectionManager.fieldNameCannotEmpty') }
+    const args = ['XGROUP', 'CREATE', key, target, startId || '$']
+    if (mkstream) args.push('MKSTREAM')
+    await (client.call as unknown as (...a: string[]) => Promise<unknown>)(...args)
+    return { ok: true, message: target }
+  }
+
+  async streamGroupDestroy(id: string, key: string, group: string): Promise<OperationResult> {
+    const client = this.mustGet(id)
+    await client.call('XGROUP', 'DESTROY', key, group)
+    return { ok: true, message: group }
+  }
+
+  async streamGroupSetId(
+    id: string,
+    key: string,
+    group: string,
+    startId: string,
+  ): Promise<OperationResult> {
+    const client = this.mustGet(id)
+    if (!startId) return { ok: false, message: t('connectionManager.fieldNameCannotEmpty') }
+    await client.call('XGROUP', 'SETID', key, group, startId)
+    return { ok: true, message: group }
+  }
+
+  async streamAck(
+    id: string,
+    key: string,
+    group: string,
+    ids: string[],
+  ): Promise<StreamMutationResult> {
+    const client = this.mustGet(id)
+    const affected = Number(await client.call('XACK', key, group, ...ids)) || 0
+    return { ok: true, affected, message: String(affected) }
+  }
+
+  async streamClaim(
+    id: string,
+    key: string,
+    group: string,
+    consumer: string,
+    minIdleMs: number,
+    ids: string[],
+  ): Promise<StreamMutationResult> {
+    const client = this.mustGet(id)
+    const target = consumer.trim()
+    if (!target) return { ok: false, affected: 0, message: t('connectionManager.fieldNameCannotEmpty') }
+    const claimed = (await client.call(
+      'XCLAIM',
+      key,
+      group,
+      target,
+      String(Math.max(Number(minIdleMs) || 0, 0)),
+      ...ids,
+      'JUSTID',
+    )) as unknown
+    const affected = Array.isArray(claimed) ? claimed.length : 0
+    return { ok: true, affected, message: String(affected) }
+  }
+
+  async streamDel(id: string, key: string, ids: string[]): Promise<StreamMutationResult> {
+    const client = this.mustGet(id)
+    const affected = Number(await client.call('XDEL', key, ...ids)) || 0
+    return { ok: true, affected, message: String(affected) }
+  }
+
+  async streamTrim(
+    id: string,
+    key: string,
+    options: StreamTrimOptions,
+  ): Promise<StreamMutationResult> {
+    const client = this.mustGet(id)
+    const value = String(options.value ?? '').trim()
+    if (options.strategy === 'MAXLEN' && !/^\d+$/.test(value)) {
+      return { ok: false, affected: 0, message: t('connectionManager.fieldNameCannotEmpty') }
+    }
+    if (options.strategy === 'MINID' && !/^\d+-\d+$/.test(value)) {
+      return { ok: false, affected: 0, message: t('connectionManager.fieldNameCannotEmpty') }
+    }
+    const args = ['XTRIM', key, options.strategy, ...(options.approx ? ['~'] : []), value]
+    const affected = Number(await (client.call as unknown as (...a: string[]) => Promise<unknown>)(...args)) || 0
+    return { ok: true, affected, message: String(affected) }
   }
 
   /**

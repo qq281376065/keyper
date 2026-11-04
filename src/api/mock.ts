@@ -61,6 +61,14 @@ import type {
   ValueBinaryResult,
   SaveBytesOptions,
   SaveBytesResult,
+  StreamGroup,
+  StreamConsumer,
+  StreamPendingSummary,
+  StreamPendingPage,
+  StreamPendingEntry,
+  StreamPendingOptions,
+  StreamMutationResult,
+  StreamTrimOptions,
   RefreshKeysOptions,
   RefreshKeysResult,
 } from '@shared/types'
@@ -668,6 +676,185 @@ function mockRecordCliHistory(connId: string, command: string): string[] {
 function mockClearCliHistory(connId: string): string[] {
   delete mockCliHistory[connId]
   return []
+}
+
+/* ---------------------------------------------------------------- Stream 管理（预览模式） */
+
+interface MockStreamState {
+  groups: StreamGroup[]
+  consumers: Record<string, StreamConsumer[]>
+  pending: Record<string, StreamPendingEntry[]>
+}
+
+const mockStreamStates: Record<string, MockStreamState> = {}
+
+function ensureStreamState(key: string): MockStreamState {
+  if (mockStreamStates[key]) return mockStreamStates[key]
+  const state: MockStreamState = {
+    groups: [
+      {
+        name: 'notify-workers',
+        consumers: 2,
+        pending: 4,
+        lastDeliveredId: '1760668800000-0',
+        entriesRead: 18,
+        lag: 2,
+      },
+      {
+        name: 'audit',
+        consumers: 1,
+        pending: 2,
+        lastDeliveredId: '1760668700000-0',
+        entriesRead: 12,
+        lag: 8,
+      },
+    ],
+    consumers: {
+      'notify-workers': [
+        { name: 'worker-a', pending: 3, idleMs: 12000, inactiveMs: 12000 },
+        { name: 'worker-b', pending: 1, idleMs: 64000, inactiveMs: 64000 },
+      ],
+      audit: [{ name: 'auditor', pending: 2, idleMs: 300000, inactiveMs: 300000 }],
+    },
+    pending: {
+      'notify-workers': [
+        { id: '1760668790000-0', consumer: 'worker-a', idleMs: 12000, deliveries: 1 },
+        { id: '1760668791000-0', consumer: 'worker-a', idleMs: 18000, deliveries: 2 },
+        { id: '1760668792000-0', consumer: 'worker-a', idleMs: 26000, deliveries: 1 },
+        { id: '1760668793000-0', consumer: 'worker-b', idleMs: 64000, deliveries: 3 },
+      ],
+      audit: [
+        { id: '1760668700000-0', consumer: 'auditor', idleMs: 300000, deliveries: 1 },
+        { id: '1760668701000-0', consumer: 'auditor', idleMs: 360000, deliveries: 2 },
+      ],
+    },
+  }
+  mockStreamStates[key] = state
+  return state
+}
+
+function mockSyncPendingCount(state: MockStreamState, group: string): void {
+  const target = state.groups.find((item) => item.name === group)
+  const pending = state.pending[group] ?? []
+  if (target) target.pending = pending.length
+  state.consumers[group] = (state.consumers[group] ?? []).map((consumer) => ({
+    ...consumer,
+    pending: pending.filter((entry) => entry.consumer === consumer.name).length,
+  }))
+}
+
+function mockStreamGroups(key: string): StreamGroup[] {
+  return ensureStreamState(key).groups.map((item) => ({ ...item }))
+}
+
+function mockStreamConsumers(key: string, group: string): StreamConsumer[] {
+  return (ensureStreamState(key).consumers[group] ?? []).map((item) => ({ ...item }))
+}
+
+function mockStreamPendingSummary(key: string, group: string): StreamPendingSummary {
+  const pending = ensureStreamState(key).pending[group] ?? []
+  return {
+    count: pending.length,
+    minId: pending[0]?.id ?? null,
+    maxId: pending[pending.length - 1]?.id ?? null,
+  }
+}
+
+function mockStreamPending(
+  key: string,
+  group: string,
+  options: StreamPendingOptions = {},
+): StreamPendingPage {
+  const state = ensureStreamState(key)
+  const count = Math.min(Math.max(Number(options.count) || 50, 1), 200)
+  const all = (state.pending[group] ?? []).filter(
+    (entry) => !options.consumer || entry.consumer === options.consumer,
+  )
+  const startIndex = options.cursor ? all.findIndex((entry) => entry.id === options.cursor) + 1 : 0
+  const page = all.slice(Math.max(startIndex, 0), Math.max(startIndex, 0) + count)
+  const nextIndex = Math.max(startIndex, 0) + page.length
+  return {
+    entries: page.map((entry) => ({ ...entry })),
+    nextCursor: nextIndex < all.length && page.length ? page[page.length - 1].id : null,
+  }
+}
+
+function mockStreamGroupCreate(
+  key: string,
+  group: string,
+  startId: string,
+  mkstream: boolean,
+): OperationResult {
+  const state = ensureStreamState(key)
+  if (!mkstream && !STREAMS[key]) return { ok: false, message: 'no such key' }
+  if (state.groups.some((item) => item.name === group)) {
+    return { ok: false, message: 'BUSYGROUP' }
+  }
+  state.groups.push({
+    name: group,
+    consumers: 0,
+    pending: 0,
+    lastDeliveredId: startId,
+    entriesRead: 0,
+    lag: null,
+  })
+  state.consumers[group] = []
+  state.pending[group] = []
+  return { ok: true, message: group }
+}
+
+function mockStreamGroupDestroy(key: string, group: string): OperationResult {
+  const state = ensureStreamState(key)
+  state.groups = state.groups.filter((item) => item.name !== group)
+  delete state.consumers[group]
+  delete state.pending[group]
+  return { ok: true, message: group }
+}
+
+function mockStreamAck(key: string, group: string, ids: string[]): StreamMutationResult {
+  const state = ensureStreamState(key)
+  const before = state.pending[group] ?? []
+  state.pending[group] = before.filter((entry) => !ids.includes(entry.id))
+  mockSyncPendingCount(state, group)
+  return { ok: true, affected: before.length - (state.pending[group]?.length ?? 0), message: '' }
+}
+
+function mockStreamClaim(
+  key: string,
+  group: string,
+  consumer: string,
+  ids: string[],
+): StreamMutationResult {
+  const state = ensureStreamState(key)
+  let affected = 0
+  for (const entry of state.pending[group] ?? []) {
+    if (ids.includes(entry.id)) {
+      entry.consumer = consumer
+      entry.deliveries += 1
+      affected++
+    }
+  }
+  if (affected) {
+    if (!state.consumers[group]) state.consumers[group] = []
+    if (!state.consumers[group].some((item) => item.name === consumer)) {
+      state.consumers[group].push({ name: consumer, pending: 0, idleMs: 0, inactiveMs: null })
+    }
+    mockSyncPendingCount(state, group)
+  }
+  return { ok: true, affected, message: '' }
+}
+
+function mockStreamTrim(key: string, options: StreamTrimOptions): StreamMutationResult {
+  const list = STREAMS[key] ?? []
+  let kept = list
+  if (options.strategy === 'MAXLEN') {
+    const max = Math.max(Number(options.value) || 0, 0)
+    kept = list.slice(Math.max(list.length - max, 0))
+  } else {
+    kept = list.filter((entry) => (entry.split(' :: ')[0] ?? '') >= options.value)
+  }
+  STREAMS[key] = kept
+  return { ok: true, affected: list.length - kept.length, message: '' }
 }
 
 /** ---------------------------------------------------------------- 设置与日志（预览用） */
@@ -1961,21 +2148,66 @@ export const mockApi: RedisDesktopApi = {
     xaddEntry: async (
       _id: string,
       key: string,
-      field: string,
-      value: string,
+      fields: Array<[string, string]>,
     ): Promise<ApiResponse<OperationResult>> => {
       await delay(160)
-      const target = field.trim()
-      if (!target) return { ok: false, error: '字段名不能为空' }
+      const clean = (fields ?? [])
+        .map(([field, value]) => [field.trim(), value] as [string, string])
+        .filter(([field]) => field.length > 0)
+      if (!clean.length) return { ok: false, error: '字段名不能为空' }
       if (!STREAMS[key]) STREAMS[key] = []
       const list = STREAMS[key]
       /* ID 单调递增：取末条时间戳 +1（列表本身按 ID 升序渲染）；空流从当前时间起 */
       const lastId = list.length ? (list[list.length - 1].split(' :: ')[0] ?? '0-0') : '0-0'
       const lastMs = Number(lastId.split('-')[0]) || Date.now()
       const entryId = `${Math.max(lastMs + 1, Date.now())}-0`
-      list.push(`${entryId} :: ${target}=${value}`)
+      list.push(`${entryId} :: ${clean.map(([field, value]) => `${field}=${value}`).join(' ')}`)
       return ok({ ok: true, message: `已追加消息 ${entryId}` })
     },
+    streamGroups: async (_id: string, key: string) =>
+      ok(mockStreamGroups(key)),
+    streamConsumers: async (_id: string, key: string, group: string) =>
+      ok(mockStreamConsumers(key, group)),
+    streamPendingSummary: async (_id: string, key: string, group: string) =>
+      ok(mockStreamPendingSummary(key, group)),
+    streamPending: async (
+      _id: string,
+      key: string,
+      group: string,
+      options?: StreamPendingOptions,
+    ) => ok(mockStreamPending(key, group, options)),
+    streamGroupCreate: async (
+      _id: string,
+      key: string,
+      group: string,
+      startId: string,
+      mkstream: boolean,
+    ) => ok(mockStreamGroupCreate(key, group, startId, mkstream)),
+    streamGroupDestroy: async (_id: string, key: string, group: string) =>
+      ok(mockStreamGroupDestroy(key, group)),
+    streamGroupSetId: async (_id: string, key: string, group: string, startId: string) => {
+      const state = ensureStreamState(key)
+      const target = state.groups.find((item) => item.name === group)
+      if (target) target.lastDeliveredId = startId
+      return ok({ ok: true, message: group })
+    },
+    streamAck: async (_id: string, key: string, group: string, ids: string[]) =>
+      ok(mockStreamAck(key, group, ids)),
+    streamClaim: async (
+      _id: string,
+      key: string,
+      group: string,
+      consumer: string,
+      _minIdleMs: number,
+      ids: string[],
+    ) => ok(mockStreamClaim(key, group, consumer, ids)),
+    streamDel: async (_id: string, key: string, ids: string[]) => {
+      const list = STREAMS[key] ?? []
+      STREAMS[key] = list.filter((entry) => !ids.includes(entry.split(' :: ')[0] ?? ''))
+      return ok({ ok: true, affected: list.length - (STREAMS[key]?.length ?? 0), message: '' })
+    },
+    streamTrim: async (_id: string, key: string, options: StreamTrimOptions) =>
+      ok(mockStreamTrim(key, options)),
     createKey: async (
       _id: string,
       key: string,

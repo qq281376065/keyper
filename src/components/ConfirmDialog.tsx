@@ -50,7 +50,7 @@ export function ConfirmDialog() {
         默认文案保持原样，退出这类请求自己传 description。
       */
       description={request.description ?? t('common.reviewFollowingActionCannotUndone')}
-      className="confirm-dialog"
+      className={`confirm-dialog${request.compact ? ' compact' : ''}`}
       /* 确认框允许点遮罩取消：它没有"填到一半"的状态，取消成本极低 */
       closeOnOverlay
       onClose={() => resolveConfirm(false)}

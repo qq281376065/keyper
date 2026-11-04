@@ -17,6 +17,7 @@ import { ServerOverview } from '@/components/ServerOverview'
 import { MemcachedOverview } from '@/components/MemcachedOverview'
 import { SortIcon } from '@/components/SortIcon'
 import { StreamAddEntryDialog } from '@/components/StreamAddEntryDialog'
+import { StreamAdminPanel } from '@/components/StreamAdminPanel'
 import { ValueActions } from '@/components/ValueActions'
 import { ViewStreamEntryDialog } from '@/components/ViewStreamEntryDialog'
 import { ValueFormatMenu } from '@/components/ValueFormatMenu'
@@ -976,6 +977,7 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
     notify,
     refreshSelected,
     loadMoreValue,
+    askConfirm,
   } = useRedis()
   /* 订阅：本标签的会话（或全局）任一写入都重渲染 —— 与 Vue 的响应式粒度一致 */
   useObservable(useSessionStore())
@@ -1001,6 +1003,10 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
   const [editVisible, setEditVisible] = useState(false)
   /** 自动刷新开关：开启后每 5 秒重新读取一次 */
   const [autoRefresh, setAutoRefresh] = useState(false)
+  /** Stream 内联页签：消息 / 消费组 / 待处理 */
+  const [streamTab, setStreamTab] = useState<'messages' | 'groups' | 'pending'>('messages')
+  const [streamGroup, setStreamGroup] = useState('')
+  const [trimVisible, setTrimVisible] = useState(false)
 
   /** 倒计时归零后只复核一次；键可能被续期，最终以服务端结果为准 */
   const expiryRecheckedAt = useRef<number | null>(null)
@@ -1019,6 +1025,18 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
     }, remaining * 1000 + 300)
     return () => clearTimeout(timer)
   }, [value, valueAt, refreshSelected])
+
+  useEffect(() => {
+    setStreamTab('messages')
+    setStreamGroup('')
+  }, [value?.key])
+
+  useEffect(() => {
+    if (!capabilities.streamGroups && streamTab !== 'messages') {
+      setStreamTab('messages')
+      setStreamGroup('')
+    }
+  }, [capabilities.streamGroups, streamTab])
 
   /** 排序键：field（hash 字段名）/ value（内容或 score）/ member（zset 成员、stream ID） */
   const [sortKey, setSortKey] = useState<'field' | 'value' | 'member' | null>(null)
@@ -1445,6 +1463,29 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
     await setTtl(value!.key, seconds)
   }
 
+  async function handleTrim(next: string): Promise<void> {
+    setTrimVisible(false)
+    const input = next.trim()
+    const id = sessionState.activeId
+    if (!id || !value || !input) return
+    const strategy = input.includes('-') ? 'MINID' : 'MAXLEN'
+    const confirmed = await askConfirm({
+      title: t('stream.trimTitle'),
+      message: t('stream.trimConfirm', { strategy, value: input }),
+      confirmText: t('stream.trim'),
+      requirePhrase: 'TRIM',
+      danger: true,
+    })
+    if (!confirmed) return
+    const res = await api.redis.streamTrim(id, value.key, { strategy, value: input, approx: true })
+    if (!res.ok) {
+      notify('err', res.error)
+      return
+    }
+    notify('ok', t('stream.trimDone', { count: res.data.affected }))
+    await refreshSelected()
+  }
+
   return (
     <>
       {value ? (
@@ -1706,6 +1747,10 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                 <DialogIcon name="add" size={12} className="ti" />
                 {t('valueViewer.append')}
               </button>
+              <button className="tool" {...tipProps(t('stream.trimHint'))} onClick={() => setTrimVisible(true)}>
+                <DialogIcon name="collapse" size={12} className="ti" />
+                {t('stream.trim')}
+              </button>
               <button className="tool" {...tipProps(t('valueViewer.reloadKey'))} onClick={refreshValue}>
                 <DialogIcon name="refresh" size={12} className="ti" />
                 {t('common.refresh')}
@@ -1730,6 +1775,32 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
           {/* 值区外层：承载刷新时的轻量 loading 遮罩（不改变内部布局） */}
           <div className="value-area" ref={areaRef}>
             <div className="value-body">
+              {value.type === 'stream' ? (
+                <div className="stream-tabs">
+                  <button
+                    className={streamTab === 'messages' ? 'on' : ''}
+                    onClick={() => setStreamTab('messages')}
+                  >
+                    {t('streamGroups.tabMessages')}
+                  </button>
+                  {capabilities.streamGroups ? (
+                    <>
+                      <button
+                        className={streamTab === 'groups' ? 'on' : ''}
+                        onClick={() => setStreamTab('groups')}
+                      >
+                        {t('streamGroups.tabGroups')}
+                      </button>
+                      <button
+                        className={streamTab === 'pending' ? 'on' : ''}
+                        onClick={() => setStreamTab('pending')}
+                      >
+                        {t('streamGroups.tabPending')}
+                      </button>
+                    </>
+                  ) : null}
+                </div>
+              ) : null}
               {value.type === 'string' && !keyword && valueFormats.format ? (
                 <ValueFormatView formats={valueFormats} keyName={value.key} />
               ) : value.type === 'string' && !keyword && stringEditor.stringEditing ? (
@@ -2241,6 +2312,17 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                     </span>
                   </p>
                 </div>
+              ) : value.type === 'stream' && streamTab !== 'messages' ? (
+                <StreamAdminPanel
+                  keyName={value.key}
+                  tab={streamTab}
+                  initialGroup={streamGroup}
+                  pendingIdle={capabilities.streamPendingIdle}
+                  onOpenPending={(group) => {
+                    setStreamGroup(group)
+                    setStreamTab('pending')
+                  }}
+                />
               ) : (
                 /* stream：表格形态，entry ID / 字段 两列；只读，操作列仅复制与查看 */
                 <div ref={tableRef} className="pair-table" style={colVars as React.CSSProperties}>
@@ -2544,6 +2626,16 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
               <DialogIcon name="terminal" size={13} className="rm-icon" />
               <span>{t('valueViewer.copyXaddCommand')}</span>
             </button>
+
+            <div className="rm-sep" />
+
+            <button
+              className="rm-item danger"
+              onClick={() => streamEditor.runStreamMenuAction((row) => void streamEditor.deleteStreamEntry(row))}
+            >
+              <DialogIcon name="trash" size={13} className="rm-icon" />
+              <span>{t('stream.deleteMessage')}</span>
+            </button>
           </div>
         </RowMenuMask>
       ) : null}
@@ -2710,6 +2802,18 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
           presets={TTL_PRESETS.map((preset) => ({ ...preset, label: t(preset.label) }))}
           onConfirm={(next) => void handleTtl(next)}
           onCancel={() => setTtlVisible(false)}
+        />
+      ) : null}
+      {trimVisible && value ? (
+        <PromptDialog
+          title={t('stream.trimTitle')}
+          label={t('stream.trimValue')}
+          initialValue=""
+          placeholder="1000 / 1700000000000-0"
+          hint={t('stream.trimHint')}
+          confirmText={t('stream.trim')}
+          onConfirm={(next) => void handleTrim(next)}
+          onCancel={() => setTrimVisible(false)}
         />
       ) : null}
         </>

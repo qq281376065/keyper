@@ -12120,8 +12120,9 @@ body.col-resizing .col-handle::after{
 .cli-suggest{
   position: absolute;
   left: 12px;
-  right: 12px;
+  right: auto;
   bottom: calc(100% + 6px);
+  width: min(520px, calc(100% - 24px));
   z-index: 30;
   max-height: 240px;
   overflow: auto;
@@ -12225,4 +12226,240 @@ body.col-resizing .col-handle::after{
   color: var(--text-muted);
   font-size: var(--fs-xs);
   text-align: center;
+}
+
+.cli-suggest-head{
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px 4px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid var(--border);
+}
+.csh-grip{
+  width: 24px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--border-strong);
+}
+.csh-title{
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+.csh-close{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.csh-close:hover{
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* ---------------------------------------------------------------- Stream 管理页签 */
+.stream-tabs{
+  display: flex;
+  gap: 2px;
+  flex: 0 0 auto;
+  padding: 6px 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.stream-tabs button{
+  padding: 5px 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.stream-tabs button:hover{
+  color: var(--text-primary);
+}
+.stream-tabs button.on{
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.stream-admin{
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 12px;
+}
+.sa-head{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.sa-title{
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.sa-select{
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font-size: var(--fs-xs);
+}
+.sa-summary{
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+.sa-table{
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+.sa-table th,
+.sa-table td{
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+}
+.sa-table th{
+  color: var(--text-muted);
+  font-weight: 500;
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+.sa-table td.ellipsis{
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sa-actions{
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.sa-empty{
+  padding: 24px 12px;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  text-align: center;
+}
+.sa-foot{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding-top: 8px;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
+/* CLI 头部：标题 / 提示与容器垂直居中，避免不同字号的行盒基线错位 */
+.s-cli-console .cli-head > .chevron,
+.s-cli-console .cli-head > .title,
+.s-cli-console .cli-head > .hint{
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+}
+
+/* Stream 多字段 XADD 弹窗 */
+.sae-rows{
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sae-row{
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.sae-field{
+  flex: 0 0 180px;
+  min-width: 0;
+}
+.sae-value{
+  flex: 1;
+  min-width: 0;
+}
+.sae-remove{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 30px;
+  margin-top: 22px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.sae-remove:hover:not(:disabled){
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.sae-remove:disabled{
+  opacity: .35;
+  cursor: default;
+}
+.sae-add{
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 4px 10px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.sae-add:hover{
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* PEL 消费者明细 */
+.sa-consumers{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 0 0 auto;
+  margin-bottom: 8px;
+}
+.sa-consumer{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-app);
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+}
+.sa-consumer b{
+  color: var(--accent);
+  font-weight: 600;
+}
+.sa-consumer-idle{
+  color: var(--text-muted);
 }

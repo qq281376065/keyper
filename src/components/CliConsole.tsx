@@ -79,7 +79,12 @@ export function CliConsole() {
     [input, state.keys],
   )
   const showSuggest =
-    !collapsed && connected && !state.cliRunning && !suggestDismissed && suggestions.length > 0
+    !collapsed &&
+    connected &&
+    !state.cliRunning &&
+    !suggestDismissed &&
+    suggestions.length > 0 &&
+    input.trim().length > 0
 
   const historyMatches = useMemo(() => {
     const query = input.trim().toLowerCase()
@@ -166,6 +171,11 @@ export function CliConsole() {
     setHistorySearch(false)
     setHistoryIndex(0)
     requestAnimationFrame(() => inputRef.current?.focus())
+  }
+
+  function closeSuggest(): void {
+    if (historySearch) setHistorySearch(false)
+    else setSuggestDismissed(true)
   }
 
   function handleKeydown(event: React.KeyboardEvent): void {
@@ -330,6 +340,14 @@ export function CliConsole() {
         <div className="cli-input-row">
           {historySearch ? (
             <div className="cli-suggest">
+              <div className="cli-suggest-head">
+                <span className="csh-grip" aria-hidden="true" />
+                <span className="csh-title">{t('cliSuggest.historyTitle')}</span>
+                <span className="spacer" />
+                <button className="csh-close" {...tipProps(t('cliSuggest.close'))} onClick={closeSuggest}>
+                  <DialogIcon name="cancel" size={10} />
+                </button>
+              </div>
               {historyMatches.length ? (
                 historyMatches.map((command, index) => (
                   <button
@@ -350,6 +368,14 @@ export function CliConsole() {
             </div>
           ) : showSuggest ? (
             <div className="cli-suggest">
+              <div className="cli-suggest-head">
+                <span className="csh-grip" aria-hidden="true" />
+                <span className="csh-title">{t('cliSuggest.title')}</span>
+                <span className="spacer" />
+                <button className="csh-close" {...tipProps(t('cliSuggest.close'))} onClick={closeSuggest}>
+                  <DialogIcon name="cancel" size={10} />
+                </button>
+              </div>
               {suggestions.map((item, index) => (
                 <button
                   key={`${item.kind}-${item.label}`}

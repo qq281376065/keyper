@@ -105,6 +105,13 @@ import type {
   ValueBinaryResult,
   SaveBytesOptions,
   SaveBytesResult,
+  StreamGroup,
+  StreamConsumer,
+  StreamPendingSummary,
+  StreamPendingPage,
+  StreamPendingOptions,
+  StreamMutationResult,
+  StreamTrimOptions,
   RefreshKeysOptions,
   RefreshKeysResult,
 } from '../../shared/types'
@@ -166,6 +173,13 @@ const LOG_ACTIONS: Record<string, string> = {
   [IPC.redisDelZsetMember]: '删除成员',
   [IPC.redisAddZsetMember]: '新增成员',
   [IPC.redisXaddEntry]: '追加消息',
+  [IPC.redisStreamGroupCreate]: '新建消费组',
+  [IPC.redisStreamGroupDestroy]: '销毁消费组',
+  [IPC.redisStreamGroupSetId]: '重置消费组 ID',
+  [IPC.redisStreamAck]: '确认消息',
+  [IPC.redisStreamClaim]: '认领消息',
+  [IPC.redisStreamDel]: '删除消息',
+  [IPC.redisStreamTrim]: '裁剪流',
   [IPC.redisCli]: '命令',
   /* Memcached：只记录写入类操作与清空，读操作不进日志（与 Redis 一致） */
   [IPC.memcachedSet]: '写入键',
@@ -292,6 +306,16 @@ function describe(
         return { connectionName, engine, detail: `${args[1]} · ${args[2]} (${args[3]})` }
       case IPC.redisXaddEntry:
         return { connectionName, engine, detail: `${args[1]} · ${args[2]} = ${String(args[3]).slice(0, 40)}` }
+      case IPC.redisStreamGroupCreate:
+      case IPC.redisStreamGroupDestroy:
+      case IPC.redisStreamGroupSetId:
+        return { connectionName, engine, detail: `${args[1]} · ${args[2]}` }
+      case IPC.redisStreamAck:
+      case IPC.redisStreamClaim:
+      case IPC.redisStreamDel:
+        return { connectionName, engine, detail: `${args[1]} · ${args[2]} · ${Array.isArray(args[3]) ? args[3].length : 0} 条` }
+      case IPC.redisStreamTrim:
+        return { connectionName, engine, detail: `${args[1]} · ${(args[2] as StreamTrimOptions)?.strategy ?? ''}` }
       default:
         return { connectionName, engine, detail: connectionName }
     }
@@ -1041,8 +1065,73 @@ export function registerIpcHandlers(): void {
     connectionManager.addZsetMember(id as string, key as string, member as string, score as number),
   )
 
-  handle<OperationResult>(IPC.redisXaddEntry, (id, key, field, value) =>
-    connectionManager.xaddEntry(id as string, key as string, field as string, value as string),
+  handle<OperationResult>(IPC.redisXaddEntry, (id, key, fields) =>
+    connectionManager.xaddEntry(
+      id as string,
+      key as string,
+      (fields ?? []) as Array<[string, string]>,
+    ),
+  )
+
+  handle<StreamGroup[]>(IPC.redisStreamGroups, (id, key) =>
+    connectionManager.streamGroups(id as string, key as string),
+  )
+  handle<StreamConsumer[]>(IPC.redisStreamConsumers, (id, key, group) =>
+    connectionManager.streamConsumers(id as string, key as string, group as string),
+  )
+  handle<StreamPendingSummary>(IPC.redisStreamPendingSummary, (id, key, group) =>
+    connectionManager.streamPendingSummary(id as string, key as string, group as string),
+  )
+  handle<StreamPendingPage>(IPC.redisStreamPending, (id, key, group, options) =>
+    connectionManager.streamPending(
+      id as string,
+      key as string,
+      group as string,
+      (options ?? {}) as StreamPendingOptions,
+    ),
+  )
+  handle<OperationResult>(IPC.redisStreamGroupCreate, (id, key, group, startId, mkstream) =>
+    connectionManager.streamGroupCreate(
+      id as string,
+      key as string,
+      group as string,
+      startId as string,
+      Boolean(mkstream),
+    ),
+  )
+  handle<OperationResult>(IPC.redisStreamGroupDestroy, (id, key, group) =>
+    connectionManager.streamGroupDestroy(id as string, key as string, group as string),
+  )
+  handle<OperationResult>(IPC.redisStreamGroupSetId, (id, key, group, startId) =>
+    connectionManager.streamGroupSetId(
+      id as string,
+      key as string,
+      group as string,
+      startId as string,
+    ),
+  )
+  handle<StreamMutationResult>(IPC.redisStreamAck, (id, key, group, ids) =>
+    connectionManager.streamAck(id as string, key as string, group as string, ids as string[]),
+  )
+  handle<StreamMutationResult>(IPC.redisStreamClaim, (id, key, group, consumer, minIdleMs, ids) =>
+    connectionManager.streamClaim(
+      id as string,
+      key as string,
+      group as string,
+      consumer as string,
+      Number(minIdleMs) || 0,
+      ids as string[],
+    ),
+  )
+  handle<StreamMutationResult>(IPC.redisStreamDel, (id, key, ids) =>
+    connectionManager.streamDel(id as string, key as string, ids as string[]),
+  )
+  handle<StreamMutationResult>(IPC.redisStreamTrim, (id, key, options) =>
+    connectionManager.streamTrim(
+      id as string,
+      key as string,
+      (options ?? {}) as StreamTrimOptions,
+    ),
   )
 
   handle<OperationResult>(IPC.redisInsertListElement, (id, key, index, value, position) =>

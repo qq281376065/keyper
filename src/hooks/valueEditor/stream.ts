@@ -19,7 +19,7 @@ export function useStreamEditor(
 ) {
   const { getValue } = ctx
   const { lineView, setSelectedListIndex } = deps
-  const { state, notify, refreshSelected, readWholeValue } = useRedis()
+  const { state, notify, refreshSelected, readWholeValue, askConfirm } = useRedis()
 
   /**
    * stream 是**只读**的：它是消息日志，entry 一旦写入即固化。
@@ -222,12 +222,13 @@ export function useStreamEditor(
    * stream 数据量小（日志流通常几十条），一次往返换正确性值得；
    * silent 不闪骨架屏，与 hash/list 的本地直改前提（结果可预期）不同。
    */
-  async function handleStreamAddConfirm(field: string, val: string): Promise<void> {
+  async function handleStreamAddConfirm(fields: Array<[string, string]>): Promise<void> {
     const id = state.activeId
     const key = getValue()?.key
-    if (!id || !key || !field) return
+    const valid = fields.filter(([field]) => field.trim().length > 0)
+    if (!id || !key || !valid.length) return
 
-    const res = await api.redis.xaddEntry(id, key, field, val)
+    const res = await api.redis.xaddEntry(id, key, valid)
     if (!res.ok) {
       notify('err', res.error)
       return
@@ -239,6 +240,29 @@ export function useStreamEditor(
     notify('ok', res.data.message ?? t('valueEditorStream.messageAppended'))
 
     setAddingEntry(false)
+    await refreshSelected({ silent: true })
+  }
+
+  /** 删除单条消息：XDEL 不可撤销，先确认再执行 */
+  async function deleteStreamEntry(row: { index: number; text: string; left?: string }): Promise<void> {
+    const id = state.activeId
+    const key = getValue()?.key
+    const entryId = streamIdOf(row)
+    if (!id || !key || !entryId) return
+    const confirmed = await askConfirm({
+      title: t('stream.deleteTitle'),
+      message: t('stream.deleteMessageText', { id: entryId }),
+      confirmText: t('common.delete'),
+      compact: true,
+      danger: true,
+    })
+    if (!confirmed) return
+    const res = await api.redis.streamDel(id, key, [entryId])
+    if (!res.ok) {
+      notify('err', res.error)
+      return
+    }
+    notify('ok', t('stream.deleted', { count: res.data.affected }))
     await refreshSelected({ silent: true })
   }
 
@@ -255,6 +279,7 @@ export function useStreamEditor(
     openStreamMenu,
     closeStreamMenu,
     runStreamMenuAction,
+    deleteStreamEntry,
     shortEntryId,
     streamStats,
     streamView,

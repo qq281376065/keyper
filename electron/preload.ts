@@ -54,6 +54,13 @@ import type {
   SaveBytesResult,
   RefreshKeysOptions,
   RefreshKeysResult,
+  StreamGroup,
+  StreamConsumer,
+  StreamPendingSummary,
+  StreamPendingPage,
+  StreamPendingOptions,
+  StreamMutationResult,
+  StreamTrimOptions,
 } from '../shared/types'
 
 function invoke<T>(channel: string, ...args: unknown[]): Promise<ApiResponse<T>> {
@@ -285,8 +292,28 @@ const api: RedisDesktopApi = {
       invoke<OperationResult>(IPC.redisDelZsetMember, id, key, member),
     addZsetMember: (id, key, member, score) =>
       invoke<OperationResult>(IPC.redisAddZsetMember, id, key, member, score),
-    xaddEntry: (id, key, field, value) =>
-      invoke<OperationResult>(IPC.redisXaddEntry, id, key, field, value),
+    xaddEntry: (id, key, fields) =>
+      invoke<OperationResult>(IPC.redisXaddEntry, id, key, fields),
+    streamGroups: (id, key) => invoke<StreamGroup[]>(IPC.redisStreamGroups, id, key),
+    streamConsumers: (id, key, group) =>
+      invoke<StreamConsumer[]>(IPC.redisStreamConsumers, id, key, group),
+    streamPendingSummary: (id, key, group) =>
+      invoke<StreamPendingSummary>(IPC.redisStreamPendingSummary, id, key, group),
+    streamPending: (id, key, group, options) =>
+      invoke<StreamPendingPage>(IPC.redisStreamPending, id, key, group, options),
+    streamGroupCreate: (id, key, group, startId, mkstream) =>
+      invoke<OperationResult>(IPC.redisStreamGroupCreate, id, key, group, startId, mkstream),
+    streamGroupDestroy: (id, key, group) =>
+      invoke<OperationResult>(IPC.redisStreamGroupDestroy, id, key, group),
+    streamGroupSetId: (id, key, group, startId) =>
+      invoke<OperationResult>(IPC.redisStreamGroupSetId, id, key, group, startId),
+    streamAck: (id, key, group, ids) =>
+      invoke<StreamMutationResult>(IPC.redisStreamAck, id, key, group, ids),
+    streamClaim: (id, key, group, consumer, minIdleMs, ids) =>
+      invoke<StreamMutationResult>(IPC.redisStreamClaim, id, key, group, consumer, minIdleMs, ids),
+    streamDel: (id, key, ids) => invoke<StreamMutationResult>(IPC.redisStreamDel, id, key, ids),
+    streamTrim: (id, key, options) =>
+      invoke<StreamMutationResult>(IPC.redisStreamTrim, id, key, options),
     insertListElement: (id, key, index, value, position) =>
       invoke<OperationResult>(IPC.redisInsertListElement, id, key, index, value, position),
     createKey: (

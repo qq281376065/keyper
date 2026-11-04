@@ -2060,3 +2060,9 @@
   flex: 0 0 auto;
   color: var(--text-muted);
 }
+
+/* 紧凑确认框：单条消息删除等短内容场景，不占用整行宽度 */
+.dlg.dlg.compact {
+  width: 380px !important;
+  max-width: calc(100vw - 40px) !important;
+}
