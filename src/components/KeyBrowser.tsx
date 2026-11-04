@@ -12,7 +12,7 @@ import { useI18n } from '@/i18n'
 import { useSearchHistory, SEARCH_HISTORY_LIMIT, formatHistoryTime } from '@/hooks/useSearchHistory'
 import { useSessionStore } from '@/hooks/useSessionStore'
 import { useTabBlur } from '@/hooks/useTabBlur'
-import { useSettings, settingsHolder, KEY_BROWSER_MIN_WIDTH } from '@/services/settings'
+import { useSettings, settingsHolder } from '@/services/settings'
 import { useRedis } from '@/store/useRedis'
 import { useObservable } from '@/store/subscription'
 import { copyText } from '@/utils/clipboard'
@@ -99,13 +99,21 @@ export function KeyBrowser() {
   /**
    * 键栏宽度。
    *
-   * 用 CSS min() 夹到 52%：百分比作用于父级 flex 容器（.body），
-   * 所以侧栏收起/展开、窗口缩放时基准都会自动跟着变，不需要任何 JS 重算。
-   * clamp 的下限保证：窄窗口下 52% 也不会把工具条压到换行（默认同为 420）。
+   * 上限取「容器宽 - 值区保底宽」，百分比作用于父级 flex 容器（.body），
+   * 侧栏收起/展开、窗口缩放都会自动跟着变，不需要任何 JS 重算。
+   *
+   * 不能写成 clamp(420px, 值, 52%)：
+   * 容器窄于约 808px 时 52% 已经小于 420px，clamp 在「下限 > 上限」时取下限，
+   * 键栏会硬占 420px，把值区压到几十像素（信息详情、编辑器全部不可用）。
+   *
+   * 这里的 368px = 值区保底 360 + 分隔条 8：
+   * 容器够宽时用用户拖出来的宽度；容器变窄时键栏自动让位，值区始终留够 360px。
+   * 最外层 260px 是绝对下限 —— 容器窄到 628px 以下时优先保键栏可用，
+   * 再窄的窗口本身就放不下两栏。
    */
   const browserStyle: React.CSSProperties = {
-    width: `clamp(${KEY_BROWSER_MIN_WIDTH}px, ${settings.keyBrowserWidth}px, 52%)`,
-    flexBasis: `clamp(${KEY_BROWSER_MIN_WIDTH}px, ${settings.keyBrowserWidth}px, 52%)`,
+    width: `max(260px, min(${settings.keyBrowserWidth}px, calc(100% - 368px)))`,
+    flexBasis: `max(260px, min(${settings.keyBrowserWidth}px, calc(100% - 368px)))`,
   }
 
   /* ---------------------------------------------------------------- 批量勾选 */
