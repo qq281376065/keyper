@@ -141,6 +141,9 @@ export interface McBulkTask {
   renameTo: string
 }
 
+/** 渲染层附加扫描时刻，供 TTL 倒计时折算；不参与 IPC 传输 */
+export type TimedKeyItem = RedisKeyItem & { ttlAt: number }
+
 /** 会话状态：一个标签页独占一份 */
 export interface RedisState {
   ready: boolean
@@ -148,7 +151,7 @@ export interface RedisState {
   activeId: string | null
   databases: DatabaseInfo[]
   activeDb: number
-  keys: RedisKeyItem[]
+  keys: TimedKeyItem[]
   cursor: string
   pattern: string
   loadingKeys: boolean
@@ -182,9 +185,11 @@ export interface RedisState {
    * 替换后用户清空筛选词就回不去原列表了；分开存则双向切换零成本。
    */
   remoteSearch: { keyword: string; scanning: boolean; done: boolean; capped: boolean; found: number } | null
-  remoteKeys: RedisKeyItem[]
+  remoteKeys: TimedKeyItem[]
   selectedKey: string | null
   selectedValue: KeyValue | null
+  /** selectedValue 的读取时刻（毫秒时间戳），TTL 倒计时的基准 */
+  selectedValueAt: number | null
   loadingValue: boolean
   /** 刷新当前键（键未变）：值区叠加轻量 loading，不走骨架屏 */
   refreshingValue: boolean
@@ -307,6 +312,12 @@ const CLI_READONLY_COMMANDS = new Set([
   'XLEN', 'XRANGE', 'XREVRANGE', 'XREAD', 'XINFO',
 ])
 
+/** 给一批键打上扫描时刻，供 TTL 倒计时折算 */
+function stampKeys(items: RedisKeyItem[]): TimedKeyItem[] {
+  const at = Date.now()
+  return items.map((item) => ({ ...item, ttlAt: at }))
+}
+
 const REMOTE_SEARCH_LIMIT = 1000
 
 /**
@@ -424,6 +435,7 @@ export function createSession(
     remoteKeys: [],
     selectedKey: null,
     selectedValue: null,
+    selectedValueAt: null,
     loadingValue: false,
     refreshingValue: false,
     loadingMoreValue: false,
@@ -519,7 +531,7 @@ export function createSession(
        */
       if (identityChanged && state.keys.length > 0) return
 
-      state.keys = reset ? res.data.keys : [...state.keys, ...res.data.keys]
+      state.keys = reset ? stampKeys(res.data.keys) : [...state.keys, ...stampKeys(res.data.keys)]
       state.cursor = res.data.cursor
       /*
        * 只有「全量重置」才更新归属：追加分页（reset=false）时数据仍属同一数据集。
@@ -529,6 +541,7 @@ export function createSession(
         state.keysDataset = identity
         state.selectedKey = null
         state.selectedValue = null
+        state.selectedValueAt = null
       }
     } catch (error) {
       failure(error, t('session.failedScanKeys'))
@@ -574,7 +587,7 @@ export function createSession(
         for (const item of res.data.keys) {
           if (seen.has(item.key)) continue
           seen.add(item.key)
-          state.keys.push(item)
+          state.keys.push({ ...item, ttlAt: Date.now() })
         }
         cursor = res.data.cursor
         state.cursor = cursor
@@ -620,10 +633,11 @@ export function createSession(
       if (datasetIdentity() !== identity && state.keys.length > 0) return
 
       const previous = new Map(state.keys.map((item) => [item.key, item]))
+      const at = Date.now()
       const nextKeys = res.data.keys.map((item) => {
         const old = previous.get(item.key)
         // 元信息没变就复用旧对象：列表行不重绘，滚动更稳
-        return old && old.type === item.type && old.ttl === item.ttl ? old : item
+        return old && old.type === item.type && old.ttl === item.ttl ? old : { ...item, ttlAt: at }
       })
 
       const fresh = new Set(nextKeys.map((item) => item.key))
@@ -637,6 +651,7 @@ export function createSession(
         if (check.ok && check.data === null && datasetIdentity() === identity) {
           state.selectedKey = null
           state.selectedValue = null
+          state.selectedValueAt = null
         }
       }
     } catch (error) {
@@ -714,9 +729,11 @@ export function createSession(
       }
 
       state.selectedValue = res.data
+      state.selectedValueAt = Date.now()
     } catch (error) {
       if (seq !== valueLoadSeq) return
       state.selectedValue = null
+      state.selectedValueAt = null
       failure(error, t('session.failedLoadKeyValue'))
     } finally {
       // 过期请求不得动 loading —— 它属于最新一次 selectKey
@@ -1033,7 +1050,7 @@ export function createSession(
     }
   }
 
-  function syncPatch(key: string, patch: (entry: RedisKeyItem) => RedisKeyItem): void {
+  function syncPatch(key: string, patch: (entry: TimedKeyItem) => TimedKeyItem): void {
     state.keys = state.keys.map((entry) => (entry.key === key ? patch(entry) : entry))
     if (state.remoteKeys.length) {
       state.remoteKeys = state.remoteKeys.map((entry) => (entry.key === key ? patch(entry) : entry))
@@ -1180,7 +1197,7 @@ export function createSession(
           const res = await api.redis.setTtl(connIdNow, item.key, task.ttlSeconds)
           if (!res.ok) throw new Error(res.error)
           task.succeeded.push(item.key)
-          syncPatch(item.key, (entry) => ({ ...entry, ttl: task.ttlSeconds }))
+          syncPatch(item.key, (entry) => ({ ...entry, ttl: task.ttlSeconds, ttlAt: Date.now() }))
         } else {
           const next = renamedKey(item.key, task.renameFrom, task.renameTo)
           if (next === item.key) {
@@ -1392,6 +1409,11 @@ export function createSession(
       const res = await api.redis.setTtl(state.activeId, key, seconds)
       if (!res.ok) throw new Error(res.error)
       notify('ok', res.data.message ?? t('session.ttlUpdated'))
+      syncPatch(key, (entry) => ({
+        ...entry,
+        ttl: seconds > 0 ? seconds : -1,
+        ttlAt: Date.now(),
+      }))
       await selectKey(key)
     } catch (error) {
       failure(error, t('session.failedSetTtl'))
@@ -1477,7 +1499,7 @@ export function createSession(
         const res = await api.redis.lookupKey(connIdNow, kw, db)
         if (seq !== remoteSearchSeq) return
         if (!res.ok) throw new Error(res.error)
-        if (res.data) state.remoteKeys.push(res.data)
+        if (res.data) state.remoteKeys.push({ ...res.data, ttlAt: Date.now() })
         state.remoteSearch = {
           keyword: kw,
           scanning: false,
@@ -1508,7 +1530,7 @@ export function createSession(
        *     → cancelled 结果照常接受，保留「已找到的部分」。
        */
       if (seq !== remoteSearchSeq) return
-      state.remoteKeys = res.data.keys
+      state.remoteKeys = stampKeys(res.data.keys)
       state.remoteSearch = {
         keyword: kw,
         scanning: false,

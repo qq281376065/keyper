@@ -1,9 +1,10 @@
 import { useEffect, useRef } from 'react'
 import { DialogIcon } from '@/components/DialogIcon'
+import { LiveTtl } from '@/components/LiveTtl'
 import { tipProps } from '@/components/tip'
 import { useI18n } from '@/i18n'
 import type { KeyTreeNode as KeyTreeNodeModel } from '@/utils/keyTree'
-import { formatTtl, ttlTone } from '@/utils/format'
+import { ttlAtOf } from '@/utils/format'
 import { typeAbbr, typeLabel } from '@/utils/typeLabel'
 
 export interface KeyTreeNodeProps {
@@ -149,7 +150,7 @@ export function KeyTreeNode({
         {hasChildren ? <span className="count mono">{node.leafCount}</span> : null}
 
         {node.leaf ? (
-          <span className={`ttl mono ${ttlTone(node.leaf.ttl)}`.trim()}>{formatTtl(node.leaf.ttl)}</span>
+          <LiveTtl className="ttl mono" ttl={node.leaf.ttl} ttlAt={ttlAtOf(node.leaf)} />
         ) : null}
 
         {node.leaf ? (

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatBytes, formatTtl, oneLine, prettyJson, ttlTone } from '@/utils/format'
+import { formatBytes, formatTtl, oneLine, prettyJson, remainingTtl, ttlAtOf, ttlTone } from '@/utils/format'
 
 describe('formatTtl', () => {
   it('特殊语义值', () => {
@@ -14,6 +14,31 @@ describe('formatTtl', () => {
     expect(formatTtl(3661)).toBe('1h1m')
     expect(formatTtl(86400)).toBe('1d0h')
     expect(formatTtl(90061)).toBe('1d1h')
+  })
+})
+
+describe('remainingTtl', () => {
+  it('按时间戳递减，过期归零', () => {
+    expect(remainingTtl(60, 1000, 1000)).toBe(60)
+    expect(remainingTtl(60, 1000, 61000)).toBe(0)
+    expect(remainingTtl(60, 1000, 121000)).toBe(0)
+    expect(remainingTtl(60, 1000, 31000)).toBe(30)
+  })
+
+  it('特殊语义值原样返回', () => {
+    expect(remainingTtl(-1, 1000, 9999999)).toBe(-1)
+    expect(remainingTtl(-2, 1000, 9999999)).toBe(-2)
+  })
+
+  it('时间倒流时按 0 秒已流逝处理', () => {
+    expect(remainingTtl(60, 5000, 1000)).toBe(60)
+  })
+})
+
+describe('ttlAtOf', () => {
+  it('读取附加时间戳，缺失返回 undefined', () => {
+    expect(ttlAtOf({ ttlAt: 12345 })).toBe(12345)
+    expect(ttlAtOf({})).toBeUndefined()
   })
 })
 

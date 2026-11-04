@@ -4,6 +4,7 @@ import { api } from '@/api'
 import { CreateKeyDialog } from '@/components/CreateKeyDialog'
 import { DialogIcon } from '@/components/DialogIcon'
 import { KeyTreeNode } from '@/components/KeyTreeNode'
+import { LiveTtl } from '@/components/LiveTtl'
 import { PromptDialog } from '@/components/PromptDialog'
 import { tipProps } from '@/components/tip'
 import { useI18n } from '@/i18n'
@@ -14,7 +15,7 @@ import { useSettings, settingsHolder, KEY_BROWSER_MIN_WIDTH } from '@/services/s
 import { useRedis } from '@/store/useRedis'
 import { useObservable } from '@/store/subscription'
 import { copyText } from '@/utils/clipboard'
-import { formatTtl, ttlTone } from '@/utils/format'
+import { ttlAtOf } from '@/utils/format'
 import { typeAbbr, typeLabel } from '@/utils/typeLabel'
 import {
   buildKeyTree,
@@ -1489,7 +1490,7 @@ export function KeyBrowser() {
                 <span className="key-name mono ellipsis" {...tipProps(item.key)}>
                   {item.key}
                 </span>
-                <span className={`ttl mono ${ttlTone(item.ttl)}`.trim()}>{formatTtl(item.ttl)}</span>
+                <LiveTtl className="ttl mono" ttl={item.ttl} ttlAt={ttlAtOf(item)} />
                 <button
                   className="del-btn"
                   {...tipProps(t('common.deleteThisKey'))}

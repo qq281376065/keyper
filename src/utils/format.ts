@@ -18,6 +18,21 @@ export function ttlTone(ttl: number): '' | 'forever' | 'urgent' {
   return ''
 }
 
+/**
+ * 把「扫描时刻的 TTL」折算成当前剩余秒数。
+ * 负值（-1 永久 / -2 已过期）原样返回；ttlAt 由渲染层在收到数据时打戳。
+ */
+export function remainingTtl(ttl: number, ttlAt: number, now = Date.now()): number {
+  if (ttl < 0) return ttl
+  const elapsed = Math.max(0, Math.floor((now - ttlAt) / 1000))
+  return Math.max(0, ttl - elapsed)
+}
+
+/** 读取渲染层附加的扫描时间戳（IPC 的 RedisKeyItem 本身不含该字段） */
+export function ttlAtOf(item: object): number | undefined {
+  return (item as { ttlAt?: number }).ttlAt
+}
+
 /** 字节数格式化 */
 /**
  * 字符串的 UTF-8 字节数。

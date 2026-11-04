@@ -11,6 +11,7 @@ import { EditListElementDialog } from '@/components/EditListElementDialog'
 import { EditValueDialog } from '@/components/EditValueDialog'
 import { EditZsetMemberDialog } from '@/components/EditZsetMemberDialog'
 import { FilterBox } from '@/components/FilterBox'
+import { LiveTtl } from '@/components/LiveTtl'
 import { PromptDialog } from '@/components/PromptDialog'
 import { ServerOverview } from '@/components/ServerOverview'
 import { MemcachedOverview } from '@/components/MemcachedOverview'
@@ -32,7 +33,7 @@ import { useRedis } from '@/store/useRedis'
 import { useObservable } from '@/store/subscription'
 import { useSessionStore } from '@/hooks/useSessionStore'
 import { useTabBlur } from '@/hooks/useTabBlur'
-import { formatBytes, formatTtl, ttlTone, utf8Bytes } from '@/utils/format'
+import { formatBytes, formatTtl, remainingTtl, ttlTone, utf8Bytes } from '@/utils/format'
 import { resolveCapabilities } from '@/utils/redisCapability'
 import { copyText } from '@/utils/clipboard'
 import type { KeyValue } from '@shared/types'
@@ -356,17 +357,25 @@ export function ValueViewer() {
   }
 
   /** 书签的元信息（类型 / TTL / 内存）：优先取缓存值，其次键列表 */
-  function tabMeta(key: string): { key: string; type: KeyValue['type']; ttl: number; size?: number } | null {
+  function tabMeta(key: string): { key: string; type: KeyValue['type']; ttl: number; ttlAt?: number; size?: number } | null {
     const current = tabValues[key] ?? null
     const item = state.keys.find((entry) => entry.key === key)
     if (item) {
       /* 扫描结果通常不带 size，已打开的那个键可以用值里的真实占用补上 */
       if (item.size == null && current?.size != null) {
-        return { key, type: item.type, ttl: item.ttl, size: current.size }
+        return { key, type: item.type, ttl: item.ttl, ttlAt: item.ttlAt, size: current.size }
       }
       return item
     }
-    if (current) return { key, type: current.type, ttl: current.ttl, size: current.size }
+    if (current) {
+      return {
+        key,
+        type: current.type,
+        ttl: current.ttl,
+        ttlAt: state.selectedKey === key ? state.selectedValueAt ?? undefined : undefined,
+        size: current.size,
+      }
+    }
     return null
   }
 
@@ -864,10 +873,13 @@ export function ValueViewer() {
 
               <div className="vp-row">
                 <i>TTL</i>
-                <b className={`mono ${ttlTone(hoverMeta.ttl)}`}>
-                  {formatTtl(hoverMeta.ttl)}
-                  {ttlTone(hoverMeta.ttl) === 'urgent' ? <span className="vp-chip">{t('memcachedValueViewer.expiringSoon')}</span> : null}
-                </b>
+                <LiveTtl
+                  as="b"
+                  className="mono"
+                  ttl={hoverMeta.ttl}
+                  ttlAt={hoverMeta.ttlAt}
+                  urgentChip={<span className="vp-chip">{t('memcachedValueViewer.expiringSoon')}</span>}
+                />
               </div>
 
               <div className="vp-row">
@@ -972,6 +984,10 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
    */
   const capabilities = resolveCapabilities(activeConnection?.version)
 
+  /** 仅当前选中键使用会话里的读取时刻；隐藏书签不参与过期复核 */
+  const valueAt =
+    value && sessionState.selectedKey === value.key ? sessionState.selectedValueAt : null
+
   const [filter, setFilter] = useState('')
   const [pretty, setPretty] = useState(true)
   /** 自动换行：关闭后超长单行可横向滚动，便于比对长串 */
@@ -982,6 +998,24 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
   const [editVisible, setEditVisible] = useState(false)
   /** 自动刷新开关：开启后每 5 秒重新读取一次 */
   const [autoRefresh, setAutoRefresh] = useState(false)
+
+  /** 倒计时归零后只复核一次；键可能被续期，最终以服务端结果为准 */
+  const expiryRecheckedAt = useRef<number | null>(null)
+  useEffect(() => {
+    if (!value || value.ttl < 0 || valueAt == null) return
+    const remaining = remainingTtl(value.ttl, valueAt)
+    if (remaining <= 0) {
+      if (expiryRecheckedAt.current === valueAt) return
+      expiryRecheckedAt.current = valueAt
+      void refreshSelected()
+      return
+    }
+    const timer = setTimeout(() => {
+      expiryRecheckedAt.current = valueAt
+      void refreshSelected()
+    }, remaining * 1000 + 300)
+    return () => clearTimeout(timer)
+  }, [value, valueAt, refreshSelected])
 
   /** 排序键：field（hash 字段名）/ value（内容或 score）/ member（zset 成员、stream ID） */
   const [sortKey, setSortKey] = useState<'field' | 'value' | 'member' | null>(null)
@@ -1325,7 +1359,6 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
 
   const matchedCount = !value ? 0 : value.type === 'string' ? 0 : value.type === 'hash' ? hashEditor.hashView.rows.length : lineView.rows.length
   const totalCount = !value ? 0 : value.type === 'hash' ? hashEditor.hashView.total : lineView.total
-  const ttlLabel = formatTtl(value?.ttl ?? -2)
   const searchable = !!value && SEARCHABLE_TYPES.includes(value.type)
 
   async function copyValue(): Promise<void> {
@@ -1414,7 +1447,7 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
             <div className="meta-line">
               <span>
                 {t('valueViewer.ttlLabel')}
-                <b className="mono">{ttlLabel}</b>
+                <LiveTtl as="b" className="mono" ttl={value?.ttl ?? -2} ttlAt={valueAt ?? undefined} />
               </span>
               <span className="sep">|</span>
               <span>
