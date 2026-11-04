@@ -6302,34 +6302,99 @@
   color: var(--text-muted);
 }
 /*
- * 段落用 CSS columns 排布：
- * INFO 各段字段数差异很大（Server 十几项、Cluster 只有一项），
- * 用 grid 固定列会留下大片空白；columns 让内容自然流动填满。
- * 24rem 的列宽在常见窗口下约能放 2–3 栏。
+ * 方案 A（仅 Redis 信息详情）：左侧段落导航（sticky）+ 右侧段落卡片列表。
+ * 导航是定位器而非筛选器 —— 点击展开目标段并滚动过去，右侧始终渲染全部段。
+ * Memcached 的 stats 面板保持原扁平网格，不套这套结构。
  */
-.ov-sections{
-  columns: 24rem;
-  column-gap: 20px;
+.s-server-overview .ov-info{
+  display: grid;
+  /* minmax(0, 1fr)：长值不会把右列撑破，溢出交给字段行的 ellipsis */
+  grid-template-columns: 188px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+  margin-top: 4px;
 }
+.s-server-overview .ov-info-nav{
+  position: sticky;
+  top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.s-server-overview .ov-info-nav .ov-info-tab{
+  appearance: none;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: var(--fs-sm);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  transition: background 0.15s, color 0.15s;
+}
+.s-server-overview .ov-info-nav .ov-info-tab:hover{
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.s-server-overview .ov-info-nav .ov-info-tab.active{
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+.s-server-overview .ov-info-count{
+  flex: 0 0 auto;
+  font-size: var(--fs-2xs);
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  border-radius: 8px;
+  padding: 0 6px;
+}
+.s-server-overview .ov-info-nav .ov-info-tab.active .ov-info-count{
+  color: var(--accent);
+}
+.s-server-overview .ov-info-panels{
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+/*
+ * 刻意不为窄视口改成「导航在上、内容在下」：
+ * 方案 A 的形态就是左侧段落导航，换位置会让同一功能在窄窗口下变成另一套交互。
+ * 窄窗口下导航列固定 188px，右侧内容自行收缩（字段列由 columns 自动降为单栏）。
+ */
+/* 段落卡片：每段自成一块，折叠时只留标题行 */
 .s-server-overview.ov-section, .s-server-overview .ov-section{
-  /* 避免一个段落被拆到两栏中间 */
-  break-inside: avoid;
-  margin-bottom: 12px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
 }
 .s-server-overview.ov-section-head, .s-server-overview .ov-section-head{
   display: flex;
   align-items: center;
   gap: 6px;
   width: 100%;
-  padding: 3px 0 6px;
-  margin-bottom: 4px;
-  border-bottom: 1px solid var(--border);
+  padding: 10px 14px;
+  border: 0;
+  background: transparent;
   font-size: var(--fs-sm);
   font-weight: 600;
   color: var(--text-secondary);
   text-align: left;
+  cursor: pointer;
 }
 .s-server-overview .ov-section-head:hover{
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 .s-server-overview.ov-caret, .s-server-overview .ov-caret{
@@ -6347,16 +6412,18 @@
   font-weight: 400;
   color: var(--text-muted);
 }
+/*
+ * 段内字段用 CSS columns 多栏排布：
+ * INFO 各段字段数差异极大（Server 十几项、Cluster 只有一项），
+ * 固定列数会在短段留下大片空白；columns 让内容按可用宽度自然分栏。
+ * 列宽取 15rem：值区默认约 500px（侧栏 + 键列表占掉其余宽度），
+ * 15rem 恰好能在默认宽度下分成 2 栏；值过长时由 ellipsis + tooltip 兜底。
+ */
 .s-server-overview.ov-fields, .s-server-overview .ov-fields{
   margin: 0;
-  display: flex;
-  flex-direction: column;
-  /*
-   * gap 收到 1px：字段行自带上下各 2px 内边距，
-   * 相邻两行的视觉间距 = 2 + 1 + 2 = 5px，与字号升一级后的观感一致。
-   * 若仍留 5px，实际间距会变成 9px，整块变得松散。
-   */
-  gap: 1px;
+  padding: 2px 14px 12px;
+  columns: 15rem;
+  column-gap: 24px;
 }
 /*
  * 字段行：标签左、值右。

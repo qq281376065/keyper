@@ -1111,6 +1111,7 @@ const en = {
   'serverOverview.processId': 'Process ID',
   'serverOverview.readingServerMetrics': 'Reading server metrics...',
   'serverOverview.redisInfoDetails': 'Redis info details',
+  'serverOverview.infoSectionsNav': 'Info section navigation',
   'serverOverview.redisInfoTab': 'Redis info details',
   'serverOverview.redisVersion': 'Redis version',
   'serverOverview.refreshEverythingPage': 'Refresh everything on this page (overview + details)',

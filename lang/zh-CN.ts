@@ -1110,6 +1110,7 @@ const zhCN: Record<MsgKey, string> = {
   'serverOverview.processId': '进程 ID',
   'serverOverview.readingServerMetrics': '正在读取服务端指标…',
   'serverOverview.redisInfoDetails': 'Redis信息详情',
+  'serverOverview.infoSectionsNav': '信息段落导航',
   'serverOverview.redisInfoTab': 'Redis 信息详情',
   'serverOverview.redisVersion': 'Redis 版本',
   'serverOverview.refreshEverythingPage': '刷新当前页面的全部信息（概览 + 详情）',

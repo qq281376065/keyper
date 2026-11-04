@@ -1110,6 +1110,7 @@ const zhTW: Record<MsgKey, string> = {
   'serverOverview.processId': '處理程序 ID',
   'serverOverview.readingServerMetrics': '正在讀取伺服器端指標…',
   'serverOverview.redisInfoDetails': 'Redis資訊詳情',
+  'serverOverview.infoSectionsNav': '資訊段落導覽',
   'serverOverview.redisInfoTab': 'Redis 資訊詳情',
   'serverOverview.redisVersion': 'Redis 版本',
   'serverOverview.refreshEverythingPage': '重新整理目前頁面的全部資訊（概覽 + 詳情）',

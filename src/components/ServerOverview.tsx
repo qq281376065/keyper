@@ -187,6 +187,8 @@ export function ServerOverview() {
   useEffect(() => {
     setDetail(null)
     setDetailError(null)
+    /* 切连接后段数可能不同，高亮归零，避免指向不存在的段 */
+    setActiveInfoSection(0)
     if (activeId && connected) void loadDetail()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId, connected])
@@ -231,6 +233,10 @@ export function ServerOverview() {
 
   /** 段落折叠状态：默认全部展开，段落多时可单独收起 */
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set())
+  /** 当前高亮的段落：只由导航点击驱动，滚动不反向同步（避免滚动时导航闪烁） */
+  const [activeInfoSection, setActiveInfoSection] = useState(0)
+  /** 段落节点引用：导航点击后用来滚动定位 */
+  const sectionRefs = useRef<Array<HTMLElement | null>>([])
 
   function toggleSection(section: string): void {
     setCollapsedSections((prev) => {
@@ -239,6 +245,27 @@ export function ServerOverview() {
       else next.add(section)
       return next
     })
+  }
+
+  /**
+   * 导航点击：展开目标段 + 滚动过去 + 高亮。
+   * 折叠着的段要先展开，否则滚过去只能看到一行标题。
+   * 系统开启「减少动态效果」时改为瞬时跳转，不做平滑滚动。
+   */
+  function jumpToSection(index: number): void {
+    const group = detail?.groups[index]
+    if (!group) return
+    setCollapsedSections((prev) => {
+      if (!prev.has(group.section)) return prev
+      const next = new Set(prev)
+      next.delete(group.section)
+      return next
+    })
+    setActiveInfoSection(index)
+    const el = sectionRefs.current[index]
+    if (!el) return
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
   }
 
   /* ---------------------------------------------------------------- 概览卡片 */
@@ -380,33 +407,58 @@ export function ServerOverview() {
           {detailError ? <p className="ov-detail-error">{detailError}</p> : null}
 
           {/*
-            段落分栏：每段是一组键值对，用 column 多栏排布 ——
-            字段长短不一，多栏比网格更能利用横向空间，窄窗口下会自动减少栏数。
+            方案 A：左侧段落导航（sticky）+ 右侧全部段落卡片。
+            导航是「定位」不是「筛选」：点击展开目标段并滚动过去，所有段始终在页面里。
+            段本身仍可单独折叠 —— 字段多的实例靠折叠控制纵向长度，
+            段内字段用 CSS columns 多栏排布，短字段能横向铺开、少留空白。
           */}
           {detail ? (
-            <div className="ov-sections">
-              {detail.groups.map((group) => (
-                <section key={group.section} className="ov-section">
-                  <button className="ov-section-head" onClick={() => toggleSection(group.section)}>
-                    <span className="ov-caret">{collapsedSections.has(group.section) ? '▸' : '▾'}</span>
-                    <span>{labelOf(SECTION_LABELS, group.section)}</span>
-                    <span className="ov-section-count mono">{group.entries.length}</span>
-                  </button>
-                  <dl
-                    className="ov-fields"
-                    style={collapsedSections.has(group.section) ? { display: 'none' } : undefined}
+            <div className="ov-info">
+              <nav className="ov-info-nav" aria-label={t('serverOverview.infoSectionsNav')}>
+                {detail.groups.map((group, index) => (
+                  <button
+                    key={group.section}
+                    className={`ov-info-tab${activeInfoSection === index ? ' active' : ''}`}
+                    onClick={() => jumpToSection(index)}
                   >
-                    {group.entries.map((entry) => (
-                      <div key={entry.key} className="ov-field">
-                        <dt {...tipProps(entry.key)}>{labelOf(FIELD_LABELS, entry.key)}</dt>
-                        <dd className="mono" {...tipProps(entry.value)}>
-                          {entry.value || '-'}
-                        </dd>
-                      </div>
-                    ))}
-                  </dl>
-                </section>
-              ))}
+                    <span>{labelOf(SECTION_LABELS, group.section)}</span>
+                    <span className="ov-info-count mono">{group.entries.length}</span>
+                  </button>
+                ))}
+              </nav>
+
+              <div className="ov-info-panels">
+                {detail.groups.map((group, index) => (
+                  <section
+                    key={group.section}
+                    className="ov-section"
+                    ref={(el) => { sectionRefs.current[index] = el }}
+                  >
+                    <button
+                      className="ov-section-head"
+                      aria-expanded={!collapsedSections.has(group.section)}
+                      onClick={() => toggleSection(group.section)}
+                    >
+                      <span className="ov-caret">{collapsedSections.has(group.section) ? '▸' : '▾'}</span>
+                      <span>{labelOf(SECTION_LABELS, group.section)}</span>
+                      <span className="ov-section-count mono">{group.entries.length}</span>
+                    </button>
+                    <dl
+                      className="ov-fields"
+                      style={collapsedSections.has(group.section) ? { display: 'none' } : undefined}
+                    >
+                      {group.entries.map((entry) => (
+                        <div key={entry.key} className="ov-field">
+                          <dt {...tipProps(entry.key)}>{labelOf(FIELD_LABELS, entry.key)}</dt>
+                          <dd className="mono" {...tipProps(entry.value)}>
+                            {entry.value || '-'}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </section>
+                ))}
+              </div>
             </div>
           ) : !detailError ? (
             <div className="ov-detail-empty">{t('serverOverview.noDetailData')}</div>
