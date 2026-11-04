@@ -121,6 +121,12 @@ const api: RedisDesktopApi = {
     clear: (connId) => invoke<FavoriteEntry[]>(IPC.favoritesClear, connId),
   },
 
+  cliHistory: {
+    get: (connId) => invoke<string[]>(IPC.cliHistoryGet, connId),
+    record: (connId, command) => invoke<string[]>(IPC.cliHistoryRecord, connId, command),
+    clear: (connId) => invoke<string[]>(IPC.cliHistoryClear, connId),
+  },
+
   update: {
     check: () => invoke<UpdateCheckResult>(IPC.updateCheck),
     openPage: (url: string) => invoke<OperationResult>(IPC.updateOpenPage, url),

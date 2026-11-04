@@ -13,7 +13,7 @@ import {
 } from '@shared/connection-transfer'
 import { APP_VERSION } from '@/services/errorReport'
 import { memoryPrefixOf, MEMORY_BUCKET_LIMIT } from '@shared/keyspace'
-import { FAVORITES_LIMIT } from '@shared/limits'
+import { FAVORITES_LIMIT, CLI_HISTORY_LIMIT } from '@shared/limits'
 import type {
   ApiResponse,
   AppSettings,
@@ -642,6 +642,34 @@ function mockClearFavorites(connId: string): FavoriteEntry[] {
   return []
 }
 
+/* ---------------------------------------------------------------- CLI 历史（预览模式） */
+
+const mockCliHistory: Record<string, string[]> = {
+  local: ['GET user:1001:profile', 'SCAN 0 MATCH user:* COUNT 100', 'INFO memory'],
+}
+
+function mockCliHistoryOf(connId: string): string[] {
+  return [...(mockCliHistory[connId] ?? [])]
+}
+
+function mockRecordCliHistory(connId: string, command: string): string[] {
+  const trimmed = command.trim()
+  if (!trimmed) return mockCliHistoryOf(connId)
+  const bucket = mockCliHistory[connId] ?? []
+  const lower = trimmed.toLowerCase()
+  const index = bucket.findIndex((entry) => entry.toLowerCase() === lower)
+  if (index >= 0) bucket.splice(index, 1)
+  bucket.unshift(trimmed)
+  if (bucket.length > CLI_HISTORY_LIMIT) bucket.length = CLI_HISTORY_LIMIT
+  mockCliHistory[connId] = bucket
+  return [...bucket]
+}
+
+function mockClearCliHistory(connId: string): string[] {
+  delete mockCliHistory[connId]
+  return []
+}
+
 /** ---------------------------------------------------------------- 设置与日志（预览用） */
 
 /**
@@ -899,6 +927,12 @@ export const mockApi: RedisDesktopApi = {
     remove: async (connId: string, db: number, key: string) =>
       ok(mockRemoveFavorite(connId, db, key)),
     clear: async (connId: string) => ok(mockClearFavorites(connId)),
+  },
+
+  cliHistory: {
+    get: async (connId: string) => ok(mockCliHistoryOf(connId)),
+    record: async (connId: string, command: string) => ok(mockRecordCliHistory(connId, command)),
+    clear: async (connId: string) => ok(mockClearCliHistory(connId)),
   },
 
   log: {

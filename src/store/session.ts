@@ -3,6 +3,7 @@ import { t } from '@/i18n'
 import { settings } from '@/services/settings'
 import { defineStore, type AppStore } from '@/store'
 import { renamedKey } from '@/utils/renamedKey'
+import { isReadonlyCliCommand } from '@/utils/cliReadonly'
 import { emitMcKeysChanged } from '@/utils/memcachedEvents'
 import type {
   ConnectionStatus,
@@ -38,6 +39,8 @@ export interface CliEntry {
   kind: 'input' | 'output' | 'error'
   text: string
   costMs?: number
+  /** 产生该条输出的时刻（毫秒时间戳） */
+  at?: number
 }
 
 export interface Toast {
@@ -290,30 +293,7 @@ const MIN_VALUE_SKELETON_MS = 80
  */
 const BULK_DELETE_THRESHOLD = 1
 
-/**
- * CLI 的只读命令集合。
- *
- * 目的：CLI 里敲了写命令（SET / DEL / FLUSHDB…）后，键列表与库计数
- * 不会自己变 —— 用户在界面上找不到刚写入的键，会误以为"命令成功但
- * 数据没进去"。因此非只读命令执行后主动刷新。
- * 名单外的命令一律视为写（多刷一次无害，漏刷却会误导）；
- * SELECT 不在此列：切库后必须按新库重扫。
- */
-const CLI_READONLY_COMMANDS = new Set([
-  'PING', 'ECHO', 'HELLO',
-  'GET', 'MGET', 'STRLEN', 'GETRANGE', 'GETBIT', 'SUBSTR',
-  'EXISTS', 'TYPE', 'TTL', 'PTTL', 'KEYS', 'SCAN', 'DUMP', 'RANDOMKEY',
-  'OBJECT', 'MEMORY', 'INFO', 'DBSIZE', 'TIME', 'LASTSAVE', 'LOLWUT', 'COMMAND',
-  'CLIENT', 'CLUSTER', 'SLOWLOG', 'LATENCY', 'MODULE',
-  'HGET', 'HMGET', 'HGETALL', 'HKEYS', 'HVALS', 'HLEN', 'HSTRLEN', 'HEXISTS', 'HRANDFIELD', 'HSCAN',
-  'LRANGE', 'LINDEX', 'LLEN', 'LPOS',
-  'SMEMBERS', 'SISMEMBER', 'SMISMEMBER', 'SCARD', 'SRANDMEMBER', 'SINTER', 'SINTERCARD', 'SUNION', 'SUNIONCARD', 'SDIFF', 'SDIFFCARD', 'SSCAN',
-  'ZRANGE', 'ZREVRANGE', 'ZRANGEBYSCORE', 'ZREVRANGEBYSCORE', 'ZRANGEBYLEX', 'ZREVRANGEBYLEX',
-  'ZSCORE', 'ZMSCORE', 'ZCARD', 'ZCOUNT', 'ZLEXCOUNT', 'ZRANK', 'ZREVRANK', 'ZRANDMEMBER',
-  'GEOPOS', 'GEODIST', 'GEOHASH', 'GEOSEARCH',
-  'BITCOUNT', 'BITPOS', 'BITFIELD_RO',
-  'XLEN', 'XRANGE', 'XREVRANGE', 'XREAD', 'XINFO',
-])
+
 
 /** 给一批键打上扫描时刻，供 TTL 倒计时折算 */
 function stampKeys(items: RedisKeyItem[]): TimedKeyItem[] {
@@ -1527,14 +1507,14 @@ export function createSession(
   async function runCli(command: string): Promise<void> {
     const trimmed = command.trim()
     if (!trimmed || !state.activeId) return
-    state.cliEntries.push({ kind: 'input', text: trimmed })
+    state.cliEntries.push({ kind: 'input', text: trimmed, at: Date.now() })
     state.cliRunning = true
     try {
       const res = await api.redis.cli(state.activeId, trimmed)
       if (!res.ok) throw new Error(res.error)
       const { output, error, costMs, db } = res.data
-      if (error) state.cliEntries.push({ kind: 'error', text: error, costMs })
-      else state.cliEntries.push({ kind: 'output', text: output, costMs })
+      if (error) state.cliEntries.push({ kind: 'error', text: error, costMs, at: Date.now() })
+      else state.cliEntries.push({ kind: 'output', text: output, costMs, at: Date.now() })
 
       /*
        * CLI 切库（SELECT / SWAPDB）后同步界面库选择器。
@@ -1547,13 +1527,12 @@ export function createSession(
        * 非只读命令（含 SELECT）后刷新键列表与库计数：
        * 让"CLI 写入的数据"立即出现在界面上，而不是要用户手点重扫。
        */
-      const cmd = trimmed.split(/\s+/)[0]?.toUpperCase()
-      if (!error && cmd && !CLI_READONLY_COMMANDS.has(cmd)) {
+      if (!error && !isReadonlyCliCommand(trimmed)) {
         void loadKeys(true)
         void loadDatabases()
       }
     } catch (error) {
-      state.cliEntries.push({ kind: 'error', text: error instanceof Error ? error.message : t('session.executionFailed') })
+      state.cliEntries.push({ kind: 'error', text: error instanceof Error ? error.message : t('session.executionFailed'), at: Date.now() })
     } finally {
       state.cliRunning = false
     }

@@ -12112,3 +12112,117 @@ body.col-resizing .col-handle::after{
   max-height: 100%;
   object-fit: contain;
 }
+
+/* ---------------------------------------------------------------- CLI 补全与输出工具 */
+.s-cli-console .cli-input-row{
+  position: relative;
+}
+.cli-suggest{
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: calc(100% + 6px);
+  z-index: 30;
+  max-height: 240px;
+  overflow: auto;
+  padding: 4px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-panel);
+}
+.cli-suggest-item{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.cli-suggest-item.sel{
+  background: var(--bg-hover);
+}
+.cs-tag{
+  flex: 0 0 auto;
+  padding: 0 5px;
+  border-radius: 999px;
+  font-size: 10px;
+  line-height: 1.6;
+  background: var(--bg-app);
+  color: var(--text-muted);
+}
+.cs-command{
+  color: var(--accent);
+}
+.cs-subcommand{
+  color: var(--amber);
+}
+.cs-key{
+  color: var(--green);
+}
+.cs-label{
+  min-width: 60px;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cs-ro{
+  flex: 0 0 auto;
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.cs-detail{
+  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+.s-cli-console .entry .at{
+  flex: 0 0 auto;
+  font-size: var(--fs-xs);
+  color: #4d566a;
+}
+.s-cli-console .entry .entry-copy{
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #4d566a;
+  opacity: 0;
+  cursor: pointer;
+}
+.s-cli-console .entry:hover .entry-copy{
+  opacity: 1;
+}
+.s-cli-console .entry .entry-copy:hover{
+  color: #b5e853;
+  background: rgba(255, 255, 255, .08);
+}
+
+.cs-history{
+  color: var(--text-secondary);
+}
+.cli-suggest-empty{
+  padding: 8px;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  text-align: center;
+}

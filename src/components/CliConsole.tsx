@@ -1,18 +1,22 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { api } from '@/api'
 import { DialogIcon } from '@/components/DialogIcon'
+import { tipProps } from '@/components/tip'
 import { useSettings } from '@/services/settings'
 import { useSettingsHolder } from '@/hooks/useSettingsHolder'
 import { useRedis } from '@/store/useRedis'
 import { useObservable } from '@/store/subscription'
 import { globalHolder } from '@/store/global'
 import { useI18n } from '@/i18n'
+import { buildCliSuggestions, type CliSuggestion } from '@/utils/cliSuggest'
+import { copyText } from '@/utils/clipboard'
 
 /**
  * 高危命令：执行前必须输入命令名确认。
  * 这类命令会清空整实例 / 整库数据，误执行的代价不可逆，
  * 因此不接受"点一下确认"这种软提示，必须逐字敲入命令名。
  */
-const DESTRUCTIVE_COMMANDS = ['FLUSHALL', 'FLUSHDB', 'SHUTDOWN']
+const DESTRUCTIVE_COMMANDS = ['FLUSHALL', 'FLUSHDB', 'SHUTDOWN', 'SCRIPT FLUSH']
 
 /**
  * CLI 控制台（底部抽屉，默认收起）。
@@ -22,12 +26,18 @@ const DESTRUCTIVE_COMMANDS = ['FLUSHALL', 'FLUSHDB', 'SHUTDOWN']
  * 切到 B 标签的上键不应再现。面板本体全局唯一，数据跟标签走。
  */
 export function CliConsole() {
-  const { state, runCli, clearCli, askConfirm } = useRedis()
+  const { state, runCli, clearCli, askConfirm, notify } = useRedis()
   const { t } = useI18n()
   useObservable(globalHolder)
   useObservable(useSettingsHolder())
 
   const [input, setInput] = useState('')
+  const [suggestIndex, setSuggestIndex] = useState(0)
+  const [suggestDismissed, setSuggestDismissed] = useState(false)
+  const [historySearch, setHistorySearch] = useState(false)
+  const [historyIndex, setHistoryIndex] = useState(0)
+  const suppressSubmit = useRef(false)
+  const inputRef = useRef<HTMLInputElement | null>(null)
   const { settings, save: saveSettings } = useSettings()
 
   /**
@@ -64,6 +74,42 @@ export function CliConsole() {
   const connected = active?.status === 'connected'
   const prompt = active ? `${active.host}:${active.port}>` : 'redis>'
 
+  const suggestions = useMemo(
+    () => buildCliSuggestions(input, state.keys.map((item) => item.key)),
+    [input, state.keys],
+  )
+  const showSuggest =
+    !collapsed && connected && !state.cliRunning && !suggestDismissed && suggestions.length > 0
+
+  const historyMatches = useMemo(() => {
+    const query = input.trim().toLowerCase()
+    return state.cliHistory
+      .slice()
+      .reverse()
+      .filter((command) => !query || command.toLowerCase().includes(query))
+  }, [input, state.cliHistory])
+
+  /* 补全历史按连接持久化：切标签时合并到本标签的会话历史 */
+  useEffect(() => {
+    const connId = state.activeId
+    if (!connId) return
+    let cancelled = false
+    void api.cliHistory.get(connId).then((res) => {
+      if (cancelled || !res.ok || state.activeId !== connId) return
+      const seen = new Set(state.cliHistory.map((cmd) => cmd.toLowerCase()))
+      const persisted = res.data
+        .slice()
+        .reverse()
+        .filter((cmd) => !seen.has(cmd.toLowerCase()))
+      state.cliHistory = [...persisted, ...state.cliHistory]
+      state.cliHistoryIndex = state.cliHistory.length
+    })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.activeId])
+
   useEffect(() => {
     const el = logRef.current
     if (el) el.scrollTop = el.scrollHeight
@@ -74,32 +120,118 @@ export function CliConsole() {
     if (!command || !connected) return
 
     // 高危命令拦截：短语确认通过后才真正下发
-    const head = command.split(/\s+/)[0]?.toUpperCase() ?? ''
-    if (DESTRUCTIVE_COMMANDS.includes(head)) {
+    const parts = command.split(/\s+/)
+    const head = parts[0]?.toUpperCase() ?? ''
+    const commandPhrase = parts.length > 1 ? `${head} ${parts[1].toUpperCase()}` : head
+    const destructive = DESTRUCTIVE_COMMANDS.find((item) =>
+      item.includes(' ') ? commandPhrase === item : head === item,
+    )
+    if (destructive) {
       const confirmed = await askConfirm({
-        title: t('cliConsole.commandHighRiskOperation', { command: head }),
+        title: t('cliConsole.commandHighRiskOperation', { command: destructive }),
         message:
-          t('cliConsole.commandWipesAllDataCurrent', { command: head }) +
+          t('cliConsole.commandWipesAllDataCurrent', { command: destructive }) +
           '\n\n' +
-          t('cliConsole.continueTypeCommandFullBox', { command: head }),
-        confirmText: t('cliConsole.executeCommand', { command: head }),
-        requirePhrase: head,
+          t('cliConsole.continueTypeCommandFullBox', { command: destructive }),
+        confirmText: t('cliConsole.executeCommand', { command: destructive }),
+        requirePhrase: destructive,
         danger: true,
       })
 
       if (!confirmed) {
-        state.cliEntries.push({ kind: 'output', text: t('cliConsole.cancelledRunningCommand', { command: head }) })
+        state.cliEntries.push({ kind: 'output', text: t('cliConsole.cancelledRunningCommand', { command: destructive }) })
         return
       }
     }
 
     state.cliHistory.push(command)
     state.cliHistoryIndex = state.cliHistory.length
+    if (state.activeId) void api.cliHistory.record(state.activeId, command)
     setInput('')
+    setSuggestDismissed(false)
+    setSuggestIndex(0)
+    setHistorySearch(false)
     await runCli(command)
   }
 
+  function acceptSuggestion(item: CliSuggestion): void {
+    setInput(item.value)
+    setSuggestIndex(0)
+    setSuggestDismissed(false)
+    requestAnimationFrame(() => inputRef.current?.focus())
+  }
+
+  function acceptHistory(command: string): void {
+    setInput(command)
+    setHistorySearch(false)
+    setHistoryIndex(0)
+    requestAnimationFrame(() => inputRef.current?.focus())
+  }
+
   function handleKeydown(event: React.KeyboardEvent): void {
+    if (event.nativeEvent.isComposing || event.keyCode === 229) return
+
+    if (event.key.toLowerCase() === 'r' && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault()
+      setHistorySearch(true)
+      setHistoryIndex(0)
+      setSuggestDismissed(true)
+      return
+    }
+
+    if (historySearch) {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault()
+        setHistoryIndex((index) => (index + 1) % Math.max(historyMatches.length, 1))
+        return
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault()
+        setHistoryIndex(
+          (index) => (index - 1 + Math.max(historyMatches.length, 1)) % Math.max(historyMatches.length, 1),
+        )
+        return
+      }
+      if (event.key === 'Tab' || event.key === 'Enter') {
+        const command = historyMatches[historyIndex]
+        if (command) {
+          event.preventDefault()
+          if (event.key === 'Enter') suppressSubmit.current = true
+          acceptHistory(command)
+        }
+        return
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        setHistorySearch(false)
+        return
+      }
+    }
+
+    if (showSuggest) {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault()
+        setSuggestIndex((index) => (index + 1) % suggestions.length)
+        return
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault()
+        setSuggestIndex((index) => (index - 1 + suggestions.length) % suggestions.length)
+        return
+      }
+      if (event.key === 'Tab') {
+        event.preventDefault()
+        const item = suggestions[suggestIndex]
+        if (item) acceptSuggestion(item)
+        return
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        setSuggestDismissed(true)
+        return
+      }
+    }
+
     if (event.key === 'ArrowUp') {
       if (!state.cliHistory.length) return
       state.cliHistoryIndex = Math.max(0, state.cliHistoryIndex - 1)
@@ -113,6 +245,34 @@ export function CliConsole() {
     }
   }
 
+  function timeLabel(at?: number): string {
+    if (!at) return ''
+    const date = new Date(at)
+    const pad = (value: number): string => String(value).padStart(2, '0')
+    return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+  }
+
+  async function exportLog(): Promise<void> {
+    const lines = state.cliEntries.map((entry) => {
+      const time = entry.at ? `[${timeLabel(entry.at)}] ` : ''
+      const marker = entry.kind === 'input' ? '>' : entry.kind === 'error' ? '!' : '<'
+      const cost = entry.costMs != null ? ` (${entry.costMs}ms)` : ''
+      return `${time}${marker} ${entry.text}${cost}`
+    })
+    const host = active ? `${active.host}-${active.port}` : 'redis'
+    const res = await api.file.saveText({
+      suggestedName: `cli-${host}-${Date.now()}.log`,
+      content: lines.join('\n'),
+    })
+    if (!res.ok) notify('err', res.error)
+    else if (res.data.saved) notify('ok', t('cliConsole.exportLogDone'))
+  }
+
+  async function copyEntry(text: string): Promise<void> {
+    const done = await copyText(text)
+    if (!done) notify('err', t('common.copyFailedCheckClipboardPermissions'))
+  }
+
   return (
     <section className={`cli${collapsed ? ' collapsed' : ''} s-cli-console`}>
       <header className="cli-head" onClick={onToggle}>
@@ -122,16 +282,29 @@ export function CliConsole() {
         <span className="spacer" />
         {/* 收起时隐藏「清空」：此时看不到日志，清空是个没有反馈的盲操作 */}
         {!collapsed ? (
-          <button
-            className="btn btn-ghost tiny"
-            onClick={(event) => {
-              event.stopPropagation()
-              clearCli()
-            }}
-          >
-            <DialogIcon name="clear" size={12} />
-            {t('common.clear')}
-          </button>
+          <>
+            <button
+              className="btn btn-ghost tiny"
+              disabled={!state.cliEntries.length}
+              onClick={(event) => {
+                event.stopPropagation()
+                void exportLog()
+              }}
+            >
+              <DialogIcon name="export" size={12} />
+              {t('cliConsole.exportLog')}
+            </button>
+            <button
+              className="btn btn-ghost tiny"
+              onClick={(event) => {
+                event.stopPropagation()
+                clearCli()
+              }}
+            >
+              <DialogIcon name="clear" size={12} />
+              {t('common.clear')}
+            </button>
+          </>
         ) : null}
       </header>
 
@@ -142,20 +315,91 @@ export function CliConsole() {
               {entry.kind === 'input' ? <span className="prefix">{prompt}</span> : null}
               <span className="text">{entry.text}</span>
               {entry.costMs != null ? <span className="cost">{entry.costMs}ms</span> : null}
+              {entry.at ? <span className="at">{timeLabel(entry.at)}</span> : null}
+              <button
+                className="entry-copy"
+                {...tipProps(t('common.copy'))}
+                onClick={() => void copyEntry(entry.text)}
+              >
+                <DialogIcon name="copy" size={10} />
+              </button>
             </div>
           ))}
         </div>
 
         <div className="cli-input-row">
+          {historySearch ? (
+            <div className="cli-suggest">
+              {historyMatches.length ? (
+                historyMatches.map((command, index) => (
+                  <button
+                    key={`${command}-${index}`}
+                    className={`cli-suggest-item${index === historyIndex ? ' sel' : ''}`}
+                    onMouseDown={(event) => {
+                      event.preventDefault()
+                      acceptHistory(command)
+                    }}
+                  >
+                    <span className="cs-tag cs-history">{t('cliSuggest.history')}</span>
+                    <span className="cs-label mono">{command}</span>
+                  </button>
+                ))
+              ) : (
+                <div className="cli-suggest-empty">{t('cliSuggest.noHistory')}</div>
+              )}
+            </div>
+          ) : showSuggest ? (
+            <div className="cli-suggest">
+              {suggestions.map((item, index) => (
+                <button
+                  key={`${item.kind}-${item.label}`}
+                  className={`cli-suggest-item${index === suggestIndex ? ' sel' : ''}`}
+                  onMouseDown={(event) => {
+                    event.preventDefault()
+                    acceptSuggestion(item)
+                  }}
+                >
+                  <span className={`cs-tag cs-${item.kind}`}>
+                    {item.kind === 'command'
+                      ? t('cliSuggest.command')
+                      : item.kind === 'subcommand'
+                        ? t('cliSuggest.subcommand')
+                        : t('cliSuggest.key')}
+                  </span>
+                  <span className="cs-label mono">{item.label}</span>
+                  {item.readonly ? <span className="cs-ro">{t('cliSuggest.readonly')}</span> : null}
+                  {item.group || item.since ? (
+                    <span className="cs-detail">
+                      {t('cliSuggest.detail', {
+                        group: item.group ?? '',
+                        since: item.since ?? '',
+                      })}
+                    </span>
+                  ) : null}
+                </button>
+              ))}
+            </div>
+          ) : null}
           <span className="prefix mono">{prompt}</span>
           <input
+            ref={inputRef}
             value={input}
-            onChange={(event) => setInput(event.target.value)}
+            onChange={(event) => {
+              setInput(event.target.value)
+              setSuggestIndex(0)
+              setHistoryIndex(0)
+              setSuggestDismissed(false)
+            }}
             className="mono"
             disabled={!connected || state.cliRunning}
             placeholder={connected ? t('cliConsole.enterRedisCommandBrowseHistory') : t('cliConsole.connectFirst')}
             onKeyUp={(event) => {
-              if (event.key === 'Enter') void submit()
+              if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
+              if (suppressSubmit.current) {
+                suppressSubmit.current = false
+                return
+              }
+              void submit()
             }}
             onKeyDown={handleKeydown}
           />

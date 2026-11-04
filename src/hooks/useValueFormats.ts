@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '@/api'
+import { t } from '@/i18n'
 import {
   base64ToBytes,
   decodeBase64Text,
@@ -50,7 +51,7 @@ export function useValueFormats(
   )
 
   const loadBinary = (options?: ValueBinaryOptions): Promise<{ ok: boolean; data?: ValueBinaryResult; error?: string }> => {
-    if (!connectionId) return Promise.resolve({ ok: false, error: 'no connection' })
+    if (!connectionId) return Promise.resolve({ ok: false, error: t('valueFormats.errorNoConnection') })
     if (engine === 'memcached') return api.memcached.getBinary(connectionId, keyName, options)
     return api.redis.valueBinary(connectionId, keyName, options)
   }
@@ -113,7 +114,7 @@ export function useValueFormats(
         }
       } else if (next === 'gzip' || next === 'zlib') {
         const res = await loadBinary({ decode: next })
-        if (!res.ok || !res.data) throw new Error(res.error ?? 'empty')
+        if (!res.ok || !res.data) throw new Error(res.error ?? t('valueFormats.errorEmpty'))
         if (res.data.decodeError) throw new Error(res.data.decodeError)
         if (res.data.decodedText == null) throw new Error('empty')
         if (id !== seq.current) return
@@ -125,11 +126,11 @@ export function useValueFormats(
         })
       } else if (next === 'image') {
         const res = await loadBinary()
-        if (!res.ok || !res.data) throw new Error(res.error ?? 'empty')
+        if (!res.ok || !res.data) throw new Error(res.error ?? t('valueFormats.errorEmpty'))
         if (id !== seq.current) return
         const bytes = base64ToBytes(res.data.base64)
         const image = detectImageMime(bytes)
-        if (!image) throw new Error('not-image')
+        if (!image) throw new Error(t('valueFormats.errorNotImage'))
         setView({
           kind: 'image',
           base64: res.data.base64,
@@ -139,7 +140,7 @@ export function useValueFormats(
         })
       } else if (next === 'hex') {
         const res = await loadBinary()
-        if (!res.ok || !res.data) throw new Error(res.error ?? 'empty')
+        if (!res.ok || !res.data) throw new Error(res.error ?? t('valueFormats.errorEmpty'))
         if (id !== seq.current) return
         const hex = toHexRows(base64ToBytes(res.data.base64))
         setView({
@@ -150,7 +151,7 @@ export function useValueFormats(
         })
       } else if (next === 'msgpack') {
         const res = await loadBinary()
-        if (!res.ok || !res.data) throw new Error(res.error ?? 'empty')
+        if (!res.ok || !res.data) throw new Error(res.error ?? t('valueFormats.errorEmpty'))
         if (id !== seq.current) return
         const decoded = decodeMsgpack(base64ToBytes(res.data.base64))
         if (!decoded.ok) throw new Error(decoded.error)

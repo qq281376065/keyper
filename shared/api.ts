@@ -128,6 +128,13 @@ export interface RedisDesktopApi {
     clear: (connId: string) => Promise<ApiResponse<FavoriteEntry[]>>
   }
 
+  /** CLI 命令历史（按连接分桶，新的在前） */
+  cliHistory: {
+    get: (connId: string) => Promise<ApiResponse<string[]>>
+    record: (connId: string, command: string) => Promise<ApiResponse<string[]>>
+    clear: (connId: string) => Promise<ApiResponse<string[]>>
+  }
+
   log: {
     /** 可用日志日期（倒序），用于日期筛选下拉 */
     dates: () => Promise<ApiResponse<LogFileInfo[]>>
@@ -525,6 +532,10 @@ export const IPC = {
   favoritesToggle: 'favorites:toggle',
   favoritesRemove: 'favorites:remove',
   favoritesClear: 'favorites:clear',
+
+  cliHistoryGet: 'cliHistory:get',
+  cliHistoryRecord: 'cliHistory:record',
+  cliHistoryClear: 'cliHistory:clear',
 
   logDates: 'log:dates',
   logRead: 'log:read',

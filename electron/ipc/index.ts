@@ -44,6 +44,12 @@ import {
   removeFavorite,
   toggleFavorite,
 } from '../services/favorites-store'
+import {
+  clearCliHistory,
+  getCliHistory,
+  pruneConnectionCliHistory,
+  recordCliHistory,
+} from '../services/cli-history-store'
 import { loadSettings, saveSettings } from '../services/settings-store'
 import { configInfo } from '../services/config-path'
 import { CLOSE_CONFIRM, CLOSE_HANDLED, closeSignal } from '../services/close-signal'
@@ -488,6 +494,15 @@ export function registerIpcHandlers(): void {
 
   handle<FavoriteEntry[]>(IPC.favoritesClear, (connId) => clearFavorites(String(connId)))
 
+  // -------------------------------------------------------- CLI 历史
+  handle<string[]>(IPC.cliHistoryGet, (connId) => getCliHistory(String(connId)))
+
+  handle<string[]>(IPC.cliHistoryRecord, (connId, command) =>
+    recordCliHistory(String(connId), String(command ?? '')),
+  )
+
+  handle<string[]>(IPC.cliHistoryClear, (connId) => clearCliHistory(String(connId)))
+
   // -------------------------------------------------------- 操作日志
   handle<LogFileInfo[]>(IPC.logDates, () => listLogFiles())
 
@@ -601,8 +616,9 @@ export function registerIpcHandlers(): void {
      * 留着既无意义也让 search-history.json 无限膨胀。
      */
     const pruned = pruneConnectionSearchHistory(String(id))
-    /* 收藏同样按连接分桶，连接删除后一并清理，避免残留永远连不回去的键名 */
+    /* 收藏与 CLI 历史同样按连接分桶，连接删除后一并清理 */
     pruneConnectionFavorites(String(id))
+    pruneConnectionCliHistory(String(id))
     if (pruned > 0) {
       void appendLog({
         timestamp: Date.now(),
