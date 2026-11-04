@@ -864,7 +864,9 @@ semantic colour tokens that follow all nine skins. Supports SSH tunnels and mult
 - **Stream administration**: consumer-group and consumer detail, PEL inspection with `XACK` /
   `XCLAIM`, single-entry `XDEL` and `XTRIM`, with unsupported controls hidden on older versions
 - **Lua runner**: a global script library (named saves, single / bulk delete), KEYS / ARGS, an
-  `EVAL_RO` read-only switch and `SCRIPT KILL`
+  `EVAL_RO` read-only switch and `SCRIPT KILL`; each script is stored as `scripts/*.lua` next to
+  the executable (falling back to the config directory when that location is read-only), and the
+  legacy `lua-scripts.json` is migrated automatically on first launch
 
 **Core path**
 

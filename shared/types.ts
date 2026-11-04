@@ -927,11 +927,6 @@ export interface LuaScript {
   updatedAt: number
 }
 
-export interface LuaScriptsFile {
-  version: 1
-  scripts: LuaScript[]
-}
-
 /** 保存入参：id 缺省表示新建 */
 export interface LuaSaveRequest {
   id?: string

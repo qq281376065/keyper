@@ -18,8 +18,10 @@ import { t } from '@shared/i18n'
  */
 
 const PORTABLE_DIR_NAME = 'config'
+const SCRIPTS_DIR_NAME = 'scripts'
 
 let cachedDir: string | null = null
+let cachedScriptsDir: string | null = null
 /** 回退时的原因，供界面/日志说明"为什么配置不在程序目录" */
 let fallbackReason: string | null = null
 
@@ -94,4 +96,23 @@ export function configInfo(): { dir: string; portable: boolean; reason: string |
 /** 拼接配置目录下的文件路径 */
 export function configFile(name: string): string {
   return path.join(configDir(), name)
+}
+
+/**
+ * Lua 脚本目录（结果缓存）。
+ * 优先程序目录/scripts，程序目录不可写时回退配置目录/scripts —— 与配置目录同一套可写性策略。
+ */
+export function scriptsDir(): string {
+  if (cachedScriptsDir) return cachedScriptsDir
+
+  const preferred = path.join(appDir(), SCRIPTS_DIR_NAME)
+  if (canWrite(preferred)) {
+    cachedScriptsDir = preferred
+    return cachedScriptsDir
+  }
+
+  const fallback = path.join(configDir(), SCRIPTS_DIR_NAME)
+  fs.mkdirSync(fallback, { recursive: true })
+  cachedScriptsDir = fallback
+  return cachedScriptsDir
 }

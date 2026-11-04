@@ -739,7 +739,8 @@ K 用矢量笔画手绘而非字体 —— 字体字形墨迹只有字号的 66%
 - **Stream 管理**：消费组与消费者明细、PEL 查看与 `XACK` / `XCLAIM`、单条 `XDEL`、
   `XTRIM` 裁剪，低版本自动隐藏入口
 - **Lua 运行器**：全局脚本库（命名保存、单条 / 批量删除）、KEYS / ARGS、
-  `EVAL_RO` 只读开关与 `SCRIPT KILL`
+  `EVAL_RO` 只读开关与 `SCRIPT KILL`；脚本按名称存为程序目录 `scripts/*.lua`，
+  程序目录不可写时回退配置目录，旧版 `lua-scripts.json` 首次启动自动迁移
 
 **核心链路**
 

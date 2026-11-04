@@ -125,6 +125,12 @@ import type {
   RefreshKeysResult,
 } from '../../shared/types'
 
+/**
+ * Electron 43 起文件对话框默认固定为 Downloads，且系统不再记忆上次目录。
+ * 这里自己记住上次成功导入的位置，维持升级前的体验（见 docs/electron-45-upgrade.md D7）。
+ */
+let lastImportDir: string | undefined
+
 function ok<T>(data: T): ApiResponse<T> {
   return { ok: true, data }
 }
@@ -752,6 +758,7 @@ export function registerIpcHandlers(): void {
   handle<ConnectionImportPreview | null>(IPC.connectionImportPick, async () => {
     const picked = await dialog.showOpenDialog({
       title: t('connectionTransfer.importDialogTitle'),
+      defaultPath: lastImportDir ?? app.getPath('downloads'),
       properties: ['openFile'],
       filters: [
         { name: 'JSON', extensions: ['json'] },
@@ -760,6 +767,7 @@ export function registerIpcHandlers(): void {
     })
     const filePath = picked.filePaths[0]
     if (picked.canceled || !filePath) return null
+    lastImportDir = path.dirname(filePath)
 
     const parsed = parseTransferText(readTransferFile(filePath))
     const existing = loadConnections()
