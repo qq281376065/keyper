@@ -15,6 +15,7 @@ import type {
   DatabaseInfo,
   EnvInfo,
   ErrorReport,
+  FavoriteEntry,
   KeyValue,
   KeyspaceConfig,
   KeyspaceEvent,
@@ -47,6 +48,10 @@ import type {
   ValuePageOptions,
   ValuePageResult,
   ValueReadOptions,
+  ValueBinaryOptions,
+  ValueBinaryResult,
+  SaveBytesOptions,
+  SaveBytesResult,
   RefreshKeysOptions,
   RefreshKeysResult,
 } from '../shared/types'
@@ -109,6 +114,13 @@ const api: RedisDesktopApi = {
     clear: (connId, db) => invoke<SearchHistoryEntry[]>(IPC.searchHistoryClear, connId, db),
   },
 
+  favorites: {
+    list: (connId) => invoke<FavoriteEntry[]>(IPC.favoritesList, connId),
+    toggle: (connId, db, key) => invoke<FavoriteEntry[]>(IPC.favoritesToggle, connId, db, key),
+    remove: (connId, db, key) => invoke<FavoriteEntry[]>(IPC.favoritesRemove, connId, db, key),
+    clear: (connId) => invoke<FavoriteEntry[]>(IPC.favoritesClear, connId),
+  },
+
   update: {
     check: () => invoke<UpdateCheckResult>(IPC.updateCheck),
     openPage: (url: string) => invoke<OperationResult>(IPC.updateOpenPage, url),
@@ -136,6 +148,7 @@ const api: RedisDesktopApi = {
 
   file: {
     saveText: (options) => invoke<{ saved: boolean; path?: string }>(IPC.fileSaveText, options),
+    saveBytes: (options) => invoke<SaveBytesResult>(IPC.fileSaveBytes, options),
   },
 
   connection: {
@@ -226,6 +239,8 @@ const api: RedisDesktopApi = {
     refreshKeys: (id, options?: RefreshKeysOptions) =>
       invoke<RefreshKeysResult>(IPC.redisRefreshKeys, id, options),
     value: (id, key, options?: ValueReadOptions) => invoke<KeyValue>(IPC.redisValue, id, key, options),
+    valueBinary: (id, key, options?: ValueBinaryOptions) =>
+      invoke<ValueBinaryResult>(IPC.redisValueBinary, id, key, options),
     valuePage: (id, key, options: ValuePageOptions) =>
       invoke<ValuePageResult>(IPC.redisValuePage, id, key, options),
     setValue: (
@@ -287,6 +302,8 @@ const api: RedisDesktopApi = {
     slabs: (id) => invoke<MemcachedSlab[]>(IPC.memcachedSlabs, id),
     keys: (id, options) => invoke<MemcachedKeyList>(IPC.memcachedKeys, id, options),
     get: (id, key) => invoke<MemcachedValue>(IPC.memcachedGet, id, key),
+    getBinary: (id, key, options) =>
+      invoke<ValueBinaryResult>(IPC.memcachedGetBinary, id, key, options),
     set: (id, key, value, options) =>
       invoke<OperationResult>(IPC.memcachedSet, id, key, value, options),
     remove: (id, key) => invoke<OperationResult>(IPC.memcachedRemove, id, key),

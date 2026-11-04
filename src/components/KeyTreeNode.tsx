@@ -23,6 +23,10 @@ export interface KeyTreeNodeProps {
   onRemove: (key: string) => void
   onPick: (node: KeyTreeNodeModel) => void
   onContext: (payload: { node: KeyTreeNodeModel; depth: number; event: React.MouseEvent }) => void
+  /** 判断键是否已收藏：传函数而不是集合，递归子节点复用同一份 */
+  isFavorite?: (key: string) => boolean
+  /** 点击收藏图标：收藏 / 取消收藏 */
+  onToggleFavorite?: (key: string) => void
 }
 
 /**
@@ -48,6 +52,8 @@ export function KeyTreeNode({
   onRemove,
   onPick,
   onContext,
+  isFavorite,
+  onToggleFavorite,
 }: KeyTreeNodeProps) {
   const { t } = useI18n()
   const checkboxRef = useRef<HTMLInputElement | null>(null)
@@ -55,6 +61,7 @@ export function KeyTreeNode({
   const hasChildren = node.children.length > 0
   const isCollapsed = collapsed.has(node.path)
   const isActive = !!node.leaf && node.leaf.key === selectedKey
+  const favorited = !!node.leaf && !!isFavorite?.(node.leaf.key)
   const picked = selecting ? !!isPicked?.(node) : false
   const indeterminate = selecting ? !!isIndeterminate?.(node) : false
 
@@ -155,6 +162,19 @@ export function KeyTreeNode({
 
         {node.leaf ? (
           <button
+            className={`key-fav${favorited ? ' on' : ''}`}
+            {...tipProps(favorited ? t('favorites.remove') : t('favorites.add'))}
+            onClick={(event) => {
+              event.stopPropagation()
+              onToggleFavorite?.(node.leaf!.key)
+            }}
+          >
+            <DialogIcon name="star" size={11} />
+          </button>
+        ) : null}
+
+        {node.leaf ? (
+          <button
             className="del-btn"
             {...tipProps(t('common.deleteThisKey'))}
             onClick={(event) => {
@@ -184,6 +204,8 @@ export function KeyTreeNode({
               onRemove={onRemove}
               onPick={onPick}
               onContext={onContext}
+              isFavorite={isFavorite}
+              onToggleFavorite={onToggleFavorite}
             />
           ))
         : null}

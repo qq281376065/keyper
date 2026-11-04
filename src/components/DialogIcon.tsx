@@ -27,6 +27,7 @@ export type DialogIconName =
   | 'clock'
   | 'folder'
   | 'text'
+  | 'star'
     /* 以下为服务端概览卡片使用 */
   | 'server'
   | 'memory'
@@ -94,6 +95,12 @@ export type DialogIconName =
     /* 概览监控页签：折线坐标轴 / 键空间通知：铃铛 */
   | 'chart'
   | 'bell'
+    /* 值格式菜单：JWT / 编码转换 / PHP / 压缩包 / 二进制 */
+  | 'key'
+  | 'convert'
+  | 'code'
+  | 'archive'
+  | 'binary'
     /* 连接栏顶部「导入 / 导出连接」入口：单托盘 + 双向箭头 */
   | 'transfer'
   /** 尺寸（px），默认 13 */
@@ -770,6 +777,57 @@ function renderGlyph(name: DialogIconName): React.ReactElement | null {
         <path d="M3.4 12.8h9.2" />
         <path d="M5.7 9.9V3.2M4.2 4.7 5.7 3.2l1.5 1.5" />
         <path d="M10.3 3.2v6.7M8.8 8.4l1.5 1.5 1.5-1.5" />
+      </g>
+    )
+  }
+  /** 收藏：五角星（激活态由调用方的 fill 样式补实心） */
+  if (name === 'star') {
+    return (
+      <path d="M8 2.1 9.8 5.8l4 .6-2.9 2.8.7 4L8 11.3l-3.6 1.9.7-4-2.9-2.8 4-.6z" />
+    )
+  }
+  /** JWT：钥匙 */
+  if (name === 'key') {
+    return (
+      <g>
+        <circle cx="5.2" cy="8" r="2.4" />
+        <path d="M7.6 8H14M11.4 8v2.2M13.2 8v1.6" />
+      </g>
+    )
+  }
+  /** 编码转换：一对反向箭头 */
+  if (name === 'convert') {
+    return (
+      <g>
+        <path d="M2.8 6h8.4l-2-2M13.2 10H4.8l2 2" />
+      </g>
+    )
+  }
+  /** 代码：尖括号 */
+  if (name === 'code') {
+    return (
+      <g>
+        <path d="M5.5 4 2.5 8l3 4M10.5 4l3 4-3 4" />
+      </g>
+    )
+  }
+  /** 压缩包：盒盖 + 拉链 */
+  if (name === 'archive') {
+    return (
+      <g>
+        <rect x="2.5" y="3" width="11" height="3" rx=".6" />
+        <path d="M3.5 6v6.5h9V6M6.5 8.5h3" />
+      </g>
+    )
+  }
+  /** 二进制：四格 */
+  if (name === 'binary') {
+    return (
+      <g>
+        <rect x="2.5" y="2.5" width="4" height="4" rx=".5" />
+        <rect x="9.5" y="2.5" width="4" height="4" rx=".5" />
+        <rect x="2.5" y="9.5" width="4" height="4" rx=".5" />
+        <rect x="9.5" y="9.5" width="4" height="4" rx=".5" />
       </g>
     )
   }

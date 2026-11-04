@@ -237,6 +237,7 @@ function activateOrOpenTab(id: string, options?: { refresh?: boolean }): void {
       askConfirm,
       bindSearchProgress,
       initialDb: currentInitialDb(),
+      engine: globalState.connections.find((item) => item.id === id)?.engine ?? 'redis',
     })
     sessions.set(id, session)
     globalState.tabs.push(id)
@@ -856,6 +857,11 @@ const SESSION_ACTION_KEYS = [
   'saveValue',
   'setTtl',
   'renameKey',
+  'loadFavorites',
+  'toggleFavorite',
+  'removeFavorite',
+  'clearFavorites',
+  'openFavorite',
   'runCli',
   'clearCli',
   'stopRemoteSearch',

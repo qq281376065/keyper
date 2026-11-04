@@ -37,6 +37,13 @@ import {
   removeSearchHistory,
   pruneConnectionSearchHistory,
 } from '../services/search-history-store'
+import {
+  clearFavorites,
+  getFavorites,
+  pruneConnectionFavorites,
+  removeFavorite,
+  toggleFavorite,
+} from '../services/favorites-store'
 import { loadSettings, saveSettings } from '../services/settings-store'
 import { configInfo } from '../services/config-path'
 import { CLOSE_CONFIRM, CLOSE_HANDLED, closeSignal } from '../services/close-signal'
@@ -62,6 +69,7 @@ import type {
   DatabaseInfo,
   EnvInfo,
   ErrorReport,
+  FavoriteEntry,
   KeyValue,
   KeyspaceConfig,
   LogEntry,
@@ -87,6 +95,10 @@ import type {
   ValuePageOptions,
   ValuePageResult,
   ValueReadOptions,
+  ValueBinaryOptions,
+  ValueBinaryResult,
+  SaveBytesOptions,
+  SaveBytesResult,
   RefreshKeysOptions,
   RefreshKeysResult,
 } from '../../shared/types'
@@ -463,6 +475,19 @@ export function registerIpcHandlers(): void {
     clearSearchHistory(String(connId), Number(db)),
   )
 
+  // -------------------------------------------------------- 键收藏
+  handle<FavoriteEntry[]>(IPC.favoritesList, (connId) => getFavorites(String(connId)))
+
+  handle<FavoriteEntry[]>(IPC.favoritesToggle, (connId, db, key) =>
+    toggleFavorite(String(connId), Number(db), String(key ?? '')),
+  )
+
+  handle<FavoriteEntry[]>(IPC.favoritesRemove, (connId, db, key) =>
+    removeFavorite(String(connId), Number(db), String(key ?? '')),
+  )
+
+  handle<FavoriteEntry[]>(IPC.favoritesClear, (connId) => clearFavorites(String(connId)))
+
   // -------------------------------------------------------- 操作日志
   handle<LogFileInfo[]>(IPC.logDates, () => listLogFiles())
 
@@ -537,6 +562,21 @@ export function registerIpcHandlers(): void {
     return { saved: true, path: result.filePath }
   })
 
+  handle<SaveBytesResult>(IPC.fileSaveBytes, async (options) => {
+    const payload = (options ?? {}) as SaveBytesOptions
+    const result = await dialog.showSaveDialog({
+      title: t('ipc.exportContent'),
+      defaultPath: payload.suggestedName || 'value.bin',
+      filters: [
+        { name: t('ipc.allFiles'), extensions: ['*'] },
+      ],
+    })
+
+    if (result.canceled || !result.filePath) return { saved: false }
+    fs.writeFileSync(result.filePath, Buffer.from(payload.base64 ?? '', 'base64'))
+    return { saved: true, path: result.filePath }
+  })
+
   // -------------------------------------------------------- 连接管理
   handle<CacheConnectionConfig[]>(IPC.connectionList, () => loadConnections())
 
@@ -561,6 +601,8 @@ export function registerIpcHandlers(): void {
      * 留着既无意义也让 search-history.json 无限膨胀。
      */
     const pruned = pruneConnectionSearchHistory(String(id))
+    /* 收藏同样按连接分桶，连接删除后一并清理，避免残留永远连不回去的键名 */
+    pruneConnectionFavorites(String(id))
     if (pruned > 0) {
       void appendLog({
         timestamp: Date.now(),
@@ -887,6 +929,14 @@ export function registerIpcHandlers(): void {
     ),
   )
 
+  handle<ValueBinaryResult>(IPC.redisValueBinary, (id, key, options) =>
+    connectionManager.valueBinary(
+      id as string,
+      key as string,
+      (options ?? {}) as ValueBinaryOptions,
+    ),
+  )
+
   handle<OperationResult>(IPC.redisSetValue, (id, key, type, payload, ttl, isNew) =>
     connectionManager.setValue(
       id as string,
@@ -1017,6 +1067,13 @@ export function registerIpcHandlers(): void {
   )
   handle<MemcachedValue>(IPC.memcachedGet, (id, key) =>
     memcachedManager.get(id as string, key as string),
+  )
+  handle<ValueBinaryResult>(IPC.memcachedGetBinary, (id, key, options) =>
+    memcachedManager.getBinary(
+      id as string,
+      key as string,
+      (options ?? {}) as ValueBinaryOptions,
+    ),
   )
   handle<OperationResult>(IPC.memcachedSet, (id, key, value, options) =>
     memcachedManager.set(

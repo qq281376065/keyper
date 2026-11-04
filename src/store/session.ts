@@ -7,6 +7,7 @@ import { emitMcKeysChanged } from '@/utils/memcachedEvents'
 import type {
   ConnectionStatus,
   DatabaseInfo,
+  FavoriteEntry,
   MemcachedConnectionConfig,
   MemcachedKeyItem,
   RedisConnectionConfig,
@@ -190,6 +191,8 @@ export interface RedisState {
   selectedValue: KeyValue | null
   /** selectedValue 的读取时刻（毫秒时间戳），TTL 倒计时的基准 */
   selectedValueAt: number | null
+  /** 当前连接的收藏键（按连接分桶，条目带 db） */
+  favorites: FavoriteEntry[]
   loadingValue: boolean
   /** 刷新当前键（键未变）：值区叠加轻量 loading，不走骨架屏 */
   refreshingValue: boolean
@@ -344,6 +347,8 @@ export interface SessionDeps {
   bindSearchProgress: () => void
   /** 无快照时的初始库号（「跨连接保留库偏好」语义的来源值） */
   initialDb: number
+  /** 引擎：收藏打开等行为需要按引擎分流 */
+  engine: 'redis' | 'memcached'
 }
 
 /** 会话（一个标签）的完整 API */
@@ -388,6 +393,11 @@ export interface RedisSessionApi {
   ) => Promise<boolean>
   setTtl: (key: string, seconds: number) => Promise<void>
   renameKey: (key: string, newKey: string) => Promise<void>
+  loadFavorites: () => Promise<void>
+  toggleFavorite: (key: string) => Promise<void>
+  removeFavorite: (entry: FavoriteEntry) => Promise<void>
+  clearFavorites: () => Promise<void>
+  openFavorite: (entry: FavoriteEntry) => Promise<void>
   runCli: (command: string) => Promise<void>
   clearCli: () => void
   stopRemoteSearch: () => void
@@ -413,7 +423,7 @@ export function createSession(
   snapshot: SessionSnapshot | null,
   deps: SessionDeps,
 ): RedisSessionApi {
-  const { notify, failure, askConfirm } = deps
+  const { notify, failure, askConfirm, engine } = deps
 
   const stateHolder = defineStore<AppState>({
     /* 全局字段：此处的值不参与渲染（读取时由 useRedis 合并全局层），仅为形状完整 */
@@ -436,6 +446,7 @@ export function createSession(
     selectedKey: null,
     selectedValue: null,
     selectedValueAt: null,
+    favorites: [],
     loadingValue: false,
     refreshingValue: false,
     loadingMoreValue: false,
@@ -1433,6 +1444,86 @@ export function createSession(
     }
   }
 
+  /* ---------------------------------------------------------------- 收藏 */
+
+  async function loadFavorites(): Promise<void> {
+    if (!state.activeId) {
+      state.favorites = []
+      return
+    }
+    const connIdNow = state.activeId
+    try {
+      const res = await api.favorites.list(connIdNow)
+      if (!res.ok) throw new Error(res.error)
+      if (state.activeId !== connIdNow) return
+      state.favorites = res.data
+    } catch (error) {
+      failure(error, t('favorites.failedLoad'))
+    }
+  }
+
+  async function toggleFavorite(key: string): Promise<void> {
+    if (!state.activeId) return
+    const db = state.activeDb
+    const wasFavorited = state.favorites.some((entry) => entry.key === key && entry.db === db)
+    try {
+      const res = await api.favorites.toggle(state.activeId, db, key)
+      if (!res.ok) throw new Error(res.error)
+      state.favorites = res.data
+      notify('ok', t(wasFavorited ? 'favorites.removed' : 'favorites.added', { key }))
+    } catch (error) {
+      failure(error, t('favorites.failedToggle'))
+    }
+  }
+
+  async function removeFavorite(entry: FavoriteEntry): Promise<void> {
+    if (!state.activeId) return
+    try {
+      const res = await api.favorites.remove(state.activeId, entry.db, entry.key)
+      if (!res.ok) throw new Error(res.error)
+      state.favorites = res.data
+      notify('ok', t('favorites.removed', { key: entry.key }))
+    } catch (error) {
+      failure(error, t('favorites.failedToggle'))
+    }
+  }
+
+  async function clearFavorites(): Promise<void> {
+    if (!state.activeId) return
+    try {
+      const res = await api.favorites.clear(state.activeId)
+      if (!res.ok) throw new Error(res.error)
+      state.favorites = []
+      notify('ok', t('favorites.cleared'))
+    } catch (error) {
+      failure(error, t('favorites.failedToggle'))
+    }
+  }
+
+  /** 打开收藏：先核实键存在；跨库时切库后再选中 */
+  async function openFavorite(entry: FavoriteEntry): Promise<void> {
+    if (!state.activeId) return
+    const connIdNow = state.activeId
+    if (engine === 'memcached') {
+      /* Memcached 没有库与独立的元信息查询：交给值区按 selectedKey 自行读取 */
+      markSelected(entry.key)
+      return
+    }
+    try {
+      const res = await api.redis.lookupKey(connIdNow, entry.key, entry.db)
+      if (!res.ok) throw new Error(res.error)
+      if (state.activeId !== connIdNow) return
+      if (!res.data) {
+        notify('err', t('favorites.invalidKey', { key: entry.key }))
+        return
+      }
+      if (entry.db !== state.activeDb) await switchDb(entry.db)
+      await selectKey(entry.key)
+    } catch (error) {
+      failure(error, t('session.failedLoadKeyValue'))
+    }
+  }
+
   async function runCli(command: string): Promise<void> {
     const trimmed = command.trim()
     if (!trimmed || !state.activeId) return
@@ -1671,6 +1762,11 @@ export function createSession(
     saveValue,
     setTtl,
     renameKey,
+    loadFavorites,
+    toggleFavorite,
+    removeFavorite,
+    clearFavorites,
+    openFavorite,
     runCli,
     clearCli,
     stopRemoteSearch,

@@ -13,6 +13,7 @@ import {
 } from '@shared/connection-transfer'
 import { APP_VERSION } from '@/services/errorReport'
 import { memoryPrefixOf, MEMORY_BUCKET_LIMIT } from '@shared/keyspace'
+import { FAVORITES_LIMIT } from '@shared/limits'
 import type {
   ApiResponse,
   AppSettings,
@@ -21,6 +22,7 @@ import type {
   DatabaseInfo,
   EnvInfo,
   ErrorReport,
+  FavoriteEntry,
   KeyValue,
   KeyspaceConfig,
   KeyspaceEvent,
@@ -55,6 +57,10 @@ import type {
   ValuePageOptions,
   ValuePageResult,
   ValueReadOptions,
+  ValueBinaryOptions,
+  ValueBinaryResult,
+  SaveBytesOptions,
+  SaveBytesResult,
   RefreshKeysOptions,
   RefreshKeysResult,
 } from '@shared/types'
@@ -598,6 +604,44 @@ function mockClearHistory(connId: string, db: number): SearchHistoryEntry[] {
   return []
 }
 
+/* ---------------------------------------------------------------- 收藏（预览模式） */
+
+const mockFavorites: Record<string, FavoriteEntry[]> = {
+  local: [{ key: 'user:1001:profile', db: 0, at: Date.now() }],
+}
+
+function mockFavoritesOf(connId: string): FavoriteEntry[] {
+  return [...(mockFavorites[connId] ?? [])]
+}
+
+function mockToggleFavorite(connId: string, db: number, key: string): FavoriteEntry[] {
+  const bucket = mockFavorites[connId] ?? []
+  const index = bucket.findIndex((entry) => entry.key === key && entry.db === db)
+  if (index >= 0) {
+    bucket.splice(index, 1)
+  } else {
+    bucket.unshift({ key, db, at: Date.now() })
+    if (bucket.length > FAVORITES_LIMIT) bucket.length = FAVORITES_LIMIT
+  }
+  if (bucket.length) mockFavorites[connId] = bucket
+  else delete mockFavorites[connId]
+  return [...bucket]
+}
+
+function mockRemoveFavorite(connId: string, db: number, key: string): FavoriteEntry[] {
+  const bucket = (mockFavorites[connId] ?? []).filter(
+    (entry) => !(entry.key === key && entry.db === db),
+  )
+  if (bucket.length) mockFavorites[connId] = bucket
+  else delete mockFavorites[connId]
+  return [...bucket]
+}
+
+function mockClearFavorites(connId: string): FavoriteEntry[] {
+  delete mockFavorites[connId]
+  return []
+}
+
 /** ---------------------------------------------------------------- 设置与日志（预览用） */
 
 /**
@@ -848,6 +892,15 @@ export const mockApi: RedisDesktopApi = {
     clear: async (connId: string, db: number) => ok(mockClearHistory(connId, db)),
   },
 
+  favorites: {
+    list: async (connId: string) => ok(mockFavoritesOf(connId)),
+    toggle: async (connId: string, db: number, key: string) =>
+      ok(mockToggleFavorite(connId, db, key)),
+    remove: async (connId: string, db: number, key: string) =>
+      ok(mockRemoveFavorite(connId, db, key)),
+    clear: async (connId: string) => ok(mockClearFavorites(connId)),
+  },
+
   log: {
     dates: async (): Promise<ApiResponse<LogFileInfo[]>> =>
       ok([
@@ -909,6 +962,23 @@ export const mockApi: RedisDesktopApi = {
         const link = document.createElement('a')
         link.href = url
         link.download = options.suggestedName || 'value.txt'
+        link.click()
+        URL.revokeObjectURL(url)
+        return ok({ saved: true, path: '（浏览器预览：已触发下载）' })
+      } catch {
+        return ok({ saved: false })
+      }
+    },
+    saveBytes: async (options: SaveBytesOptions): Promise<ApiResponse<SaveBytesResult>> => {
+      await delay(120)
+      try {
+        const binary = atob(options.base64)
+        const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0))
+        const blob = new Blob([bytes], { type: 'application/octet-stream' })
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = options.suggestedName || 'value.bin'
         link.click()
         URL.revokeObjectURL(url)
         return ok({ saved: true, path: '（浏览器预览：已触发下载）' })
@@ -1493,6 +1563,31 @@ export const mockApi: RedisDesktopApi = {
       await delay(120)
       return ok(paginateMockValue(mockValue(key), options?.limit ?? 500))
     },
+    valueBinary: async (
+      _id: string,
+      key: string,
+      options?: ValueBinaryOptions,
+    ): Promise<ApiResponse<ValueBinaryResult>> => {
+      await delay(60)
+      const raw = mockValue(key)
+      const text =
+        typeof raw === 'string'
+          ? raw
+          : JSON.stringify(raw ?? { key, gzip: true, message: 'hello from gzip' }, null, 2)
+      const bytes = new TextEncoder().encode(text)
+      let binary = ''
+      for (const byte of bytes) binary += String.fromCharCode(byte)
+      const result: ValueBinaryResult = {
+        base64: btoa(binary),
+        bytes: bytes.length,
+        truncated: false,
+      }
+      if (options?.decode) {
+        result.decodedText = text
+        result.decodedBytes = bytes.length
+      }
+      return ok(result)
+    },
     valuePage: async (
       _id: string,
       key: string,
@@ -1998,6 +2093,30 @@ export const mockApi: RedisDesktopApi = {
         flags: found.flags,
         ttl: found.expiresAt ? Math.max(0, found.expiresAt - now) : -1,
       })
+    },
+
+    getBinary: async (
+      id: string,
+      key: string,
+      options?: ValueBinaryOptions,
+    ): Promise<ApiResponse<ValueBinaryResult>> => {
+      await delay(60)
+      const store = MOCK_MC_KEYS[id] ?? (MOCK_MC_KEYS[id] = seedMemcached())
+      const found = store.get(key)
+      if (!found) return ok({ base64: '', bytes: 0, truncated: false })
+      const bytes = new TextEncoder().encode(found.data)
+      let binary = ''
+      for (const byte of bytes) binary += String.fromCharCode(byte)
+      const result: ValueBinaryResult = {
+        base64: btoa(binary),
+        bytes: bytes.length,
+        truncated: false,
+      }
+      if (options?.decode) {
+        result.decodedText = found.data
+        result.decodedBytes = bytes.length
+      }
+      return ok(result)
     },
 
     set: async (

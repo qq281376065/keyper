@@ -6,12 +6,15 @@ import { MemcachedBulkOpsPanel } from '@/components/MemcachedBulkOpsPanel'
 import { MemcachedOverview } from '@/components/MemcachedOverview'
 import { PromptDialog } from '@/components/PromptDialog'
 import { VirtualStringLines } from '@/components/VirtualStringLines'
+import { ValueFormatMenu } from '@/components/ValueFormatMenu'
+import { ValueFormatView } from '@/components/ValueFormatView'
 import { tipProps } from '@/components/tip'
 import { useI18n } from '@/i18n'
 import { api } from '@/api'
 import { useRedis } from '@/store/useRedis'
 import { useSessionStore } from '@/hooks/useSessionStore'
 import { useTabBlur } from '@/hooks/useTabBlur'
+import { useValueFormats } from '@/hooks/useValueFormats'
 import { useObservable } from '@/store/subscription'
 import { copyText } from '@/utils/clipboard'
 import { emitMcKeysChanged, onMcKeysChanged } from '@/utils/memcachedEvents'
@@ -73,7 +76,7 @@ function tabLabel(text: string, t: TFunction, head = 12, tail = 8): React.ReactN
 
 export function MemcachedValueViewer({ connectionId }: { connectionId: string }) {
   const { t } = useI18n()
-  const { state, notify, askConfirm, markSelected } = useRedis()
+  const { state, notify, askConfirm, markSelected, toggleFavorite } = useRedis()
   /*
    * 必须订阅本会话的 store，不能只靠 useRedis()。
    *
@@ -88,6 +91,27 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [reloading, setReloading] = useState(false)
+
+  const valueFormats = useValueFormats(
+    value?.key ?? '',
+    value?.data ?? '',
+    connectionId,
+    'memcached',
+  )
+  const detectionText =
+    valueFormats.detected.length > 0
+      ? t('valueFormats.detectedStatus', {
+          formats: valueFormats.detected
+            .map((item) =>
+              item === 'jwt'
+                ? t('valueFormats.jwt')
+                : item === 'base64'
+                  ? t('valueFormats.base64')
+                  : t('valueFormats.php'),
+            )
+            .join(' / '),
+        })
+      : null
 
   const [wrap, setWrap] = useState(true)
   const [pretty, setPretty] = useState(true)
@@ -1020,6 +1044,15 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
             onCopyKey={copyKeyName}
             onRefresh={() => void refreshValue()}
             onDelete={remove}
+            favorited={
+              !!value &&
+              state.favorites.some(
+                (entry) => entry.key === value.key && entry.db === state.activeDb,
+              )
+            }
+            onToggleFavorite={() => {
+              if (value) void toggleFavorite(value.key)
+            }}
           />
         </div>
 
@@ -1042,7 +1075,20 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
       {!editing ? (
         <div className="value-toolbar">
           <div className="seg-group">
-            <button className="tool" {...tipProps(t('memcachedValueViewer.enterEditMode'))} onClick={enterEditExplicit}>
+            <ValueFormatMenu
+              format={valueFormats.format}
+              onSelect={(next) => void valueFormats.select(next)}
+            />
+            <button
+              className="tool"
+              disabled={valueFormats.format != null}
+              {...tipProps(
+                valueFormats.format
+                  ? t('valueFormats.editDisabled')
+                  : t('memcachedValueViewer.enterEditMode'),
+              )}
+              onClick={enterEditExplicit}
+            >
               <DialogIcon name="edit" size={12} className="ti" />
               {t('common.edit')}
             </button>
@@ -1117,6 +1163,8 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
                 }}
               />
             </div>
+          ) : !keyword && valueFormats.format ? (
+            <ValueFormatView formats={valueFormats} keyName={value.key} />
           ) : keyword ? (
             filteredLines.length ? (
               <VirtualStringLines
@@ -1134,7 +1182,11 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
           {/* 搜索态下不显示提示行：与 Redis 一致，且此时双击不会进入编辑 */}
           {!editing && !keyword ? (
             <p className="row-tip text-row-tip">
-              <span className="tip-text">{t('memcachedValueViewer.doubleClickTextEditUse')}</span>
+              <span className="tip-text">
+                {valueFormats.format == null && detectionText
+                  ? detectionText
+                  : t('memcachedValueViewer.doubleClickTextEditUse')}
+              </span>
               <span
                 className="readonly-tag"
                 {...tipProps(t('memcachedValueViewer.valueAreaReadOnlyModify'))}
@@ -1207,11 +1259,15 @@ function McValueActions({
   onCopyKey,
   onRefresh,
   onDelete,
+  favorited,
+  onToggleFavorite,
 }: {
   onRename: () => void
   onCopyKey: () => Promise<void>
   onRefresh: () => void
   onDelete: () => Promise<void>
+  favorited: boolean
+  onToggleFavorite: () => void
 }) {
   const { t } = useI18n()
   const [open, setOpen] = useState(false)
@@ -1274,6 +1330,11 @@ function McValueActions({
                 <button className="menu-item" onClick={() => void run(onRename)}>
                   <DialogIcon name="refresh" size={13} className="mi-icon" />
                   <span>{t('memcachedValueViewer.renameKey')}</span>
+                </button>
+
+                <button className="menu-item" onClick={() => void run(onToggleFavorite)}>
+                  <DialogIcon name="star" size={13} className="mi-icon" />
+                  <span>{favorited ? t('favorites.remove') : t('favorites.add')}</span>
                 </button>
 
                 <div className="menu-sep" />

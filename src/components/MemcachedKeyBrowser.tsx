@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { DialogIcon } from '@/components/DialogIcon'
+import { FavoritesPanel } from '@/components/FavoritesPanel'
 import { MemcachedKeyDialog } from '@/components/MemcachedKeyDialog'
 import { PromptDialog } from '@/components/PromptDialog'
 import { SearchFilterBox } from '@/components/SearchFilterBox'
@@ -80,7 +81,7 @@ function appendKeys(current: MemcachedKeyList, page: MemcachedKeyList): Memcache
 
 export function MemcachedKeyBrowser() {
   const { t } = useI18n()
-  const { state, notify, markSelected, askConfirm, openMcBulkTask } = useRedis()
+  const { state, notify, markSelected, askConfirm, openMcBulkTask, loadFavorites, toggleFavorite } = useRedis()
   useObservable(useSessionStore())
   const id = state.activeId
 
@@ -109,7 +110,8 @@ export function MemcachedKeyBrowser() {
 
   /* 视图与折叠 */
   const [viewMode, setViewMode] = useState<'tree' | 'flat'>('tree')
-  const [separator, setSeparator] = useState(':')
+  /** 收藏视图：临时开关，与 Redis 键栏同构 */
+  const [favoritesView, setFavoritesView] = useState(false)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   /** 上一棵树里出现过的目录：用来识别翻页后新增的目录（见下方补折 effect） */
   const knownParents = useRef<Set<string>>(new Set())
@@ -136,6 +138,8 @@ export function MemcachedKeyBrowser() {
    */
   const { settings } = useSettings()
   useObservable(useSettingsHolder())
+  /** 分隔符统一取全局设置，建树与展开共用同一份配置 */
+  const separator = settings.keySeparator || ':'
   const browserStyle: React.CSSProperties = {
     width: `clamp(${KEY_BROWSER_MIN_WIDTH}px, ${settings.keyBrowserWidth}px, 52%)`,
     flexBasis: `clamp(${KEY_BROWSER_MIN_WIDTH}px, ${settings.keyBrowserWidth}px, 52%)`,
@@ -260,6 +264,12 @@ export function MemcachedKeyBrowser() {
     if (id) void load()
   }, [id, load])
 
+  /* 收藏按连接分桶；函数是渲染期包装，不放进依赖避免重复加载 */
+  useEffect(() => {
+    if (id) void loadFavorites()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id])
+
   /* 值区 / 概览里删除了键：左栏列表需要跟着刷新，否则会继续显示已删除的键 */
   useEffect(() => {
     if (!id) return
@@ -299,6 +309,20 @@ export function MemcachedKeyBrowser() {
     }))
     return buildKeyTree(items, separator)
   }, [rows, separator])
+
+  /** 当前连接的收藏键集合：树形与平铺共用 */
+  const favoriteKeys = useMemo(
+    () =>
+      new Set(
+        state.favorites
+          .filter((entry) => entry.db === state.activeDb)
+          .map((entry) => entry.key),
+      ),
+    [state.favorites, state.activeDb],
+  )
+
+  const menuFavorited =
+    keyMenu?.target.kind === 'key' ? favoriteKeys.has(keyMenu.target.key) : false
 
   /* 统计可折叠的目录：用于"全部展开/收缩"按钮的可用性判断 */
   const allPaths = useMemo(() => collectParents(tree), [tree])
@@ -747,37 +771,39 @@ export function MemcachedKeyBrowser() {
       */}
       <div className="viewbar">
         <div className="view-switch">
-          <button className={viewMode === 'tree' ? 'on' : ''} onClick={() => setViewMode('tree')}>
+          <button
+            className={!favoritesView && viewMode === 'tree' ? 'on' : ''}
+            onClick={() => {
+              setFavoritesView(false)
+              setViewMode('tree')
+            }}
+          >
             <DialogIcon name="tree" size={12} />
             {t('keyBrowser.tree')}
           </button>
-          <button className={viewMode === 'flat' ? 'on' : ''} onClick={() => setViewMode('flat')}>
+          <button
+            className={!favoritesView && viewMode === 'flat' ? 'on' : ''}
+            onClick={() => {
+              setFavoritesView(false)
+              setViewMode('flat')
+            }}
+          >
             <DialogIcon name="list" size={12} />
             {t('keyBrowser.flat')}
           </button>
+          <button
+            className={`fav-switch${favoritesView ? ' on' : ''}`}
+            {...tipProps(t('favorites.viewLabel'))}
+            onClick={() => setFavoritesView(true)}
+          >
+            <DialogIcon name="star" size={12} />
+            {t('favorites.title')}
+          </button>
         </div>
-
-        {/*
-          分隔符输入框：与 Redis 版同位置、同形态（紧接视图切换，无文字标签）。
-          含义靠 tooltip 说明 —— 空间宝贵，一个双字符输入框旁边再挂标题
-          会把 L1/L2/展开/折叠 挤到下一行。
-        */}
-        {viewMode === 'tree' ? (
-          <input
-            value={separator}
-            onChange={(event) => setSeparator(event.target.value)}
-            onBlur={(event) => {
-              if (!event.target.value) setSeparator(':')
-            }}
-            className="sep-input mono"
-            maxLength={2}
-            {...tipProps(t('memcachedKeyBrowser.hierarchySeparatorE'))}
-          />
-        ) : null}
 
         <span className="spacer" />
 
-        {viewMode === 'tree' && id ? (
+        {!favoritesView && viewMode === 'tree' && id ? (
           <>
             {/* 层级展开：与 Redis 版同一组按钮，L1/L2 是大库下的"安全展开" */}
             <button
@@ -817,9 +843,9 @@ export function MemcachedKeyBrowser() {
           </>
         ) : null}
 
-        {viewMode === 'tree' && id ? <div className="viewbar-sep" /> : null}
+        {!favoritesView && viewMode === 'tree' && id ? <div className="viewbar-sep" /> : null}
 
-        {id ? (
+        {id && !favoritesView ? (
           <button
             className={`mini${selecting ? ' on' : ''}`}
             {...tipProps(selecting ? t('keyBrowser.exitSelection') : t('memcachedKeyBrowser.bulkDeleteCachedItems'))}
@@ -831,7 +857,7 @@ export function MemcachedKeyBrowser() {
       </div>
 
       {/* 勾选操作条 */}
-      {selecting ? (
+      {selecting && !favoritesView ? (
         <div className={`pick-bar${picked.size > 0 ? ' active' : ''}`}>
           <span className="pick-text">
             {t('keyBrowser.selected')} <b className="mono">{picked.size}</b> {t('keyBrowser.keys')}
@@ -868,6 +894,10 @@ export function MemcachedKeyBrowser() {
         </div>
       ) : null}
 
+      {favoritesView ? (
+        <FavoritesPanel />
+      ) : (
+        <>
       {/* 键名搜索：幽灵补全 + 搜索历史 + 精确匹配，与 Redis 版同一组件 */}
       <SearchFilterBox
         value={filter}
@@ -922,6 +952,8 @@ export function MemcachedKeyBrowser() {
               onPick={pickNode}
               onRemove={(key) => void removeKeys([key])}
               onContext={handleNodeContext}
+              isFavorite={(key) => favoriteKeys.has(key)}
+              onToggleFavorite={(key) => void toggleFavorite(key)}
             />
           ))}
         </div>
@@ -962,6 +994,18 @@ export function MemcachedKeyBrowser() {
                 </span>
                 {/* 平铺行同样显示 TTL，而不是大小 —— 与 Redis 键列表同一列语义 */}
                 <span className={`ttl mono ${ttlTone(ttl)}`.trim()}>{formatTtl(ttl)}</span>
+                <button
+                  className={`key-fav${favoriteKeys.has(row.key) ? ' on' : ''}`}
+                  {...tipProps(
+                    favoriteKeys.has(row.key) ? t('favorites.remove') : t('favorites.add'),
+                  )}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    void toggleFavorite(row.key)
+                  }}
+                >
+                  <DialogIcon name="star" size={11} />
+                </button>
                 <button
                   className="del-btn"
                   {...tipProps(t('common.deleteThisKey'))}
@@ -1020,6 +1064,8 @@ export function MemcachedKeyBrowser() {
           ) : null}
         </footer>
       ) : null}
+        </>
+      )}
 
       {dialogOpen && id ? (
         <MemcachedKeyDialog
@@ -1102,6 +1148,12 @@ export function MemcachedKeyBrowser() {
                     </button>
 
                     <div className="km-group">{t('keyBrowser.manage')}</div>
+                    <button className="km-item" onClick={() => runMenuAction((target) => {
+                      if (target.kind === 'key') void toggleFavorite(target.key)
+                    })}>
+                      <DialogIcon name="star" size={14} className="km-icon" />
+                      <span>{menuFavorited ? t('favorites.remove') : t('favorites.add')}</span>
+                    </button>
                     <button className="km-item" onClick={() => runMenuAction((target) => {
                       if (target.kind === 'key') setRenameTarget(target.key)
                     })}>
@@ -1195,6 +1247,8 @@ interface McTreeRowProps {
   onPick: (node: McTreeNode) => void
   onRemove: (key: string) => void
   onContext: (node: McTreeNode, event: React.MouseEvent) => void
+  isFavorite?: (key: string) => boolean
+  onToggleFavorite?: (key: string) => void
 }
 
 /**
@@ -1217,6 +1271,8 @@ function McTreeRow({
   onPick,
   onRemove,
   onContext,
+  isFavorite,
+  onToggleFavorite,
 }: McTreeRowProps) {
   const { t } = useI18n()
   const isDir = node.children.length > 0
@@ -1323,6 +1379,21 @@ function McTreeRow({
             <span className={`ttl mono ${ttlTone(node.leaf.ttl)}`.trim()}>{formatTtl(node.leaf.ttl)}</span>
           ) : null}
 
+          {node.leaf && !isDir ? (
+            <button
+              className={`key-fav${isFavorite?.(node.leaf.key) ? ' on' : ''}`}
+              {...tipProps(
+                isFavorite?.(node.leaf.key) ? t('favorites.remove') : t('favorites.add'),
+              )}
+              onClick={(event) => {
+                event.stopPropagation()
+                onToggleFavorite?.(node.leaf!.key)
+              }}
+            >
+              <DialogIcon name="star" size={11} />
+            </button>
+          ) : null}
+
           {node.leaf && !isDir && !selecting ? (
             <button
               className="del-btn"
@@ -1354,6 +1425,8 @@ function McTreeRow({
               onPick={onPick}
               onRemove={onRemove}
               onContext={onContext}
+              isFavorite={isFavorite}
+              onToggleFavorite={onToggleFavorite}
             />
           ))
         : null}

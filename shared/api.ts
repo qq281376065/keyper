@@ -7,6 +7,7 @@ import type {
   DatabaseInfo,
   EnvInfo,
   ErrorReport,
+  FavoriteEntry,
   KeyValue,
   KeyspaceConfig,
   KeyspaceEvent,
@@ -45,6 +46,10 @@ import type {
   ValuePageOptions,
   ValuePageResult,
   ValueReadOptions,
+  ValueBinaryOptions,
+  ValueBinaryResult,
+  SaveBytesOptions,
+  SaveBytesResult,
   RefreshKeysOptions,
   RefreshKeysResult,
 } from './types'
@@ -109,6 +114,20 @@ export interface RedisDesktopApi {
     clear: (connId: string, db: number) => Promise<ApiResponse<SearchHistoryEntry[]>>
   }
 
+  /**
+   * 键收藏。
+   *
+   * 按连接分桶，条目带 db；四个方法都返回该连接最新列表，
+   * 前端与搜索历史同一约定：不做本地合并，直接整体替换。
+   */
+  favorites: {
+    list: (connId: string) => Promise<ApiResponse<FavoriteEntry[]>>
+    /** 已收藏则移除、未收藏则新增，返回最新列表 */
+    toggle: (connId: string, db: number, key: string) => Promise<ApiResponse<FavoriteEntry[]>>
+    remove: (connId: string, db: number, key: string) => Promise<ApiResponse<FavoriteEntry[]>>
+    clear: (connId: string) => Promise<ApiResponse<FavoriteEntry[]>>
+  }
+
   log: {
     /** 可用日志日期（倒序），用于日期筛选下拉 */
     dates: () => Promise<ApiResponse<LogFileInfo[]>>
@@ -132,6 +151,8 @@ export interface RedisDesktopApi {
       suggestedName?: string
       content: string
     }) => Promise<ApiResponse<{ saved: boolean; path?: string }>>
+    /** 保存二进制内容（图片 / Hex 导出用），入参为 base64 */
+    saveBytes: (options: SaveBytesOptions) => Promise<ApiResponse<SaveBytesResult>>
   }
 
   connection: {
@@ -279,6 +300,12 @@ export interface RedisDesktopApi {
     refreshKeys: (id: string, options?: RefreshKeysOptions) => Promise<ApiResponse<RefreshKeysResult>>
     /** 单键首屏（大 key 只取一页，返回 nextCursor 供 valuePage 续读） */
     value: (id: string, key: string, options?: ValueReadOptions) => Promise<ApiResponse<KeyValue>>
+    /** string 值的原始字节（base64），可顺手做 gzip / zlib 解压 */
+    valueBinary: (
+      id: string,
+      key: string,
+      options?: ValueBinaryOptions,
+    ) => Promise<ApiResponse<ValueBinaryResult>>
     /** 读取大 key 的后续一页 */
     valuePage: (id: string, key: string, options: ValuePageOptions) => Promise<ApiResponse<ValuePageResult>>
     setValue: (
@@ -409,6 +436,12 @@ export interface RedisDesktopApi {
       options?: { offset?: number; limit?: number; refresh?: boolean },
     ) => Promise<ApiResponse<MemcachedKeyList>>
     get: (id: string, key: string) => Promise<ApiResponse<MemcachedValue>>
+    /** 原始字节（格式化 / Hex / 图片预览用） */
+    getBinary: (
+      id: string,
+      key: string,
+      options?: ValueBinaryOptions,
+    ) => Promise<ApiResponse<ValueBinaryResult>>
     set: (
       id: string,
       key: string,
@@ -488,6 +521,11 @@ export const IPC = {
   searchHistoryRemove: 'searchHistory:remove',
   searchHistoryClear: 'searchHistory:clear',
 
+  favoritesList: 'favorites:list',
+  favoritesToggle: 'favorites:toggle',
+  favoritesRemove: 'favorites:remove',
+  favoritesClear: 'favorites:clear',
+
   logDates: 'log:dates',
   logRead: 'log:read',
   logDir: 'log:dir',
@@ -496,6 +534,7 @@ export const IPC = {
   logRendererError: 'log:rendererError',
 
   fileSaveText: 'file:saveText',
+  fileSaveBytes: 'file:saveBytes',
 
   connectionList: 'connection:list',
   connectionSave: 'connection:save',
@@ -542,6 +581,7 @@ export const IPC = {
   redisLookupKey: 'redis:lookupKey',
   redisRefreshKeys: 'redis:refreshKeys',
   redisValue: 'redis:value',
+  redisValueBinary: 'redis:valueBinary',
   redisValuePage: 'redis:valuePage',
   redisSetValue: 'redis:setValue',
   redisDelete: 'redis:delete',
@@ -577,6 +617,7 @@ export const IPC = {
   memcachedSlabs: 'memcached:slabs',
   memcachedKeys: 'memcached:keys',
   memcachedGet: 'memcached:get',
+  memcachedGetBinary: 'memcached:getBinary',
   memcachedSet: 'memcached:set',
   memcachedRemove: 'memcached:remove',
   memcachedRename: 'memcached:rename',

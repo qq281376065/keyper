@@ -143,7 +143,8 @@ function pickSessionActions(session: RedisSessionApi): Record<string, unknown> {
     'openBulkTask', 'runBulkTask', 'cancelBulkTask', 'closeBulkTask',
     'openMcBulkTask', 'runMcBulkTask', 'cancelMcBulkTask', 'closeMcBulkTask',
     'saveValue', 'setTtl',
-    'renameKey', 'runCli', 'clearCli', 'stopRemoteSearch', 'searchCurrentDb',
+    'renameKey', 'loadFavorites', 'toggleFavorite', 'removeFavorite', 'clearFavorites', 'openFavorite',
+    'runCli', 'clearCli', 'stopRemoteSearch', 'searchCurrentDb',
   ]
   for (const key of keys) {
     const fn = (session as unknown as Record<string, (...a: unknown[]) => unknown>)[key]

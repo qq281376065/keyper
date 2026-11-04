@@ -1,9 +1,17 @@
+import { gunzipSync, inflateSync } from 'node:zlib'
 import { t } from '@shared/i18n'
+import {
+  VALUE_BINARY_MAX_BYTES,
+  VALUE_DECODE_MAX_BYTES,
+  VALUE_DECODE_MAX_BYTES_CAP,
+} from '../../../../shared/limits'
 import type {
   ConnectionStatus,
   MemcachedConnectionConfig,
   MemcachedConnectionState,
   OperationResult,
+  ValueBinaryOptions,
+  ValueBinaryResult,
 } from '../../../../shared/types'
 import { closeTunnel, openTunnel, tunnelManager, type Tunnel } from '../../ssh-tunnel'
 import { MemcachedError, type MemcachedClient } from './client'
@@ -468,6 +476,46 @@ class MemcachedManager {
       flags: value.flags,
       ttl: value.ttl,
     }
+  }
+
+  /** 读取单个键的原始字节（格式化能力用；GET 的文本解码会丢二进制） */
+  async getBinary(
+    id: string,
+    key: string,
+    options: ValueBinaryOptions = {},
+  ): Promise<ValueBinaryResult> {
+    const managed = this.require(id)
+    const value = await managed.pool.run((client) => this.readOn(client, managed, key))
+    if (!value) return { base64: '', bytes: 0, truncated: false }
+
+    const total = value.data.length
+    const kept =
+      total > VALUE_BINARY_MAX_BYTES ? value.data.subarray(0, VALUE_BINARY_MAX_BYTES) : value.data
+    const result: ValueBinaryResult = {
+      base64: kept.toString('base64'),
+      bytes: total,
+      truncated: kept.length < total,
+    }
+
+    if (options.decode) {
+      const requested = options.maxOutputBytes ?? VALUE_DECODE_MAX_BYTES
+      const maxOutputBytes = Math.min(
+        Math.max(requested, 64 * 1024),
+        VALUE_DECODE_MAX_BYTES_CAP,
+      )
+      try {
+        const decoded =
+          options.decode === 'gzip'
+            ? gunzipSync(kept, { maxOutputLength: maxOutputBytes })
+            : inflateSync(kept, { maxOutputLength: maxOutputBytes })
+        result.decodedText = decoded.toString('utf-8')
+        result.decodedBytes = decoded.length
+      } catch (error) {
+        result.decodeError = error instanceof Error ? error.message : String(error)
+      }
+    }
+
+    return result
   }
 
   /** 写入 / 更新一个键 */

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { api } from '@/api'
 import { CreateKeyDialog } from '@/components/CreateKeyDialog'
 import { DialogIcon } from '@/components/DialogIcon'
+import { FavoritesPanel } from '@/components/FavoritesPanel'
 import { KeyTreeNode } from '@/components/KeyTreeNode'
 import { LiveTtl } from '@/components/LiveTtl'
 import { PromptDialog } from '@/components/PromptDialog'
@@ -78,6 +79,8 @@ export function KeyBrowser() {
     refreshSelected,
     notify,
     openBulkTask,
+    loadFavorites,
+    toggleFavorite,
   } = useRedis()
 
   useObservable(useSessionStore())
@@ -275,27 +278,28 @@ export function KeyBrowser() {
     return { key: target.node.path, type: '', count: target.keys.length, isSubtree: true }
   })()
 
-  /* ---------------------------------------------------------------- 状态（视图 / 分隔符 / 折叠） */
+  /** 当前右键目标是否已收藏（菜单文案随状态切换） */
+  const menuFavorited =
+    menuHead && !menuHead.isSubtree
+      ? state.favorites.some((entry) => entry.key === menuHead.key && entry.db === state.activeDb)
+      : false
+
+  /* ---------------------------------------------------------------- 状态（视图 / 折叠） */
 
   /** 视图模式取自设置，跨会话保留 */
   const [viewMode, setViewMode] = useState<ViewMode>(settings.viewMode)
-  /** 键名分隔符：取自设置（默认冒号），支持 / - . 等常见分层写法 */
-  const [rawSeparator, setRawSeparator] = useState(settings.keySeparator || ':')
+  /** 收藏视图：临时开关，不落盘；开启后整块替换键列表 */
+  const [favoritesView, setFavoritesView] = useState(false)
 
   /** 折叠的路径集合：记录被折叠的目录节点路径 */
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [expandState, setExpandState] = useState<ExpandState>('none')
 
   /**
-   * 视图模式 / 分隔符的双向同步。
-   *
-   * 设置是异步加载的，本组件挂载时可能还没拿到磁盘值 ——
-   * 直接用 settings 作初值会锁死在默认值上。因此：
-   * 1. 初值先取 settings（异步回来后未必是最新）；
-   * 2. 设置变化时同步过来；但一旦用户手动改过，就不再被覆盖。
+   * 视图模式的同步：设置异步加载，本组件挂载时可能还没拿到磁盘值，
+   * 首次用 settings 作初值会在异步回来后失准；用户手动切过则不再覆盖。
    */
   const viewTouched = useRef(false)
-  const sepTouched = useRef(false)
 
   function setViewModeAndPersist(mode: ViewMode): void {
     viewTouched.current = true
@@ -303,21 +307,13 @@ export function KeyBrowser() {
     void saveSettings({ viewMode: mode })
   }
 
-  function markSepTouched(): void {
-    sepTouched.current = true
-  }
-
   useEffect(() => {
     if (viewTouched.current) return
     setViewMode(settings.viewMode)
   }, [settings.viewMode])
 
-  useEffect(() => {
-    if (sepTouched.current || !settings.keySeparator) return
-    setRawSeparator(settings.keySeparator)
-  }, [settings.keySeparator])
-
-  const separator = rawSeparator || ':'
+  /** 键名分隔符统一取全局设置，建树与各级展开共用同一份配置 */
+  const separator = settings.keySeparator || ':'
 
   /* ---------------------------------------------------------------- 全库搜索态 / 列表数据源 */
 
@@ -345,6 +341,17 @@ export function KeyBrowser() {
    * state.remoteKeys 里，树根本没拿到那份数据。
    */
   const treeNodes = useMemo(() => buildKeyTree(displayKeys, separator), [displayKeys, separator])
+
+  /** 当前库的收藏键集合：树形与平铺共用，避免逐行做 O(收藏数) 查找 */
+  const favoriteKeys = useMemo(
+    () =>
+      new Set(
+        state.favorites
+          .filter((entry) => entry.db === state.activeDb)
+          .map((entry) => entry.key),
+      ),
+    [state.favorites, state.activeDb],
+  )
 
   const connected =
     !!state.activeId && state.connections.some((c) => c.id === state.activeId && c.status === 'connected')
@@ -567,6 +574,13 @@ export function KeyBrowser() {
   /* ---------------------------------------------------------------- 搜索 + 历史补全 */
 
   const searchHist = useSearchHistory(state.activeId, state.activeDb)
+
+  /* 连接就绪后载入该连接的收藏；切换标签时各会话各自加载 */
+  /* loadFavorites 是每次渲染重建的包装函数，放进依赖会导致 effect 无限重跑 */
+  useEffect(() => {
+    if (state.activeId) void loadFavorites()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.activeId])
 
   /** 下拉展开态；histSel 为键盘选中行（-1 = 无） */
   const [histOpen, setHistOpen] = useState(false)
@@ -1112,38 +1126,39 @@ export function KeyBrowser() {
 
       <div className="viewbar">
         <div className="view-switch">
-          <button className={viewMode === 'tree' ? 'on' : ''} onClick={() => setViewModeAndPersist('tree')}>
+          <button
+            className={!favoritesView && viewMode === 'tree' ? 'on' : ''}
+            onClick={() => {
+              setFavoritesView(false)
+              setViewModeAndPersist('tree')
+            }}
+          >
             <DialogIcon name="tree" size={12} />
             {t('keyBrowser.tree')}
           </button>
-          <button className={viewMode === 'flat' ? 'on' : ''} onClick={() => setViewModeAndPersist('flat')}>
+          <button
+            className={!favoritesView && viewMode === 'flat' ? 'on' : ''}
+            onClick={() => {
+              setFavoritesView(false)
+              setViewModeAndPersist('flat')
+            }}
+          >
             <DialogIcon name="list" size={12} />
             {t('keyBrowser.flat')}
           </button>
+          <button
+            className={`fav-switch${favoritesView ? ' on' : ''}`}
+            {...tipProps(t('favorites.viewLabel'))}
+            onClick={() => setFavoritesView(true)}
+          >
+            <DialogIcon name="star" size={12} />
+            {t('favorites.title')}
+          </button>
         </div>
-
-        {viewMode === 'tree' ? (
-          <input
-            value={rawSeparator}
-            onChange={(event) => {
-              markSepTouched()
-              setRawSeparator(event.target.value)
-            }}
-            onBlur={(event) => {
-              const value = event.target.value || ':'
-              if (sepTouched.current && value !== settings.keySeparator) {
-                void saveSettings({ keySeparator: value })
-              }
-            }}
-            className="sep-input mono"
-            maxLength={2}
-            {...tipProps(t('keyBrowser.keySeparatorExample'))}
-          />
-        ) : null}
 
         <span className="spacer" />
 
-        {viewMode === 'tree' && connected ? (
+        {!favoritesView && viewMode === 'tree' && connected ? (
           <>
             {/* 层级展开：L1 只展开顶层目录、L2 到第二层 —— 大库下「全部展开」的安全版 */}
             <button
@@ -1174,10 +1189,10 @@ export function KeyBrowser() {
         ) : null}
 
         {/* 分组分隔：左边是树形视图操作，右边开始是破坏性操作 */}
-        {viewMode === 'tree' && connected ? <div className="viewbar-sep" /> : null}
+        {!favoritesView && viewMode === 'tree' && connected ? <div className="viewbar-sep" /> : null}
 
         {/* 批量操作：进入勾选模式后在节点 / 数据行前显示复选框 */}
-        {connected ? (
+        {connected && !favoritesView ? (
           <button
             className={`mini${selecting ? ' on' : ''}`}
             {...tipProps(selecting ? t('keyBrowser.exitSelection') : t('keyBrowser.bulkKeyOperations'))}
@@ -1189,7 +1204,7 @@ export function KeyBrowser() {
       </div>
 
       {/* 勾选模式的操作条：只在有勾选时才展开主体，平时只占一行提示 */}
-      {selecting ? (
+      {selecting && !favoritesView ? (
         <div className={`pick-bar${pickedCount > 0 ? ' active' : ''}`}>
           <span className="pick-text">
             {t('keyBrowser.selected')} <b className="mono">{pickedCount}</b> {t('keyBrowser.keys')}
@@ -1214,7 +1229,9 @@ export function KeyBrowser() {
         </div>
       ) : null}
 
-      <div className="filter-row">
+      {favoritesView ? <FavoritesPanel /> : null}
+
+      <div className="filter-row" style={favoritesView ? { display: 'none' } : undefined}>
         <label className={`filter-box${connected ? '' : ' disabled'}`}>
           {/* 输入即筛已加载列表（filteredKeys）；回车/点查询图标才全库搜索当前 db */}
           <input
@@ -1379,6 +1396,7 @@ export function KeyBrowser() {
       <div
         ref={listEl}
         className="key-list"
+        style={favoritesView ? { display: 'none' } : undefined}
         onScroll={(event) => {
           if (selecting || viewMode === 'flat') setFlatScrollTop(event.currentTarget.scrollTop)
           else setFlatScrollTop(event.currentTarget.scrollTop)
@@ -1438,6 +1456,8 @@ export function KeyBrowser() {
                 onRemove={handleDeleteKey}
                 onPick={togglePickNode}
                 onContext={handleNodeContext}
+                isFavorite={(key) => favoriteKeys.has(key)}
+                onToggleFavorite={(key) => void toggleFavorite(key)}
               />
             ))}
             {/* 扫描未完成前不显示空态：列表空 ≠ 没有结果，可能是还没扫到 */}
@@ -1492,6 +1512,18 @@ export function KeyBrowser() {
                 </span>
                 <LiveTtl className="ttl mono" ttl={item.ttl} ttlAt={ttlAtOf(item)} />
                 <button
+                  className={`key-fav${favoriteKeys.has(item.key) ? ' on' : ''}`}
+                  {...tipProps(
+                    favoriteKeys.has(item.key) ? t('favorites.remove') : t('favorites.add'),
+                  )}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    void toggleFavorite(item.key)
+                  }}
+                >
+                  <DialogIcon name="star" size={11} />
+                </button>
+                <button
                   className="del-btn"
                   {...tipProps(t('common.deleteThisKey'))}
                   onClick={(event) => {
@@ -1539,7 +1571,7 @@ export function KeyBrowser() {
         )}
       </div>
 
-      <footer className="list-foot">
+      <footer className="list-foot" style={favoritesView ? { display: 'none' } : undefined}>
         <span className="mono loaded">
           {t('keyBrowser.loadedCount', { count: state.keys.length })}
           {currentDbKeys ? <> / {currentDbKeys}</> : null}
@@ -1632,6 +1664,10 @@ export function KeyBrowser() {
                     </button>
 
                     <div className="km-group">{t('keyBrowser.manage')}</div>
+                    <button className="km-item" onClick={() => runSingleKeyAction((item) => void toggleFavorite(item.key))}>
+                      <DialogIcon name="star" size={14} className="km-icon" />
+                      <span>{menuFavorited ? t('favorites.remove') : t('favorites.add')}</span>
+                    </button>
                     <button className="km-item" onClick={() => runSingleKeyAction(menuRename)}>
                       <DialogIcon name="edit" size={14} className="km-icon" />
                       <span>{t('common.renameKey')}</span>

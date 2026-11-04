@@ -19,6 +19,9 @@ import { SortIcon } from '@/components/SortIcon'
 import { StreamAddEntryDialog } from '@/components/StreamAddEntryDialog'
 import { ValueActions } from '@/components/ValueActions'
 import { ViewStreamEntryDialog } from '@/components/ViewStreamEntryDialog'
+import { ValueFormatMenu } from '@/components/ValueFormatMenu'
+import { ValueFormatView } from '@/components/ValueFormatView'
+import { useValueFormats } from '@/hooks/useValueFormats'
 import { tipProps } from '@/components/tip'
 import { buildLineView } from '@/hooks/valueEditor/shared'
 import { useHashEditor } from '@/hooks/valueEditor/hash'
@@ -1182,6 +1185,12 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
   }, [value])
 
   const stringEditor = useStringEditor(ctx)
+  const valueFormats = useValueFormats(
+    value?.key ?? '',
+    stringEditor.stringParsed.raw,
+    sessionState.activeId,
+    'redis',
+  )
   const hashEditor = useHashEditor(ctx)
   const listEditor = useListEditor(ctx, { listStats, selectedListIndex, setSelectedListIndex })
   const setEditor = useSetEditor(ctx, { setSelectedListIndex })
@@ -1361,6 +1370,22 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
   const totalCount = !value ? 0 : value.type === 'hash' ? hashEditor.hashView.total : lineView.total
   const searchable = !!value && SEARCHABLE_TYPES.includes(value.type)
 
+  /** 状态栏左侧：检测到文本格式时替换默认的双击编辑提示 */
+  const detectionText =
+    valueFormats.detected.length > 0
+      ? t('valueFormats.detectedStatus', {
+          formats: valueFormats.detected
+            .map((item) =>
+              item === 'jwt'
+                ? t('valueFormats.jwt')
+                : item === 'base64'
+                  ? t('valueFormats.base64')
+                  : t('valueFormats.php'),
+            )
+            .join(' / '),
+        })
+      : null
+
   async function copyValue(): Promise<void> {
     const text = stringEditor.stringView.text
     if (!text) {
@@ -1475,7 +1500,20 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                 这两个块是浮起的，动作块是平的，一眼能分辨两类。
               */}
               <div className="seg-group">
-                <button className="tool" {...tipProps(t('memcachedValueViewer.enterEditMode'))} onClick={stringEditor.enterStringEditExplicit}>
+                <ValueFormatMenu
+                  format={valueFormats.format}
+                  onSelect={(next) => void valueFormats.select(next)}
+                />
+                <button
+                  className="tool"
+                  disabled={valueFormats.format != null}
+                  {...tipProps(
+                    valueFormats.format
+                      ? t('valueFormats.editDisabled')
+                      : t('memcachedValueViewer.enterEditMode'),
+                  )}
+                  onClick={stringEditor.enterStringEditExplicit}
+                >
                   <DialogIcon name="edit" size={12} className="ti" />
                   {t('common.edit')}
                 </button>
@@ -1692,7 +1730,9 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
           {/* 值区外层：承载刷新时的轻量 loading 遮罩（不改变内部布局） */}
           <div className="value-area" ref={areaRef}>
             <div className="value-body">
-              {value.type === 'string' && !keyword && stringEditor.stringEditing ? (
+              {value.type === 'string' && !keyword && valueFormats.format ? (
+                <ValueFormatView formats={valueFormats} keyName={value.key} />
+              ) : value.type === 'string' && !keyword && stringEditor.stringEditing ? (
                 /* string 行内编辑态：取消/保存按钮置于文本框上方 */
                 <div className="text-edit-area">
                   <div className="edit-actions">
@@ -1754,7 +1794,11 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                     不用每换一种类型就重新找一遍。
                   */}
                   <p className="row-tip text-row-tip">
-                    <span className="tip-text">{t('memcachedValueViewer.doubleClickTextEditUse')}</span>
+                    <span className="tip-text">
+                      {valueFormats.format == null && detectionText
+                        ? detectionText
+                        : t('memcachedValueViewer.doubleClickTextEditUse')}
+                    </span>
                     <span
                       className="readonly-tag"
                       {...tipProps(t('memcachedValueViewer.valueAreaReadOnlyModify'))}

@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto'
+import { gunzipSync, inflateSync } from 'node:zlib'
 import Redis from 'ioredis'
 import { tunnelManager, openTunnel, closeTunnel, type Tunnel } from './ssh-tunnel'
+import {
+  VALUE_BINARY_MAX_BYTES,
+  VALUE_DECODE_MAX_BYTES,
+  VALUE_DECODE_MAX_BYTES_CAP,
+} from '../../shared/limits'
 import type {
   CliResult,
   ConnectionStatus,
@@ -31,6 +37,8 @@ import type {
   ValuePageOptions,
   ValuePageResult,
   ValueReadOptions,
+  ValueBinaryOptions,
+  ValueBinaryResult,
   RefreshKeysOptions,
   RefreshKeysResult,
 } from '../../shared/types'
@@ -1278,6 +1286,52 @@ class ConnectionManager {
   async cancelSearch(id: string): Promise<OperationResult> {
     this.searchTokens.set(id, (this.searchTokens.get(id) ?? 0) + 1)
     return { ok: true }
+  }
+
+  /**
+   * string 值的原始字节。
+   *
+   * 普通 GET 返回的是 UTF-8 解码后的字符串，gzip / 图片等二进制会丢失字节，
+   * 因此格式化能力必须按需走 getBuffer。字节与解压结果都做上限截断，
+   * 避免大值把 IPC 和渲染进程拖死。
+   */
+  async valueBinary(
+    id: string,
+    key: string,
+    options: ValueBinaryOptions = {},
+  ): Promise<ValueBinaryResult> {
+    const client = this.mustGet(id)
+    const buffer = await client.getBuffer(key)
+    if (!buffer) return { base64: '', bytes: 0, truncated: false }
+
+    const bytes = buffer.length
+    const kept =
+      bytes > VALUE_BINARY_MAX_BYTES ? buffer.subarray(0, VALUE_BINARY_MAX_BYTES) : buffer
+    const result: ValueBinaryResult = {
+      base64: kept.toString('base64'),
+      bytes,
+      truncated: kept.length < bytes,
+    }
+
+    if (options.decode) {
+      const requested = options.maxOutputBytes ?? VALUE_DECODE_MAX_BYTES
+      const maxOutputBytes = Math.min(
+        Math.max(requested, 64 * 1024),
+        VALUE_DECODE_MAX_BYTES_CAP,
+      )
+      try {
+        const decoded =
+          options.decode === 'gzip'
+            ? gunzipSync(kept, { maxOutputLength: maxOutputBytes })
+            : inflateSync(kept, { maxOutputLength: maxOutputBytes })
+        result.decodedText = decoded.toString('utf-8')
+        result.decodedBytes = decoded.length
+      } catch (error) {
+        result.decodeError = toMessage(error)
+      }
+    }
+
+    return result
   }
 
   async getValue(id: string, key: string, options: ValueReadOptions = {}): Promise<KeyValue> {

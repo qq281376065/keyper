@@ -16,7 +16,7 @@ export interface ValueActionsProps {
 /** 值区右上角「值操作」菜单：重命名键 / 设置 TTL / 复制键名 / 刷新 / 删除键 */
 export function ValueActions({ onRename, onSetTtl }: ValueActionsProps) {
   const { t } = useI18n()
-  const { state, notify, deleteKeys, refreshSelected } = useRedis()
+  const { state, notify, deleteKeys, refreshSelected, toggleFavorite } = useRedis()
 
   const [open, setOpen] = useState(false)
   const anchorRef = useRef<HTMLDivElement | null>(null)
@@ -24,6 +24,9 @@ export function ValueActions({ onRename, onSetTtl }: ValueActionsProps) {
   const [position, setPosition] = useState({ top: 0, left: 0 })
 
   const current = state.selectedValue
+  const favorited = current
+    ? state.favorites.some((entry) => entry.key === current.key && entry.db === state.activeDb)
+    : false
 
   function toggleOpen(event: React.MouseEvent): void {
     event.stopPropagation()
@@ -103,6 +106,14 @@ export function ValueActions({ onRename, onSetTtl }: ValueActionsProps) {
                 <button className="menu-item" onClick={() => void run(onSetTtl)}>
                   <DialogIcon name="clock" size={13} className="mi-icon" />
                   <span>{t('valueActions.setTtl')}</span>
+                </button>
+
+                <button
+                  className="menu-item"
+                  onClick={() => void run(() => toggleFavorite(current?.key ?? ''))}
+                >
+                  <DialogIcon name="star" size={13} className="mi-icon" />
+                  <span>{favorited ? t('favorites.remove') : t('favorites.add')}</span>
                 </button>
 
                 <div className="menu-sep" />
