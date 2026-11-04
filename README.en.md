@@ -13,16 +13,37 @@ registering it; no existing code path has to change.
 
 | Engine | Capabilities |
 | --- | --- |
-| **Redis** | Multiple databases, six data structures (string / hash / list / set / zset / stream), Pub/Sub, slow log, key memory analysis, monitoring charts, keyspace notifications, multi-hop SSH tunnels, built-in CLI |
+| **Redis** | Multiple databases, six data structures (string / hash / list / set / zset / stream), Pub/Sub, slow log, key memory analysis, monitoring charts, keyspace notifications, multi-hop SSH tunnels, built-in CLI, Stream administration, Lua script runner |
 | **Memcached** | Stats and hit rate, full key browsing (`lru_crawler metadump`, falling back to `stats cachedump` on older servers), paged loading, single-key view and CRUD, batch delete / TTL / prefix rename, monitoring charts, `flush_all`, runtime settings |
 
 > This project began as a React port of RedisDesktop (Vue 3). The main process, preload, IPC,
 > shared type contracts and packaging configuration follow that structure; the renderer has been
 > rebuilt around a multi-engine architecture.
 
-Current version: `1.0.11`
+Current version: `1.1.0`
 
-What changed in this release (1.0.10 → 1.0.11):
+What changed in this release (1.0.11 → 1.1.0):
+
+- **TTL countdown**: the key list and the value pane tick down each key's remaining lifetime
+  every second; when it reaches zero the client re-checks with the server — an expired key
+  leaves the list and the value pane clears instead of showing a cache that no longer exists.
+- **Key favourites / bookmarks**: tree and flat views share one favourites component, and each
+  saved row can be removed on its own. The status bar under the key browser summarises saved
+  keys, filter hits and detected value formats; grouping follows the global key separator.
+- **Value format decoding**: decodable payloads are detected automatically (JSON, JWT, Base64,
+  PHP serialized, gzip, zlib, images, hex, MessagePack) and reported in the status bar; the
+  viewer switches between raw and decoded output, identically for Redis and Memcached.
+- **CLI enhancements**: a 370-command catalogue with context-aware completion and
+  per-connection history (200 entries); the completion panel opens while typing and has a
+  close handle and adaptive width, and the output can be copied or cleared.
+- **Stream administration**: consumer groups with per-consumer detail, PEL inspection with
+  `XACK` / `XCLAIM`, single-entry `XDEL` and `XTRIM`; controls hide automatically on Redis
+  versions that do not support them.
+- **Lua runner**: a global script library with named saves and single / bulk delete
+  (100 scripts, 256 KB each); scripts run with KEYS / ARGS, an `EVAL_RO` read-only switch,
+  `SCRIPT KILL` while running, and result truncation at the shared limit.
+
+Previous release (1.0.10 → 1.0.11):
 
 - **Installer rebuilt as a three-step wizard**: install runs "Prepare → Installing →
   Finish", uninstall runs "Options → Uninstalling → Finish", with a step bar pinned at the
@@ -50,7 +71,7 @@ What changed in this release (1.0.10 → 1.0.11):
   framing check now compares against the buffered length and waits for the rest.
 - **Official site and download links added at the top of the README.**
 
-Previous release (1.0.9 → 1.0.10):
+Earlier (1.0.9 → 1.0.10):
 
 - **Unified transfer dialogs**: import connections / export connections / import from connection
   string now share one `DialogShell`, so dragging, the close button, focus handling and the
@@ -299,7 +320,8 @@ main-process exceptions written to `logs/errors-yyyymmdd.log` with stack traces 
 de-duplication); connection import/export (JSON, credentials excluded by default) and batch URI
 import; batch delete in the connection list (entry appears at three or more); dialog close
 discipline (regular dialogs ignore mask clicks); symmetric entry points for all six types; nine-cell
-feature tour on the home page; vitest unit tests.
+feature tour on the home page; vitest unit tests; TTL countdown, key favourites, value format
+decoding, CLI enhancements, Stream administration and the Lua runner.
 
 ---
 
@@ -420,7 +442,7 @@ Keyper/
 │   ├── utils/                       # Key tree, capability detection, formatting, clipboard
 │   ├── styles/                      # main.css (design tokens) + components.css
 │   └── preview/                     # Browser-only preview pages
-├── tests/unit/                      # vitest unit tests (17 specs)
+├── tests/unit/                      # vitest unit tests (21 specs)
 ├── build/                           # Icons and NSIS customization scripts
 ├── scripts/                         # Development probes and screenshot scripts
 ├── vite.config.ts                   # Renderer + main process builds
@@ -438,17 +460,19 @@ npm run dev          # Dev mode: Vite + Electron with hot reload
 npm run dev:web      # Browser-only renderer debugging: Vite only, no Electron build or launch
 npm run preview      # Preview the built output (http://127.0.0.1:4173)
 npm run preview:title # Preview the animated title page in a browser
+npm run preview:tooltip # Preview the connection hover panel in a browser
 npm run typecheck    # Type checking (main process + renderer)
-npm run test         # vitest unit tests (tests/unit, 17 specs)
+npm run test         # vitest unit tests (tests/unit, 21 specs / 208 cases)
 npm run i18n:check   # Validate the three dictionaries: key sets, placeholders, source references
 npm run build        # Type check + build into dist/ and dist-electron/
+npm run csp:check    # Verify the CSP meta in the build output matches its inline-script hashes
 npm run dist         # Package for the current platform
 npm run dist:win     # Build the Windows installer
 npm run dist:win:alt # Build Windows into release/<version>-final (keeps the previous output)
 npm run dist:win:publish # Build and publish to GitHub Releases (needs GH_TOKEN; version must match the tag)
 ```
 
-Build output lands in `release/<version>/` as `Keyper-1.0.11-win-x64.exe`; the same folder also
+Build output lands in `release/<version>/` as `Keyper-1.1.0-win-x64.exe`; the same folder also
 contains `latest.yml`, `*.blockmap` (differential-update block index) and, inside the install
 directory, `app-update.yml` (the update feed configuration).
 
@@ -825,6 +849,22 @@ semantic colour tokens that follow all nine skins. Supports SSH tunnels and mult
 ---
 
 ## What's implemented
+
+**Six feature extensions (v1.1.0)**
+
+- **TTL countdown**: the key list and value pane refresh remaining lifetime every second, then
+  re-check with the server at zero and clear the expired presentation
+- **Key favourites**: one favourites area shared by tree and flat views, with per-row removal and
+  a footer that summarises saved keys and filter hits
+- **Value format decoding**: automatic detection of JSON / JWT / Base64 / PHP / gzip / zlib /
+  images / hex / MessagePack, reported in the status bar with a switch between raw and decoded
+  output
+- **CLI enhancements**: a 370-command catalogue with completion, per-connection history, a
+  completion panel that opens while typing, and copy / clear for output
+- **Stream administration**: consumer-group and consumer detail, PEL inspection with `XACK` /
+  `XCLAIM`, single-entry `XDEL` and `XTRIM`, with unsupported controls hidden on older versions
+- **Lua runner**: a global script library (named saves, single / bulk delete), KEYS / ARGS, an
+  `EVAL_RO` read-only switch and `SCRIPT KILL`
 
 **Core path**
 

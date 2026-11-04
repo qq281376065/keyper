@@ -12,15 +12,31 @@
 
 | 引擎 | 能力 |
 | --- | --- |
-| **Redis** | 多库、六种数据结构（string / hash / list / set / zset / stream）、Pub/Sub、慢查询、键内存分析、监控曲线、键空间通知、SSH 多级跳板、内置 CLI |
+| **Redis** | 多库、六种数据结构（string / hash / list / set / zset / stream）、Pub/Sub、慢查询、键内存分析、监控曲线、键空间通知、SSH 多级跳板、内置 CLI、Stream 管理、Lua 脚本运行器 |
 | **Memcached** | 统计与命中率、全量键浏览（`lru_crawler metadump`，旧服务端回退 `stats cachedump`）、分页加载、单键查看与增删、批量删除 / TTL / 前缀重命名、监控曲线、`flush_all`、运行参数查看 |
 
 > 本项目起源于 RedisDesktop（Vue 3 版）的 React 移植；主进程、preload、IPC、
 > shared 类型契约、打包配置沿用其结构，渲染层已按多引擎架构重构。
 
-当前版本：`1.0.11`
+当前版本：`1.1.0`
 
-当前版本变更（1.0.10 → 1.0.11）：
+当前版本变更（1.0.11 → 1.1.0）：
+
+- **TTL 倒计时**：键列表与值区每秒刷新剩余生存时间，归零后自动向服务端复核 ——
+  过期键从列表消失、值区清空，不再出现「倒计时已结束、界面还显示缓存」的错觉
+- **键收藏 / 书签**：树形与平铺视图共用一套收藏组件，收藏行可单独移除；
+  键区底部状态栏汇总收藏数、当前筛选命中与可解码格式提示，分组沿用全局键名分隔符
+- **值格式解码**：自动识别 JSON / JWT / Base64 / PHP 序列化 / gzip / zlib / 图片 /
+  Hex / MessagePack 等可解码内容，把检测结论写入状态栏；可在原文与解码视图之间切换，
+  Redis 与 Memcached 行为一致
+- **CLI 增强**：内置 370 条命令目录与上下文补全，历史按连接持久化（上限 200 条）；
+  补全面板改为输入时自动展开，带关闭手柄与自适应宽度，输出区支持复制与清屏
+- **Stream 深化**：新增消费组与消费者明细、PEL 查看与 `XACK` / `XCLAIM`、
+  单条 `XDEL` 与 `XTRIM` 裁剪；低版本 Redis 自动隐藏不支持的操作入口
+- **Lua 运行器**：全局脚本库支持命名保存、单条与批量删除（100 条 / 单脚本 256KB）；
+  执行时填写 KEYS / ARGS，可切换只读 `EVAL_RO`，运行中可 `SCRIPT KILL`，超长结果按上限截断
+
+上一版（1.0.10 → 1.0.11）：
 
 - **安装器重做为三段向导**：安装「准备 → 正在安装 → 完成」，卸载「选项 → 正在卸载 →
   完成」，页顶常驻步骤条。「准备」页集中环境自检、安装位置（原生按钮选目录）与
@@ -38,7 +54,7 @@
   解析器只收到头行就把值算成空串；现在按缓冲长度判定收齐与否，没收齐就等下一块
 - **README 顶部补官网与下载入口**
 
-上一版（1.0.9 → 1.0.10）：
+更早（1.0.9 → 1.0.10）：
 
 - **传输弹窗统一**：导入连接 / 导出连接 / 从连接串导入三个弹窗接入同一套
   `DialogShell`，拖拽、关闭按钮、焦点管理与无障碍描述一致；
@@ -223,7 +239,8 @@ string 值实底行号槽；安装器开始菜单快捷方式勾选页；
 错误落盘（渲染层/主进程异常写 `logs/errors-yyyymmdd.log`，带堆栈与 5 秒去重）；
 连接导入导出（JSON，默认不含凭据）与 URI 批量导入；
 连接列表批量删除（≥3 个才出现入口）；弹窗关闭纪律（普通弹窗禁点遮罩关闭）；
-六类型新增入口对称；主页功能导览九宫格；vitest 单元测试
+六类型新增入口对称；主页功能导览九宫格；vitest 单元测试；
+TTL 倒计时、键收藏、值格式解码、CLI 增强、Stream 管理、Lua 运行器
 
 
 ---
@@ -340,7 +357,7 @@ Keyper/
 │   ├── utils/                       # 键树、能力探测、格式化、剪贴板等
 │   ├── styles/                      # main.css（设计令牌）+ components.css
 │   └── preview/                     # 纯浏览器预览页
-├── tests/unit/                      # vitest 单元测试（17 个 spec）
+├── tests/unit/                      # vitest 单元测试（21 个 spec）
 ├── build/                           # 图标与 NSIS 定制脚本
 ├── scripts/                         # 开发期探针与截图脚本
 ├── vite.config.ts                   # 渲染进程 + 主进程构建
@@ -358,17 +375,19 @@ npm run dev          # 开发模式：启动 Vite + Electron，支持热更新
 npm run dev:web      # 纯浏览器调试渲染层：只起 Vite，不编译/不拉起 Electron
 npm run preview      # 预览已构建产物（http://127.0.0.1:4173）
 npm run preview:title # 浏览器预览标题动画页
+npm run preview:tooltip # 浏览器预览连接项悬停面板
 npm run typecheck    # 类型检查（主进程 + 渲染进程）
-npm run test         # vitest 单元测试（tests/unit，17 个 spec）
+npm run test         # vitest 单元测试（tests/unit，21 个 spec / 208 个用例）
 npm run i18n:check   # 校验三份字典的键集、占位符与源码引用一致
 npm run build        # 类型检查 + 构建产物到 dist/ 与 dist-electron/
+npm run csp:check    # 校验构建产物中的 CSP meta 与内联脚本 hash 一致
 npm run dist         # 当前平台打包
 npm run dist:win     # 打包 Windows 安装包
 npm run dist:win:alt # 打包 Windows 到 release/<版本>-final（保留上一版产物时用）
 npm run dist:win:publish # 打包并发布到 GitHub Releases（需 GH_TOKEN，版本号须与标签一致）
 ```
 
-构建产物落在 `release/<版本>/`，文件名形如 `Keyper-1.0.11-win-x64.exe`；
+构建产物落在 `release/<版本>/`，文件名形如 `Keyper-1.1.0-win-x64.exe`；
 同目录还会生成 `latest.yml`、`*.blockmap`（增量更新分块索引）与打包进安装目录的
 `app-update.yml`（更新源配置）。
 
@@ -708,6 +727,19 @@ K 用矢量笔画手绘而非字体 —— 字体字形墨迹只有字号的 66%
 ---
 
 ## 已实现能力
+
+**六项扩展（v1.1.0）**
+
+- **TTL 倒计时**：键列表与值区每秒刷新剩余时间，归零自动向服务端复核并清理过期展示
+- **键收藏**：树形 / 平铺视图共用的收藏区，行内单独移除，底部状态栏汇总收藏与筛选命中
+- **值格式解码**：自动识别 JSON / JWT / Base64 / PHP / gzip / zlib / 图片 / Hex / MessagePack，
+  检测结论写入状态栏，可在原文与解码视图之间切换
+- **CLI 增强**：370 条命令目录与补全、按连接持久化的历史、输入时展开的补全面板、
+  输出复制与清屏
+- **Stream 管理**：消费组与消费者明细、PEL 查看与 `XACK` / `XCLAIM`、单条 `XDEL`、
+  `XTRIM` 裁剪，低版本自动隐藏入口
+- **Lua 运行器**：全局脚本库（命名保存、单条 / 批量删除）、KEYS / ARGS、
+  `EVAL_RO` 只读开关与 `SCRIPT KILL`
 
 **核心链路**
 
