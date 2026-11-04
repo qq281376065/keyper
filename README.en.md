@@ -526,7 +526,7 @@ KEYPER_DEBUG_LOG=/tmp/rd.log ./Keyper.exe
 
 | Workflow | Trigger | Content |
 | --- | --- | --- |
-| `.github/workflows/ci.yml` | push (any branch) / PR to master | `npm ci` → `i18n:check` → `typecheck` → `vitest` → `vite build` |
+| `.github/workflows/ci.yml` | push (any branch) / PR to the default branch | `npm ci` → `i18n:check` → `typecheck` → `vitest` → `vite build` |
 | `.github/workflows/release.yml` | `v*` tag / manual run | Verifies the tag matches `package.json` → exports `release-notes.md` from the tag annotation (one copy at the root, one in `build/`; a manual run reads the same annotation for `v<version>`) → keeps the tag's Release with the most assets (clearing the draft flag first) and deletes the rest, creating one only when none exists → builds NSIS on Windows while electron-builder appends the installer, blockmap and `latest.yml` → probes the three download URLs with retries and re-checks the Release count; a tag publishes, a manual run only builds unless `publish` is ticked |
 
 ### In-app updates

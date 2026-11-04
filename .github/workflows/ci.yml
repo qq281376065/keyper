@@ -4,7 +4,7 @@ on:
   push:
     branches: ['**']
   pull_request:
-    branches: [master]
+    branches: [main]
 
 # 同一分支的新提交取消上一轮，避免排队堆积
 concurrency:

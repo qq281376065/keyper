@@ -440,7 +440,7 @@ KEYPER_DEBUG_LOG=/tmp/rd.log ./Keyper.exe
 
 | 工作流 | 触发 | 内容 |
 | --- | --- | --- |
-| `.github/workflows/ci.yml` | push（任意分支）/ PR 到 master | `npm ci` → `i18n:check` → `typecheck` → `vitest` → `vite build` |
+| `.github/workflows/ci.yml` | push（任意分支）/ PR 到默认分支 | `npm ci` → `i18n:check` → `typecheck` → `vitest` → `vite build` |
 | `.github/workflows/release.yml` | 推送 `v*` 标签 / 手动运行 | 校验标签与 `package.json` 版本一致 → 从标签附注导出 `release-notes.md`（根目录与 `build/` 各一份；手动运行按 `v<版本>` 取同一份附注）→ 保留该标签资产最全的一份 Release（被降级成草稿的先取消草稿）、删掉其余，一份都没有才新建 → Windows 打包并由 electron-builder 追加安装包、blockmap 与 `latest.yml` → 重试探测三类下载地址并复核 Release 数量；标签触发自动发布 Release，手动运行默认只构建、勾 `publish` 才发布 |
 
 ### 应用内更新
