@@ -20,9 +20,56 @@ registering it; no existing code path has to change.
 > shared type contracts and packaging configuration follow that structure; the renderer has been
 > rebuilt around a multi-engine architecture.
 
-Current version: `1.1.0`
+Current version: `1.1.2`
 
-What changed in this release (1.0.11 → 1.1.0):
+What changed in this release (1.1.1 → 1.1.2):
+
+- **Metrics hero chart**: the "Monitor" tab of the Redis and Memcached overview is rebuilt
+  from a grid of six mini sparklines into a "hero chart + mini cards" layout — the hero chart
+  shows the memory trend with a mean baseline, per-stage and global peak markers, and quota
+  share, while five mini cards cover ops/sec, clients, hit rate, total keys and evictions.
+  The three-state sampling flow and the clear action are redone, all three languages updated,
+  and the old sparkline grid removed.
+- **Slow-log fingerprint workbench (scheme 11)**: the slow-log tab becomes a fingerprint
+  workbench — a 100-entry window, 6 groups per page, virtualised detail rows that load 50 more
+  at a time, and a density histogram at the bottom; supports grouping by fingerprint / by
+  client, filtering, a stats column, copy, 15 s auto-query and clear.
+- **Redis info details switched to scheme A**: a 188px sticky section nav (name + field-count
+  badge) on the left and section cards on the right; each section header toggles collapse, and
+  clicking the nav expands the target section and scrolls to it smoothly (respecting reduced
+  motion); fields flow in multiple columns.
+- **Key column yields to the value pane**: fixes the case where a narrow window (< ~808px
+  container) kept the key column pinned at 420px and squeezed the value pane down to roughly
+  129px; it now uses `max(260px, min(keyBrowserWidth, calc(100% - 368px)))` so the value pane
+  keeps a stable 360px. Redis key browser only.
+- **Info details narrow mode via container query**: when the details pane narrows (due to
+  split-pane dragging, even with a wide viewport), the section nav moves from a left column to
+  a top row — switched from `@media` to `@container`.
+- **CI style-convention static check + minimal e2e**: adds `style:check` (15 source-level
+  assertions on lift-shadow geometry, the 9 skins' alpha distribution, the pill whitelist, the
+  selected-state outline, and Tailwind layer-external overrides) and `test:e2e` (6 scenarios /
+  11 CDP assertions, no screenshots), wired into CI.
+
+Previous release (1.1.0 → 1.1.1):
+
+- **Electron 45 upgrade**: 33.2.1 → 45.2.2 (Node 20 → 24 / Chromium 130 → 156),
+  `@types/node` bumped to 24, `engines.node` now requires ≥ 22.12.0.
+- **CSP regression fix**: since Electron 45 a `file://` main document also triggers
+  `onHeadersReceived`, so the header CSP combined with the meta CSP blocked the first-paint
+  theme script; production now relies on the meta CSP alone and no longer flashes between
+  light and dark on startup.
+- **csp-hash normalisation**: normalises CRLF → LF before hashing, fixing a mismatch between
+  the Windows build hash and the browser's computation.
+- **Connection import dialog**: restores `defaultPath` and remembers the last directory,
+  matching the pre-Electron-43 experience.
+- **M6 Lua scripts**: scripts are saved by name under `scripts/*.lua` in the app directory,
+  falling back to the config directory when unwritable; adds name-length and illegal-character
+  validation; the old `lua-scripts.json` migrates automatically on first launch.
+- **Engineering and docs**: adds the architecture map, pitfalls cheat-sheet, Cult UI component
+  reference, development conventions (17-point checklist) and an optimisation roadmap; adds two
+  validation scripts — a static Electron-upgrade pre-check and a CSP runtime CDP probe.
+
+Earlier (1.0.11 → 1.1.0):
 
 - **TTL countdown**: the key list and the value pane tick down each key's remaining lifetime
   every second; when it reaches zero the client re-checks with the server — an expired key
@@ -382,7 +429,7 @@ to zh-CN and zh-TW → call `t('ns.key', { … })` in the source → run `npm ru
 
 | Layer | Choice | Notes |
 | --- | --- | --- |
-| Main process | Electron 33 + TypeScript 5.7 | Window management, IPC, connection pools, engine registry |
+| Main process | Electron 45 + TypeScript 5.7 | Window management, IPC, connection pools, engine registry |
 | Renderer | **React 19 + Vite 6** | UI and interaction; state layer under `src/store/` |
 | Compile-time optimization | **React Compiler 1.0** | Build-time automatic memoization, `target: 19` uses React's built-in runtime |
 | Transport | contextBridge + ipcRenderer.invoke | Context isolation; the renderer never touches Node |
@@ -474,7 +521,7 @@ npm run dist:win:alt # Build Windows into release/<version>-final (keeps the pre
 npm run dist:win:publish # Build and publish to GitHub Releases (needs GH_TOKEN; version must match the tag)
 ```
 
-Build output lands in `release/<version>/` as `Keyper-1.1.0-win-x64.exe`; the same folder also
+Build output lands in `release/<version>/` as `Keyper-1.1.2-win-x64.exe`; the same folder also
 contains `latest.yml`, `*.blockmap` (differential-update block index) and, inside the install
 directory, `app-update.yml` (the update feed configuration).
 
