@@ -7,9 +7,9 @@
  * 会话 store 通过 createSession 里的 __holder 非枚举属性暴露；
  * 标签外（主页态）退回全局 store —— 与 useRedis 的回退语义一致。
  */
-import { currentSession, globalHolder } from '@/store/global'
+import { getSession, globalHolder, globalState } from '@/store/global'
 import { getSessionHolder } from '@/store/session'
-import { useContext } from 'react'
+import { useContext, useSyncExternalStore } from 'react'
 import { RedisSessionContext } from '@/store/useRedis'
 import type { Observable } from '@/store/subscription'
 
@@ -25,7 +25,18 @@ import type { Observable } from '@/store/subscription'
  */
 export function useSessionStore(): Observable {
   const scoped = useContext(RedisSessionContext)
-  const session = scoped?.session ?? currentSession()
+  /*
+   * 必须显式订阅 activeTabId 再按 id 取会话，不能直接调 currentSession()：
+   * React Compiler 会把 currentSession() 的结果按上下文缓存，标签外（上下文恒为
+   * undefined）永远返回首次解析到的全局 store，切换/新建标签后 CLI 等组件订阅
+   * 不到会话写入，表现为「命令没有任何输出且输入框一直禁用」。
+   */
+  const activeTabId = useSyncExternalStore(
+    globalHolder.subscribe,
+    () => globalState.activeTabId,
+    () => globalState.activeTabId,
+  )
+  const session = scoped?.session ?? (activeTabId ? getSession(activeTabId) : null)
   if (session) {
     const holder = getSessionHolder(session.state)
     if (holder) return holder
