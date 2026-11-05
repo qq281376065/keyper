@@ -21,13 +21,12 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "baseUrl": ".",
     "paths": {
       "@shared/*": [
-        "shared/*"
+        "./shared/*"
       ],
       "@electron/*": [
-        "electron/*"
+        "./electron/*"
       ]
     }
   },

@@ -43,6 +43,7 @@
     "ssh2": "^1.17.0"
   },
   "devDependencies": {
+    "@babel/parser": "^7.29.13",
     "@radix-ui/react-slot": "^1.5.0",
     "@tailwindcss/vite": "^4.3.3",
     "@testing-library/dom": "^10.4.2",
@@ -67,7 +68,7 @@
     "react-use-measure": "^2.1.7",
     "tailwind-merge": "^3.7.0",
     "tailwindcss": "^4.3.3",
-    "typescript": "^5.7.2",
+    "typescript": "^7.0.2",
     "vite": "^6.0.5",
     "vite-plugin-electron": "^0.29.0",
     "vitest": "^3.2.7"

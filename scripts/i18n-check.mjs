@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import ts from 'typescript'
+import babelParser from '@babel/parser'
 
 /*
  * 语义 key 字典校验。
@@ -43,42 +43,87 @@ function walk(dir, out = []) {
   return out
 }
 
+/*
+ * TypeScript 7 是原生实现，不再导出 JS 编译器 API（ts.createSourceFile 等），
+ * 因此这里改用 Babel 解析器，脚本只依赖 AST 节点类型，不依赖具体编译器。
+ */
 function parse(file) {
-  return ts.createSourceFile(
-    file,
-    fs.readFileSync(file, 'utf8'),
-    ts.ScriptTarget.Latest,
-    true,
-    file.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
-  )
+  return babelParser.parse(fs.readFileSync(file, 'utf8'), {
+    sourceType: 'module',
+    plugins: ['typescript', ...(file.endsWith('x') ? ['jsx'] : [])],
+  })
+}
+
+/** 字符串字面量与无插值模板字面量取文本，其余返回 null */
+function stringText(node) {
+  if (node.type === 'StringLiteral') return node.value
+  if (node.type === 'TemplateLiteral' && node.expressions.length === 0) {
+    return node.quasis[0].value.cooked
+  }
+  return null
+}
+
+function unwrapExpression(node) {
+  let current = node
+  while (
+    current &&
+    (current.type === 'TSAsExpression' ||
+      current.type === 'TSSatisfiesExpression' ||
+      current.type === 'ParenthesizedExpression')
+  ) {
+    current = current.expression
+  }
+  return current
+}
+
+/** 深度遍历 AST，跳过位置与注释等非节点字段 */
+function walkAst(node, visit) {
+  if (!node || typeof node.type !== 'string') return
+  visit(node)
+  for (const [key, value] of Object.entries(node)) {
+    if (
+      key === 'loc' ||
+      key === 'start' ||
+      key === 'end' ||
+      key === 'extra' ||
+      key === 'comments' ||
+      key === 'leadingComments' ||
+      key === 'trailingComments' ||
+      key === 'innerComments'
+    ) {
+      continue
+    }
+    if (Array.isArray(value)) {
+      for (const child of value) walkAst(child, visit)
+    } else if (value && typeof value === 'object') {
+      walkAst(value, visit)
+    }
+  }
 }
 
 /** 从 `const en = { ... } as const` 这类声明里取出对象字面量 */
 function readCatalog(file, varName) {
   const source = parse(file)
   let object
-  source.forEachChild((node) => {
-    if (!ts.isVariableStatement(node)) return
-    for (const decl of node.declarationList.declarations) {
-      if (!ts.isIdentifier(decl.name) || decl.name.text !== varName || !decl.initializer) continue
-      let init = decl.initializer
-      if (ts.isAsExpression(init) || ts.isSatisfiesExpression(init)) init = init.expression
-      if (ts.isObjectLiteralExpression(init)) object = init
+  for (const stmt of source.program.body) {
+    if (stmt.type !== 'VariableDeclaration') continue
+    for (const decl of stmt.declarations) {
+      if (decl.id.type !== 'Identifier' || decl.id.name !== varName || !decl.init) continue
+      const init = unwrapExpression(decl.init)
+      if (init.type === 'ObjectExpression') object = init
     }
-  })
+  }
   if (!object) throw new Error(`${path.relative(ROOT, file)} 里找不到 ${varName} 对象`)
 
   const entries = new Map()
   for (const prop of object.properties) {
-    if (!ts.isPropertyAssignment(prop)) continue
-    const name = ts.isStringLiteral(prop.name) ? prop.name.text : null
+    if (prop.type !== 'ObjectProperty' || prop.computed) continue
+    const name = prop.key.type === 'StringLiteral' ? prop.key.value : null
     if (name === null) continue
-    const value = prop.initializer
-    if (!ts.isStringLiteral(value) && !ts.isNoSubstitutionTemplateLiteral(value)) {
-      throw new Error(`${name}: 译文必须是字符串字面量`)
-    }
+    const text = stringText(prop.value)
+    if (text === null) throw new Error(`${name}: 译文必须是字符串字面量`)
     if (entries.has(name)) throw new Error(`${path.relative(ROOT, file)} 含重复 key: ${name}`)
-    entries.set(name, value.text)
+    entries.set(name, text)
   }
   return entries
 }
@@ -137,25 +182,22 @@ for (const root of ROOTS) {
   for (const file of walk(path.join(ROOT, root))) {
     if (file === path.join(ROOT, 'src/api/mock.ts')) continue
     const source = parse(file)
-    const visit = (node) => {
-      if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
-        if (keySet.has(node.text)) used.add(node.text)
-        const parent = node.parent
-        if (
-          parent &&
-          ts.isCallExpression(parent) &&
-          parent.arguments[0] === node &&
-          ts.isIdentifier(parent.expression) &&
-          (parent.expression.text === 't' || parent.expression.text === 'tr') &&
-          !keySet.has(node.text)
-        ) {
-          const line = source.getLineAndCharacterOfPosition(node.getStart()).line + 1
-          badCalls.push(`${path.relative(ROOT, file)}:${line} → ${node.text}`)
+    walkAst(source.program, (node) => {
+      if (node.type === 'StringLiteral' || node.type === 'TemplateLiteral') {
+        const text = stringText(node)
+        if (text !== null && keySet.has(text)) used.add(text)
+      }
+      if (
+        node.type === 'CallExpression' &&
+        node.callee.type === 'Identifier' &&
+        (node.callee.name === 't' || node.callee.name === 'tr')
+      ) {
+        const text = stringText(node.arguments[0] ?? {})
+        if (text !== null && !keySet.has(text)) {
+          badCalls.push(`${path.relative(ROOT, file)}:${node.loc.start.line} → ${text}`)
         }
       }
-      ts.forEachChild(node, visit)
-    }
-    visit(source)
+    })
   }
 }
 
