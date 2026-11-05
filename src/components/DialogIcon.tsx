@@ -90,6 +90,9 @@ export type DialogIconName =
     /* 多标签溢出：左右箭头滚动 */
   | 'chevron-left'
   | 'chevron-right'
+    /* 慢查询工作台：折叠分组 / 暂停自动查询 */
+  | 'chevron-down'
+  | 'pause'
     /* 语言切换：地球（经线 + 纬线） */
   | 'globe'
     /* 概览监控页签：折线坐标轴 / 键空间通知：铃铛 */
@@ -364,6 +367,14 @@ function renderGlyph(name: DialogIconName): React.ReactElement | null {
     return (
       <g>
         <path d="M5.2 3.4v9.2L12.6 8z" />
+      </g>
+    )
+  }
+  /** 暂停：两条竖线（与播放三角同一视觉重量） */
+  if (name === 'pause') {
+    return (
+      <g>
+        <path d="M5.6 3.6v8.8M10.4 3.6v8.8" />
       </g>
     )
   }
@@ -731,6 +742,13 @@ function renderGlyph(name: DialogIconName): React.ReactElement | null {
     return (
       <g>
         <path d="M6 3.4 10.6 8 6 12.6" />
+      </g>
+    )
+  }
+  if (name === 'chevron-down') {
+    return (
+      <g>
+        <path d="M3.4 6 8 10.6 12.6 6" />
       </g>
     )
   }

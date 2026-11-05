@@ -469,6 +469,7 @@ export function ServerOverview() {
       {/* ================= 页签：慢查询日志 ================= */}
       <div className="ov-tab-pane" style={activeTab === 'slowlog' ? undefined : { display: 'none' }}>
         <SlowlogCard
+          active={activeTab === 'slowlog'}
           registerRefresh={(fn) => {
             slowlogRefresh.current = fn
           }}

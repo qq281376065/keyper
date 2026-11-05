@@ -225,43 +225,93 @@ const HASH_FIELD_TTLS: Record<string, Record<string, number>> = {
  * 慢查询日志的可变数据：RESET 必须真的清空，否则「清空后列表为空」
  * 只能靠界面假动作骗过 CDP（与批次 3 setTtl/rename 真实化同一教训）。
  * 时间戳相对当前时刻生成，保证预览里永远是"几分钟前"的真实观感。
+ *
+ * 数据量按 100 条窗口准备：60 条重复 GET 用来验证指纹聚合、明细虚拟滚动
+ * 与「每次再加载 50 条」，其余命令覆盖不同耗时档位和客户端。
  */
 const nowSec = () => Math.floor(Date.now() / 1000)
 
-const SLOWLOG: SlowlogEntry[] = [
-  {
-    id: 14,
-    timestamp: nowSec() - 95,
-    duration: 12400,
-    command: ['GET', 'user:1001:profile'],
-    client: '127.0.0.1:58217',
-    clientName: 'redis-desktop',
-  },
-  {
-    id: 13,
-    timestamp: nowSec() - 18 * 60,
-    duration: 1180000,
-    command: ['KEYS', '*'],
-    client: '192.168.1.45:51234',
-    clientName: '',
-  },
-  {
-    id: 12,
-    timestamp: nowSec() - 62 * 60,
-    duration: 463200,
-    command: ['SMEMBERS', 'analytics:2026:10:dau'],
-    client: '127.0.0.1:58218',
-    clientName: '',
-  },
-  {
-    id: 11,
-    timestamp: nowSec() - 3 * 3600,
-    duration: 18300,
-    command: ['LRANGE', 'queue:email:pending', '0', '-1'],
-    client: '10.2.8.31:40221',
-    clientName: 'app-worker-1',
-  },
+const SLOWLOG_CLIENTS: Array<[string, string]> = [
+  ['api-gateway', '10.20.3.7'],
+  ['web-front', '10.20.8.21'],
+  ['mobile-api', '10.20.6.9'],
+  ['session-worker', '10.20.4.33'],
+  ['partner-api', '10.20.7.12'],
+  ['admin-console', '10.20.9.3'],
 ]
+
+const SLOWLOG_GET_NORM_MS = [
+  9.6, 12.4, 15.8, 18.2, 21.7, 24.3, 27.9, 31.6, 35.4, 39.8, 44.1, 48.7, 53.2, 58.9, 64.3, 69.7,
+  74.2, 79.6, 84.3, 88.6,
+]
+const SLOWLOG_GET_WARN_MS = [104, 118, 132, 147, 163, 179, 196, 214, 233, 253, 274, 296, 319, 343, 368]
+
+const SLOWLOG_OTHERS: Array<{
+  ago: number
+  ms: number
+  command: string[]
+  client: string
+  ip: string
+  port: number
+}> = [
+  { ago: 8, ms: 2840, command: ['KEYS', 'user:*'], client: 'billing-worker', ip: '10.20.3.18', port: 51244 },
+  { ago: 372, ms: 1920, command: ['KEYS', 'user:*'], client: 'admin-console', ip: '10.20.9.3', port: 60122 },
+  { ago: 942, ms: 892, command: ['KEYS', 'user:*'], client: 'billing-worker', ip: '10.20.3.18', port: 51246 },
+  {
+    ago: 668,
+    ms: 7320,
+    command: ['EVAL', 'order-lock.lua', '2', 'lock:order:9912', 'lock:stock:88'],
+    client: 'order-service',
+    ip: '10.20.5.4',
+    port: 49322,
+  },
+  { ago: 42, ms: 184.3, command: ['HGETALL', 'user:profile:88421'], client: 'api-gateway', ip: '10.20.3.7', port: 46610 },
+  { ago: 1460, ms: 31.6, command: ['HGETALL', 'cart:88421'], client: 'api-gateway', ip: '10.20.3.7', port: 46612 },
+  {
+    ago: 186,
+    ms: 856,
+    command: ['ZRANGE', 'ranking:2026-11', '0', '-1', 'WITHSCORES'],
+    client: 'leaderboard-job',
+    ip: '10.20.4.11',
+    port: 40218,
+  },
+  { ago: 2380, ms: 220, command: ['MGET', 'user:1', '…', 'user:50'], client: 'report-builder', ip: '10.20.6.2', port: 39014 },
+  { ago: 3540, ms: 64.9, command: ['DEL', 'temp:export:2026-11-05'], client: 'report-builder', ip: '10.20.6.2', port: 39016 },
+  { ago: 73, ms: 12.9, command: ['SMEMBERS', 'online:users'], client: 'ws-presence', ip: '10.20.4.22', port: 58302 },
+]
+
+const SLOWLOG: SlowlogEntry[] = []
+{
+  const base = nowSec()
+  const raw: Array<Omit<SlowlogEntry, 'id'>> = []
+  let normIndex = 0
+  let warnIndex = 0
+  for (let i = 0; i < 60; i++) {
+    const client = SLOWLOG_CLIENTS[i % SLOWLOG_CLIENTS.length]
+    const ms =
+      i % 4 === 0
+        ? SLOWLOG_GET_WARN_MS[warnIndex++ % SLOWLOG_GET_WARN_MS.length]
+        : SLOWLOG_GET_NORM_MS[normIndex++ % SLOWLOG_GET_NORM_MS.length]
+    raw.push({
+      timestamp: base - (20 + i * 52),
+      duration: Math.round(ms * 1000),
+      command: ['GET', 'user:profile:88421'],
+      client: `${client[1]}:${40000 + i * 7}`,
+      clientName: client[0],
+    })
+  }
+  for (const item of SLOWLOG_OTHERS) {
+    raw.push({
+      timestamp: base - item.ago,
+      duration: Math.round(item.ms * 1000),
+      command: item.command,
+      client: `${item.ip}:${item.port}`,
+      clientName: item.client,
+    })
+  }
+  raw.sort((a, b) => b.timestamp - a.timestamp)
+  raw.forEach((entry, index) => SLOWLOG.push({ id: 100 - index, ...entry }))
+}
 
 /*
  * Pub/Sub 模拟：订阅状态与消息监听都存模块级（按连接 id 隔离）。
@@ -1596,10 +1646,16 @@ export const mockApi: RedisDesktopApi = {
       })
     },
     databases: async () => ok(DATABASES),
-    slowlog: async (): Promise<ApiResponse<SlowlogOverview>> => {
+    slowlog: async (_id: string, count = 10): Promise<ApiResponse<SlowlogOverview>> => {
       await delay(140)
       /* 与真实实现一致：RESET 后 len 与 entries 同步归零 */
-      return ok({ len: SLOWLOG.length, entries: SLOWLOG.map((item) => ({ ...item, command: [...item.command] })) })
+      return ok({
+        len: SLOWLOG.length,
+        entries: SLOWLOG.slice(0, Math.max(0, count)).map((item) => ({
+          ...item,
+          command: [...item.command],
+        })),
+      })
     },
     /*
      * mock 契约：RESET 真清空 SLOWLOG，清空后再次查询必须返回空 ——
