@@ -37,7 +37,7 @@ import { useRedis } from '@/store/useRedis'
 import { useObservable } from '@/store/subscription'
 import { useSessionStore } from '@/hooks/useSessionStore'
 import { useTabBlur } from '@/hooks/useTabBlur'
-import { formatBytes, formatTtl, remainingTtl, ttlTone, utf8Bytes } from '@/utils/format'
+import { formatBytes, formatTtl, remainingTtl, ttlRecheckDelay, ttlTone, utf8Bytes } from '@/utils/format'
 import { resolveCapabilities } from '@/utils/redisCapability'
 import { copyText } from '@/utils/clipboard'
 import type { KeyValue } from '@shared/types'
@@ -1010,11 +1010,20 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
 
   /** 倒计时归零后只复核一次；键可能被续期，最终以服务端结果为准 */
   const expiryRecheckedAt = useRef<number | null>(null)
+  const expiryRecheckAt = useRef(0)
   useEffect(() => {
-    if (!value || value.ttl < 0 || valueAt == null) return
+    if (!value || !Number.isFinite(value.ttl) || value.ttl < 0 || valueAt == null) return
     const remaining = remainingTtl(value.ttl, valueAt)
     if (remaining <= 0) {
       if (expiryRecheckedAt.current === valueAt) return
+      /*
+       * 兼容服务端 TTL 异常（代理把永久键报成 0、秒级边界读回 0）：
+       * 每次复核都会拿到新的 valueAt，只靠上面那行挡不住，这里再按秒限流，
+       * 避免变成「读一次就立刻再读」的请求风暴。
+       */
+      const now = Date.now()
+      if (now - expiryRecheckAt.current < 1000) return
+      expiryRecheckAt.current = now
       expiryRecheckedAt.current = valueAt
       void refreshSelected()
       return
@@ -1022,7 +1031,7 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
     const timer = setTimeout(() => {
       expiryRecheckedAt.current = valueAt
       void refreshSelected()
-    }, remaining * 1000 + 300)
+    }, ttlRecheckDelay(remaining))
     return () => clearTimeout(timer)
   }, [value, valueAt, refreshSelected])
 
