@@ -20,9 +20,22 @@ registering it; no existing code path has to change.
 > shared type contracts and packaging configuration follow that structure; the renderer has been
 > rebuilt around a multi-engine architecture.
 
-Current version: `1.1.2`
+Current version: `1.1.3`
 
-What changed in this release (1.1.1 → 1.1.2):
+What changed in this release (1.1.2 → 1.1.3):
+
+- **TypeScript 7.0.2**: build and type checking now use the native compiler; `tsconfig` `paths`
+  use the new relative form, and type checking for both projects plus the production build pass.
+- **CLI output / input fix**: React Compiler cached the session lookup outside the tab tree, so
+  the CLI always subscribed to the global store. It now subscribes to `activeTabId` explicitly
+  and resolves the session by id, so results appear immediately and the input re-enables after
+  every run.
+- **i18n checker migration**: TypeScript 7 no longer exposes the JS compiler API; the checker now
+  uses `@babel/parser` while keeping the same key, placeholder and source-reference checks.
+- **Full regression**: 21 specs / 211 unit tests, 6 e2e scenarios / 11 assertions, 1653 i18n keys,
+  style conventions, type checking for both projects, production build and CSP validation all pass.
+
+Previous release (1.1.1 → 1.1.2):
 
 - **Metrics hero chart**: the "Monitor" tab of the Redis and Memcached overview is rebuilt
   from a grid of six mini sparklines into a "hero chart + mini cards" layout — the hero chart
@@ -50,7 +63,7 @@ What changed in this release (1.1.1 → 1.1.2):
   selected-state outline, and Tailwind layer-external overrides) and `test:e2e` (6 scenarios /
   11 CDP assertions, no screenshots), wired into CI.
 
-Previous release (1.1.0 → 1.1.1):
+Earlier (1.1.0 → 1.1.1):
 
 - **Electron 45 upgrade**: 33.2.1 → 45.2.2 (Node 20 → 24 / Chromium 130 → 156),
   `@types/node` bumped to 24, `engines.node` now requires ≥ 22.12.0.
@@ -429,7 +442,7 @@ to zh-CN and zh-TW → call `t('ns.key', { … })` in the source → run `npm ru
 
 | Layer | Choice | Notes |
 | --- | --- | --- |
-| Main process | Electron 45 + TypeScript 5.7 | Window management, IPC, connection pools, engine registry |
+| Main process | Electron 45 + TypeScript 7.0 | Window management, IPC, connection pools, engine registry |
 | Renderer | **React 19 + Vite 6** | UI and interaction; state layer under `src/store/` |
 | Compile-time optimization | **React Compiler 1.0** | Build-time automatic memoization, `target: 19` uses React's built-in runtime |
 | Transport | contextBridge + ipcRenderer.invoke | Context isolation; the renderer never touches Node |
@@ -521,7 +534,7 @@ npm run dist:win:alt # Build Windows into release/<version>-final (keeps the pre
 npm run dist:win:publish # Build and publish to GitHub Releases (needs GH_TOKEN; version must match the tag)
 ```
 
-Build output lands in `release/<version>/` as `Keyper-1.1.2-win-x64.exe`; the same folder also
+Build output lands in `release/<version>/` as `Keyper-1.1.3-win-x64.exe`; the same folder also
 contains `latest.yml`, `*.blockmap` (differential-update block index) and, inside the install
 directory, `app-update.yml` (the update feed configuration).
 

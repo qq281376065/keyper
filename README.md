@@ -18,9 +18,20 @@
 > 本项目起源于 RedisDesktop（Vue 3 版）的 React 移植；主进程、preload、IPC、
 > shared 类型契约、打包配置沿用其结构，渲染层已按多引擎架构重构。
 
-当前版本：`1.1.2`
+当前版本：`1.1.3`
 
-当前版本变更（1.1.1 → 1.1.2）：
+当前版本变更（1.1.2 → 1.1.3）：
+
+- **TypeScript 7.0.2**：构建与类型检查升级到原生编译器；`tsconfig` 的 `paths` 按新规则
+  改为相对写法，两个工程的类型检查与生产构建全绿
+- **修复 CLI 无输出 / 输入禁用**：React Compiler 会缓存标签外的会话解析结果，CLI 始终订阅到
+  全局 store；改为显式订阅 `activeTabId` 并按 id 取会话，命令结果即时显示、执行后输入框立即恢复
+- **i18n 校验迁移**：TypeScript 7 不再提供 JS 编译器 API，校验脚本改用 `@babel/parser`，
+  键集、占位符与源码引用检查保持原语义
+- **全量回归**：21 个 spec / 211 个单元用例、6 场景 / 11 条 e2e、1653 条 i18n key、样式规范、
+  两工程 typecheck、生产构建与 CSP 校验全部通过
+
+上一版（1.1.1 → 1.1.2）：
 
 - **监控主图**：Redis 与 Memcached 概览的「监控」页签从六张迷你折线网格改为
   「主图 + 迷你卡」—— 主图展示内存趋势（含均值基准线、各阶段与全局峰值标记、配额占比），
@@ -39,7 +50,7 @@
   9 套皮肤 alpha 分布 / 胶囊白名单 / 选中态描边 / Tailwind 层外覆盖）与 `test:e2e`
   （6 场景 / 11 断言 CDP 冒烟，不截图），接入 CI
 
-上一版（1.1.0 → 1.1.1）：
+更早（1.1.0 → 1.1.1）：
 
 - **升级 Electron 45**：33.2.1 → 45.2.2（Node 20 → 24 / Chromium 130 → 156），
   `@types/node` 同步升至 24，`engines.node` 要求 ≥ 22.12.0
@@ -329,7 +340,7 @@ TTL 倒计时、键收藏、值格式解码、CLI 增强、Stream 管理、Lua �
 
 | 层 | 选型 | 说明 |
 | --- | --- | --- |
-| 主进程 | Electron 45 + TypeScript 5.7 | 窗口管理、IPC、连接池、引擎注册表 |
+| 主进程 | Electron 45 + TypeScript 7.0 | 窗口管理、IPC、连接池、引擎注册表 |
 | 渲染进程 | **React 19 + Vite 6** | 界面与交互；状态层见 `src/store/` |
 | 编译优化 | **React Compiler 1.0** | 构建期自动记忆化，`target: 19` 直接用 React 自带 runtime |
 | 通信 | contextBridge + ipcRenderer.invoke | 上下文隔离，渲染进程不接触 Node |
@@ -421,7 +432,7 @@ npm run dist:win:alt # 打包 Windows 到 release/<版本>-final（保留上一�
 npm run dist:win:publish # 打包并发布到 GitHub Releases（需 GH_TOKEN，版本号须与标签一致）
 ```
 
-构建产物落在 `release/<版本>/`，文件名形如 `Keyper-1.1.2-win-x64.exe`；
+构建产物落在 `release/<版本>/`，文件名形如 `Keyper-1.1.3-win-x64.exe`；
 同目录还会生成 `latest.yml`、`*.blockmap`（增量更新分块索引）与打包进安装目录的
 `app-update.yml`（更新源配置）。
 
