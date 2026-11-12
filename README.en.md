@@ -20,9 +20,13 @@ registering it; no existing code path has to change.
 > shared type contracts and packaging configuration follow that structure; the renderer has been
 > rebuilt around a multi-engine architecture.
 
-Current version: `1.1.3`
+Current version: `1.1.4`
 
-What changed in this release (1.1.2 → 1.1.3):
+What changed in this release (1.1.3 → 1.1.4):
+
+- **Full-db search stats panel: scrollbar no longer bleeds through**: the earlier fix stayed inside the scroll container (full-width patch + top-pin), but the native scrollbar thumb belongs to the scroll layer and always painted over the panel's top-right corner — no z-index / background / negative margin could cover it. The panel is now moved out of the scroll layer: `.key-list` becomes a flex container that no longer scrolls itself; the list content is wrapped in an inner `.key-list-scroll` (overflow-y:auto) that owns the scrollbar, so the thumb paints only on the inner layer's right edge and never overlaps the panel. The panel stays top-pinned and full-width, and remains stable when the detail pane is narrow. Redis key browser only; Memcached untouched.
+
+Previous release (1.1.2 → 1.1.3):
 
 - **TypeScript 7.0.2**: build and type checking now use the native compiler; `tsconfig` `paths`
   use the new relative form, and type checking for both projects plus the production build pass.
@@ -35,7 +39,7 @@ What changed in this release (1.1.2 → 1.1.3):
 - **Full regression**: 21 specs / 211 unit tests, 6 e2e scenarios / 11 assertions, 1653 i18n keys,
   style conventions, type checking for both projects, production build and CSP validation all pass.
 
-Previous release (1.1.1 → 1.1.2):
+Earlier (1.1.1 → 1.1.2):
 
 - **Metrics hero chart**: the "Monitor" tab of the Redis and Memcached overview is rebuilt
   from a grid of six mini sparklines into a "hero chart + mini cards" layout — the hero chart
