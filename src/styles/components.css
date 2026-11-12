@@ -3652,10 +3652,8 @@
 /* 全库搜索提示条：吸附在 key-list 滚动区顶部 —— 不占外层布局流，
  * v-if 插拔不会推挤列表与 footer（点查询抖动的根因） */
 .remote-bar{
-  position: sticky;
-  top: 0;
-  z-index: 6;
-  /* --accent-soft 是半透明：sticky 遮住滚过的列表内容时必须叠不透明底 */
+  /* 不再是 sticky：现在位于内层滚动容器 .key-list-scroll 之上、属于外层布局流，
+   * 天然固定在顶部，列表滚动时不会随之移动；滚动条也只画在内层，不会压到本面板 */
   background: linear-gradient(var(--accent-soft), var(--accent-soft)), var(--bg-elevated);
   /*
    * ⚠️ 高度必须恒定：min-height 取「停止」按钮态的满高。
@@ -3668,6 +3666,8 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  /* 旧版为兼容 sticky 穿过滚动条槽用了 margin-right:-10px + padding-right:20px；
+   * 现面板已不在滚动容器内，恢复常规 10px 内边距，右侧按钮位置与原先一致 */
   padding: 5px 10px;
   border-bottom: 1px solid var(--border);
   font-size: var(--fs-sm);
@@ -3758,6 +3758,16 @@
 }
 /* ---------------------------------------------------------- 列表 */
 .s-key-browser.key-list, .s-key-browser .key-list{
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  /* 自身不再滚动：滚动交给内层 .key-list-scroll，
+   * 原生滚动条只画在内层右侧，不会压到上方的 .remote-bar */
+  overflow: hidden;
+  min-height: 0;
+}
+/* 内层滚动容器：承接原 .key-list 的滚动行为与 padding */
+.s-key-browser.key-list-scroll, .s-key-browser .key-list-scroll{
   flex: 1;
   overflow-y: auto;
   padding: 4px 0;

@@ -1402,13 +1402,8 @@ export function KeyBrowser() {
       </div>
 
       <div
-        ref={listEl}
         className="key-list"
         style={favoritesView ? { display: 'none' } : undefined}
-        onScroll={(event) => {
-          if (selecting || viewMode === 'flat') setFlatScrollTop(event.currentTarget.scrollTop)
-          else setFlatScrollTop(event.currentTarget.scrollTop)
-        }}
       >
         {/*
           全库搜索提示条：吸附在滚动区顶部。
@@ -1440,6 +1435,15 @@ export function KeyBrowser() {
           </div>
         ) : null}
 
+        {/* 列表内容包进内层滚动容器：滚动条只画在内层右侧，不会压到上方的 .remote-bar */}
+        <div
+          className="key-list-scroll"
+          ref={listEl}
+          onScroll={(event) => {
+            if (selecting || viewMode === 'flat') setFlatScrollTop(event.currentTarget.scrollTop)
+            else setFlatScrollTop(event.currentTarget.scrollTop)
+          }}
+        >
         {/* 切库 / 换数据集期间旧键列表已失效，整块换成统一风格的加载态 */}
         {switchingDataset ? (
           <div className="loading-state">
@@ -1577,6 +1581,7 @@ export function KeyBrowser() {
         ) : (
           <p className="placeholder">{t('keyBrowser.selectConnectionFirst')}</p>
         )}
+      </div>
       </div>
 
       <footer className="list-foot" style={favoritesView ? { display: 'none' } : undefined}>
