@@ -1,11 +1,14 @@
 import { randomUUID } from 'node:crypto'
-import { gunzipSync, inflateSync } from 'node:zlib'
+import { gunzip, inflate } from 'node:zlib'
 import Redis from 'ioredis'
 import { tunnelManager, openTunnel, closeTunnel, type Tunnel } from './ssh-tunnel'
 import {
   VALUE_BINARY_MAX_BYTES,
   VALUE_DECODE_MAX_BYTES,
   VALUE_DECODE_MAX_BYTES_CAP,
+  VALUE_STRING_MAX_BYTES,
+  VALUE_STRING_PAGE_BYTES,
+  VALUE_STRING_WHOLE_MAX_BYTES,
   LUA_RESULT_MAX_CHARS,
 } from '../../shared/limits'
 import type {
@@ -62,6 +65,67 @@ const VALUE_PAGE_MAX = 20000
 const REFRESH_SCAN_COUNT = 5000
 /** 键列表增量刷新一次最多描述多少键，防止异常调用把主进程压满 */
 const REFRESH_KEY_MAX = 20000
+/**
+ * 单条命令的参数分片大小：DEL / TYPE+TTL / 整写集合都按它切批。
+ * 防止全选数千键时单命令 argv 与回复缓冲过大（Redis 单命令无参数数上限，
+ * 但巨型 pipeline 会让主进程一次性持有全部回复）。
+ */
+const COMMAND_CHUNK = 500
+/** 全库搜索进度推送节流间隔：百万键库约 200 批，逐批广播会打满渲染层 */
+const SEARCH_PROGRESS_INTERVAL_MS = 150
+
+/** 异步解压（libuv 线程池执行，不阻塞主进程事件循环）；保留输出上限 */
+function decompressAsync(
+  kind: 'gzip' | 'zlib',
+  input: Buffer,
+  maxOutputLength: number,
+): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const done = (error: Error | null, result: Buffer): void => {
+      if (error) reject(error)
+      else resolve(result)
+    }
+    if (kind === 'gzip') gunzip(input, { maxOutputLength }, done)
+    else inflate(input, { maxOutputLength }, done)
+  })
+}
+
+/**
+ * INFO 文本 → 字段 Map（一次 split，O(1) 取值）。
+ * 取代逐字段 new RegExp 全文扫描：监控 2s 一次 × 十余字段，
+ * 原实现每次采样对同一份 INFO 重复全文正则十余遍。
+ */
+function parseInfoFields(info: string): Map<string, string> {
+  const fields = new Map<string, string>()
+  for (const line of info.split(/\r?\n/)) {
+    if (!line || line.startsWith('#')) continue
+    const index = line.indexOf(':')
+    if (index <= 0) continue
+    fields.set(line.slice(0, index), line.slice(index + 1).trim())
+  }
+  return fields
+}
+
+/**
+ * string 字节流 → 可展示文本。
+ * GETRANGE 按字节切段，段尾可能切断多字节 UTF-8 字符：
+ * 用 fatal TextDecoder 探测，尾部不完整时最多回退 3 字节找到完整边界，
+ * 被切掉的字节留给下一段（游标按实际消费字节数推进），不会丢字。
+ */
+function decodeUtf8Chunk(buffer: Buffer): { text: string; consumed: number } {
+  if (!buffer.length) return { text: '', consumed: 0 }
+  for (let trim = 0; trim <= 3 && trim < buffer.length; trim++) {
+    const end = buffer.length - trim
+    try {
+      const text = new TextDecoder('utf-8', { fatal: true }).decode(buffer.subarray(0, end))
+      return { text, consumed: end }
+    } catch {
+      /* 尾部不完整，回退一字节再试 */
+    }
+  }
+  /* 整段都不是合法 UTF-8（纯二进制）：按替换字符宽松解码，全部消费 */
+  return { text: buffer.toString('utf-8'), consumed: buffer.length }
+}
 
 /** 请求分页大小时统一钳制，避免 0 / NaN / 过大值传到 Redis */
 function clampValuePageLimit(requested?: number): number {
@@ -426,22 +490,31 @@ class ConnectionManager {
     managed.probeMisses = 0
     managed.probeTimer = setInterval(() => {
       if (managed.manualClose || client.status !== 'ready') return
-      Promise.race([
-        client.ping().then(() => true),
-        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3000)),
-      ]).then((alive) => {
-        if (managed.manualClose) return
-        if (alive) {
-          managed.probeMisses = 0
-          return
-        }
-        managed.probeMisses += 1
-        if (managed.probeMisses >= 2) {
-          this.emitStatus(managed.config.id, 'error', t('connectionManager.noResponseConnection'))
-          managed.probeMisses = 0
-          client.disconnect()
-        }
+      /*
+       * 超时侧定时器必须清理：ping 先回时它仍会存活到 3s 到点，
+       * 半开死链下 ping 永不结算、promise 悬挂。用可取消的竞速，
+       * 无论哪侧先决都 clearTimeout。
+       */
+      let timer: NodeJS.Timeout | undefined
+      const timeout = new Promise<boolean>((resolve) => {
+        timer = setTimeout(() => resolve(false), 3000)
       })
+      Promise.race([client.ping().then(() => true), timeout])
+        .catch(() => false)
+        .then((alive) => {
+          if (timer) clearTimeout(timer)
+          if (managed.manualClose) return
+          if (alive) {
+            managed.probeMisses = 0
+            return
+          }
+          managed.probeMisses += 1
+          if (managed.probeMisses >= 2) {
+            this.emitStatus(managed.config.id, 'error', t('connectionManager.noResponseConnection'))
+            managed.probeMisses = 0
+            client.disconnect()
+          }
+        })
     }, 15_000)
   }
 
@@ -693,13 +766,25 @@ class ConnectionManager {
     return managed.client
   }
 
+  /**
+   * MULTI/EXEC 结果校验：ioredis 把单项失败解成 [err, null] 而不抛错，
+   * 不检查就会把「DEL 成功、写入失败」当成功返回（键被清空却报已保存）。
+   * exec 返回 null 表示事务被 WATCH 中止。
+   */
+  private assertTxOk(replies: Array<[Error | null, unknown]> | null): void {
+    if (!replies) throw new Error('transaction aborted')
+    for (const [error] of replies) {
+      if (error) throw error
+    }
+  }
+
   // ---------------------------------------------------------------- 服务端信息
 
   async serverInfo(id: string): Promise<ServerInfo> {
     const client = this.mustGet(id)
     const [info, dbsize] = await Promise.all([client.info(), client.dbsize()])
-    const read = (field: string): string =>
-      new RegExp(`${field}:([^\\r\\n]+)`).exec(info)?.[1]?.trim() ?? ''
+    const fields = parseInfoFields(info)
+    const read = (field: string): string => fields.get(field) ?? ''
 
     const hits = Number(read('keyspace_hits')) || 0
     const misses = Number(read('keyspace_misses')) || 0
@@ -740,9 +825,8 @@ class ConnectionManager {
       .dbsize()
       .exec()) as unknown as [[Error | null, string], [Error | null, number]]
     if (infoErr) throw infoErr
-    const raw = info ?? ''
-    const read = (field: string): string =>
-      new RegExp(`${field}:([^\\r\\n]+)`).exec(raw)?.[1]?.trim() ?? ''
+    const fields = parseInfoFields(info ?? '')
+    const read = (field: string): string => fields.get(field) ?? ''
     const num = (field: string): number => Number(read(field)) || 0
 
     const hits = num('keyspace_hits')
@@ -1168,21 +1252,27 @@ class ConnectionManager {
 
   private async describeKeys(client: Redis, keys: string[]): Promise<RedisKeyItem[]> {
     if (!keys.length) return []
-    const pipeline = client.pipeline()
-    for (const key of keys) {
-      pipeline.type(key)
-      pipeline.ttl(key)
-    }
-    const replies = await pipeline.exec()
-    return keys.map((key, index) => {
-      const typeReply = replies?.[index * 2]
-      const ttlReply = replies?.[index * 2 + 1]
-      return {
-        key,
-        type: (typeReply?.[0] ? 'none' : typeReply?.[1]) as RedisValueType,
-        ttl: typeReply?.[0] ? -2 : Number(ttlReply?.[1] ?? -2),
+    const out: RedisKeyItem[] = []
+    /* 分片：全选数千键时单 pipeline 会让主进程一次性持有全部回复 */
+    for (let i = 0; i < keys.length; i += COMMAND_CHUNK) {
+      const slice = keys.slice(i, i + COMMAND_CHUNK)
+      const pipeline = client.pipeline()
+      for (const key of slice) {
+        pipeline.type(key)
+        pipeline.ttl(key)
       }
-    })
+      const replies = await pipeline.exec()
+      slice.forEach((key, index) => {
+        const typeReply = replies?.[index * 2]
+        const ttlReply = replies?.[index * 2 + 1]
+        out.push({
+          key,
+          type: (typeReply?.[0] ? 'none' : typeReply?.[1]) as RedisValueType,
+          ttl: typeReply?.[0] ? -2 : Number(ttlReply?.[1] ?? -2),
+        })
+      })
+    }
+    return out
   }
 
   async scan(id: string, options: ScanOptions = {}): Promise<ScanResult> {
@@ -1279,6 +1369,8 @@ class ConnectionManager {
     let cancelled = false
     const seen = new Set<string>()
     const keys: string[] = []
+    /* 进度节流：百万键库约 200 批，逐批广播会让渲染层每批全链重渲染 */
+    let lastProgressAt = 0
     do {
       // 每批之间检查令牌：停止按钮 / 新一轮搜索 / 断开清理都会使其失效
       if (this.searchTokens.get(id) !== token) {
@@ -1293,7 +1385,11 @@ class ConnectionManager {
         if (keys.length < limit) keys.push(key)
       }
       cursor = next
-      this.emitSearchProgress({ connectionId: id, found: keys.length })
+      const now = Date.now()
+      if (now - lastProgressAt >= SEARCH_PROGRESS_INTERVAL_MS || cursor === '0' || keys.length >= limit) {
+        lastProgressAt = now
+        this.emitSearchProgress({ connectionId: id, found: keys.length })
+      }
     } while (cursor !== '0' && keys.length < limit)
 
     const capped = cursor !== '0' && !cancelled
@@ -1319,12 +1415,19 @@ class ConnectionManager {
     options: ValueBinaryOptions = {},
   ): Promise<ValueBinaryResult> {
     const client = this.mustGet(id)
-    const buffer = await client.getBuffer(key)
-    if (!buffer) return { base64: '', bytes: 0, truncated: false }
-
-    const bytes = buffer.length
+    /*
+     * 限量取回：先 STRLEN 探真实大小，超上限只 GETRANGE 前 N 字节。
+     * 原实现 getBuffer 整值取回后再截断 —— 几百 MB 的值会先撑爆
+     * 主进程内存与 IPC，截断形同虚设。
+     */
+    const bytes = Number(await client.strlen(key)) || 0
+    if (bytes === 0) return { base64: '', bytes: 0, truncated: false }
     const kept =
-      bytes > VALUE_BINARY_MAX_BYTES ? buffer.subarray(0, VALUE_BINARY_MAX_BYTES) : buffer
+      bytes > VALUE_BINARY_MAX_BYTES
+        ? await client.getrangeBuffer(key, 0, VALUE_BINARY_MAX_BYTES - 1)
+        : await client.getBuffer(key)
+    /* STRLEN 与 GET 之间键被删：按空值返回 */
+    if (!kept || !kept.length) return { base64: '', bytes, truncated: false }
     const result: ValueBinaryResult = {
       base64: kept.toString('base64'),
       bytes,
@@ -1338,10 +1441,8 @@ class ConnectionManager {
         VALUE_DECODE_MAX_BYTES_CAP,
       )
       try {
-        const decoded =
-          options.decode === 'gzip'
-            ? gunzipSync(kept, { maxOutputLength: maxOutputBytes })
-            : inflateSync(kept, { maxOutputLength: maxOutputBytes })
+        /* 异步解压：同步 gunzipSync 最大 20MB 输出会阻塞整个主进程事件循环 */
+        const decoded = await decompressAsync(options.decode, kept, maxOutputBytes)
         result.decodedText = decoded.toString('utf-8')
         result.decodedBytes = decoded.length
       } catch (error) {
@@ -1389,8 +1490,27 @@ class ConnectionManager {
      */
     switch (type) {
       case 'string': {
-        const value = await client.get(key)
-        return { ...base, length: value?.length ?? 0, value, nextCursor: null }
+        /*
+         * 超大 string 分段加载：先 STRLEN 探真实字节数，超上限只取前 N 字节。
+         * 原实现裸 GET 整值（Redis string 上限 512MB），单个大键即可撑爆
+         * 主进程内存 + IPC + 渲染层。whole=true（复制/导出全部）放宽到硬上限。
+         * length 语义：string 为字节数（STRLEN），与集合的元素数区分。
+         */
+        const cap = options.whole ? VALUE_STRING_WHOLE_MAX_BYTES : VALUE_STRING_MAX_BYTES
+        const totalBytes = Number(await client.strlen(key)) || 0
+        if (totalBytes <= cap) {
+          const value = await client.get(key)
+          return { ...base, length: value?.length ?? 0, value, nextCursor: null }
+        }
+        const buffer = await client.getrangeBuffer(key, 0, cap - 1)
+        const { text, consumed } = decodeUtf8Chunk(buffer)
+        return {
+          ...base,
+          length: totalBytes,
+          value: text,
+          truncated: true,
+          nextCursor: consumed < totalBytes ? String(consumed) : null,
+        }
       }
       case 'hash': {
         const [page, total] = await Promise.all([
@@ -1535,8 +1655,23 @@ class ConnectionManager {
         }
       }
       case 'string': {
-        const value = await client.get(key)
-        return { key, type, length: value?.length ?? 0, value, nextCursor: null }
+        /* 超大值分段续读：游标为字节偏移，每页 VALUE_STRING_PAGE_BYTES */
+        const offset = Math.max(Number(cursor) || 0, 0)
+        const totalBytes = Number(await client.strlen(key)) || 0
+        if (offset >= totalBytes) {
+          return { key, type, length: totalBytes, value: '', nextCursor: null }
+        }
+        const end = Math.min(offset + VALUE_STRING_PAGE_BYTES, totalBytes) - 1
+        const buffer = await client.getrangeBuffer(key, offset, end)
+        const { text, consumed } = decodeUtf8Chunk(buffer)
+        const next = offset + consumed
+        return {
+          key,
+          type,
+          length: totalBytes,
+          value: text,
+          nextCursor: next < totalBytes ? String(next) : null,
+        }
       }
       default:
         return { key, type, value: null, nextCursor: null }
@@ -1615,38 +1750,64 @@ class ConnectionManager {
         /*
          * 未显式指定 TTL 时用 KEEPTTL：裸 SET 会清掉键的剩余存活时间，
          * 行内编辑一个带 TTL 的 string 键会把它悄悄变成永久键。
-         * 指定了 ttlSeconds 则用普通 SET，由下方统一的 expire 覆盖。
+         * TTL 直接并进 SET（EX），省掉单独的 EXPIRE 往返。
          */
         const text = String(payload)
-        if (ttlSeconds) await client.set(key, text)
+        if (ttlSeconds && ttlSeconds > 0) await client.set(key, text, 'EX', ttlSeconds)
         else await client.set(key, text, 'KEEPTTL')
-        break
+        return { ok: true, message: t('common.saved') }
       }
 
       case 'hash': {
-        await client.del(key)
         const flat = payload as Record<string, string>
         const entries = Object.entries(flat).flat()
-        if (entries.length) await client.hset(key, entries)
+        /*
+         * DEL + 整写用 MULTI 包裹：两条命令原子执行，其他客户端读不到
+         * 「键被删了还没写回」的中间态。大 hash 按 COMMAND_CHUNK 分片，
+         * 首片带 DEL，后续片追加 —— 避免单命令 argv 过大。
+         */
+        if (!entries.length) {
+          await client.del(key)
+          break
+        }
+        const first = entries.slice(0, COMMAND_CHUNK * 2)
+        const firstTx = await client.multi().del(key).hset(key, first).exec()
+        this.assertTxOk(firstTx)
+        for (let i = COMMAND_CHUNK * 2; i < entries.length; i += COMMAND_CHUNK * 2) {
+          await client.hset(key, entries.slice(i, i + COMMAND_CHUNK * 2))
+        }
         break
       }
 
       case 'list': {
-        await client.del(key)
         const items = payload as string[]
-        if (items.length) await client.rpush(key, ...items)
+        if (!items.length) {
+          await client.del(key)
+          break
+        }
+        const firstTx = await client.multi().del(key).rpush(key, ...items.slice(0, COMMAND_CHUNK)).exec()
+        this.assertTxOk(firstTx)
+        for (let i = COMMAND_CHUNK; i < items.length; i += COMMAND_CHUNK) {
+          await client.rpush(key, ...items.slice(i, i + COMMAND_CHUNK))
+        }
         break
       }
 
       case 'set': {
-        await client.del(key)
         const members = payload as string[]
-        if (members.length) await client.sadd(key, ...members)
+        if (!members.length) {
+          await client.del(key)
+          break
+        }
+        const firstTx = await client.multi().del(key).sadd(key, ...members.slice(0, COMMAND_CHUNK)).exec()
+        this.assertTxOk(firstTx)
+        for (let i = COMMAND_CHUNK; i < members.length; i += COMMAND_CHUNK) {
+          await client.sadd(key, ...members.slice(i, i + COMMAND_CHUNK))
+        }
         break
       }
 
       case 'zset': {
-        await client.del(key)
         // 约定格式：每行 "member :: score"
         const pairs: (string | number)[] = []
         for (const row of payload as string[]) {
@@ -1654,12 +1815,23 @@ class ConnectionManager {
           if (!member) continue
           pairs.push(Number(score) || 0, member)
         }
-        if (pairs.length) await client.zadd(key, ...(pairs as [number, string]))
+        if (!pairs.length) {
+          await client.del(key)
+          break
+        }
+        const firstTx = await client
+          .multi()
+          .del(key)
+          .zadd(key, ...(pairs.slice(0, COMMAND_CHUNK * 2) as [number, string]))
+          .exec()
+        this.assertTxOk(firstTx)
+        for (let i = COMMAND_CHUNK * 2; i < pairs.length; i += COMMAND_CHUNK * 2) {
+          await client.zadd(key, ...(pairs.slice(i, i + COMMAND_CHUNK * 2) as [number, string]))
+        }
         break
       }
 
       case 'stream': {
-        await client.del(key)
         /*
          * 约定格式：每行 "field :: value"。
          *
@@ -1667,14 +1839,25 @@ class ConnectionManager {
          * "必须大于上一条"的单调约束，让用户去填既容易出错也没有意义。
          * 一行里没有 :: 的，整行当作 field、value 留空，
          * 这样"只要一个占位消息"的场景可以直接敲一个词。
+         *
+         * DEL + 全部 XADD 进同一个 MULTI：原子替换，且 N 行只花一次往返
+         * （原实现逐行 await xadd，N 行 N RTT）。
          */
+        const rows: Array<[string, string]> = []
         for (const row of payload as string[]) {
           const index = row.indexOf('::')
           const field = (index >= 0 ? row.slice(0, index) : row).trim()
           const value = index >= 0 ? row.slice(index + 2).trim() : ''
           if (!field) continue
-          await client.xadd(key, '*', field, value)
+          rows.push([field, value])
         }
+        if (!rows.length) {
+          await client.del(key)
+          break
+        }
+        const tx = client.multi().del(key)
+        for (const [field, value] of rows) tx.xadd(key, '*', field, value)
+        this.assertTxOk(await tx.exec())
         break
       }
 
@@ -1682,6 +1865,7 @@ class ConnectionManager {
         return { ok: false, message: t('connectionManager.writingTypeNotSupportedYet', { type }) }
     }
 
+    /* string 已在 SET 里带 TTL；集合类型统一补 EXPIRE */
     if (ttlSeconds && ttlSeconds > 0) await client.expire(key, ttlSeconds)
     return { ok: true, message: t('common.saved') }
   }
@@ -1689,7 +1873,11 @@ class ConnectionManager {
   async deleteKeys(id: string, keys: string[]): Promise<OperationResult> {
     if (!keys.length) return { ok: true, message: t('connectionManager.noKeysSelected') }
     const client = this.mustGet(id)
-    const removed = await client.del(...keys)
+    /* 分片 DEL：全选数千键时单命令 argv 过大，按 COMMAND_CHUNK 切批 */
+    let removed = 0
+    for (let i = 0; i < keys.length; i += COMMAND_CHUNK) {
+      removed += Number(await client.del(...keys.slice(i, i + COMMAND_CHUNK))) || 0
+    }
     return { ok: true, message: t('session.deletedCountKeys', { count: removed }) }
   }
 
@@ -1814,14 +2002,19 @@ class ConnectionManager {
       return { ok: true, message: t('connectionManager.updatedScoreMember', { member: target, score: nextScore }) }
     }
 
-    // 改名：旧成员可能与他人重名冲突，如实提示
-    const existed = await client.zscore(key, target)
-    const pipeline = client.pipeline()
-    pipeline.zrem(key, member)
-    pipeline.zadd(key, nextScore, target)
-    await pipeline.exec()
-
-    const total = await client.zcard(key)
+    // 改名：旧成员可能与他人重名冲突，如实提示。
+    // ZSCORE 探测 + ZREM/ZADD + ZCARD 复核同一 pipeline（原 3 次串行往返）
+    const replies = await client
+      .pipeline()
+      .zscore(key, target)
+      .zrem(key, member)
+      .zadd(key, nextScore, target)
+      .zcard(key)
+      .exec()
+    const existed = replies?.[0]?.[1] ?? null
+    const zaddErr = replies?.[2]?.[0]
+    if (zaddErr) throw zaddErr
+    const total = Number(replies?.[3]?.[1]) || 0
     return {
       ok: true,
       message:
@@ -1874,10 +2067,23 @@ class ConnectionManager {
     if (!target) return { ok: false, message: t('common.memberContentCannotEmpty') }
     if (!Number.isFinite(score)) return { ok: false, message: t('common.scoreNumber') }
 
-    const exists = await client.exists(key)
-    const existingScore = await client.zscore(key, target)
-    await client.zadd(key, score, target)
-    const total = await client.zcard(key)
+    /*
+     * EXISTS / ZSCORE / ZADD / ZCARD 合并为一次 pipeline 往返。
+     * 四条命令按序在同一连接执行，回复语义与逐条 await 完全一致，
+     * SSH 隧道下省 3 个 RTT。
+     */
+    const replies = await client
+      .pipeline()
+      .exists(key)
+      .zscore(key, target)
+      .zadd(key, score, target)
+      .zcard(key)
+      .exec()
+    const exists = Number(replies?.[0]?.[1]) || 0
+    const existingScore = replies?.[1]?.[1] ?? null
+    const zaddErr = replies?.[2]?.[0]
+    if (zaddErr) throw zaddErr
+    const total = Number(replies?.[3]?.[1]) || 0
 
     if (existingScore !== null) {
       return { ok: true, message: t('connectionManager.memberAlreadyExistsScore', { member: target, score }) }
@@ -2116,13 +2322,18 @@ class ConnectionManager {
       return { ok: true, message: t('connectionManager.contentUnchanged') }
     }
 
-    const existed = await client.sismember(key, target)
-    const pipeline = client.pipeline()
-    pipeline.srem(key, member)
-    pipeline.sadd(key, target)
-    await pipeline.exec()
-
-    const left = await client.scard(key)
+    // SISMEMBER 探测 + SREM/SADD + SCARD 复核同一 pipeline（原 3 次串行往返）
+    const replies = await client
+      .pipeline()
+      .sismember(key, target)
+      .srem(key, member)
+      .sadd(key, target)
+      .scard(key)
+      .exec()
+    const existed = Number(replies?.[0]?.[1]) || 0
+    const saddErr = replies?.[2]?.[0]
+    if (saddErr) throw saddErr
+    const left = Number(replies?.[3]?.[1]) || 0
     return {
       ok: true,
       message: existed
@@ -2156,9 +2367,13 @@ class ConnectionManager {
     const target = member.trim()
     if (!target) return { ok: false, message: t('common.memberContentCannotEmpty') }
 
-    const exists = await client.exists(key)
-    const added = await client.sadd(key, target)
-    const total = await client.scard(key)
+    /* EXISTS / SADD / SCARD 一次 pipeline（原 3 次串行往返） */
+    const replies = await client.pipeline().exists(key).sadd(key, target).scard(key).exec()
+    const exists = Number(replies?.[0]?.[1]) || 0
+    const saddErr = replies?.[1]?.[0]
+    if (saddErr) throw saddErr
+    const added = Number(replies?.[1]?.[1]) || 0
+    const total = Number(replies?.[2]?.[1]) || 0
 
     if (!added) return { ok: true, message: t('connectionManager.memberAlreadyExistsNotAdded', { member: target }) }
     return {
@@ -2178,20 +2393,26 @@ class ConnectionManager {
    */
   async deleteListElement(id: string, key: string, index: number): Promise<OperationResult> {
     const client = this.mustGet(id)
-    const length = await client.llen(key)
+    /* LLEN + LINDEX 一次 pipeline：越界判断与取当前值互不依赖 */
+    const probe = await client.pipeline().llen(key).lindex(key, index).exec()
+    const length = Number(probe?.[0]?.[1]) || 0
     if (index < 0 || index >= length) {
       return { ok: false, message: t('connectionManager.listPositionMissingLength') }
     }
+    const current = probe?.[1]?.[1]
+    if (current === null || current === undefined) {
+      return { ok: false, message: t('connectionManager.listPositionMissing') }
+    }
 
-    const current = await client.lindex(key, index)
-    if (current === null) return { ok: false, message: t('connectionManager.listPositionMissing') }
-
-    // 先用哨兵替换目标位置，再用 LREM 精确删除，避免误删同值的其他元素
+    /*
+     * 哨兵替换 + LREM + 复核 LLEN 同一 pipeline：
+     * 三条命令按序执行，与逐条 await 语义一致，省 2 个 RTT。
+     */
     const token = `__RDM_DEL_${Date.now()}_${Math.random().toString(36).slice(2)}__`
-    await client.lset(key, index, token)
-    await client.lrem(key, 1, token)
-
-    const left = await client.llen(key)
+    const replies = await client.pipeline().lset(key, index, token).lrem(key, 1, token).llen(key).exec()
+    const lsetErr = replies?.[0]?.[0]
+    if (lsetErr) throw lsetErr
+    const left = Number(replies?.[2]?.[1]) || 0
     return {
       ok: true,
       message: left
@@ -2226,9 +2447,12 @@ class ConnectionManager {
    */
   async appendListElement(id: string, key: string, value: string): Promise<OperationResult> {
     const client = this.mustGet(id)
-    const exists = await client.exists(key)
-    await client.rpush(key, value)
-    const length = await client.llen(key)
+    /* EXISTS / RPUSH / LLEN 一次 pipeline（原 3 次串行往返） */
+    const replies = await client.pipeline().exists(key).rpush(key, value).llen(key).exec()
+    const exists = Number(replies?.[0]?.[1]) || 0
+    const pushErr = replies?.[1]?.[0]
+    if (pushErr) throw pushErr
+    const length = Number(replies?.[2]?.[1]) || 0
     return {
       ok: true,
       message: exists
@@ -2253,14 +2477,19 @@ class ConnectionManager {
     const pivot = await client.lindex(key, index)
     if (pivot === null) return { ok: false, message: t('connectionManager.referencePositionNoLonger') }
 
-    // LINSERT 以「值」为基准，遇到重复值会插错位置，因此同样用哨兵替换法
+    // LINSERT 以「值」为基准，遇到重复值会插错位置，因此同样用哨兵替换法。
+    // 三条命令同一 pipeline 按序执行（原 3 次串行往返）。
     const token = `__RDM_PIVOT_${Date.now()}_${Math.random().toString(36).slice(2)}__`
-    await client.lset(key, index, token)
-    // ioredis 为 LINSERT 提供了两个字面量重载，联合类型无法同时满足；
-    // 走 call 通道绕开重载签名，语义与直接调用一致
-    await this.raw(client, 'LINSERT', key, position === 'before' ? 'BEFORE' : 'AFTER', token, value)
-    // 把哨兵还原为原值
-    await client.lset(key, index, pivot)
+    const replies = await client
+      .pipeline()
+      .lset(key, index, token)
+      .call('LINSERT', key, position === 'before' ? 'BEFORE' : 'AFTER', token, value)
+      .lset(key, index, pivot)
+      .exec()
+    const firstErr = replies?.[0]?.[0]
+    if (firstErr) throw firstErr
+    const insertErr = replies?.[1]?.[0]
+    if (insertErr) throw insertErr
 
     return {
       ok: true,
@@ -2291,6 +2520,10 @@ class ConnectionManager {
     const target = (nextField ?? field).trim()
 
     if (!target) return { ok: false, message: t('connectionManager.fieldNameCannotEmpty') }
+    /*
+     * EXISTS 必须先于 HSET 且不能同批：HSET 对不存在的键会凭空建键，
+     * 同 pipeline 里即使 EXISTS=0 写入也已发生。保留两次往返保语义。
+     */
     if (!(await client.exists(key))) return { ok: false, message: t('connectionManager.keyNoLongerExists', { key }) }
 
     await client.hset(key, target, value)
@@ -2318,12 +2551,24 @@ class ConnectionManager {
      * 覆盖会把一个无辜的键连同数据一起删掉，用户在界面上看不到任何预告 ——
      * 单键重命名与批量重命名共用这里，批量场景下一次误覆盖可能波及上千个键。
      * 需要覆盖时用户可以先删目标键，路径明确且不可误触。
+     *
+     * EXISTS + RENAMENX 同一 pipeline（省 1 RTT）：RENAMENX 本身即
+     * 「目标存在则不覆盖」，双保险语义不变；返回 0 即目标已存在。
      */
-    const exists = await client.exists(newKey)
+    const replies = await client
+      .pipeline()
+      .exists(newKey)
+      .call('RENAMENX', key, newKey)
+      .exec()
+    const exists = Number(replies?.[0]?.[1]) || 0
     if (exists) {
       throw new Error(t('connectionManager.targetKeyAlreadyExists', { key: newKey }))
     }
-    await client.rename(key, newKey)
+    const renameErr = replies?.[1]?.[0]
+    if (renameErr) throw renameErr
+    if (Number(replies?.[1]?.[1]) === 0) {
+      throw new Error(t('connectionManager.targetKeyAlreadyExists', { key: newKey }))
+    }
     return { ok: true, message: t('common.renamed') }
   }
 

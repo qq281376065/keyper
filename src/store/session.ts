@@ -781,7 +781,10 @@ export function createSession(
 
       let merged = latest.value
       const page = res.data.value
-      if (
+      if (latest.type === 'string' && typeof latest.value === 'string' && typeof page === 'string') {
+        // 超大 string 分段续读：按字节段拼接文本
+        merged = latest.value + page
+      } else if (
         latest.value &&
         !Array.isArray(latest.value) &&
         typeof latest.value === 'object' &&
@@ -828,6 +831,16 @@ export function createSession(
     if (!id || !current) return null
     const loaded = loadedValueCount(current)
     const total = current.length ?? loaded
+    /* string 分段加载：复制/导出全部走 whole 通道（硬上限内整读），不走元素分页 */
+    if (current.type === 'string') {
+      if (current.nextCursor == null) return current
+      const res = await api.redis.value(id, current.key, { whole: true })
+      if (!res.ok) {
+        failure(res.error, t('session.failedLoadKeyValue'))
+        return null
+      }
+      return res.data
+    }
     if (current.nextCursor == null || total <= loaded) return current
     const res = await api.redis.value(id, current.key, { limit: total })
     if (!res.ok) {

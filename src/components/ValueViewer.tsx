@@ -933,7 +933,15 @@ function LoadMoreButton({
 }) {
   const { t } = useI18n()
   if (value.nextCursor == null) return null
-  const loaded = Array.isArray(value.value) ? value.value.length : value.value ? Object.keys(value.value).length : 0
+  /* string 分段加载：length 是字节数（STRLEN），已加载量按当前文本字节计 */
+  const isString = value.type === 'string'
+  const loaded = isString
+    ? utf8Bytes(typeof value.value === 'string' ? value.value : '')
+    : Array.isArray(value.value)
+      ? value.value.length
+      : value.value
+        ? Object.keys(value.value).length
+        : 0
   const total = value.length ?? loaded
   return (
     <button
@@ -943,7 +951,11 @@ function LoadMoreButton({
       {...tipProps(t('valueViewer.loadMoreHint'))}
     >
       <DialogIcon name="arrow-down" size={12} className={loading ? 'spin' : undefined} />
-      {loading ? t('valueViewer.loadingMore') : t('valueViewer.loadMoreCount', { loaded, total })}
+      {loading
+        ? t('valueViewer.loadingMore')
+        : isString
+          ? t('valueViewer.loadMoreBytes', { loaded: formatBytes(loaded), total: formatBytes(total) })
+          : t('valueViewer.loadMoreCount', { loaded, total })}
     </button>
   )
 }
@@ -1863,6 +1875,12 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                     lines={stringEditor.stringLines}
                     wrap={wrap}
                     onDoubleClick={stringEditor.enterStringEditExplicit}
+                  />
+                  {/* 超大 string 分段加载：还有未读字节时提供续读入口 */}
+                  <LoadMoreButton
+                    value={value}
+                    loading={sessionState.loadingMoreValue}
+                    onLoad={() => void loadMoreValue()}
                   />
                   {/*
                     只读标记：与 hash/list/set/zset/stream 放在同一位置 ——

@@ -28,7 +28,7 @@ const STRING_LINE_LIMIT = 100
  */
 export function useStringEditor(ctx: ValueEditorContext) {
   const { getValue, getKeyword, getPretty } = ctx
-  const { saveValue } = useRedis()
+  const { saveValue, notify } = useRedis()
 
   const value = getValue()
   const keyword = getKeyword()
@@ -91,6 +91,14 @@ export function useStringEditor(ctx: ValueEditorContext) {
   async function saveStringEdit(): Promise<void> {
     const v = getValue()
     if (!v || v.type !== 'string' || stringSaving) return
+    /*
+     * 超大值分段加载时禁止整值保存：草稿只含已加载的前 N 字节，
+     * 整写会把未加载部分永久截掉。先「加载更多」读全再编辑。
+     */
+    if (v.nextCursor != null) {
+      notify('err', t('valueEditorString.loadWholeBeforeEdit'))
+      return
+    }
     if (stringDraft === stringView.text) {
       cancelStringEdit()
       return
