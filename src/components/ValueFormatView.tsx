@@ -127,16 +127,10 @@ export function ValueFormatView({ formats, keyName }: { formats: ValueFormatsApi
   }
 
   if (view.kind === 'tree') {
+    /* 树形视图不带格式头栏：格式名与「原始文本」返回在工具栏格式菜单里已有，
+     * 统计与展开/折叠在树自己的工具条上，头栏纯属重复占位 */
     return (
       <div className="format-view-wrap">
-        <div className="format-view-head">
-          <span className="mono">{t('valueFormats.tree')}</span>
-          <span className="spacer" />
-          <button className="tool" onClick={formats.reset}>
-            <DialogIcon name="cancel" size={12} className="ti" />
-            {t('valueFormats.raw')}
-          </button>
-        </div>
         <JsonTreeView root={view.root} stats={view.stats} />
       </div>
     )

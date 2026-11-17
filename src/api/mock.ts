@@ -465,6 +465,7 @@ const KEYS: MockKey[] = [
   { key: 'app-version', type: 'string', ttl: -1 },
   { key: 'maintenance_mode', type: 'string', ttl: -1 },
   { key: 'feature.rollout', type: 'string', ttl: 5400 },
+  { key: 'config:tree:demo', type: 'string', ttl: -1 },
   { key: 'counter2026', type: 'string', ttl: -1 },
 
   /*
@@ -513,6 +514,19 @@ const STRINGS: Record<string, string> = {
   'app-version': '1.14.2',
   maintenance_mode: 'false',
   'feature.rollout': '{"newCheckout":0.25,"aiSearch":0.05}',
+  /* 树形结构演示键：嵌套对象/数组 + 超长字符串（验证截断与「查看」弹窗） */
+  'config:tree:demo': JSON.stringify({
+    service: 'checkout',
+    replicas: 3,
+    healthy: true,
+    limits: { cpu: 2.5, memoryMb: 2048, tags: ['prod', 'cn-east'] },
+    endpoints: [
+      { path: '/api/order', method: 'POST', timeoutMs: 3000 },
+      { path: '/api/pay', method: 'POST', timeoutMs: 5000 },
+    ],
+    readme: '这是一段用于演示树形视图长值截断的说明文本。'.repeat(8),
+    owner: null,
+  }),
   counter2026: '1284401',
 }
 
