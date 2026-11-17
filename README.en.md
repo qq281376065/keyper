@@ -20,13 +20,25 @@ registering it; no existing code path has to change.
 > shared type contracts and packaging configuration follow that structure; the renderer has been
 > rebuilt around a multi-engine architecture.
 
-Current version: `1.1.4`
+Current version: `1.1.5`
 
-What changed in this release (1.1.3 → 1.1.4):
+What changed in this release (1.1.4 → 1.1.5):
+
+- **Performance pass (main process)**: very large string values now load in segments via STRLEN + GETRANGE (2MB first page, 2MB per continuation, 32MB hard cap for copy/export whole reads; multi-byte UTF-8 characters are never split across segments), so a single huge key can no longer exhaust memory and IPC. Binary reads probe the size first and fetch only the capped range; gzip / zlib decompression is now asynchronous (no longer blocks the main-process event loop). Whole-key saves run atomically in MULTI with 500-element chunking, and stream rewrites take a single round trip. Seven micro-operations (add member / delete element / rename, etc.) are merged into one pipeline each (saving 2–4 RTTs per action over SSH tunnels); renames use RENAMENX to keep the no-overwrite guarantee.
+- **Bulk operations moved into the main process**: delete / TTL / prefix-rename now start with one IPC call and execute in chunks in the main process — a 1000-key task drops from 1000 IPC round trips to 1. Per-key failure details, cancellation (stops at the next chunk boundary) and list synchronization are preserved; the operation log writes one summary per task.
+- **Main-process IO & Memcached**: operation / error logs use an async append queue (flushed before quit), error-log pruning runs once a day, and settings are cached in-process. Memcached response buffering switched from "full copy + rescan from zero per chunk" to a chunk list with incremental scanning — large-instance metadump goes from O(n²) to O(n).
+- **Performance pass (renderer)**: the store supports batched writes (one broadcast) and per-field subscriptions; the six overview cards now subscribe only to the fields they actually read — CLI output / search progress no longer re-render the metrics card. JSON prettifying is cached per value; load-all assigns in batches; key-tree sorting reuses a single Intl.Collator; Pub/Sub and keyspace message streams are coalesced per animation frame; the mock data module is stripped from production bundles.
+- **Key tree virtualization**: visible rows are flattened by collapse state and rendered in fixed-height slices — with thousands of keys fully expanded, only viewport rows stay in the DOM (measured: 39 rows → 31 rendered). Expand / collapse, tri-state selection and context menus keep their exact semantics.
+- **Componentization**: the three giant components (ValueViewer / KeyBrowser / MemcachedKeyBrowser) were split into four focused sub-components (726 lines: dialog set, context menu, tree row, viewer bits) — rendering moved, state ownership unchanged.
+- **Historical bug fixed**: inserting a list element BEFORE a position restored the sentinel at the wrong index, overwriting the freshly inserted value and leaving the sentinel string in the list — caught by the new integration tests, fixed with atomic MULTI execution and a corrected restore index.
+- **GitHub repository entry points**: a repository icon after the brand version in the top bar and a "Source repository" button on the home page, opened through the main process's https + github.com allowlist.
+- **Full regression**: 23 specs / 261 tests (including 27 real-Redis integration tests on a disposable Docker instance), 1656 i18n keys, 15 style-convention assertions, type checking for both projects, production build and CSP validation all pass; browser-verified tree virtualization slicing, tri-state selection, context menus, and CLI running alongside live metrics sampling.
+
+Previous release (1.1.3 → 1.1.4):
 
 - **Full-db search stats panel: scrollbar no longer bleeds through**: the earlier fix stayed inside the scroll container (full-width patch + top-pin), but the native scrollbar thumb belongs to the scroll layer and always painted over the panel's top-right corner — no z-index / background / negative margin could cover it. The panel is now moved out of the scroll layer: `.key-list` becomes a flex container that no longer scrolls itself; the list content is wrapped in an inner `.key-list-scroll` (overflow-y:auto) that owns the scrollbar, so the thumb paints only on the inner layer's right edge and never overlaps the panel. The panel stays top-pinned and full-width, and remains stable when the detail pane is narrow. Redis key browser only; Memcached untouched.
 
-Previous release (1.1.2 → 1.1.3):
+Earlier (1.1.2 → 1.1.3):
 
 - **TypeScript 7.0.2**: build and type checking now use the native compiler; `tsconfig` `paths`
   use the new relative form, and type checking for both projects plus the production build pass.
