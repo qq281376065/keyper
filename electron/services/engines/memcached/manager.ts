@@ -1,4 +1,4 @@
-import { gunzipSync, inflateSync } from 'node:zlib'
+import { gunzip, inflate } from 'node:zlib'
 import { t } from '@shared/i18n'
 import {
   VALUE_BINARY_MAX_BYTES,
@@ -504,10 +504,16 @@ class MemcachedManager {
         VALUE_DECODE_MAX_BYTES_CAP,
       )
       try {
-        const decoded =
-          options.decode === 'gzip'
-            ? gunzipSync(kept, { maxOutputLength: maxOutputBytes })
-            : inflateSync(kept, { maxOutputLength: maxOutputBytes })
+        /* 异步解压（与 Redis 侧同一修复）：同步 gunzipSync 最大 20MB 输出
+         * 会阻塞主进程事件循环，所有连接的 IPC 一起卡 */
+        const decoded = await new Promise<Buffer>((resolve, reject) => {
+          const done = (error: Error | null, out: Buffer): void => {
+            if (error) reject(error)
+            else resolve(out)
+          }
+          if (options.decode === 'gzip') gunzip(kept, { maxOutputLength: maxOutputBytes }, done)
+          else inflate(kept, { maxOutputLength: maxOutputBytes }, done)
+        })
         result.decodedText = decoded.toString('utf-8')
         result.decodedBytes = decoded.length
       } catch (error) {
