@@ -18,9 +18,60 @@
 > 本项目起源于 RedisDesktop（Vue 3 版）的 React 移植；主进程、preload、IPC、
 > shared 类型契约、打包配置沿用其结构，渲染层已按多引擎架构重构。
 
-当前版本：`1.1.0`
+当前版本：`1.1.4`
 
-当前版本变更（1.0.11 → 1.1.0）：
+当前版本变更（1.1.3 → 1.1.4）：
+
+- **全库键搜索统计面板彻底修复滚动条穿透**：原方案在滚动容器内部做文章（通栏补槽、贴顶），但
+  原生滚动条滑块属于滚动层、画在右槽里，始终压在面板右上角，层级与背景都盖不住。改为把统计面板
+  移出滚动层 —— `.key-list` 只做 flex 容器不再自身滚动，列表内容包进内层 `.key-list-scroll`
+  承接滚动，面板留在内层之上（同级），滚动条只画在内层右侧、与面板完全不重叠；面板贴顶、满宽通栏，
+  窄详情区下仍稳定；仅 Redis 键栏（Memcached 未动）
+
+上一版（1.1.2 → 1.1.3）：
+
+- **TypeScript 7.0.2**：构建与类型检查升级到原生编译器；`tsconfig` 的 `paths` 按新规则
+  改为相对写法，两个工程的类型检查与生产构建全绿
+- **修复 CLI 无输出 / 输入禁用**：React Compiler 会缓存标签外的会话解析结果，CLI 始终订阅到
+  全局 store；改为显式订阅 `activeTabId` 并按 id 取会话，命令结果即时显示、执行后输入框立即恢复
+- **i18n 校验迁移**：TypeScript 7 不再提供 JS 编译器 API，校验脚本改用 `@babel/parser`，
+  键集、占位符与源码引用检查保持原语义
+- **全量回归**：21 个 spec / 211 个单元用例、6 场景 / 11 条 e2e、1653 条 i18n key、样式规范、
+  两工程 typecheck、生产构建与 CSP 校验全部通过
+
+更早（1.1.1 → 1.1.2）：
+
+- **监控主图**：Redis 与 Memcached 概览的「监控」页签从六张迷你折线网格改为
+  「主图 + 迷你卡」—— 主图展示内存趋势（含均值基准线、各阶段与全局峰值标记、配额占比），
+  下方五张迷你卡展示每秒操作、连接数、命中率、键总数、淘汰键；采样三态与清空流程重做，
+  补齐三语言文案，旧 sparkline 网格移除
+- **慢查询指纹工作台（方案 11）**：慢查询页签改为指纹工作台 —— 窗口 100 条、每页 6 组，
+  明细虚拟滚动、每次加载 50 条，底部密度图；支持按指纹 / 按客户端分组、筛选、右栏统计、
+  复制、15 秒自动查询与清空；分组切换对齐键栏主题色
+- **Redis 信息详情改为方案 A**：左侧 188px sticky 段导航（段名 + 字段数徽标）+ 右侧段落卡片，
+  段头整行可折叠，导航点击展开目标段并平滑滚动定位（尊重「减少动态效果」）；段内字段多栏排布
+- **键栏宽度让位值区**：修复窄窗口（容器 < 约 808px）下键栏硬占 420px、值区被挤到约 129px 的问题，
+  改用 `max(260px, min(keyBrowserWidth, calc(100% - 368px)))`，值区稳定保留 360px；仅 Redis 键栏
+- **信息详情窄化改用容器查询**：详情区变窄（分栏拖拽所致、视口可能仍很宽）时，段落导航由左侧竖排
+  改为上方横排 —— 改用 `@container` 判定而非 `@media`
+- **CI 样式规范静态校验 + 最小 e2e**：新增 `style:check`（15 项源码级断言：浮起阴影几何 /
+  9 套皮肤 alpha 分布 / 胶囊白名单 / 选中态描边 / Tailwind 层外覆盖）与 `test:e2e`
+  （6 场景 / 11 断言 CDP 冒烟，不截图），接入 CI
+
+更早（1.1.0 → 1.1.1）：
+
+- **升级 Electron 45**：33.2.1 → 45.2.2（Node 20 → 24 / Chromium 130 → 156），
+  `@types/node` 同步升至 24，`engines.node` 要求 ≥ 22.12.0
+- **修复 CSP 回归**：Electron 45 起 `file://` 主文档也会触发 `onHeadersReceived`，
+  响应头 CSP 与 meta CSP 叠加拦掉首帧主题脚本；生产版现在只由 meta CSP 约束，启动不再亮暗闪烁
+- **csp-hash 规范化**：计算前先做 CRLF→LF 规范化，修 Windows 构建下 hash 与浏览器不一致
+- **连接导入对话框**：补 `defaultPath` 并记住上次目录，恢复 Electron 43 之前的体验
+- **M6 Lua 脚本**：脚本按名称存为程序目录 `scripts/*.lua`，目录不可写时回退配置目录；
+  新增名称长度与非法字符校验；旧 `lua-scripts.json` 首次启动自动迁移
+- **工程与文档**：新增架构地图、坑位速查、Cult UI 组件速查、开发规范（17 条检查清单）
+  与优化路线图；新增 Electron 升级静态预检、CSP 运行时 CDP 探针两个校验脚本
+
+更早（1.0.11 → 1.1.0）：
 
 - **TTL 倒计时**：键列表与值区每秒刷新剩余生存时间，归零后自动向服务端复核 ——
   过期键从列表消失、值区清空，不再出现「倒计时已结束、界面还显示缓存」的错觉
@@ -297,7 +348,7 @@ TTL 倒计时、键收藏、值格式解码、CLI 增强、Stream 管理、Lua �
 
 | 层 | 选型 | 说明 |
 | --- | --- | --- |
-| 主进程 | Electron 33 + TypeScript 5.7 | 窗口管理、IPC、连接池、引擎注册表 |
+| 主进程 | Electron 45 + TypeScript 7.0 | 窗口管理、IPC、连接池、引擎注册表 |
 | 渲染进程 | **React 19 + Vite 6** | 界面与交互；状态层见 `src/store/` |
 | 编译优化 | **React Compiler 1.0** | 构建期自动记忆化，`target: 19` 直接用 React 自带 runtime |
 | 通信 | contextBridge + ipcRenderer.invoke | 上下文隔离，渲染进程不接触 Node |
@@ -377,17 +428,19 @@ npm run preview      # 预览已构建产物（http://127.0.0.1:4173）
 npm run preview:title # 浏览器预览标题动画页
 npm run preview:tooltip # 浏览器预览连接项悬停面板
 npm run typecheck    # 类型检查（主进程 + 渲染进程）
-npm run test         # vitest 单元测试（tests/unit，21 个 spec / 208 个用例）
+npm run test         # vitest 单元测试（tests/unit，21 个 spec / 211 个用例）
 npm run i18n:check   # 校验三份字典的键集、占位符与源码引用一致
 npm run build        # 类型检查 + 构建产物到 dist/ 与 dist-electron/
 npm run csp:check    # 校验构建产物中的 CSP meta 与内联脚本 hash 一致
+npm run style:check  # 源码级校验浮起阴影 / 胶囊白名单 / Tailwind 层外覆盖（CI 用，不启浏览器）
+npm run test:e2e     # 6 条 CDP/DOM 冒烟：启动 / 连接 / 六类值 / 切标签 / 删除确认 / 主题（不截图）
 npm run dist         # 当前平台打包
 npm run dist:win     # 打包 Windows 安装包
 npm run dist:win:alt # 打包 Windows 到 release/<版本>-final（保留上一版产物时用）
 npm run dist:win:publish # 打包并发布到 GitHub Releases（需 GH_TOKEN，版本号须与标签一致）
 ```
 
-构建产物落在 `release/<版本>/`，文件名形如 `Keyper-1.1.0-win-x64.exe`；
+构建产物落在 `release/<版本>/`，文件名形如 `Keyper-1.1.3-win-x64.exe`；
 同目录还会生成 `latest.yml`、`*.blockmap`（增量更新分块索引）与打包进安装目录的
 `app-update.yml`（更新源配置）。
 
@@ -440,7 +493,7 @@ KEYPER_DEBUG_LOG=/tmp/rd.log ./Keyper.exe
 
 | 工作流 | 触发 | 内容 |
 | --- | --- | --- |
-| `.github/workflows/ci.yml` | push（任意分支）/ PR 到 master | `npm ci` → `i18n:check` → `typecheck` → `vitest` → `vite build` |
+| `.github/workflows/ci.yml` | push（任意分支）/ PR 到默认分支 | `npm ci` → `i18n:check` → `typecheck` → `vitest` → `vite build` → `csp-hash` / `csp:check` → `style:check` → `test:e2e`（6 条 CDP 冒烟，不截图） |
 | `.github/workflows/release.yml` | 推送 `v*` 标签 / 手动运行 | 校验标签与 `package.json` 版本一致 → 从标签附注导出 `release-notes.md`（根目录与 `build/` 各一份；手动运行按 `v<版本>` 取同一份附注）→ 保留该标签资产最全的一份 Release（被降级成草稿的先取消草稿）、删掉其余，一份都没有才新建 → Windows 打包并由 electron-builder 追加安装包、blockmap 与 `latest.yml` → 重试探测三类下载地址并复核 Release 数量；标签触发自动发布 Release，手动运行默认只构建、勾 `publish` 才发布 |
 
 ### 应用内更新
@@ -739,7 +792,8 @@ K 用矢量笔画手绘而非字体 —— 字体字形墨迹只有字号的 66%
 - **Stream 管理**：消费组与消费者明细、PEL 查看与 `XACK` / `XCLAIM`、单条 `XDEL`、
   `XTRIM` 裁剪，低版本自动隐藏入口
 - **Lua 运行器**：全局脚本库（命名保存、单条 / 批量删除）、KEYS / ARGS、
-  `EVAL_RO` 只读开关与 `SCRIPT KILL`
+  `EVAL_RO` 只读开关与 `SCRIPT KILL`；脚本按名称存为程序目录 `scripts/*.lua`，
+  程序目录不可写时回退配置目录，旧版 `lua-scripts.json` 首次启动自动迁移
 
 **核心链路**
 

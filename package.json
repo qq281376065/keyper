@@ -1,7 +1,7 @@
 {
   "name": "keyper",
   "productName": "Keyper",
-  "version": "1.1.0",
+  "version": "1.1.4",
   "description": "多引擎键值缓存管理工具 —— 基于 Electron + React + TypeScript 的跨平台 Redis / Memcached 客户端",
   "author": {
     "name": "Keyper"
@@ -17,7 +17,7 @@
     "electron_builder_binaries_mirror": "https://npmmirror.com/mirrors/electron-builder-binaries/"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22.12.0"
   },
   "scripts": {
     "dev": "vite",
@@ -33,7 +33,9 @@
     "dist:win": "npm run build && electron-builder --win",
     "dist:win:alt": "npm run build && electron-builder --win -c.directories.output=release/${version}-final",
     "dist:win:publish": "npm run build && electron-builder --win --publish always",
-    "i18n:check": "node scripts/i18n-check.mjs"
+    "i18n:check": "node scripts/i18n-check.mjs",
+    "style:check": "node scripts/check-style-conventions.mjs",
+    "test:e2e": "node tests/e2e/smoke.mjs"
   },
   "dependencies": {
     "electron-updater": "^6.8.11",
@@ -41,11 +43,12 @@
     "ssh2": "^1.17.0"
   },
   "devDependencies": {
+    "@babel/parser": "^7.29.13",
     "@radix-ui/react-slot": "^1.5.0",
     "@tailwindcss/vite": "^4.3.3",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",
-    "@types/node": "^22.10.2",
+    "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@types/ssh2": "^1.15.6",
@@ -53,7 +56,7 @@
     "babel-plugin-react-compiler": "^1.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "electron": "^33.2.1",
+    "electron": "^45.2.2",
     "electron-builder": "^26.18.1",
     "geist": "^1.8.2",
     "jsdom": "^30.1.3",
@@ -65,7 +68,7 @@
     "react-use-measure": "^2.1.7",
     "tailwind-merge": "^3.7.0",
     "tailwindcss": "^4.3.3",
-    "typescript": "^5.7.2",
+    "typescript": "^7.0.2",
     "vite": "^6.0.5",
     "vite-plugin-electron": "^0.29.0",
     "vitest": "^3.2.7"

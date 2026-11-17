@@ -577,11 +577,19 @@ export function createSession(
         })
         if (!res.ok) throw new Error(res.error)
 
+        /*
+         * 批内先收集普通数组，整批一次赋值：
+         * 原逐键 state.keys.push 每键触发一次 Proxy set → 全组件广播，
+         * 5000 键 = 5000 次通知；整批赋值每页只广播一次。
+         */
+        const batch: TimedKeyItem[] = []
+        const at = Date.now()
         for (const item of res.data.keys) {
           if (seen.has(item.key)) continue
           seen.add(item.key)
-          state.keys.push({ ...item, ttlAt: Date.now() })
+          batch.push({ ...item, ttlAt: at })
         }
+        if (batch.length) state.keys = [...state.keys, ...batch]
         cursor = res.data.cursor
         state.cursor = cursor
       }
@@ -781,7 +789,10 @@ export function createSession(
 
       let merged = latest.value
       const page = res.data.value
-      if (
+      if (latest.type === 'string' && typeof latest.value === 'string' && typeof page === 'string') {
+        // 超大 string 分段续读：按字节段拼接文本
+        merged = latest.value + page
+      } else if (
         latest.value &&
         !Array.isArray(latest.value) &&
         typeof latest.value === 'object' &&
@@ -828,6 +839,16 @@ export function createSession(
     if (!id || !current) return null
     const loaded = loadedValueCount(current)
     const total = current.length ?? loaded
+    /* string 分段加载：复制/导出全部走 whole 通道（硬上限内整读），不走元素分页 */
+    if (current.type === 'string') {
+      if (current.nextCursor == null) return current
+      const res = await api.redis.value(id, current.key, { whole: true })
+      if (!res.ok) {
+        failure(res.error, t('session.failedLoadKeyValue'))
+        return null
+      }
+      return res.data
+    }
     if (current.nextCursor == null || total <= loaded) return current
     const res = await api.redis.value(id, current.key, { limit: total })
     if (!res.ok) {
@@ -1159,58 +1180,87 @@ export function createSession(
 
     /*
      * 固定本次任务所属的连接。
-     * 循环里若直接读 state.activeId，中途标签被关（dispose 置 null），
-     * 后面每个请求都失败并被记成"处理失败" —— 用户会看到几百条假失败。
+     * 请求回来后若 activeId 已变（标签被关 / 切换），结果不再写回界面。
      */
     const connIdNow = state.activeId
 
     task.running = true
     task.cancelled = false
 
-    for (const item of task.items) {
-      // 取消：停止后续处理，已完成的不可回滚
-      if (task.cancelled) break
+    /*
+     * 批量执行下沉主进程（redis:bulk）：一次 IPC 发起，主进程分片
+     * DEL / pipeline EXPIRE / 逐键 RENAMENX，进度经 onBulkProgress 节流推送。
+     * 原实现逐键 invoke（千键 = 千次 IPC+RTT+日志写盘），这里只保留
+     * 「逐键失败明细 + 随时取消 + 列表同步」三个产品语义。
+     */
+    const keys = task.items.map((item) => item.key)
+    const renameMap: Record<string, string> = {}
+    if (task.action === 'rename') {
+      for (const key of keys) {
+        const next = renamedKey(key, task.renameFrom, task.renameTo)
+        if (next !== key) renameMap[key] = next
+      }
+    }
+
+    /* 进度监听：只认本连接；任务结束即解绑 */
+    const offProgress = api.redis.onBulkProgress((progress) => {
+      if (progress.connectionId !== connIdNow) return
+      if (!task.running) return
+      task.done = progress.done
+    })
+
+    try {
+      const res = await api.redis.bulk(connIdNow, {
+        action: task.action,
+        keys,
+        ttlSeconds: task.ttlSeconds,
+        renameMap: task.action === 'rename' ? renameMap : undefined,
+      })
+      if (!res.ok) throw new Error(res.error)
+      const result = res.data
+
+      task.succeeded = result.succeeded
+      task.failed = result.failed
+      task.done = result.succeeded.length + result.failed.length
+      if (result.cancelled) task.cancelled = true
 
       /*
-       * 会话已销毁（标签关闭 / 连接断开）：立即收工。
-       * 继续跑只会产生一串"未连接"的失败记录，且任务对象可能已被丢弃。
+       * 列表同步按批一次性完成（原逐键 syncRemove/syncPatch 每键一次
+       * 全列表 map/filter + store 广播）。会话已销毁时跳过 ——
+       * 孤儿 state 无人渲染，写了也是浪费。
        */
-      if (state.activeId !== connIdNow) {
-        task.cancelled = true
-        break
-      }
-
-      try {
+      if (state.activeId === connIdNow && result.succeeded.length) {
+        const okSet = new Set(result.succeeded)
         if (task.action === 'delete') {
-          const res = await api.redis.remove(connIdNow, [item.key])
-          if (!res.ok) throw new Error(res.error)
-          task.succeeded.push(item.key)
-          syncRemove([item.key])
-        } else if (task.action === 'ttl') {
-          const res = await api.redis.setTtl(connIdNow, item.key, task.ttlSeconds)
-          if (!res.ok) throw new Error(res.error)
-          task.succeeded.push(item.key)
-          syncPatch(item.key, (entry) => ({ ...entry, ttl: task.ttlSeconds, ttlAt: Date.now() }))
-        } else {
-          const next = renamedKey(item.key, task.renameFrom, task.renameTo)
-          if (next === item.key) {
-            // 前缀未命中 / 替换后无变化：不发起请求，直接记成功
-            task.succeeded.push(item.key)
-          } else {
-            const res = await api.redis.rename(connIdNow, item.key, next)
-            if (!res.ok) throw new Error(res.error)
-            task.succeeded.push(item.key)
-            syncPatch(item.key, (entry) => ({ ...entry, key: next }))
+          state.keys = state.keys.filter((entry) => !okSet.has(entry.key))
+          if (state.remoteKeys.length) {
+            state.remoteKeys = state.remoteKeys.filter((entry) => !okSet.has(entry.key))
           }
+        } else if (task.action === 'ttl') {
+          const ttl = task.ttlSeconds
+          const at = Date.now()
+          const patch = (entry: TimedKeyItem): TimedKeyItem =>
+            okSet.has(entry.key) ? { ...entry, ttl, ttlAt: at } : entry
+          state.keys = state.keys.map(patch)
+          if (state.remoteKeys.length) state.remoteKeys = state.remoteKeys.map(patch)
+        } else {
+          const patch = (entry: TimedKeyItem): TimedKeyItem =>
+            okSet.has(entry.key) && renameMap[entry.key]
+              ? { ...entry, key: renameMap[entry.key] }
+              : entry
+          state.keys = state.keys.map(patch)
+          if (state.remoteKeys.length) state.remoteKeys = state.remoteKeys.map(patch)
         }
-      } catch (error) {
-        task.failed.push({
-          key: item.key,
-          reason: error instanceof Error ? error.message : String(error),
-        })
-      } finally {
-        task.done += 1
       }
+    } catch (error) {
+      /* 整批发起失败（连接已断等）：全部未处理键记失败，与旧路径首键即失败同语义 */
+      task.failed = keys.map((key) => ({
+        key,
+        reason: error instanceof Error ? error.message : String(error),
+      }))
+      task.done = keys.length
+    } finally {
+      offProgress?.()
     }
 
     task.running = false
@@ -1257,10 +1307,14 @@ export function createSession(
     return t('session.renamedCountKeys', { count })
   }
 
-  /** 中止批量操作（已开始的那一个会执行完） */
+  /** 中止批量操作（主进程在下一个分片边界停下，已完成的不可回滚） */
   function cancelBulkTask(): void {
-    if (state.bulkTask?.running) state.bulkTask.cancelled = true
-    else state.bulkTask = null
+    if (state.bulkTask?.running) {
+      state.bulkTask.cancelled = true
+      if (state.activeId) void api.redis.bulkCancel(state.activeId)
+    } else {
+      state.bulkTask = null
+    }
   }
 
   /** 关闭批量操作面板 */
@@ -1685,6 +1739,10 @@ export function createSession(
    * - 令牌递增，作废在途搜索。
    */
   function dispose(): void {
+    /* 在途批量操作通知主进程停下（先取 id，activeId 随后置 null） */
+    if (state.bulkTask?.running && state.activeId) {
+      void api.redis.bulkCancel(state.activeId)
+    }
     state.activeId = null
     if (state.bulkTask?.running) state.bulkTask.cancelled = true
     if (state.mcBulkTask?.running) state.mcBulkTask.cancelled = true

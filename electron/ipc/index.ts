@@ -97,6 +97,7 @@ import type {
   RedisValueType,
   ScanOptions,
   SearchAllOptions,
+  BulkOpOptions,
   SearchAllResult,
   SearchHistoryEntry,
   ScanResult,
@@ -124,6 +125,12 @@ import type {
   RefreshKeysOptions,
   RefreshKeysResult,
 } from '../../shared/types'
+
+/**
+ * Electron 43 起文件对话框默认固定为 Downloads，且系统不再记忆上次目录。
+ * 这里自己记住上次成功导入的位置，维持升级前的体验（见 docs/electron-45-upgrade.md D7）。
+ */
+let lastImportDir: string | undefined
 
 function ok<T>(data: T): ApiResponse<T> {
   return { ok: true, data }
@@ -432,6 +439,13 @@ export function registerIpcHandlers(): void {
   connectionManager.onKeyspaceEvent((event) => {
     for (const win of BrowserWindow.getAllWindows()) {
       win.webContents.send(IPC.keyspaceEvent, event)
+    }
+  })
+
+  /* 批量操作进度推送：主进程分片节流后广播，渲染层据此更新进度条 */
+  connectionManager.onBulkProgress((progress) => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send(IPC.redisBulkProgress, progress)
     }
   })
 
@@ -752,6 +766,7 @@ export function registerIpcHandlers(): void {
   handle<ConnectionImportPreview | null>(IPC.connectionImportPick, async () => {
     const picked = await dialog.showOpenDialog({
       title: t('connectionTransfer.importDialogTitle'),
+      defaultPath: lastImportDir ?? app.getPath('downloads'),
       properties: ['openFile'],
       filters: [
         { name: 'JSON', extensions: ['json'] },
@@ -760,6 +775,7 @@ export function registerIpcHandlers(): void {
     })
     const filePath = picked.filePaths[0]
     if (picked.canceled || !filePath) return null
+    lastImportDir = path.dirname(filePath)
 
     const parsed = parseTransferText(readTransferFile(filePath))
     const existing = loadConnections()
@@ -951,6 +967,43 @@ export function registerIpcHandlers(): void {
   handle<OperationResult>(IPC.redisSearchCancel, (id) =>
     connectionManager.cancelSearch(id as string),
   )
+
+  /*
+   * 批量操作：不走通用 handle 的逐调用日志 —— 一次任务可能涉及上千键，
+   * 这里只记一条汇总（动作 / 总数 / 成功 / 失败 / 耗时），
+   * 逐键明细保留在渲染层任务面板里。
+   */
+  ipcMain.handle(IPC.redisBulk, async (_event, id: unknown, options: unknown) => {
+    const started = Date.now()
+    const opts = (options ?? {}) as BulkOpOptions
+    const connId = String(id ?? '')
+    try {
+      const result = await connectionManager.bulk(connId, opts)
+      const config = loadConnections().find((item) => item.id === connId)
+      appendLog({
+        timestamp: Date.now(),
+        engine: 'redis',
+        connectionId: connId,
+        connectionName: config?.name ?? '-',
+        action:
+          opts.action === 'delete' ? '批量删除' : opts.action === 'ttl' ? '批量设置 TTL' : '批量重命名',
+        detail: t('ipc.bulkSummary', {
+          total: opts.keys?.length ?? 0,
+          ok: result.succeeded.length,
+          fail: result.failed.length,
+        }),
+        ok: result.failed.length === 0,
+        result: result.cancelled ? t('ipc.cancelled') : t('ipc.succeeded'),
+        costMs: Date.now() - started,
+      })
+      return ok(result)
+    } catch (error) {
+      console.error(`[ipc] ${IPC.redisBulk} 执行失败:`, error)
+      return fail(error)
+    }
+  })
+
+  handle<OperationResult>(IPC.redisBulkCancel, (id) => connectionManager.bulkCancel(id as string))
 
   handle<RefreshKeysResult>(IPC.redisRefreshKeys, (id, options) =>
     connectionManager.refreshKeys(id as string, (options ?? {}) as RefreshKeysOptions),

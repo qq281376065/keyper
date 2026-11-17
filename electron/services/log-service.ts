@@ -122,17 +122,58 @@ function parseLine(line: string): LogEntry | null {
 
 let lastPruneDay = ''
 
+/*
+ * 异步追加队列：操作日志在 IPC 热路径上（每个写操作一条），
+ * 同步 appendFileSync 会让主进程等磁盘。改为按文件串行的 promise 链：
+ * 同一文件的写入保持顺序，不同文件互不阻塞；失败只 console 不抛。
+ * 退出前由 flushLogs() 等待落盘（main.ts before-quit / destroy 前调用）。
+ */
+const pendingWrites = new Map<string, Promise<void>>()
+const pendingDirs = new Set<string>()
+
+function enqueueAppend(file: string, text: string): void {
+  const dir = path.dirname(file)
+  if (!pendingDirs.has(dir)) {
+    pendingDirs.add(dir)
+    try {
+      fs.mkdirSync(dir, { recursive: true })
+    } catch (error) {
+      console.error('[log] 创建目录失败:', error)
+    }
+  }
+  const prev = pendingWrites.get(file) ?? Promise.resolve()
+  const next = prev
+    .catch(() => {})
+    .then(() => fs.promises.appendFile(file, text, 'utf-8'))
+    .catch((error) => {
+      console.error('[log] 写入失败:', error)
+    })
+  pendingWrites.set(file, next)
+  /* 链尾自清理：写完且没有后续排队时移除条目，防 Map 无限增长 */
+  void next.then(() => {
+    if (pendingWrites.get(file) === next) pendingWrites.delete(file)
+  })
+}
+
+/** 等待全部在途日志落盘（退出前调用；自身绝不抛错） */
+export async function flushLogs(): Promise<void> {
+  try {
+    await Promise.all([...pendingWrites.values()])
+  } catch {
+    /* 单条失败已在链内吞掉，这里只兜底 */
+  }
+}
+
 /** 追加一条日志；每天首次写入时顺带清理过期文件 */
 export function appendLog(entry: LogEntry): void {
   try {
-    ensureDir()
     const today = dateKey(new Date())
     if (lastPruneDay !== today) {
       lastPruneDay = today
       pruneOldLogs()
     }
     const file = path.join(logDir(), `${dateKey(new Date(entry.timestamp))}.log`)
-    fs.appendFileSync(file, `${formatLine(entry)}\n`, 'utf-8')
+    enqueueAppend(file, `${formatLine(entry)}\n`)
   } catch (error) {
     console.error('[log] 写入失败:', error)
   }
@@ -182,9 +223,11 @@ export function listLogFiles(): LogFileInfo[] {
 }
 
 /** 读取指定日期的日志（最新在前），可按连接与关键字过滤 */
-export function readLogs(query: LogQuery): LogEntry[] {
+export async function readLogs(query: LogQuery): Promise<LogEntry[]> {
   const date = query.date && /^\d{8}$/.test(query.date) ? query.date : dateKey(new Date())
   const file = path.join(logDir(), `${date}.log`)
+  /* 先等在途写入落盘：日志改异步追加后，刚发生的操作可能还在队列里 */
+  await flushLogs()
   if (!fs.existsSync(file)) return []
 
   const keyword = query.keyword?.trim().toLowerCase() ?? ''
@@ -270,21 +313,28 @@ function formatErrorBlock(report: ErrorReport): string {
   return lines.join('\n')
 }
 
+/** 错误日志 prune 每天最多一次（原每条错误都全目录扫两遍，错误风暴时 O(N²)） */
+let lastErrorPruneDay = ''
+
 /** 追加一条错误报告；进程级兜底 —— 自身异常绝不向上抛（写日志失败不能再触发错误日志） */
 export function appendErrorLog(report: ErrorReport): void {
   try {
-    ensureDir()
     const file = errorFileOf(report.timestamp)
     /* 超上限轮转：errors-yyyymmdd.log → errors-yyyymmdd-1.log …
-     * 排查通常只看最近一份，轮转序号从小到大即从旧到新 */
+     * 排查通常只看最近一份，轮转序号从小到大即从旧到新。
+     * 轮转探测保持同步（只在文件超 5MB 时才发生，频率极低）。 */
     let target = file
     let seq = 0
     while (fs.existsSync(target) && fs.statSync(target).size > ERROR_FILE_MAX_BYTES) {
       seq += 1
       target = file.replace(/\.log$/, `-${seq}.log`)
     }
-    fs.appendFileSync(target, `${formatErrorBlock(report)}\n\n`, 'utf-8')
-    pruneOldErrorLogs()
+    enqueueAppend(target, `${formatErrorBlock(report)}\n\n`)
+    const today = dateKey(new Date())
+    if (lastErrorPruneDay !== today) {
+      lastErrorPruneDay = today
+      pruneOldErrorLogs()
+    }
   } catch {
     /* 吞掉：落盘失败时只剩 console 这条退路 */
   }

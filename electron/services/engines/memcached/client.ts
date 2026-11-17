@@ -73,6 +73,12 @@ export interface MemcachedClientOptions {
 
 const CRLF = '\r\n'
 
+/**
+ * 结束标记扫描的重叠窗口：最长标记 `\r\nEND\r\n` 为 7 字节，
+ * 取 8 保证跨 chunk 边界的标记不会被「从上次扫描点起步」漏掉。
+ */
+const OVERLAP = 8
+
 /** 把 stats 的 `STAT k v` 多行结果解析成对象 */
 function parseStats(lines: string[]): Record<string, string> {
   const out: Record<string, string> = {}
@@ -94,13 +100,29 @@ function parseStats(lines: string[]): Record<string, string> {
  */
 export class MemcachedClient extends EventEmitter {
   private socket: net.Socket | null = null
-  private buffer = Buffer.alloc(0)
+  /*
+   * 收包缓冲：chunk 链表 + 惰性合并。
+   *
+   * 原实现每个 TCP chunk 都 Buffer.concat 全量拷贝 —— metadump all
+   * 大实例几十 MB 响应时是 O(n²) 拷贝，主进程被拖住数秒。
+   * 现在 chunk 先入链表（O(1)），仅在以下时机合并一次：
+   *   · 缓冲很小（≤64KB，普通命令）—— 每 chunk 合并，行为与旧实现一致；
+   *   · 距上次合并已积累 ≥256KB —— 大响应按块摊还，整体 O(n)；
+   *   · until 判定需要完整视图时（onData 里先 ensureMerged）。
+   * scanFrom 记录「已确认不含结束标记」的偏移，until 扫描从那里起步，
+   * 不再每 chunk 从 0 重扫整个缓冲。
+   */
+  private chunks: Buffer[] = []
+  private chunksBytes = 0
+  private buffer: Buffer = Buffer.alloc(0)
+  /** buffer 中已扫描过、确认不含结束标记的字节数（新 chunk 到来时回退一个标记窗口） */
+  private scanFrom = 0
   /** 当前在等响应的命令；同一时刻只有一个（串行队列） */
   private pending: {
     resolve: (value: Buffer) => void
     reject: (error: Error) => void
-    /** 判断"响应已收齐"的规则 */
-    until: (buffer: Buffer) => number
+    /** 判断"响应已收齐"的规则；from 为已扫描偏移，实现可从该处起步 */
+    until: (buffer: Buffer, from?: number) => number
     timer: NodeJS.Timeout
   } | null = null
   private queue: Array<() => void> = []
@@ -135,7 +157,10 @@ export class MemcachedClient extends EventEmitter {
         clearTimeout(timeout)
         socket.setNoDelay(true)
         this.socket = socket
+        this.chunks = []
+        this.chunksBytes = 0
         this.buffer = Buffer.alloc(0)
+        this.scanFrom = 0
         resolve()
       })
 
@@ -175,14 +200,38 @@ export class MemcachedClient extends EventEmitter {
     for (const start of queued) start()
   }
 
+  /** 把链表里的 chunk 合并进连续缓冲（仅在需要完整视图时调用） */
+  private mergeChunks(): void {
+    if (!this.chunks.length) return
+    this.buffer = this.chunks.length === 1 && !this.buffer.length
+      ? this.chunks[0]
+      : Buffer.concat([this.buffer, ...this.chunks])
+    this.chunks = []
+    this.chunksBytes = 0
+  }
+
   private onData(chunk: Buffer): void {
-    this.buffer = Buffer.concat([this.buffer, chunk])
+    /*
+     * chunk 先入链表（O(1)）。小响应（≤64KB，普通命令）每 chunk 合并，
+     * 行为与旧实现一致；大响应（metadump 几十 MB）只在攒够 256KB 时
+     * 合并一次做结束标记扫描 —— 拷贝与扫描都按块摊还，整体 O(n)，
+     * 不再是「每 chunk 全量 concat + 从 0 重扫」的 O(n²)。
+     * 未合并期间不判定收齐（最多延迟 256KB 的到达时间，毫秒级）。
+     */
+    this.chunks.push(chunk)
+    this.chunksBytes += chunk.length
     const pending = this.pending
+    const small = this.buffer.length + this.chunksBytes <= 64 * 1024
+    if (!small && this.chunksBytes < 256 * 1024) return
+    this.mergeChunks()
     if (!pending) return
+
+    /* 从「上次扫描点 - 标记窗口」起步，不再每 chunk 从 0 重扫 */
+    const from = Math.max(0, this.scanFrom - OVERLAP)
 
     let end: number
     try {
-      end = pending.until(this.buffer)
+      end = pending.until(this.buffer, from)
     } catch (error) {
       clearTimeout(pending.timer)
       this.pending = null
@@ -196,10 +245,15 @@ export class MemcachedClient extends EventEmitter {
      * 此时算"还没收齐"，必须等下一块，否则会把只有头行的字节流当完整响应交出去，
      * 解析结果为空字符串。
      */
-    if (end < 0 || end > this.buffer.length) return
+    if (end < 0 || end > this.buffer.length) {
+      /* 未收齐：记录已扫描偏移，下一 chunk 只扫新增部分（回退一个标记窗口防跨界） */
+      this.scanFrom = this.buffer.length
+      return
+    }
 
     const payload = this.buffer.subarray(0, end)
     this.buffer = this.buffer.subarray(end)
+    this.scanFrom = 0
     clearTimeout(pending.timer)
     this.pending = null
     pending.resolve(payload)
@@ -257,17 +311,17 @@ export class MemcachedClient extends EventEmitter {
   }
 
   /** 直到遇到单独的 `END\r\n` 行为止（stats 与 get 都用它收尾） */
-  private static untilEnd(buffer: Buffer): number {
+  private static untilEnd(buffer: Buffer, from = 0): number {
     const marker = Buffer.from(`${CRLF}END${CRLF}`, 'latin1')
     // 响应可能以 END 开头（没有任何 VALUE 行）
     if (buffer.subarray(0, 5).toString('latin1') === `END${CRLF}`) return 5
-    const idx = buffer.indexOf(marker, 0, 'latin1')
+    const idx = buffer.indexOf(marker, from, 'latin1')
     return idx < 0 ? -1 : idx + marker.length
   }
 
   /** 单行响应（STORED / DELETED / OK / 错误） */
-  private static untilLine(buffer: Buffer): number {
-    return MemcachedClient.lineEnd(buffer)
+  private static untilLine(buffer: Buffer, from = 0): number {
+    return MemcachedClient.lineEnd(buffer, from)
   }
 
   /**
@@ -277,13 +331,13 @@ export class MemcachedClient extends EventEmitter {
    * 最后才是一个 `END\r\n`（实测 1.6.21 就是这样）；普通 stats 则是 `\r\n`。
    * 若沿用只认 `\r\nEND\r\n` 的 untilEnd，metadump 会一直等到超时。
    */
-  private static untilEndLoose(buffer: Buffer): number {
+  private static untilEndLoose(buffer: Buffer, from = 0): number {
     if (buffer.length >= 5 && buffer.subarray(0, 5).toString('latin1') === `END${CRLF}`) return 5
     if (buffer.length >= 4 && buffer.subarray(0, 4).toString('latin1') === `END\n`) return 4
 
     let end = -1
     for (const marker of [Buffer.from(`\nEND${CRLF}`, 'latin1'), Buffer.from(`\nEND\n`, 'latin1')]) {
-      const idx = buffer.indexOf(marker)
+      const idx = buffer.indexOf(marker, from)
       if (idx < 0) continue
       const candidate = idx + marker.length
       if (end < 0 || candidate < end) end = candidate
@@ -504,7 +558,7 @@ export class MemcachedClient extends EventEmitter {
   ): Promise<Array<{ key: string; bytes: number; expiresAt: number; slab: number }>> {
     const raw = await this.exec(
       Buffer.from(`lru_crawler metadump all${CRLF}`, 'latin1'),
-      (buffer) => {
+      (buffer, from = 0) => {
         /*
          * 与 cachedump 同理：被禁用 / 版本不支持 / 已有爬取任务在跑时，
          * 服务端可能只回一行错误（ERROR / CLIENT_ERROR / SERVER_ERROR / BUSY），
@@ -519,7 +573,7 @@ export class MemcachedClient extends EventEmitter {
         ) {
           return MemcachedClient.lineEnd(buffer)
         }
-        return MemcachedClient.untilEndLoose(buffer)
+        return MemcachedClient.untilEndLoose(buffer, from)
       },
       timeoutMs,
     )
@@ -600,14 +654,14 @@ export class MemcachedClient extends EventEmitter {
        * 实测就是这么卡住的（被禁用的实例上，面板转圈 15 秒才报错）。
        * 因此这里三种收尾都算完整：END 行、单行错误、任意完整行。
        */
-      (buffer) => {
+      (buffer, from = 0) => {
         const head = buffer.subarray(0, Math.min(buffer.length, 24)).toString('latin1')
         if (head.startsWith('CLIENT_ERROR') || head.startsWith('ERROR')) {
           return MemcachedClient.lineEnd(buffer)
         }
         /* 头行是 SERVER_ERROR 也一样（个别版本会这样回） */
         if (head.startsWith('SERVER_ERROR')) return MemcachedClient.lineEnd(buffer)
-        return MemcachedClient.untilEnd(buffer)
+        return MemcachedClient.untilEnd(buffer, from)
       },
       /* 单独放宽超时：cachedump 在条目多的 slab 上明显比普通命令慢 */
       15000,

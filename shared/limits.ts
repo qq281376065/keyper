@@ -11,6 +11,20 @@ export const LUA_SCRIPT_MAX_BYTES = 256 * 1024
 export const VALUE_BINARY_MAX_BYTES = 4 * 1024 * 1024
 export const VALUE_DECODE_MAX_BYTES = 5 * 1024 * 1024
 export const VALUE_DECODE_MAX_BYTES_CAP = 20 * 1024 * 1024
+/**
+ * string 值首屏字节上限：超过即只读前 N 字节（GETRANGE），
+ * 界面显示「值过大，仅加载前 N 字节」并可继续加载更多。
+ * 与 VALUE_BINARY_MAX_BYTES 同量级但独立：文本走 UTF-8 解码展示，
+ * 二进制走 base64，两条路径的截断口径分开演进。
+ */
+export const VALUE_STRING_MAX_BYTES = 2 * 1024 * 1024
+/** string「加载更多」每页字节数 */
+export const VALUE_STRING_PAGE_BYTES = 2 * 1024 * 1024
+/**
+ * string 整值读取硬上限（复制全部 / 导出全部路径）：
+ * 超过即截断并标记 truncated，防止单个大键把主进程与 IPC 撑爆。
+ */
+export const VALUE_STRING_WHOLE_MAX_BYTES = 32 * 1024 * 1024
 export const STREAM_PENDING_PAGE_SIZE = 50
 export const STREAM_PENDING_PAGE_MAX = 200
 export const LUA_RESULT_MAX_CHARS = 1024 * 1024

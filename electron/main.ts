@@ -5,8 +5,8 @@ import { BrowserWindow, Menu, app, nativeTheme, session, shell } from 'electron'
 import { IPC } from '../shared/api'
 import { registerIpcHandlers } from './ipc'
 import { connectionManager } from './services/connection-manager'
-import { appendErrorLog, pruneOldLogs } from './services/log-service'
-import { configDir } from './services/config-path'
+import { appendErrorLog, flushLogs, pruneOldLogs } from './services/log-service'
+import { configDir, scriptsDir } from './services/config-path'
 import { setSystemLocale, syncMainLocale } from './services/settings-store'
 import { CLOSE_CONFIRM, CLOSE_HANDLED, closeSignal } from './services/close-signal'
 
@@ -224,6 +224,8 @@ let mainWindow: BrowserWindow | null = null
  * 否则会出现"点确定 → 又弹一次"的循环。
  */
 let quitConfirmed = false
+/** 退出前日志 flush 只做一次（before-quit 会被重入） */
+let logsFlushed = false
 
 /**
  * 等渲染层弹出自绘确认框的最长时间。
@@ -247,18 +249,27 @@ function applySessionHardening(): void {
 }
 
 /**
- * CSP 注入（响应头方式）。
+ * CSP 注入（响应头方式，仅 http://）。
  *
- * ⚠️ 为什么还要在 index.html 里放 meta CSP：
- * 生产环境走 loadFile 的 `file://` 协议，onHeadersReceived **不会**对
- * file:// 响应生效。两条路径互补：
- *   · file://（生产）→ 由 index.html 的 <meta> 兜底
- *   · http://（开发/未来自定义协议）→ 由这里的响应头兜底
+ * ⚠️ 为什么 file:// 要显式跳过：
+ * Electron 33 时代生产版走 loadFile 的 file://，onHeadersReceived 对
+ * file:// 不生效，页面只由 index.html 的 <meta> 约束。Electron 45 /
+ * Chromium 156 起 file:// 主文档也会触发本回调（CDP 实测抓到响应头 CSP），
+ * 而 CSP_PROD 不含首帧内联主题脚本的 sha256 —— 两份 CSP 叠加取最严，
+ * 脚本被拦，表现为启动时亮暗闪烁。meta 已含完整指令与正确 hash，
+ * 因此这里对 file:// 原样回调，恢复 33 时代的互补设计：
+ *   · file://（生产）→ 只由 index.html 的 <meta> 兜底
+ *   · http://（开发/未来自定义协议）→ 只由这里的响应头兜底
  * 任意一条缺失都会让 CSP 实质失效，所以两处都要有。
  */
 function applyContentSecurityPolicy(): void {
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     const responseHeaders = { ...details.responseHeaders }
+    // URL scheme 由 Chromium 规范化为小写；原样回调，保留其它响应头
+    if (details.url.startsWith('file:')) {
+      callback({ responseHeaders })
+      return
+    }
     responseHeaders['Content-Security-Policy'] = [isDev ? CSP_DEV : CSP_PROD]
     callback({ responseHeaders })
   })
@@ -526,6 +537,12 @@ if (!gotTheLock) {
     // 骨架阶段先隐藏系统菜单，后续按需改成自定义菜单
     Menu.setApplicationMenu(null)
     applySessionHardening()
+    // 提前建好 Lua 脚本目录：程序目录/scripts，不可写时自动回退配置目录
+    try {
+      scriptsDir()
+    } catch (error) {
+      trace('scripts dir init failed', { error: String(error) })
+    }
     registerIpcHandlers()
     // 启动时清一次超出保留天数的历史日志
     pruneOldLogs()
@@ -544,13 +561,22 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
-app.on('before-quit', () => {
+app.on('before-quit', (event) => {
   /*
    * 走到这里说明是「程序级退出」（Cmd+Q、系统注销、更新后重启），
    * 而不是用户点窗口的关闭按钮 —— 此时不该再拦一次确认。
+   *
+   * 日志已改异步追加：退出前等队列落盘（只等一次，flushed 标志防重入），
+   * 否则最后几条操作日志会丢。等待期间 preventDefault 挂起退出，
+   * 落盘完成后重新 app.quit()。
    */
   quitConfirmed = true
   connectionManager.disconnectAll()
+  if (!logsFlushed) {
+    logsFlushed = true
+    event.preventDefault()
+    void flushLogs().finally(() => app.quit())
+  }
 })
 
 /*
@@ -577,7 +603,8 @@ closeSignal.on(CLOSE_CONFIRM, () => {
    * 已断开的连接走 disconnect() 是幂等的，重复调用无副作用。
    */
   connectionManager.disconnectAll()
-  w.destroy()
+  /* destroy 不触发 before-quit：这里同步等日志落盘后再销毁窗口 */
+  void flushLogs().finally(() => w.destroy())
 })
 
 /*

@@ -54,9 +54,15 @@ const html = readFileSync(DIST_HTML, 'utf-8')
 /*
  * 提取所有内联 <script>（无 src 属性）。
  * 用 [\s\S] 而非 . 是因为正文含换行；非贪婪保证只匹配到最近的闭合标签。
+ *
+ * 浏览器按 HTML 规范会把脚本正文的 CRLF 规范化成 LF，再据此计算 CSP hash。
+ * Windows 上 vite 产出的 index.html 是 CRLF；若直接拿原始字节算，
+ * meta 里的 hash 就与浏览器算的不一致，首帧主题脚本会被 CSP 拦下
+ * （控制台 security 错误 + 亮暗切换闪烁）。这里先统一换行再哈希，
+ * csp:check 也走同一份逻辑。
  */
 const inlineScripts = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].map(
-  (m) => m[1],
+  (m) => m[1].replace(/\r\n/g, '\n'),
 )
 
 if (inlineScripts.length === 0) {

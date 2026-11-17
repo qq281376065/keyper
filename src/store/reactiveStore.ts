@@ -36,10 +36,35 @@ export interface StoreOptions {
 export function createStore<T extends object>(initial: T, options: StoreOptions = {}): T {
   const listeners = new Set<Listener>()
   let version = 0
+  /*
+   * 批量写入深度：>0 时 set/delete 只标脏不广播，退出最外层时统一 emit 一次。
+   * 用于「一次逻辑操作写多个字段」的场景（settings 保存、整批列表同步），
+   * 避免 N 个字段触发 N 轮全组件重渲染。
+   */
+  let batchDepth = 0
+  let batchDirty = false
 
   function emit(): void {
+    if (batchDepth > 0) {
+      batchDirty = true
+      return
+    }
     version += 1
     for (const listener of [...listeners]) listener()
+  }
+
+  function batch(fn: () => void): void {
+    batchDepth += 1
+    try {
+      fn()
+    } finally {
+      batchDepth -= 1
+      if (batchDepth === 0 && batchDirty) {
+        batchDirty = false
+        version += 1
+        for (const listener of [...listeners]) listener()
+      }
+    }
   }
 
   function isPlain(value: unknown): value is Record<string, unknown> | unknown[] {
@@ -139,6 +164,7 @@ export function createStore<T extends object>(initial: T, options: StoreOptions 
   Object.defineProperties(root as unknown as Record<string, unknown>, {
     __subscribe: { value: subscribe, enumerable: false },
     __getVersion: { value: getVersion, enumerable: false },
+    __batch: { value: batch, enumerable: false },
   })
 
   return root
@@ -151,4 +177,9 @@ export function storeSubscribe<T extends object>(store: T): (listener: Listener)
 
 export function storeVersion<T extends object>(store: T): number {
   return (store as unknown as { __getVersion: () => number }).__getVersion()
+}
+
+/** 批量写入：fn 内的全部字段写入合并为一次订阅通知（嵌套安全） */
+export function storeBatch<T extends object>(store: T, fn: () => void): void {
+  ;(store as unknown as { __batch: (fn: () => void) => void }).__batch(fn)
 }

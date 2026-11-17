@@ -5,21 +5,15 @@ import { BulkOpsPanel } from '@/components/BulkOpsPanel'
 import { DialogIcon } from '@/components/DialogIcon'
 import { VirtualStringLines } from '@/components/VirtualStringLines'
 import { VirtualRows } from '@/components/VirtualRows'
-import { EditHashFieldDialog } from '@/components/EditHashFieldDialog'
-import { EditHashFieldTtlDialog } from '@/components/EditHashFieldTtlDialog'
-import { EditListElementDialog } from '@/components/EditListElementDialog'
-import { EditValueDialog } from '@/components/EditValueDialog'
-import { EditZsetMemberDialog } from '@/components/EditZsetMemberDialog'
 import { FilterBox } from '@/components/FilterBox'
 import { LiveTtl } from '@/components/LiveTtl'
-import { PromptDialog } from '@/components/PromptDialog'
 import { ServerOverview } from '@/components/ServerOverview'
 import { MemcachedOverview } from '@/components/MemcachedOverview'
 import { SortIcon } from '@/components/SortIcon'
-import { StreamAddEntryDialog } from '@/components/StreamAddEntryDialog'
 import { StreamAdminPanel } from '@/components/StreamAdminPanel'
 import { ValueActions } from '@/components/ValueActions'
-import { ViewStreamEntryDialog } from '@/components/ViewStreamEntryDialog'
+import { ValueDialogs } from '@/components/valueViewer/ValueDialogs'
+import { AutoRefreshSwitch, RowMenuMask, SkeletonValue } from '@/components/valueViewer/ValueViewerBits'
 import { ValueFormatMenu } from '@/components/ValueFormatMenu'
 import { ValueFormatView } from '@/components/ValueFormatView'
 import { useValueFormats } from '@/hooks/useValueFormats'
@@ -37,7 +31,7 @@ import { useRedis } from '@/store/useRedis'
 import { useObservable } from '@/store/subscription'
 import { useSessionStore } from '@/hooks/useSessionStore'
 import { useTabBlur } from '@/hooks/useTabBlur'
-import { formatBytes, formatTtl, remainingTtl, ttlTone, utf8Bytes } from '@/utils/format'
+import { formatBytes, formatTtl, remainingTtl, ttlRecheckDelay, ttlTone, utf8Bytes } from '@/utils/format'
 import { resolveCapabilities } from '@/utils/redisCapability'
 import { copyText } from '@/utils/clipboard'
 import type { KeyValue } from '@shared/types'
@@ -68,16 +62,7 @@ const COL_MAX = 900
 const FIXED_COLS_HASH = 40 + 84
 const FIXED_COLS_ZSET = 40 + 84
 
-/** TTL 常用值：省去用户心算秒数 */
-const TTL_PRESETS: Array<{ label: MsgKey; value: string }> = [
-  { label: 'common.oneMinute', value: '60' },
-  { label: 'common.fiveMinutes', value: '300' },
-  { label: 'common.thirtyMinutes', value: '1800' },
-  { label: 'common.oneHour', value: '3600' },
-  { label: 'common.oneDay', value: '86400' },
-  { label: 'common.sevenDays', value: '604800' },
-  { label: 'common.noExpiration', value: '0' },
-]
+/** TTL 常用值已随弹窗拆至 valueViewer/ValueDialogs */
 
 /** 行内操作图标（与 Vue 版逐一对应，路径原样保留） */
 const ICON_COPY = (
@@ -933,7 +918,15 @@ function LoadMoreButton({
 }) {
   const { t } = useI18n()
   if (value.nextCursor == null) return null
-  const loaded = Array.isArray(value.value) ? value.value.length : value.value ? Object.keys(value.value).length : 0
+  /* string 分段加载：length 是字节数（STRLEN），已加载量按当前文本字节计 */
+  const isString = value.type === 'string'
+  const loaded = isString
+    ? utf8Bytes(typeof value.value === 'string' ? value.value : '')
+    : Array.isArray(value.value)
+      ? value.value.length
+      : value.value
+        ? Object.keys(value.value).length
+        : 0
   const total = value.length ?? loaded
   return (
     <button
@@ -943,7 +936,11 @@ function LoadMoreButton({
       {...tipProps(t('valueViewer.loadMoreHint'))}
     >
       <DialogIcon name="arrow-down" size={12} className={loading ? 'spin' : undefined} />
-      {loading ? t('valueViewer.loadingMore') : t('valueViewer.loadMoreCount', { loaded, total })}
+      {loading
+        ? t('valueViewer.loadingMore')
+        : isString
+          ? t('valueViewer.loadMoreBytes', { loaded: formatBytes(loaded), total: formatBytes(total) })
+          : t('valueViewer.loadMoreCount', { loaded, total })}
     </button>
   )
 }
@@ -1010,11 +1007,20 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
 
   /** 倒计时归零后只复核一次；键可能被续期，最终以服务端结果为准 */
   const expiryRecheckedAt = useRef<number | null>(null)
+  const expiryRecheckAt = useRef(0)
   useEffect(() => {
-    if (!value || value.ttl < 0 || valueAt == null) return
+    if (!value || !Number.isFinite(value.ttl) || value.ttl < 0 || valueAt == null) return
     const remaining = remainingTtl(value.ttl, valueAt)
     if (remaining <= 0) {
       if (expiryRecheckedAt.current === valueAt) return
+      /*
+       * 兼容服务端 TTL 异常（代理把永久键报成 0、秒级边界读回 0）：
+       * 每次复核都会拿到新的 valueAt，只靠上面那行挡不住，这里再按秒限流，
+       * 避免变成「读一次就立刻再读」的请求风暴。
+       */
+      const now = Date.now()
+      if (now - expiryRecheckAt.current < 1000) return
+      expiryRecheckAt.current = now
       expiryRecheckedAt.current = valueAt
       void refreshSelected()
       return
@@ -1022,7 +1028,7 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
     const timer = setTimeout(() => {
       expiryRecheckedAt.current = valueAt
       void refreshSelected()
-    }, remaining * 1000 + 300)
+    }, ttlRecheckDelay(remaining))
     return () => clearTimeout(timer)
   }, [value, valueAt, refreshSelected])
 
@@ -1855,6 +1861,12 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
                     wrap={wrap}
                     onDoubleClick={stringEditor.enterStringEditExplicit}
                   />
+                  {/* 超大 string 分段加载：还有未读字节时提供续读入口 */}
+                  <LoadMoreButton
+                    value={value}
+                    loading={sessionState.loadingMoreValue}
+                    onLoad={() => void loadMoreValue()}
+                  />
                   {/*
                     只读标记：与 hash/list/set/zset/stream 放在同一位置 ——
                     值区底部的 .row-tip 行。其它类型的表格用 sticky 吸底，
@@ -2640,247 +2652,31 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
         </RowMenuMask>
       ) : null}
 
-      {/*
-
-      {/* ---------------- 弹窗 ---------------- */}
-      {editVisible && value ? <EditValueDialog initial={value as KeyValue} onClose={() => setEditVisible(false)} /> : null}
-
-      {hashEditor.editingField && value ? (
-        <EditHashFieldDialog
-          keyName={value.key}
-          field={hashEditor.editingField.field}
-          value={hashEditor.editingField.value}
-          onClose={() => hashEditor.setEditingField(null)}
-          onSaved={hashEditor.handleFieldSaved}
-        />
-      ) : null}
-
-      {/* hash 新增字段弹窗（add 模式：HSET upsert，saved 走同一 handleFieldSaved） */}
-      {hashEditor.addingField && value ? (
-        <EditHashFieldDialog
-          mode="add"
-          keyName={value.key}
-          onClose={() => hashEditor.setAddingField(false)}
-          onSaved={hashEditor.handleFieldSaved}
-        />
-      ) : null}
-
-      {hashEditor.ttlField && value ? (
-        <EditHashFieldTtlDialog
-          keyName={value.key}
-          field={hashEditor.ttlField.field}
-          currentTtl={hashEditor.ttlField.ttl}
-          onClose={() => hashEditor.setTtlField(null)}
-          onSaved={hashEditor.handleFieldTtlSaved}
-        />
-      ) : null}
-
-      {/* stream entry 查看弹窗（只读：字段拆成键值对，长值换行不截断） */}
-      {streamEditor.viewingStreamEntry && value ? (
-        <ViewStreamEntryDialog
-          keyName={value.key}
-          entryId={streamEditor.viewingStreamEntry.entryId}
-          fields={streamEditor.viewingStreamEntry.fields}
-          position={streamEditor.viewingStreamEntry.position}
-          total={streamEditor.streamStats.total}
-          onClose={() => streamEditor.setViewingStreamEntry(null)}
-        />
-      ) : null}
-
-      {/* stream 追加消息弹窗（XADD：ID 服务端自动生成） */}
-      {streamEditor.addingEntry && value ? (
-        <StreamAddEntryDialog
-          keyName={value.key}
-          total={streamEditor.streamStats.total}
-          onConfirm={streamEditor.handleStreamAddConfirm}
-          onCancel={() => streamEditor.setAddingEntry(false)}
-        />
-      ) : null}
-
-      {/* zset 成员编辑弹窗（member + score 双字段） */}
-      {zsetEditor.editingZset && value ? (
-        <EditZsetMemberDialog
-          mode="edit"
-          keyName={value.key}
-          total={zsetEditor.zsetStats.total}
-          initialMember={zsetEditor.editingZset.member}
-          initialScore={zsetEditor.editingZset.score}
-          duplicatedScore
-          onConfirm={zsetEditor.handleZsetConfirm}
-          onCancel={() => zsetEditor.setEditingZset(null)}
-        />
-      ) : null}
-
-      {/* zset 新增成员弹窗 */}
-      {zsetEditor.addingZset && value ? (
-        <EditZsetMemberDialog
-          mode="add"
-          keyName={value.key}
-          total={zsetEditor.zsetStats.total}
-          onConfirm={zsetEditor.handleAddZsetConfirm}
-          onCancel={() => zsetEditor.setAddingZset(false)}
-        />
-      ) : null}
-
-      {/* list 元素编辑弹窗（含底部状态栏统计） */}
-      {listEditor.editingListIndex && value ? (
-        <EditListElementDialog
-          mode="edit"
-          keyName={value.key}
-          index={listEditor.editingListIndex.index}
-          total={listStats.total}
-          initialValue={listEditor.editingListIndex.value}
-          onConfirm={listEditor.handleListEditConfirm}
-          onCancel={() => listEditor.setEditingListIndex(null)}
-        />
-      ) : null}
-
-      {/* list 插入 / 追加元素弹窗（与修改弹窗同形态，仅操作不同） */}
-      {listEditor.insertingList && value ? (
-        <EditListElementDialog
-          mode="insert"
-          keyName={value.key}
-          index={listEditor.insertingList.index}
-          total={listStats.total}
-          position={listEditor.insertingList.position}
-          appending={listEditor.insertingList.index >= listStats.total}
-          onConfirm={listEditor.handleListInsertConfirm}
-          onCancel={() => listEditor.setInsertingList(null)}
-        />
-      ) : null}
-
-      {/* set 成员编辑弹窗（无序集合：称「成员」且不显示位置） */}
-      {setEditor.editingSetMember && value ? (
-        <EditListElementDialog
-          mode="edit"
-          keyType="set"
-          showPosition={false}
-          keyName={value.key}
-          index={0}
-          total={setEditor.setStats.total}
-          initialValue={setEditor.editingSetMember.value}
-          onConfirm={setEditor.handleSetMemberConfirm}
-          onCancel={() => setEditor.setEditingSetMember(null)}
-        />
-      ) : null}
-
-      {/* set 新增成员弹窗 */}
-      {setEditor.addingMember && value ? (
-        <EditListElementDialog
-          mode="insert"
-          keyType="set"
-          showPosition={false}
-          keyName={value.key}
-          index={0}
-          total={setEditor.setStats.total}
-          onConfirm={setEditor.handleAddMemberConfirm}
-          onCancel={() => setEditor.setAddingMember(false)}
-        />
-      ) : null}
-
-      {renameVisible && value ? (
-        <PromptDialog
-          title={t('common.renameKey')}
-          label={t('common.newKeyName')}
-          initialValue={value.key}
-          hint={t('valueViewer.renamingMigratesKeysTtlWell')}
-          confirmText={t('common.rename')}
-          onConfirm={(next) => void handleRename(next)}
-          onCancel={() => setRenameVisible(false)}
-        />
-      ) : null}
-
-      {ttlVisible && value ? (
-        <PromptDialog
-          title={t('common.setTtl')}
-          label={t('keyBrowser.timeLive')}
-          inputType="number"
-          initialValue={value.ttl > 0 ? String(value.ttl) : ''}
-          placeholder={t('keyBrowser.blank0MeansNoExpiration')}
-          hint={t('keyBrowser.enter0LeaveBlankRemove')}
-          confirmText={t('keyBrowser.apply')}
-          presets={TTL_PRESETS.map((preset) => ({ ...preset, label: t(preset.label) }))}
-          onConfirm={(next) => void handleTtl(next)}
-          onCancel={() => setTtlVisible(false)}
-        />
-      ) : null}
-      {trimVisible && value ? (
-        <PromptDialog
-          title={t('stream.trimTitle')}
-          label={t('stream.trimValue')}
-          initialValue=""
-          placeholder="1000 / 1700000000000-0"
-          hint={t('stream.trimHint')}
-          confirmText={t('stream.trim')}
-          onConfirm={(next) => void handleTrim(next)}
-          onCancel={() => setTrimVisible(false)}
+      {/* ---------------- 弹窗（拆至 valueViewer/ValueDialogs，状态仍由本组件持有） ---------------- */}
+      {value ? (
+        <ValueDialogs
+          value={value}
+          editVisible={editVisible}
+          onCloseEdit={() => setEditVisible(false)}
+          renameVisible={renameVisible}
+          ttlVisible={ttlVisible}
+          trimVisible={trimVisible}
+          onRename={(next) => void handleRename(next)}
+          onTtl={(next) => void handleTtl(next)}
+          onTrim={(next) => void handleTrim(next)}
+          onCancelRename={() => setRenameVisible(false)}
+          onCancelTtl={() => setTtlVisible(false)}
+          onCancelTrim={() => setTrimVisible(false)}
+          hashEditor={hashEditor}
+          listEditor={listEditor}
+          setEditor={setEditor}
+          zsetEditor={zsetEditor}
+          streamEditor={streamEditor}
+          listTotal={listStats.total}
         />
       ) : null}
         </>
       ) : null}
     </>
-  )
-}
-/** 骨架屏：读取中保留尺寸，避免内容出现时的跳变 */
-function SkeletonValue() {
-  return (
-    <>
-      {/* 骨架沿用头部外壳，数据到达时不跳高度 */}
-      <header className="viewer-head">
-        <div className="key-line">
-          <span className="sk sk-badge" />
-          <span className="sk sk-title" />
-        </div>
-        <div className="meta-line">
-          <span className="sk sk-meta" />
-        </div>
-      </header>
-
-      <div className="value-toolbar">
-        <span className="sk sk-tool" />
-        <span className="sk sk-tool" />
-        <span className="sk sk-tool" />
-      </div>
-
-      <div className="value-body">
-        <div className="sk-table">
-          {[1, 2, 3, 4, 5, 6].map((n) => (
-            <span key={n} className="sk sk-row" style={{ animationDelay: `${n * 70}ms` }} />
-          ))}
-        </div>
-      </div>
-    </>
-  )
-}
-
-/** 自动刷新开关（hash / list / set / zset / stream 共用） */
-function AutoRefreshSwitch({ value, onChange }: { value: boolean; onChange: (value: boolean) => void }) {
-  const { t } = useI18n()
-  return (
-    <label className={`switch${value ? ' on' : ''}`} {...tipProps(t('valueViewer.updatesListAutomaticallyEvery5'))}>
-      <input type="checkbox" checked={value} onChange={(event) => onChange(event.target.checked)} />
-      <span className="track">
-        <span className="thumb" />
-      </span>
-      <span className="switch-label">{t('valueViewer.autoRefresh')}</span>
-      {value ? <span className="switch-dot" /> : null}
-    </label>
-  )
-}
-
-/** 行右键菜单的遮罩层：点击空白或再次右键均关闭 */
-function RowMenuMask({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
-  return createPortal(
-    <div
-      className="row-menu-mask s-value-viewer"
-      onClick={onClose}
-      onContextMenu={(event) => {
-        event.preventDefault()
-        onClose()
-      }}
-    >
-      {children}
-    </div>,
-    document.body,
   )
 }

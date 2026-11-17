@@ -8,6 +8,7 @@ import { useSettingsHolder } from '@/hooks/useSettingsHolder'
 import { useRedis } from '@/store/useRedis'
 import { useObservable } from '@/store/subscription'
 import { globalHolder } from '@/store/global'
+import { useSessionStore } from '@/hooks/useSessionStore'
 import { useI18n } from '@/i18n'
 import { buildCliSuggestions, type CliSuggestion } from '@/utils/cliSuggest'
 import { copyText } from '@/utils/clipboard'
@@ -31,6 +32,8 @@ export function CliConsole() {
   const { t } = useI18n()
   useObservable(globalHolder)
   useObservable(useSettingsHolder())
+  /* 组件挂在标签树外，CLI 日志/运行态写的是当前会话 store，必须一并订阅 */
+  useObservable(useSessionStore())
 
   const [input, setInput] = useState('')
   const [suggestIndex, setSuggestIndex] = useState(0)

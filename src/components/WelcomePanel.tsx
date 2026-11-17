@@ -14,6 +14,7 @@ import { BgAnimateButton } from '@/components/ui/bg-animate-button'
 import { UpdatePanel } from '@/components/UpdatePanel'
 import { useRedis } from '@/store/useRedis'
 import { APP_VERSION } from '@/services/errorReport'
+import { openRepoPage } from '@/utils/repo'
 import { useI18n } from '@/i18n'
 import type { MsgKey } from '@shared/i18n'
 import type { EnvInfo } from '@shared/types'
@@ -229,6 +230,15 @@ export function WelcomePanel({ onNewConnection, onImportUri, onOpenLog }: Welcom
             >
               <DialogIcon name="refresh" size={14} />
               {t('updatePanel.checkForUpdates')}
+            </button>
+            {/* 仓库入口：与其余次级操作同排同款，点击打开 GitHub 仓库 */}
+            <button
+              className="cta-sec-btn"
+              onClick={openRepoPage}
+              {...tipProps(t('welcomePanel.openGithubRepository'))}
+            >
+              <DialogIcon name="github" size={14} />
+              {t('welcomePanel.sourceRepository')}
             </button>
             {updateOpen ? <UpdatePanel onClose={() => setUpdateOpen(false)} /> : null}
           </div>

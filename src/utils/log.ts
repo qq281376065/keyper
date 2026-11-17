@@ -35,7 +35,7 @@ const ACTION_KEYS: Record<string, MsgKey> = {
   删除成员: 'common.deleteMember',
   新增成员: 'common.addMember',
   追加消息: 'streamAddEntryDialog.appendMessage',
-  命令: 'slowlogCard.command',
+  命令: 'common.command',
   清空数据: 'ipc.clearData',
 }
 

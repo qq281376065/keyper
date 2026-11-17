@@ -23,13 +23,12 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "baseUrl": ".",
     "paths": {
       "@/*": [
-        "src/*"
+        "./src/*"
       ],
       "@shared/*": [
-        "shared/*"
+        "./shared/*"
       ]
     }
   },
@@ -43,6 +42,7 @@
   ],
   "exclude": [
     "tests/unit/credentialCrypto.spec.ts",
+    "tests/unit/connectionManagerPerf.spec.ts",
     "tests/unit/memcachedClient.spec.ts",
     "tests/unit/memcachedManager.spec.ts",
     "tests/unit/engineIsolation.spec.ts",

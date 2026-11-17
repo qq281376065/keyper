@@ -38,6 +38,8 @@ import type {
   ScanResult,
   SearchAllOptions,
   SearchAllResult,
+  BulkOpResult,
+  BulkProgress,
   SearchHistoryEntry,
   SearchProgress,
   ServerInfo,
@@ -259,6 +261,15 @@ const api: RedisDesktopApi = {
     lookupKey: (id, key, db) => invoke<RedisKeyItem | null>(IPC.redisLookupKey, id, key, db),
     searchAll: (id, options) => invoke<SearchAllResult>(IPC.redisSearchAll, id, options),
     searchCancel: (id) => invoke<OperationResult>(IPC.redisSearchCancel, id),
+    bulk: (id, options) => invoke<BulkOpResult>(IPC.redisBulk, id, options),
+    bulkCancel: (id) => invoke<OperationResult>(IPC.redisBulkCancel, id),
+    onBulkProgress: (listener) => {
+      const raw = (_event: unknown, progress: BulkProgress): void => listener(progress)
+      ipcRenderer.on(IPC.redisBulkProgress, raw)
+      return () => {
+        ipcRenderer.removeListener(IPC.redisBulkProgress, raw)
+      }
+    },
     refreshKeys: (id, options?: RefreshKeysOptions) =>
       invoke<RefreshKeysResult>(IPC.redisRefreshKeys, id, options),
     value: (id, key, options?: ValueReadOptions) => invoke<KeyValue>(IPC.redisValue, id, key, options),

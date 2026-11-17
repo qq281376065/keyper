@@ -21,13 +21,12 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "baseUrl": ".",
     "paths": {
       "@shared/*": [
-        "shared/*"
+        "./shared/*"
       ],
       "@electron/*": [
-        "electron/*"
+        "./electron/*"
       ]
     }
   },
@@ -38,6 +37,7 @@
     "vitest.config.ts",
     "scripts/**/*.ts",
     "tests/unit/credentialCrypto.spec.ts",
+    "tests/unit/connectionManagerPerf.spec.ts",
     "tests/unit/memcachedClient.spec.ts",
     "tests/unit/memcachedManager.spec.ts",
     "tests/unit/engineIsolation.spec.ts",

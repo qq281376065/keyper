@@ -7,6 +7,7 @@ import type { MsgKey } from '@shared/i18n'
 import { useRedis } from '@/store/useRedis'
 import { useObservable } from '@/store/subscription'
 import { useSessionStore } from '@/hooks/useSessionStore'
+import { useCoalescedStream } from '@/hooks/useCoalescedStream'
 import type { KeyspaceEvent } from '@shared/types'
 
 /** 事件流保留上限：键空间通知是高频流，无上限会把渲染层拖死 */
@@ -181,7 +182,9 @@ export function KeyspaceCard() {
   }
 
   /* ---------------------------------------------------------------- 事件流 */
-  const [events, setEvents] = useState<KeyspaceEvent[]>([])
+  /* 合帧缓冲：键空间通知可能每秒上百条，每帧最多一次 setState */
+  const { items: events, push: pushEvent, clear: clearEvents } =
+    useCoalescedStream<KeyspaceEvent>(MAX_EVENTS)
   const [filter, setFilter] = useState('')
   const listRef = useRef<HTMLDivElement | null>(null)
 
@@ -192,12 +195,10 @@ export function KeyspaceCard() {
   useEffect(() => {
     const off = api.redis.onKeyspaceEvent((event) => {
       if (event.connectionId !== activeIdRef.current) return
-      setEvents((prev) => {
-        const next = [...prev, event]
-        return next.length > MAX_EVENTS ? next.slice(next.length - MAX_EVENTS) : next
-      })
+      pushEvent(event)
     })
     return () => off?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   /* 新事件自动滚到底部：事件流是「追最新」的阅读模式 */
@@ -215,7 +216,7 @@ export function KeyspaceCard() {
     const prevId = prevIdRef.current
     if (prevId && prevId !== activeId) void api.redis.keyspaceStop(prevId).catch(() => {})
     prevIdRef.current = activeId
-    setEvents([])
+    clearEvents()
     setFilter('')
     setListening(false)
     setListenError(null)
@@ -376,7 +377,7 @@ export function KeyspaceCard() {
           <button
             className="ks-clear"
             {...tipProps(t('keyspaceCard.clearEventsTip'))}
-            onClick={() => setEvents([])}
+            onClick={clearEvents}
           >
             <DialogIcon name="clear" size={11} className="ti" />
             {t('common.clear')}

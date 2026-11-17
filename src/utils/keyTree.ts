@@ -70,13 +70,20 @@ function countLeaves(node: KeyTreeNode): number {
   return total
 }
 
+/**
+ * 键名自然序比较器（模块级单例）。
+ * localeCompare 带 options 每次调用都要解析/构造 collator，
+ * 数千键的递归排序里这是热点；Intl.Collator 实例复用快约一个数量级。
+ */
+const naturalCollator = new Intl.Collator('zh-CN', { numeric: true })
+
 function sortTree(node: KeyTreeNode): void {
   node.children.sort((a, b) => {
     // 含子级的目录节点排在前，同组内按自然序（支持 a2 < a10）
     const groupA = a.children.length > 0 ? 0 : 1
     const groupB = b.children.length > 0 ? 0 : 1
     if (groupA !== groupB) return groupA - groupB
-    return a.label.localeCompare(b.label, 'zh-CN', { numeric: true })
+    return naturalCollator.compare(a.label, b.label)
   })
   for (const child of node.children) sortTree(child)
 }

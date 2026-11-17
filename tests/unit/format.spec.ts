@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { formatBytes, formatTtl, oneLine, prettyJson, remainingTtl, ttlAtOf, ttlTone } from '@/utils/format'
+import {
+  formatBytes,
+  formatTtl,
+  MAX_TIMER_DELAY,
+  oneLine,
+  prettyJson,
+  remainingTtl,
+  ttlAtOf,
+  ttlRecheckDelay,
+  ttlTone,
+} from '@/utils/format'
 
 describe('formatTtl', () => {
   it('特殊语义值', () => {
@@ -39,6 +49,21 @@ describe('ttlAtOf', () => {
   it('读取附加时间戳，缺失返回 undefined', () => {
     expect(ttlAtOf({ ttlAt: 12345 })).toBe(12345)
     expect(ttlAtOf({})).toBeUndefined()
+  })
+})
+
+describe('ttlRecheckDelay', () => {
+  it('普通 TTL 留 300ms 余量', () => {
+    expect(ttlRecheckDelay(60)).toBe(60_300)
+    expect(ttlRecheckDelay(3_600)).toBe(3_600_300)
+  })
+
+  it('超过 32 位上限的长 TTL 钳到上限，不能溢出成立即触发', () => {
+    const days30 = 30 * 24 * 3600
+    const days90 = 90 * 24 * 3600
+    expect(ttlRecheckDelay(days30)).toBe(MAX_TIMER_DELAY)
+    expect(ttlRecheckDelay(days90)).toBe(MAX_TIMER_DELAY)
+    expect(MAX_TIMER_DELAY).toBe(2_147_483_647)
   })
 })
 

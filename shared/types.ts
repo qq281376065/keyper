@@ -416,15 +416,27 @@ export interface KeyValue {
   value: string | string[] | Record<string, string> | null
   /**
    * 下一页游标；null / undefined 表示已全部加载。
-   * hash/set 为 SCAN 游标，list/zset 为下一个偏移量，stream 为最后一条条目 ID。
+   * hash/set 为 SCAN 游标，list/zset 为下一个偏移量，stream 为最后一条条目 ID，
+   * string（超大值分段加载时）为下一段的起始字节偏移。
    */
   nextCursor?: string | null
+  /**
+   * string 超大值分段加载标记：true 表示 value 只是前 N 字节，
+   * length 为服务端真实字节数（STRLEN），nextCursor 为字节偏移。
+   */
+  truncated?: boolean
 }
 
 /** 首屏取值选项（大 key 只读一页，避免整键回传卡死界面） */
 export interface ValueReadOptions {
   /** 单页元素上限，缺省 500，主进程钳制 1..20000 */
   limit?: number
+  /**
+   * string 整值读取（复制全部 / 导出全部）：允许读到硬上限
+   * VALUE_STRING_WHOLE_MAX_BYTES，而不是首屏的 VALUE_STRING_MAX_BYTES。
+   * 集合类型忽略此标记（仍按 limit 分页）。
+   */
+  whole?: boolean
 }
 
 /** 分页读取后续元素 */
@@ -446,6 +458,40 @@ export interface ValuePageResult {
   value: string | string[] | Record<string, string> | null
   /** 下一页游标；null 表示已到末尾 */
   nextCursor: string | null
+}
+
+/** ---------------------------------------------------------------- 批量操作（主进程执行） */
+
+/** 批量操作类型：删除键 / 统一设置 TTL / 按键名映射重命名 */
+export type BulkActionKind = 'delete' | 'ttl' | 'rename'
+
+/**
+ * 批量操作入参。循环整体下沉主进程：渲染层一次 IPC 发起，
+ * 不再逐键 invoke（千键任务原为 1000×IPC+RTT+日志写盘）。
+ */
+export interface BulkOpOptions {
+  action: BulkActionKind
+  /** 待处理键名（顺序即处理顺序） */
+  keys: string[]
+  /** ttl：目标秒数，<=0 表示移除过期（PERSIST） */
+  ttlSeconds?: number
+  /** rename：旧键名 → 新键名映射；不在映射中或映射到自身的键跳过并记成功 */
+  renameMap?: Record<string, string>
+}
+
+/** 批量操作逐键结果：成功记键名，失败记原因（与旧逐键路径同语义） */
+export interface BulkOpResult {
+  succeeded: string[]
+  failed: Array<{ key: string; reason: string }>
+  /** 用户取消：已处理部分保留在 succeeded/failed，未处理键不再执行 */
+  cancelled: boolean
+}
+
+/** 批量操作进度推送（主 → 渲染，节流合帧） */
+export interface BulkProgress {
+  connectionId: string
+  done: number
+  total: number
 }
 
 /** 键列表增量刷新入参 */
@@ -925,11 +971,6 @@ export interface LuaScript {
   script: string
   createdAt: number
   updatedAt: number
-}
-
-export interface LuaScriptsFile {
-  version: 1
-  scripts: LuaScript[]
 }
 
 /** 保存入参：id 缺省表示新建 */

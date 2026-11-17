@@ -20,9 +20,73 @@ registering it; no existing code path has to change.
 > shared type contracts and packaging configuration follow that structure; the renderer has been
 > rebuilt around a multi-engine architecture.
 
-Current version: `1.1.0`
+Current version: `1.1.4`
 
-What changed in this release (1.0.11 → 1.1.0):
+What changed in this release (1.1.3 → 1.1.4):
+
+- **Full-db search stats panel: scrollbar no longer bleeds through**: the earlier fix stayed inside the scroll container (full-width patch + top-pin), but the native scrollbar thumb belongs to the scroll layer and always painted over the panel's top-right corner — no z-index / background / negative margin could cover it. The panel is now moved out of the scroll layer: `.key-list` becomes a flex container that no longer scrolls itself; the list content is wrapped in an inner `.key-list-scroll` (overflow-y:auto) that owns the scrollbar, so the thumb paints only on the inner layer's right edge and never overlaps the panel. The panel stays top-pinned and full-width, and remains stable when the detail pane is narrow. Redis key browser only; Memcached untouched.
+
+Previous release (1.1.2 → 1.1.3):
+
+- **TypeScript 7.0.2**: build and type checking now use the native compiler; `tsconfig` `paths`
+  use the new relative form, and type checking for both projects plus the production build pass.
+- **CLI output / input fix**: React Compiler cached the session lookup outside the tab tree, so
+  the CLI always subscribed to the global store. It now subscribes to `activeTabId` explicitly
+  and resolves the session by id, so results appear immediately and the input re-enables after
+  every run.
+- **i18n checker migration**: TypeScript 7 no longer exposes the JS compiler API; the checker now
+  uses `@babel/parser` while keeping the same key, placeholder and source-reference checks.
+- **Full regression**: 21 specs / 211 unit tests, 6 e2e scenarios / 11 assertions, 1653 i18n keys,
+  style conventions, type checking for both projects, production build and CSP validation all pass.
+
+Earlier (1.1.1 → 1.1.2):
+
+- **Metrics hero chart**: the "Monitor" tab of the Redis and Memcached overview is rebuilt
+  from a grid of six mini sparklines into a "hero chart + mini cards" layout — the hero chart
+  shows the memory trend with a mean baseline, per-stage and global peak markers, and quota
+  share, while five mini cards cover ops/sec, clients, hit rate, total keys and evictions.
+  The three-state sampling flow and the clear action are redone, all three languages updated,
+  and the old sparkline grid removed.
+- **Slow-log fingerprint workbench (scheme 11)**: the slow-log tab becomes a fingerprint
+  workbench — a 100-entry window, 6 groups per page, virtualised detail rows that load 50 more
+  at a time, and a density histogram at the bottom; supports grouping by fingerprint / by
+  client, filtering, a stats column, copy, 15 s auto-query and clear.
+- **Redis info details switched to scheme A**: a 188px sticky section nav (name + field-count
+  badge) on the left and section cards on the right; each section header toggles collapse, and
+  clicking the nav expands the target section and scrolls to it smoothly (respecting reduced
+  motion); fields flow in multiple columns.
+- **Key column yields to the value pane**: fixes the case where a narrow window (< ~808px
+  container) kept the key column pinned at 420px and squeezed the value pane down to roughly
+  129px; it now uses `max(260px, min(keyBrowserWidth, calc(100% - 368px)))` so the value pane
+  keeps a stable 360px. Redis key browser only.
+- **Info details narrow mode via container query**: when the details pane narrows (due to
+  split-pane dragging, even with a wide viewport), the section nav moves from a left column to
+  a top row — switched from `@media` to `@container`.
+- **CI style-convention static check + minimal e2e**: adds `style:check` (15 source-level
+  assertions on lift-shadow geometry, the 9 skins' alpha distribution, the pill whitelist, the
+  selected-state outline, and Tailwind layer-external overrides) and `test:e2e` (6 scenarios /
+  11 CDP assertions, no screenshots), wired into CI.
+
+Earlier (1.1.0 → 1.1.1):
+
+- **Electron 45 upgrade**: 33.2.1 → 45.2.2 (Node 20 → 24 / Chromium 130 → 156),
+  `@types/node` bumped to 24, `engines.node` now requires ≥ 22.12.0.
+- **CSP regression fix**: since Electron 45 a `file://` main document also triggers
+  `onHeadersReceived`, so the header CSP combined with the meta CSP blocked the first-paint
+  theme script; production now relies on the meta CSP alone and no longer flashes between
+  light and dark on startup.
+- **csp-hash normalisation**: normalises CRLF → LF before hashing, fixing a mismatch between
+  the Windows build hash and the browser's computation.
+- **Connection import dialog**: restores `defaultPath` and remembers the last directory,
+  matching the pre-Electron-43 experience.
+- **M6 Lua scripts**: scripts are saved by name under `scripts/*.lua` in the app directory,
+  falling back to the config directory when unwritable; adds name-length and illegal-character
+  validation; the old `lua-scripts.json` migrates automatically on first launch.
+- **Engineering and docs**: adds the architecture map, pitfalls cheat-sheet, Cult UI component
+  reference, development conventions (17-point checklist) and an optimisation roadmap; adds two
+  validation scripts — a static Electron-upgrade pre-check and a CSP runtime CDP probe.
+
+Earlier (1.0.11 → 1.1.0):
 
 - **TTL countdown**: the key list and the value pane tick down each key's remaining lifetime
   every second; when it reaches zero the client re-checks with the server — an expired key
@@ -382,7 +446,7 @@ to zh-CN and zh-TW → call `t('ns.key', { … })` in the source → run `npm ru
 
 | Layer | Choice | Notes |
 | --- | --- | --- |
-| Main process | Electron 33 + TypeScript 5.7 | Window management, IPC, connection pools, engine registry |
+| Main process | Electron 45 + TypeScript 7.0 | Window management, IPC, connection pools, engine registry |
 | Renderer | **React 19 + Vite 6** | UI and interaction; state layer under `src/store/` |
 | Compile-time optimization | **React Compiler 1.0** | Build-time automatic memoization, `target: 19` uses React's built-in runtime |
 | Transport | contextBridge + ipcRenderer.invoke | Context isolation; the renderer never touches Node |
@@ -462,17 +526,19 @@ npm run preview      # Preview the built output (http://127.0.0.1:4173)
 npm run preview:title # Preview the animated title page in a browser
 npm run preview:tooltip # Preview the connection hover panel in a browser
 npm run typecheck    # Type checking (main process + renderer)
-npm run test         # vitest unit tests (tests/unit, 21 specs / 208 cases)
+npm run test         # vitest unit tests (tests/unit, 21 specs / 211 cases)
 npm run i18n:check   # Validate the three dictionaries: key sets, placeholders, source references
 npm run build        # Type check + build into dist/ and dist-electron/
 npm run csp:check    # Verify the CSP meta in the build output matches its inline-script hashes
+npm run style:check  # Source-level guard for lift shadows / pill whitelist / layer order (CI, no browser)
+npm run test:e2e     # 6 CDP/DOM smoke checks: boot / connections / six value types / tab isolation / delete confirm / theme (no screenshots)
 npm run dist         # Package for the current platform
 npm run dist:win     # Build the Windows installer
 npm run dist:win:alt # Build Windows into release/<version>-final (keeps the previous output)
 npm run dist:win:publish # Build and publish to GitHub Releases (needs GH_TOKEN; version must match the tag)
 ```
 
-Build output lands in `release/<version>/` as `Keyper-1.1.0-win-x64.exe`; the same folder also
+Build output lands in `release/<version>/` as `Keyper-1.1.3-win-x64.exe`; the same folder also
 contains `latest.yml`, `*.blockmap` (differential-update block index) and, inside the install
 directory, `app-update.yml` (the update feed configuration).
 
@@ -526,7 +592,7 @@ KEYPER_DEBUG_LOG=/tmp/rd.log ./Keyper.exe
 
 | Workflow | Trigger | Content |
 | --- | --- | --- |
-| `.github/workflows/ci.yml` | push (any branch) / PR to master | `npm ci` → `i18n:check` → `typecheck` → `vitest` → `vite build` |
+| `.github/workflows/ci.yml` | push (any branch) / PR to the default branch | `npm ci` → `i18n:check` → `typecheck` → `vitest` → `vite build` → `csp-hash` / `csp:check` → `style:check` → `test:e2e` (6 CDP smoke checks, no screenshots) |
 | `.github/workflows/release.yml` | `v*` tag / manual run | Verifies the tag matches `package.json` → exports `release-notes.md` from the tag annotation (one copy at the root, one in `build/`; a manual run reads the same annotation for `v<version>`) → keeps the tag's Release with the most assets (clearing the draft flag first) and deletes the rest, creating one only when none exists → builds NSIS on Windows while electron-builder appends the installer, blockmap and `latest.yml` → probes the three download URLs with retries and re-checks the Release count; a tag publishes, a manual run only builds unless `publish` is ticked |
 
 ### In-app updates
@@ -864,7 +930,9 @@ semantic colour tokens that follow all nine skins. Supports SSH tunnels and mult
 - **Stream administration**: consumer-group and consumer detail, PEL inspection with `XACK` /
   `XCLAIM`, single-entry `XDEL` and `XTRIM`, with unsupported controls hidden on older versions
 - **Lua runner**: a global script library (named saves, single / bulk delete), KEYS / ARGS, an
-  `EVAL_RO` read-only switch and `SCRIPT KILL`
+  `EVAL_RO` read-only switch and `SCRIPT KILL`; each script is stored as `scripts/*.lua` next to
+  the executable (falling back to the config directory when that location is read-only), and the
+  legacy `lua-scripts.json` is migrated automatically on first launch
 
 **Core path**
 

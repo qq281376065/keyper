@@ -3652,10 +3652,8 @@
 /* 全库搜索提示条：吸附在 key-list 滚动区顶部 —— 不占外层布局流，
  * v-if 插拔不会推挤列表与 footer（点查询抖动的根因） */
 .remote-bar{
-  position: sticky;
-  top: 0;
-  z-index: 6;
-  /* --accent-soft 是半透明：sticky 遮住滚过的列表内容时必须叠不透明底 */
+  /* 不再是 sticky：现在位于内层滚动容器 .key-list-scroll 之上、属于外层布局流，
+   * 天然固定在顶部，列表滚动时不会随之移动；滚动条也只画在内层，不会压到本面板 */
   background: linear-gradient(var(--accent-soft), var(--accent-soft)), var(--bg-elevated);
   /*
    * ⚠️ 高度必须恒定：min-height 取「停止」按钮态的满高。
@@ -3668,6 +3666,8 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  /* 旧版为兼容 sticky 穿过滚动条槽用了 margin-right:-10px + padding-right:20px；
+   * 现面板已不在滚动容器内，恢复常规 10px 内边距，右侧按钮位置与原先一致 */
   padding: 5px 10px;
   border-bottom: 1px solid var(--border);
   font-size: var(--fs-sm);
@@ -3758,6 +3758,16 @@
 }
 /* ---------------------------------------------------------- 列表 */
 .s-key-browser.key-list, .s-key-browser .key-list{
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  /* 自身不再滚动：滚动交给内层 .key-list-scroll，
+   * 原生滚动条只画在内层右侧，不会压到上方的 .remote-bar */
+  overflow: hidden;
+  min-height: 0;
+}
+/* 内层滚动容器：承接原 .key-list 的滚动行为与 padding */
+.s-key-browser.key-list-scroll, .s-key-browser .key-list-scroll{
   flex: 1;
   overflow-y: auto;
   padding: 4px 0;
@@ -5424,21 +5434,26 @@
 
 
 /* MetricsCard.tsx —— 作用域 .s-metrics-card */
-/* 与概览页其它卡片（慢日志 / 内存分析 / Pub/Sub）同一视觉语言 */
-.s-metrics-card.mt-card, .s-metrics-card .mt-card{
+/* 内存主图 + 五张指标迷你卡；颜色、阴影、字体全部走主题令牌 */
+.s-metrics-card.mt-card{
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--bg-panel);
-  padding: 12px 8px 8px;
+  padding: 12px 10px 10px;
+  /* 小图列数与刻度密度按「卡片自身宽度」判定，见文件末尾的 @container */
+  container-type: inline-size;
+  container-name: mtcard;
 }
-.s-metrics-card.mt-head, .s-metrics-card .mt-head{
+.s-metrics-card .mt-head{
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  margin-bottom: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
 }
-.s-metrics-card.mt-title, .s-metrics-card .mt-title{
+.s-metrics-card .mt-title{
   display: flex;
   align-items: center;
   gap: 6px;
@@ -5448,185 +5463,722 @@
   color: var(--text-secondary);
   letter-spacing: 0.3px;
 }
-.s-metrics-card.mt-live, .s-metrics-card .mt-live{
+.s-metrics-card .mt-live{
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: var(--fs-xs);
-  color: var(--text-muted);
+  height: 22px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  font-size: var(--fs-3xs);
+  color: var(--green);
   white-space: nowrap;
+}
+.s-metrics-card .mt-live.off{
+  color: var(--text-muted);
 }
 .s-metrics-card .mt-dot{
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--green);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 18%, transparent);
-  animation: mt-pulse 1.8s ease-in-out infinite;
+  background: currentColor;
+  flex: 0 0 auto;
 }
-.s-metrics-card .mt-live.off .mt-dot{
-  background: var(--text-muted);
-  box-shadow: none;
-  animation: none;
+.s-metrics-card .mt-live:not(.off) .mt-dot{
+  animation: mt-live-pulse 1.6s ease-in-out infinite;
 }
-@keyframes mt-pulse{
+@keyframes mt-live-pulse{
   50% { opacity: 0.35; }
 }
-/* 区间切换：凹槽内一组胶囊，与全局分段控件同一套视觉 */
-.s-metrics-card.mt-ranges, .s-metrics-card .mt-ranges{
+.s-metrics-card .mt-controls{
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+/* 区间与操作按钮统一 28px 高，图标与文字都在 inline-flex 里居中 */
+.s-metrics-card .mt-seg{
   display: inline-flex;
   align-items: center;
   gap: 2px;
+  height: 28px;
   padding: 2px;
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--bg-elevated);
+  box-sizing: border-box;
 }
-.s-metrics-card.mt-range-btn, .s-metrics-card .mt-range-btn{
-  padding: 1px 9px;
-  border: none;
-  background: none;
+.s-metrics-card .mt-seg-btn{
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
   color: var(--text-muted);
+  font-family: var(--font-ui);
   font-size: var(--fs-xs);
+  line-height: 1;
+  white-space: nowrap;
   cursor: pointer;
+  transition: background 0.15s, color 0.15s;
 }
-.s-metrics-card .mt-range-btn:hover{
+.s-metrics-card .mt-seg-btn:hover{
   color: var(--text-primary);
 }
-.s-metrics-card.mt-range-btn.active, .s-metrics-card .mt-range-btn.active{
-  background: var(--accent-soft);
-  color: color-mix(in srgb, var(--accent) 70%, var(--text-primary));
+.s-metrics-card .mt-seg-btn.active,
+.s-metrics-card .mt-seg-btn.active:hover{
+  background: var(--accent);
+  color: var(--on-accent);
   font-weight: 600;
 }
-.s-metrics-card.mt-toggle-btn, .s-metrics-card .mt-toggle-btn,
-.s-metrics-card.mt-clear-btn, .s-metrics-card .mt-clear-btn{
+.s-metrics-card .mt-btn{
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.s-metrics-card .mt-btn.primary{
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 52%, transparent);
+  color: var(--accent);
+  font-weight: 600;
+}
+.s-metrics-card .mt-btn:hover:not(:disabled){
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.s-metrics-card .mt-btn.primary:hover:not(:disabled){
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 68%, transparent);
+  color: var(--accent);
+}
+.s-metrics-card .mt-btn:disabled{
+  opacity: 0.42;
+  cursor: default;
+}
+.s-metrics-card .mt-btn .ti{
+  color: currentColor;
+}
+.s-metrics-card .mt-seg-btn:focus-visible,
+.s-metrics-card .mt-btn:focus-visible,
+.s-metrics-card .mt-chart-wrap:focus-visible{
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.s-metrics-card .mt-error{
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: var(--fs-sm);
+}
+
+/* ---------------------------------------------------------------- 内存主图 */
+.s-metrics-card .mt-hero{
+  background: linear-gradient(180deg, var(--bg-elevated), var(--bg-panel) 62%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px 10px;
+  box-shadow: var(--lift-shadow);
+}
+.s-metrics-card .mt-hero-head{
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.s-metrics-card .mt-hero-id{
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.s-metrics-card .mt-square-dot{
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 55%, transparent);
+  flex: 0 0 auto;
+}
+.s-metrics-card .mt-hero-id code{
+  font-family: var(--font-mono);
+  font-size: var(--fs-3xs);
+  line-height: 1.4;
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 1px 5px;
+}
+.s-metrics-card .mt-hero-meta{
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
+  flex-wrap: wrap;
+}
+.s-metrics-card .mt-chip{
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 10px;
+  padding: 2px 8px;
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--bg-elevated);
   color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.s-metrics-card .mt-chip i{
+  margin-right: 2px;
+  font-family: var(--font-ui);
+  font-size: var(--fs-3xs);
+  font-style: normal;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+}
+.s-metrics-card .mt-chip-quota.warn{
+  color: var(--amber);
+  border-color: color-mix(in srgb, var(--amber) 35%, transparent);
+}
+.s-metrics-card .mt-chip-quota.bad{
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+}
+.s-metrics-card .mt-hero-read{
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+  margin-left: auto;
+}
+.s-metrics-card .mt-hero-value{
+  font-family: var(--font-mono);
+  font-size: calc(var(--fs-base) + 17px);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.s-metrics-card .mt-hero-unit{
+  font-family: var(--font-mono);
   font-size: var(--fs-xs);
-  flex: 0 0 auto;
+  color: var(--text-secondary);
 }
-.s-metrics-card .mt-toggle-btn:hover:not(:disabled),
-.s-metrics-card .mt-clear-btn:hover:not(:disabled){
-  background: var(--bg-hover);
-  color: var(--text-primary);
+.s-metrics-card .mt-chart-wrap{
+  position: relative;
+  margin-top: 6px;
+  border-radius: var(--radius-sm);
+  cursor: crosshair;
 }
-.s-metrics-card .mt-toggle-btn:disabled,
-.s-metrics-card .mt-clear-btn:disabled{
+.s-metrics-card .mt-chart-svg{
+  display: block;
+  width: 100%;
+  height: 208px;
+  overflow: visible;
+}
+.s-metrics-card .mt-grid-line{
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.s-metrics-card .mt-axis-text{
+  fill: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  font-variant-numeric: tabular-nums;
+}
+.s-metrics-card .mt-baseline-line{
+  stroke: var(--text-secondary);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
   opacity: 0.5;
-  cursor: default;
 }
-.s-metrics-card.mt-error, .s-metrics-card .mt-error{
+.s-metrics-card .mt-hero-line{
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.s-metrics-card .mt-peak-halo{
+  fill: var(--accent);
+  opacity: 0.14;
+}
+.s-metrics-card .mt-peak-halo.stage{
+  opacity: 0.1;
+}
+.s-metrics-card .mt-peak-dot{
+  fill: var(--accent);
+  stroke: var(--bg-elevated);
+  stroke-width: 2;
+}
+.s-metrics-card .mt-peak-dot.stage{
+  stroke-width: 1.6;
+  opacity: 0.92;
+}
+.s-metrics-card .mt-hover-g{
+  pointer-events: none;
+}
+.s-metrics-card .mt-hover-line{
+  stroke: var(--text-secondary);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  opacity: 0.65;
+}
+.s-metrics-card .mt-hover-line-h{
+  stroke-dasharray: 2 4;
+  opacity: 0.3;
+}
+.s-metrics-card .mt-hover-dot{
+  fill: var(--accent);
+  stroke: var(--bg-elevated);
+  stroke-width: 2;
+}
+.s-metrics-card .mt-end-dot{
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--bg-elevated);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 2;
+}
+.s-metrics-card .mt-end-dot::after{
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  border: 1px solid var(--accent);
+  animation: mt-end-ping 2.2s ease-out infinite;
+}
+.s-metrics-card .mt-end-dot.off::after{
+  animation: none;
+  opacity: 0;
+}
+@keyframes mt-end-ping{
+  0% { transform: scale(0.7); opacity: 0.55; }
+  70%, 100% { transform: scale(2.4); opacity: 0; }
+}
+.s-metrics-card .mt-peak-layer{
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+.s-metrics-card .mt-peak-chip{
+  position: absolute;
+  padding: 1px 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: var(--lift-shadow);
+  transition: opacity 0.1s;
+}
+.s-metrics-card .mt-peak-chip b{
+  color: var(--accent);
+  font-weight: 700;
+}
+.s-metrics-card .mt-peak-chip.stage{
+  padding: 0 5px;
+  border-color: var(--border);
+  background: color-mix(in srgb, var(--bg-panel) 88%, transparent);
+  color: var(--text-muted);
+  font-size: var(--fs-3xs);
+  font-weight: 500;
+}
+.s-metrics-card .mt-peak-chip.stage i{
+  margin-right: 2px;
+  font-size: calc(var(--fs-3xs) - 1px);
+  font-style: normal;
+  color: var(--text-muted);
+}
+.s-metrics-card .mt-peak-chip.stage b{
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+.s-metrics-card .mt-chart-tip{
+  position: absolute;
+  z-index: 6;
+  min-width: 98px;
+  padding: 6px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--bg-panel) 92%, transparent);
+  box-shadow: var(--lift-shadow);
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+.s-metrics-card .mt-tip-time{
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--fs-3xs);
+  color: var(--text-muted);
+}
+.s-metrics-card .mt-tip-value{
+  display: block;
+  margin-top: 2px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  font-weight: 650;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.s-metrics-card .mt-tip-value em{
+  margin-left: 4px;
+  font-size: var(--fs-3xs);
+  font-style: normal;
+  color: var(--text-muted);
+}
+.s-metrics-card .mt-hero-foot{
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  padding-top: 9px;
+  border-top: 1px solid var(--border);
+}
+.s-metrics-card .mt-stats{
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: var(--fs-3xs);
+  color: var(--text-muted);
+}
+.s-metrics-card .mt-stats b{
+  margin-left: 3px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-3xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.s-metrics-card .mt-baseline-key{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  font-size: var(--fs-3xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.s-metrics-card .mt-baseline-key i{
+  width: 16px;
+  height: 0;
+  border-top: 1px dashed var(--text-secondary);
+  opacity: 0.65;
+}
+.s-metrics-card .mt-baseline-key b{
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* ---------------------------------------------------------------- 迷你卡 */
+.s-metrics-card .mt-minis{
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+.s-metrics-card .mt-mini{
+  min-width: 0;
+  padding: 10px 11px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  transition: background 0.15s, border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+}
+.s-metrics-card .mt-mini:hover{
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+  box-shadow: var(--lift-shadow);
+}
+.s-metrics-card .mt-mini-head{
   display: flex;
   align-items: center;
   gap: 6px;
-  margin: 0 0 8px;
-  padding: 6px 10px;
-  border-radius: var(--radius-sm);
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-size: var(--fs-sm);
-}
-/* 六宫格：宽窗口三列，中窗口两列，窄窗口单列 */
-.s-metrics-card.mt-grid, .s-metrics-card .mt-grid{
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-@media (max-width: 1080px){
-  .mt-grid{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-@media (max-width: 720px){
-  .mt-grid{ grid-template-columns: minmax(0, 1fr); }
-}
-.s-metrics-card.mt-tile, .s-metrics-card .mt-tile{
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
   min-width: 0;
-  padding: 8px 10px 6px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--bg-elevated);
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
 }
-.s-metrics-card.mt-tile-head, .s-metrics-card .mt-tile-head{
+.s-metrics-card .mt-mini-dot{
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+  flex: 0 0 auto;
+}
+.s-metrics-card .mt-mini-name{
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.s-metrics-card .mt-mini-delta{
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: var(--fs-3xs);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.s-metrics-card .mt-mini-value{
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 3px;
+  min-width: 0;
+  margin: 3px 0 5px;
 }
-.s-metrics-card.mt-tile-title, .s-metrics-card .mt-tile-title{
-  font-size: var(--fs-2xs);
-  color: var(--text-muted);
-  white-space: nowrap;
+.s-metrics-card .mt-mini-value b{
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-/* 当前值走指标色（tile 上的内联 color），是每格的视觉主角 */
-.s-metrics-card.mt-tile-now, .s-metrics-card .mt-tile-now{
-  flex: 0 0 auto;
-  font-size: calc(var(--fs-base) + 2px);
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: calc(var(--fs-base) + 5px);
   font-weight: 600;
-  color: inherit;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
 }
-.s-metrics-card.mt-tile-chart, .s-metrics-card .mt-tile-chart{
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 0;
+.s-metrics-card .mt-mini-value span{
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: var(--fs-3xs);
+  color: var(--text-muted);
 }
-.s-metrics-card.mt-spark, .s-metrics-card .mt-spark{
+.s-metrics-card .mt-mini-spark{
+  position: relative;
+  height: 38px;
+  cursor: crosshair;
+}
+.s-metrics-card .mt-mini-svg{
   display: block;
   width: 100%;
-  height: 100%;
+  height: 38px;
   overflow: visible;
 }
-.s-metrics-card .mt-spark-area{
-  fill: currentColor;
-  opacity: 0.12;
-  stroke: none;
+.s-metrics-card .mt-mini-baseline{
+  stroke: var(--text-secondary);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  opacity: 0.35;
 }
-.s-metrics-card .mt-spark-line{
+.s-metrics-card .mt-mini-line{
   fill: none;
-  stroke: currentColor;
-  stroke-width: 1.6;
-  stroke-linejoin: round;
+  stroke-width: 1.7;
   stroke-linecap: round;
+  stroke-linejoin: round;
 }
-.s-metrics-card.mt-chart-empty, .s-metrics-card .mt-chart-empty{
-  width: 100%;
-  height: 100%;
-  border-bottom: 1px dashed var(--border);
+.s-metrics-card .mt-mini-end{
+  stroke: var(--bg-elevated);
+  stroke-width: 1.6;
 }
-.s-metrics-card.mt-tile-waiting, .s-metrics-card .mt-tile-waiting{
-  font-size: var(--fs-2xs);
+.s-metrics-card .mt-mini-cross{
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 1px dashed var(--text-secondary);
+  opacity: 0.7;
+  pointer-events: none;
+  z-index: 2;
+}
+.s-metrics-card .mt-mini-hcross{
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  height: 0;
+  border-top: 1px dashed var(--text-secondary);
+  opacity: 0.4;
+  pointer-events: none;
+  z-index: 2;
+}
+.s-metrics-card .mt-mini-hdot{
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--bg-elevated);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 3;
+}
+.s-metrics-card .mt-mini-tip{
+  position: absolute;
+  bottom: calc(100% + 2px);
+  transform: translateX(-50%);
+  z-index: 5;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 2px 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-3xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  box-shadow: var(--lift-shadow);
+  pointer-events: none;
+}
+.s-metrics-card .mt-mini-tip b{
+  font-weight: 650;
+}
+.s-metrics-card .mt-mini-tip b em{
+  margin-left: 2px;
+  font-size: calc(var(--fs-3xs) - 1px);
+  font-style: normal;
+  font-weight: 400;
   color: var(--text-muted);
 }
-.s-metrics-card.mt-tile-foot, .s-metrics-card .mt-tile-foot{
+.s-metrics-card .mt-mini-foot{
   display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  font-size: var(--fs-2xs);
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-3xs);
   color: var(--text-muted);
   white-space: nowrap;
 }
-.s-metrics-card .mt-tile-ago{
+.s-metrics-card .mt-mini-foot span{
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.s-metrics-card.mt-hint, .s-metrics-card .mt-hint{
+.s-metrics-card .mt-mini-foot b{
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+/* ---------------------------------------------------------------- 空状态 */
+.s-metrics-card .mt-empty{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 436px;
+  padding: 26px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  text-align: center;
+}
+.s-metrics-card .mt-empty-icon{
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+.s-metrics-card .mt-empty-title{
+  font-size: var(--fs-sm);
+  font-weight: 650;
+  color: var(--text-primary);
+}
+.s-metrics-card .mt-empty-desc{
+  max-width: 360px;
+  margin: 0 0 8px;
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+.s-metrics-card .mt-hint{
   margin: 8px 2px 0;
-  font-size: var(--fs-2xs);
+  font-size: var(--fs-3xs);
+  line-height: 1.6;
   color: var(--text-muted);
 }
 
+/* 五列 → 三列 → 两列 → 单列：跟着卡片宽度走，分栏拖窄时也不会挤爆 */
+@container mtcard (max-width: 880px){
+  .s-metrics-card .mt-minis{
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@container mtcard (max-width: 680px){
+  .s-metrics-card .mt-minis{
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .s-metrics-card .mt-controls{
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-end;
+    padding-top: 2px;
+  }
+}
+@container mtcard (max-width: 520px){
+  .s-metrics-card .mt-hero-value{
+    font-size: calc(var(--fs-base) + 13px);
+  }
+  .s-metrics-card .mt-baseline-key{
+    margin-left: 0;
+  }
+  .s-metrics-card .mt-empty{
+    min-height: 340px;
+  }
+}
+@container mtcard (max-width: 420px){
+  .s-metrics-card .mt-minis{
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (prefers-reduced-motion: reduce){
+  .s-metrics-card .mt-live .mt-dot,
+  .s-metrics-card .mt-end-dot::after{
+    animation: none;
+  }
+  .s-metrics-card .mt-mini,
+  .s-metrics-card .mt-btn,
+  .s-metrics-card .mt-seg-btn{
+    transition: none;
+  }
+}
 
 /* KeyspaceCard.tsx —— 作用域 .s-keyspace-card */
 .s-keyspace-card.ks-card, .s-keyspace-card .ks-card{
@@ -6257,6 +6809,8 @@
   border-radius: var(--radius-md);
   background: var(--bg-panel);
   padding: 12px 8px 8px;
+  /* 信息详情的两栏/单栏切换按「卡片自身宽度」判定，见下方 @container */
+  container-type: inline-size;
 }
 .s-server-overview.ov-detail-head, .s-server-overview .ov-detail-head{
   display: flex;
@@ -6302,34 +6856,112 @@
   color: var(--text-muted);
 }
 /*
- * 段落用 CSS columns 排布：
- * INFO 各段字段数差异很大（Server 十几项、Cluster 只有一项），
- * 用 grid 固定列会留下大片空白；columns 让内容自然流动填满。
- * 24rem 的列宽在常见窗口下约能放 2–3 栏。
+ * 方案 A（仅 Redis 信息详情）：左侧段落导航（sticky）+ 右侧段落卡片列表。
+ * 导航是定位器而非筛选器 —— 点击展开目标段并滚动过去，右侧始终渲染全部段。
+ * Memcached 的 stats 面板保持原扁平网格，不套这套结构。
  */
-.ov-sections{
-  columns: 24rem;
-  column-gap: 20px;
+.s-server-overview .ov-info{
+  display: grid;
+  /* minmax(0, 1fr)：长值不会把右列撑破，溢出交给字段行的 ellipsis */
+  grid-template-columns: 188px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+  margin-top: 4px;
 }
+.s-server-overview .ov-info-nav{
+  position: sticky;
+  top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.s-server-overview .ov-info-nav .ov-info-tab{
+  appearance: none;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: var(--fs-sm);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  transition: background 0.15s, color 0.15s;
+}
+.s-server-overview .ov-info-nav .ov-info-tab:hover{
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.s-server-overview .ov-info-nav .ov-info-tab.active{
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+.s-server-overview .ov-info-count{
+  flex: 0 0 auto;
+  font-size: var(--fs-2xs);
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  border-radius: 8px;
+  padding: 0 6px;
+}
+.s-server-overview .ov-info-nav .ov-info-tab.active .ov-info-count{
+  color: var(--accent);
+}
+.s-server-overview .ov-info-panels{
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+/*
+ * 详情区变窄时：导航从左侧竖排改为上方横排（与方案 A 预览一致）。
+ *
+ * 这里必须用容器查询而不是 @media：
+ * 值区宽度由工作区分栏的拖拽宽度决定 —— 视口很宽时详情区也可能被拖得很窄，
+ * 此时视口媒体查询完全不触发，导航会一直挤在左边。
+ * 阈值 520px ≈ 导航 188 + 间距 18 + 内容最小可用宽度。
+ */
+@container (max-width: 519.9px){
+  .s-server-overview .ov-info{
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .s-server-overview .ov-info-nav{
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}
+/* 段落卡片：每段自成一块，折叠时只留标题行 */
 .s-server-overview.ov-section, .s-server-overview .ov-section{
-  /* 避免一个段落被拆到两栏中间 */
-  break-inside: avoid;
-  margin-bottom: 12px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
 }
 .s-server-overview.ov-section-head, .s-server-overview .ov-section-head{
   display: flex;
   align-items: center;
   gap: 6px;
   width: 100%;
-  padding: 3px 0 6px;
-  margin-bottom: 4px;
-  border-bottom: 1px solid var(--border);
+  padding: 10px 14px;
+  border: 0;
+  background: transparent;
   font-size: var(--fs-sm);
   font-weight: 600;
   color: var(--text-secondary);
   text-align: left;
+  cursor: pointer;
 }
 .s-server-overview .ov-section-head:hover{
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 .s-server-overview.ov-caret, .s-server-overview .ov-caret{
@@ -6347,16 +6979,18 @@
   font-weight: 400;
   color: var(--text-muted);
 }
+/*
+ * 段内字段用 CSS columns 多栏排布：
+ * INFO 各段字段数差异极大（Server 十几项、Cluster 只有一项），
+ * 固定列数会在短段留下大片空白；columns 让内容按可用宽度自然分栏。
+ * 列宽取 15rem：值区默认约 500px（侧栏 + 键列表占掉其余宽度），
+ * 15rem 恰好能在默认宽度下分成 2 栏；值过长时由 ellipsis + tooltip 兜底。
+ */
 .s-server-overview.ov-fields, .s-server-overview .ov-fields{
   margin: 0;
-  display: flex;
-  flex-direction: column;
-  /*
-   * gap 收到 1px：字段行自带上下各 2px 内边距，
-   * 相邻两行的视觉间距 = 2 + 1 + 2 = 5px，与字号升一级后的观感一致。
-   * 若仍留 5px，实际间距会变成 9px，整块变得松散。
-   */
-  gap: 1px;
+  padding: 2px 14px 12px;
+  columns: 15rem;
+  column-gap: 24px;
 }
 /*
  * 字段行：标签左、值右。
@@ -6602,137 +7236,975 @@
 }
 
 
-/* SlowlogCard.vue —— 作用域 .s-slowlog-card */
-/* 与概览卡片同一视觉语言：边框 / 圆角 / 面板背景整行铺满 */
-.s-slowlog-card.slow-card, .s-slowlog-card .slow-card{
+/* SlowlogCard —— 方案 11 指纹工作台，作用域 .s-slowlog-card */
+/* 一块完整工作台：头部动作、筛选、分组列表、右栏统计与贴底密度图 */
+.s-slowlog-card{
+  container-type: inline-size;
+  min-width: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--bg-panel);
-  padding: 12px 8px 8px;
-}
-.s-slowlog-card.slow-head, .s-slowlog-card .slow-head{
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 4px;
-}
-.s-slowlog-card.slow-title, .s-slowlog-card .slow-title{
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
+  overflow: hidden;
   font-size: var(--fs-sm);
+}
+/* ---------------------------------------------------------------- 头部 */
+.s-slowlog-card .sl-head{
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 14px 10px;
+}
+.s-slowlog-card .sl-head-main{
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.s-slowlog-card .sl-title{
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  font-size: var(--fs-md);
   font-weight: 600;
-  color: var(--text-secondary);
-  letter-spacing: 0.3px;
+  color: var(--text-primary);
 }
-.s-slowlog-card.slow-icon, .s-slowlog-card .slow-icon{
+.s-slowlog-card .sl-title-icon{
   color: var(--text-muted);
 }
-.s-slowlog-card.slow-state, .s-slowlog-card .slow-state{
-  margin-left: auto;
-  min-width: 56px;
-  text-align: right;
-  font-size: var(--fs-xs);
+.s-slowlog-card .sl-sub{
+  overflow: hidden;
+  margin: 3px 0 0;
   color: var(--text-muted);
+  font-size: var(--fs-2xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: help;
 }
-/* 清空按钮：默认低调次按钮；上膛态切 danger 实底提示破坏性 */
-.s-slowlog-card.slow-reset, .s-slowlog-card .slow-reset{
+.s-slowlog-card .sl-actions{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+/* 自动查询胶囊：状态点在运行 / 暂停时换色，暂停保留上次查询时间 */
+.s-slowlog-card .sl-auto{
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  /* 度量与 .tool / .mem-run 保持一致，详见 mem-run 处说明 */
-  padding: 3px 10px;
-  border-radius: 999px;
+  gap: 4px;
+  padding: 2px 4px 2px 9px;
   border: 1px solid var(--border);
-  background: var(--bg-elevated);
+  border-radius: 999px;
+  background: var(--bg-app);
   color: var(--text-secondary);
-  font-size: var(--fs-sm);
-  flex: 0 0 auto;
+  font-size: var(--fs-xs);
+  white-space: nowrap;
 }
-.s-slowlog-card .slow-reset:hover:not(:disabled){
+.s-slowlog-card .sl-auto-label{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.s-slowlog-card .sl-auto .dot{
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+.s-slowlog-card .sl-auto[data-state="running"] .dot{
+  background: var(--green);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 16%, transparent);
+  animation: sl-pulse 2.4s infinite;
+}
+.s-slowlog-card .sl-auto[data-state="paused"] .dot{
+  background: var(--amber);
+}
+.s-slowlog-card .sl-auto-btn{
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--fs-2xs);
+  cursor: pointer;
+}
+/* 图标盒与文字盒的几何中心已对齐，但中文字体墨迹整体偏下约 0.9px，
+   三角 / 双竖线的视觉重心会显得偏高；这里做一次光学补偿。 */
+.s-slowlog-card .sl-auto-btn svg{
+  flex: 0 0 auto;
+  transform: translateY(1px);
+}
+.s-slowlog-card .sl-auto-btn:hover:not(:disabled){
   background: var(--bg-hover);
   color: var(--text-primary);
 }
-.s-slowlog-card .slow-reset:disabled{
+.s-slowlog-card .sl-auto-btn:disabled{
+  opacity: 0.4;
+  cursor: default;
+}
+.s-slowlog-card .sl-auto-start{
+  color: var(--green);
+}
+.s-slowlog-card .sl-auto-pause{
+  color: var(--amber);
+}
+.s-slowlog-card .sl-auto-last{
+  min-width: 50px;
+  padding-right: 4px;
+  text-align: right;
+  color: var(--text-muted);
+  font-size: var(--fs-2xs);
+}
+.s-slowlog-card .sl-btn{
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.s-slowlog-card .sl-btn:hover:not(:disabled){
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.s-slowlog-card .sl-btn:disabled{
   opacity: 0.5;
   cursor: default;
 }
-.s-slowlog-card .slow-reset .ti{
-  display: inline-block;
+.s-slowlog-card .sl-btn.danger{
+  color: var(--red);
 }
-.s-slowlog-card.slow-hint, .s-slowlog-card .slow-hint{
-  margin: 0 0 8px;
+.s-slowlog-card .sl-btn.danger:hover:not(:disabled){
+  background: color-mix(in srgb, var(--red) 12%, transparent);
+  color: var(--red);
+}
+.s-slowlog-card .sl-spin{
+  animation: ov-spin 0.9s linear infinite;
+}
+@keyframes sl-pulse{
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+/* ---------------------------------------------------------------- 筛选 */
+.s-slowlog-card .sl-filters{
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 14px 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-app);
+}
+.s-slowlog-card .sl-field{
+  min-width: 0;
+}
+.s-slowlog-card .sl-field label{
+  display: block;
+  margin-bottom: 3px;
+  color: var(--text-muted);
   font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+/* 搜索框是 label.search-box：.sl-field label 的 display:block 会压掉 flex，
+   图标因此按行内基线落在偏上位置，必须用同权重以上的选择器恢复垂直居中 */
+.s-slowlog-card .sl-field label.sl-search{
+  display: flex;
+  align-items: center;
+  flex: 0 0 170px;
+  width: 170px;
+}
+.s-slowlog-card .sl-search:focus-within{
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.s-slowlog-card .sl-search .s-icon{
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: var(--text-muted);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+}
+.s-slowlog-card .sl-search .filter{
+  flex: 1;
+  min-width: 0;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--fs-sm);
+}
+.s-slowlog-card .sl-search .filter:focus{
+  outline: none;
+  box-shadow: none;
+}
+.s-slowlog-card .sl-search .s-clear{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--bg-hover);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.s-slowlog-card .sl-search .s-clear:hover{
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.s-slowlog-card .sl-slider{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 26px;
+}
+.s-slowlog-card .sl-slider input[type="range"]{
+  width: 110px;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--amber) 0 var(--fill, 0%),
+    var(--border-strong) var(--fill, 0%) 100%
+  );
+  appearance: none;
+  cursor: pointer;
+}
+.s-slowlog-card .sl-slider input[type="range"]::-webkit-slider-thumb{
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-primary);
+  box-shadow: 0 0 0 2px var(--bg-app);
+  appearance: none;
+}
+.s-slowlog-card .sl-slider input[type="range"]:focus-visible{
+  outline: 1px solid var(--border-strong);
+  outline-offset: 4px;
+}
+.s-slowlog-card .sl-slider .val{
+  min-width: 44px;
+  color: var(--amber);
+  font-size: var(--fs-xs);
+}
+.s-slowlog-card .sl-select{
+  height: 26px;
+  max-width: 150px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+}
+.s-slowlog-card .sl-select:focus-visible{
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
+}
+.s-slowlog-card .sl-filter-spacer{
+  flex: 1;
+}
+.s-slowlog-card .sl-match{
+  display: inline-block;
+  padding-bottom: 5px;
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+/* ---------------------------------------------------------------- 主体 */
+.s-slowlog-card .sl-body{
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 246px;
+  gap: 12px;
+  padding: 0 14px 12px;
+  align-items: start;
+}
+.s-slowlog-card .sl-main{
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
+  overflow: hidden;
+}
+.s-slowlog-card .sl-ph{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+}
+.s-slowlog-card .sl-ph .spacer{
+  flex: 1;
+}
+.s-slowlog-card .sl-toggle{
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-app);
+}
+.s-slowlog-card .sl-toggle button{
+  padding: 2px 9px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--fs-2xs);
+  line-height: 1.4;
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s;
+}
+.s-slowlog-card .sl-toggle button:not(.on):hover{
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+/* 选中态与键栏「树形 / 平铺」分段控件一致：accent 实底 + 反色文字 */
+.s-slowlog-card .sl-toggle button.on{
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+}
+.s-slowlog-card .sl-toggle button:focus-visible{
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.s-slowlog-card .sl-list{
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 8px 8px;
+}
+.s-slowlog-card .sl-grp{
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
+  overflow: hidden;
+}
+.s-slowlog-card .sl-grp[hidden]{
+  display: none;
+}
+.s-slowlog-card .sl-grp.open{
+  border-color: var(--border-strong);
+}
+/* 分组摘要：默认折叠；7 列固定节奏让收起的组也能横向比较 */
+.s-slowlog-card .sl-sum{
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) 54px 82px 76px 140px 114px 15px;
+  gap: 9px;
+  align-items: center;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.s-slowlog-card .sl-sum:hover{
+  background: var(--bg-hover);
+}
+.s-slowlog-card .sl-grp.open .sl-sum{
+  background: color-mix(in srgb, var(--bg-hover) 60%, transparent);
+}
+.s-slowlog-card .sl-name{
+  min-width: 0;
+}
+.s-slowlog-card .sl-name b{
+  display: block;
+  overflow: hidden;
+  color: var(--blue);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.s-slowlog-card .sl-name span{
+  display: block;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--fs-2xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.s-slowlog-card .sl-count{
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+.s-slowlog-card .sl-max{
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: var(--fs-md);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.s-slowlog-card .sl-max.crit{
+  color: var(--red);
+}
+.s-slowlog-card .sl-max.warn{
+  color: var(--amber);
+}
+.s-slowlog-card .sl-max.norm{
+  color: var(--text-primary);
+}
+.s-slowlog-card .sl-avg{
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  text-align: right;
+  white-space: nowrap;
+}
+.s-slowlog-card .sl-spark{
+  width: 100%;
+  height: 18px;
+}
+.s-slowlog-card .sl-last{
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+.s-slowlog-card .sl-last em{
+  display: block;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--fs-2xs);
+  font-style: normal;
+  text-overflow: ellipsis;
+}
+.s-slowlog-card .sl-chev{
+  color: var(--text-muted);
+  transition: transform 0.15s;
+}
+.s-slowlog-card .sl-grp.open .sl-chev{
+  transform: rotate(180deg);
+}
+/* 明细：大组限高 + 虚拟滚动；小组成长展示，不制造多余滚动条 */
+.s-slowlog-card .sl-occ{
+  padding: 4px 10px 6px;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-app) 62%, var(--bg-panel));
+}
+.s-slowlog-card .sl-occ[hidden]{
+  display: none;
+}
+.s-slowlog-card .sl-occ-virtual{
+  max-height: 224px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.s-slowlog-card .sl-occrow{
+  display: grid;
+  grid-template-columns: 124px 140px minmax(0, 1fr) 132px;
+  gap: 9px;
+  align-items: center;
+  padding: 4px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+}
+.s-slowlog-card .sl-occrow:last-child{
+  border-bottom: 0;
+}
+.s-slowlog-card .sl-when{
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+  cursor: help;
+}
+.s-slowlog-card .sl-when-main{
+  color: var(--text-primary);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+.s-slowlog-card .sl-when small{
+  color: var(--text-muted);
+  font-size: var(--fs-2xs);
+  white-space: nowrap;
+}
+/* 耗时条：长度 = 占当前窗口峰值的比例，悬停给出精确值与百分比 */
+.s-slowlog-card .sl-dur{
+  position: relative;
+  display: block;
+  align-self: center;
+  min-width: 0;
+  padding: 6px 0;
+  cursor: help;
+}
+.s-slowlog-card .sl-dur-track{
+  display: block;
+  width: 64px;
+  height: 4px;
+  margin: 0 auto;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border-strong) 90%, transparent);
+  overflow: hidden;
+}
+.s-slowlog-card .sl-dur-track i{
+  display: block;
+  min-width: 3px;
+  height: 100%;
+  border-radius: 999px;
+}
+.s-slowlog-card .sl-dur.crit .sl-dur-track i{
+  background: linear-gradient(90deg, color-mix(in srgb, var(--red) 50%, transparent), var(--red));
+}
+.s-slowlog-card .sl-dur.warn .sl-dur-track i{
+  background: linear-gradient(90deg, color-mix(in srgb, var(--amber) 45%, transparent), var(--amber));
+}
+.s-slowlog-card .sl-dur.norm .sl-dur-track i{
+  background: linear-gradient(90deg, color-mix(in srgb, var(--blue) 40%, transparent), var(--blue));
+}
+.s-slowlog-card .sl-cmd{
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.s-slowlog-card .sl-cmd-text{
+  overflow: hidden;
+  min-width: 0;
+  flex: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.s-slowlog-card .sl-cmd-text b{
+  color: var(--blue);
+  font-weight: 600;
+}
+.s-slowlog-card .sl-cmd-text .arg{
+  color: var(--text-secondary);
+}
+.s-slowlog-card .sl-copy{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 19px;
+  height: 19px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.12s, color 0.12s, background 0.12s, border-color 0.12s;
+}
+.s-slowlog-card .sl-occrow:hover .sl-copy{
+  opacity: 1;
+}
+.s-slowlog-card .sl-copy:hover{
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.s-slowlog-card .sl-copy.copied{
+  opacity: 1;
+  border-color: color-mix(in srgb, var(--green) 40%, transparent);
+  background: color-mix(in srgb, var(--green) 12%, transparent);
+  color: var(--green);
+}
+.s-slowlog-card .sl-client{
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.s-slowlog-card .sl-client-main{
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: var(--fs-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.s-slowlog-card .sl-client small{
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--fs-2xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 加载更多：明细内每次追加 50 条，虚拟滚动接管新行的高度 */
+.s-slowlog-card .sl-more{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 9px;
+  border-top: 1px dashed color-mix(in srgb, var(--border-strong) 70%, transparent);
+  background: color-mix(in srgb, var(--bg-app) 35%, transparent);
+}
+.s-slowlog-card .sl-more[hidden]{
+  display: none;
+}
+.s-slowlog-card .sl-more-count{
+  color: var(--text-muted);
+  font-size: var(--fs-2xs);
+}
+.s-slowlog-card .sl-more .spacer{
+  flex: 1;
+}
+.s-slowlog-card .sl-more-btn{
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--fs-2xs);
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s, border-color 0.12s;
+}
+.s-slowlog-card .sl-more-btn:hover:not(:disabled){
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.s-slowlog-card .sl-more-btn:disabled{
+  opacity: 0.4;
+  cursor: default;
+}
+.s-slowlog-card .sl-more-btn.loading svg{
+  animation: ov-spin 0.8s linear infinite;
+}
+/* 分组分页：页数多时只保留首末页与当前页附近 */
+.s-slowlog-card .sl-pager{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: var(--fs-2xs);
+}
+.s-slowlog-card .sl-pager .spacer{
+  flex: 1;
+}
+.s-slowlog-card .sl-pg{
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.s-slowlog-card .sl-pg-btn{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s, border-color 0.12s;
+}
+.s-slowlog-card .sl-pg-btn:hover:not(:disabled){
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.s-slowlog-card .sl-pg-btn:disabled{
+  opacity: 0.35;
+  cursor: default;
+}
+.s-slowlog-card .sl-pg-btn.on{
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text-primary);
+}
+.s-slowlog-card .sl-pg-gap{
+  color: var(--text-muted);
+  font-size: var(--fs-2xs);
+}
+/* ---------------------------------------------------------------- 右栏 */
+.s-slowlog-card .sl-rail{
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.s-slowlog-card .sl-rail-card{
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
+}
+.s-slowlog-card .sl-rail-card h4{
+  margin: 0 0 7px;
+  color: var(--text-muted);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+.s-slowlog-card .sl-rail-row{
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 2px 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-2xs);
+}
+.s-slowlog-card .sl-rail-row b{
+  margin-left: auto;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+.s-slowlog-card .sl-rail-row b.crit{
+  color: var(--red);
+}
+.s-slowlog-card .sl-rail-row b.warn{
+  color: var(--amber);
+}
+.s-slowlog-card .sl-rail-row b.ok{
+  color: var(--green);
+}
+.s-slowlog-card .sl-rail-row b.muted{
   color: var(--text-muted);
 }
-.s-slowlog-card.slow-error, .s-slowlog-card .slow-error{
+.s-slowlog-card .sl-rail-bars{
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.s-slowlog-card .sl-rb{
+  display: grid;
+  grid-template-columns: 52px 1fr 26px;
+  gap: 6px;
+  align-items: center;
+  color: var(--text-muted);
+  font-size: var(--fs-2xs);
+}
+.s-slowlog-card .sl-rb i{
+  height: 4px;
+  border-radius: 999px;
+  background: var(--amber);
+}
+.s-slowlog-card .sl-rb i.norm{
+  background: var(--blue);
+}
+.s-slowlog-card .sl-rb i.crit{
+  background: var(--red);
+}
+.s-slowlog-card .sl-rb em{
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-style: normal;
+  text-align: right;
+}
+.s-slowlog-card .sl-tip{
+  padding: 7px 9px;
+  border-left: 2px solid var(--amber);
+  border-radius: 0 7px 7px 0;
+  background: var(--amber-soft);
+  color: var(--text-secondary);
+  font-size: var(--fs-2xs);
+  line-height: 1.5;
+}
+.s-slowlog-card .sl-tip b{
+  color: var(--amber);
+  font-family: var(--font-mono);
+}
+/* ---------------------------------------------------------------- 贴底：说明 + 密度 */
+.s-slowlog-card .sl-foot{
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 14px;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: var(--fs-2xs);
+}
+.s-slowlog-card .sl-foot .right{
+  margin-left: auto;
+  white-space: nowrap;
+}
+.s-slowlog-card .sl-density{
+  padding: 7px 14px 9px;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-app) 55%, var(--bg-panel));
+}
+.s-slowlog-card .sl-density-head{
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 5px;
+  color: var(--text-secondary);
+  font-size: var(--fs-2xs);
+}
+.s-slowlog-card .sl-density-head svg{
+  color: var(--text-muted);
+}
+.s-slowlog-card .sl-density-head b{
+  color: var(--text-primary);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+.s-slowlog-card .sl-density-head .muted{
+  color: var(--text-muted);
+  font-size: var(--fs-2xs);
+}
+.s-slowlog-card .sl-legend{
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: var(--fs-2xs);
+  white-space: nowrap;
+}
+.s-slowlog-card .sl-legend i,
+.s-slowlog-card .sl-heat-cell{
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--green) 8%, transparent);
+}
+.s-slowlog-card .sl-legend i.l1,
+.s-slowlog-card .sl-heat-cell.l1{
+  background: color-mix(in srgb, var(--green) 22%, transparent);
+}
+.s-slowlog-card .sl-legend i.l2,
+.s-slowlog-card .sl-heat-cell.l2{
+  background: color-mix(in srgb, var(--green) 40%, transparent);
+}
+.s-slowlog-card .sl-legend i.l3,
+.s-slowlog-card .sl-heat-cell.l3{
+  background: color-mix(in srgb, var(--amber) 62%, transparent);
+}
+.s-slowlog-card .sl-legend i.l4,
+.s-slowlog-card .sl-heat-cell.l4{
+  background: var(--red);
+}
+.s-slowlog-card .sl-heat{
+  display: grid;
+  grid-template-columns: repeat(24, 1fr);
+  gap: 2px;
+}
+.s-slowlog-card .sl-heat-col{
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.s-slowlog-card .sl-heat-cell{
+  width: auto;
+  height: 7px;
+  cursor: help;
+}
+.s-slowlog-card .sl-hours{
+  display: grid;
+  grid-template-columns: repeat(24, 1fr);
+  gap: 2px;
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+}
+/* ---------------------------------------------------------------- 空态 / 错误 */
+.s-slowlog-card .sl-empty{
   margin: 0;
+  padding: 18px 0;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+.s-slowlog-card .sl-error{
+  margin: 0 14px 12px;
   padding: 8px 10px;
   border-radius: var(--radius-sm);
   background: var(--accent-soft);
   color: var(--accent);
   font-size: var(--fs-sm);
 }
-.s-slowlog-card.slow-empty, .s-slowlog-card .slow-empty{
-  padding: 16px 0;
-  text-align: center;
-  font-size: var(--fs-sm);
-  color: var(--text-muted);
+/* ---------------------------------------------------------------- 窄容器 */
+@container (max-width: 860px){
+  .s-slowlog-card .sl-body{
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .s-slowlog-card .sl-rail{
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
-/* ---------------------------------------------------------------- 表格 */
-
-.slow-table{
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
+@container (max-width: 680px){
+  .s-slowlog-card .sl-sum{
+    grid-template-columns: minmax(0, 1fr) 54px 82px 76px 15px;
+  }
+  .s-slowlog-card .sl-avg,
+  .s-slowlog-card .sl-spark{
+    display: none;
+  }
+  .s-slowlog-card .sl-occrow{
+    grid-template-columns: 110px 100px minmax(0, 1fr);
+  }
+  .s-slowlog-card .sl-client{
+    display: none;
+  }
+  .s-slowlog-card .sl-rail{
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .s-slowlog-card .sl-foot{
+    flex-wrap: wrap;
+  }
+  .s-slowlog-card .sl-foot .right{
+    margin-left: 0;
+  }
 }
-.s-slowlog-card .slow-table th{
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--border);
-  text-align: left;
-  font-size: var(--fs-2xs);
-  font-weight: 600;
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-.s-slowlog-card .slow-table td{
-  padding: 5px 8px;
-  border-bottom: 1px solid var(--border);
-  font-size: var(--fs-sm);
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-/* 最后一行去掉分隔线，与卡片内边距自然收尾 */
-.slow-table tbody tr:last-child td{
-  border-bottom: none;
-}
-.s-slowlog-card .slow-table tbody tr:hover td{
-  background: var(--bg-hover);
-}
-.s-slowlog-card.col-id, .s-slowlog-card .col-id{
-  width: 44px;
-  color: var(--text-muted);
-}
-.s-slowlog-card.col-time, .s-slowlog-card .col-time{
-  width: 84px;
-}
-.s-slowlog-card.col-cost, .s-slowlog-card .col-cost{
-  width: 72px;
-  text-align: right;
-}
-.s-slowlog-card.col-cmd, .s-slowlog-card .col-cmd{
-  /* 命令是主信息，吃掉全部剩余空间 */
-  width: auto;
-}
-.s-slowlog-card.col-client, .s-slowlog-card .col-client{
-  width: 130px;
-}
-/* 超过 1s 的耗时标琥珀：一屏扫过去先看到最疼的那条 */
-.s-slowlog-card.col-cost.warn, .s-slowlog-card .col-cost.warn{
-  color: var(--amber);
+@container (max-width: 520px){
+  .s-slowlog-card .sl-sum{
+    grid-template-columns: minmax(0, 1fr) 64px 76px 15px;
+  }
+  .s-slowlog-card .sl-count{
+    display: none;
+  }
+  .s-slowlog-card .sl-occrow{
+    grid-template-columns: 96px minmax(0, 1fr);
+  }
+  .s-slowlog-card .sl-dur{
+    display: none;
+  }
+  .s-slowlog-card .sl-auto-last{
+    display: none;
+  }
+  .s-slowlog-card .sl-search{
+    flex: 1 1 140px;
+    width: auto;
+  }
+  .s-slowlog-card .sl-filter-spacer{
+    display: none;
+  }
 }
 
 
@@ -10296,6 +11768,14 @@ body.col-resizing .col-handle::after{
   border: 1px solid var(--border);
   border-radius: 8px;
 }
+/*
+ * 品牌区的 GitHub 仓库入口：跟在版本号后面的小图标按钮。
+ * 尺寸 / hover / 胶囊半径与浮起阴影全部沿用 .bar-btn（与顶栏其余图标一致）；
+ * 顶栏整体是拖拽区（drag），这里必须 no-drag 豁免，否则点击被拖拽语义吞掉。
+ */
+.s-app.brand-repo, .s-app .brand-repo{
+  -webkit-app-region: no-drag;
+}
 .s-app.topbar-actions, .s-app .topbar-actions{
   display: flex;
   align-items: center;
@@ -10490,6 +11970,10 @@ body.col-resizing .col-handle::after{
   padding: 1px 6px;
   border: 1px solid var(--border);
   border-radius: 8px;
+}
+/* 品牌区 GitHub 仓库入口：同第一段块的定义（no-drag 豁免） */
+.s-app.brand-repo, .s-app .brand-repo{
+  -webkit-app-region: no-drag;
 }
 /*
  * 顶栏品牌图标的立体效果：与主页同源的悬浮逻辑，但图标只有 22px，

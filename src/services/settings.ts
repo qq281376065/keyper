@@ -1,5 +1,6 @@
 import { api } from '@/api'
 import { defineStore } from '@/store'
+import { storeBatch } from '@/store/reactiveStore'
 import type { AppSettings } from '@shared/types'
 import { detectLocale, normalizeLocale, setActiveLocale, LOCALE_HTML_LANG, type MsgKey } from '@shared/i18n'
 
@@ -114,27 +115,36 @@ function clampKeyWidth(width: number): number {
 /** 从主进程加载设置；浏览器预览下由 mock 提供默认值 */
 async function load(): Promise<void> {
   const res = await api.settings.get()
-  if (res.ok) Object.assign(settings, res.data)
-  settings.keyBrowserWidth = clampKeyWidth(settings.keyBrowserWidth)
+  /* 整份赋值合并为一次 store 广播（原逐字段 Object.assign 触发 N 次） */
+  storeBatch(settings, () => {
+    if (res.ok) Object.assign(settings, res.data)
+    settings.keyBrowserWidth = clampKeyWidth(settings.keyBrowserWidth)
+  })
   applyToDom()
 }
 
 /** 保存：先本地生效保证交互即时，再用主进程返回值校正 */
 async function save(patch: Partial<AppSettings>): Promise<void> {
-  Object.assign(settings, patch)
-  settings.keyBrowserWidth = clampKeyWidth(settings.keyBrowserWidth)
+  storeBatch(settings, () => {
+    Object.assign(settings, patch)
+    settings.keyBrowserWidth = clampKeyWidth(settings.keyBrowserWidth)
+  })
   applyToDom()
   const res = await api.settings.save(patch)
   if (res.ok) {
-    Object.assign(settings, res.data)
-    settings.keyBrowserWidth = clampKeyWidth(settings.keyBrowserWidth)
+    storeBatch(settings, () => {
+      Object.assign(settings, res.data)
+      settings.keyBrowserWidth = clampKeyWidth(settings.keyBrowserWidth)
+    })
     applyToDom()
   }
 }
 
 /** 修改设置但不落盘（用于输入过程中的即时预览，如字体/字号滑杆） */
 function preview(patch: Partial<AppSettings>): void {
-  Object.assign(settings, patch)
+  storeBatch(settings, () => {
+    Object.assign(settings, patch)
+  })
   applyToDom()
 }
 

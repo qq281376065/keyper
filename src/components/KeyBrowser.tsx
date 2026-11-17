@@ -5,6 +5,7 @@ import { CreateKeyDialog } from '@/components/CreateKeyDialog'
 import { DialogIcon } from '@/components/DialogIcon'
 import { FavoritesPanel } from '@/components/FavoritesPanel'
 import { KeyTreeNode } from '@/components/KeyTreeNode'
+import { KeyContextMenu, type KeyMenuTarget } from '@/components/keyBrowser/KeyContextMenu'
 import { LiveTtl } from '@/components/LiveTtl'
 import { PromptDialog } from '@/components/PromptDialog'
 import { tipProps } from '@/components/tip'
@@ -12,7 +13,7 @@ import { useI18n } from '@/i18n'
 import { useSearchHistory, SEARCH_HISTORY_LIMIT, formatHistoryTime } from '@/hooks/useSearchHistory'
 import { useSessionStore } from '@/hooks/useSessionStore'
 import { useTabBlur } from '@/hooks/useTabBlur'
-import { useSettings, settingsHolder, KEY_BROWSER_MIN_WIDTH } from '@/services/settings'
+import { useSettings, settingsHolder } from '@/services/settings'
 import { useRedis } from '@/store/useRedis'
 import { useObservable } from '@/store/subscription'
 import { copyText } from '@/utils/clipboard'
@@ -54,9 +55,7 @@ type ExpandState = 'all' | 'none' | 'custom' | 'L1' | 'L2'
  * 顶层目录节点自身可能没有 leaf（纯路径），但它的子树里全是待删的键，
  * 因此必须携带 node 才能统计影响范围。
  */
-type KeyMenuTarget =
-  | { kind: 'key'; item: RedisKeyItem; keys: string[] }
-  | { kind: 'subtree'; node: KeyTreeNodeModel; keys: string[] }
+/* KeyMenuTarget 已随右键菜单拆至 keyBrowser/KeyContextMenu */
 
 export function KeyBrowser() {
   const { t } = useI18n()
@@ -99,13 +98,21 @@ export function KeyBrowser() {
   /**
    * 键栏宽度。
    *
-   * 用 CSS min() 夹到 52%：百分比作用于父级 flex 容器（.body），
-   * 所以侧栏收起/展开、窗口缩放时基准都会自动跟着变，不需要任何 JS 重算。
-   * clamp 的下限保证：窄窗口下 52% 也不会把工具条压到换行（默认同为 420）。
+   * 上限取「容器宽 - 值区保底宽」，百分比作用于父级 flex 容器（.body），
+   * 侧栏收起/展开、窗口缩放都会自动跟着变，不需要任何 JS 重算。
+   *
+   * 不能写成 clamp(420px, 值, 52%)：
+   * 容器窄于约 808px 时 52% 已经小于 420px，clamp 在「下限 > 上限」时取下限，
+   * 键栏会硬占 420px，把值区压到几十像素（信息详情、编辑器全部不可用）。
+   *
+   * 这里的 368px = 值区保底 360 + 分隔条 8：
+   * 容器够宽时用用户拖出来的宽度；容器变窄时键栏自动让位，值区始终留够 360px。
+   * 最外层 260px 是绝对下限 —— 容器窄到 628px 以下时优先保键栏可用，
+   * 再窄的窗口本身就放不下两栏。
    */
   const browserStyle: React.CSSProperties = {
-    width: `clamp(${KEY_BROWSER_MIN_WIDTH}px, ${settings.keyBrowserWidth}px, 52%)`,
-    flexBasis: `clamp(${KEY_BROWSER_MIN_WIDTH}px, ${settings.keyBrowserWidth}px, 52%)`,
+    width: `max(260px, min(${settings.keyBrowserWidth}px, calc(100% - 368px)))`,
+    flexBasis: `max(260px, min(${settings.keyBrowserWidth}px, calc(100% - 368px)))`,
   }
 
   /* ---------------------------------------------------------------- 批量勾选 */
@@ -265,23 +272,13 @@ export function KeyBrowser() {
     })
   }
 
-  /**
-   * 菜单头部展示用：主标题 + 副标题。
-   * 子树模式下没有单一键名，改为显示前缀路径；类型徽标也不适用，故不渲染。
-   */
-  const menuHead = (() => {
-    const target = keyMenu?.target
-    if (!target) return null
-    if (target.kind === 'key') {
-      return { key: target.item.key, type: target.item.type as string, count: 0, isSubtree: false }
-    }
-    return { key: target.node.path, type: '', count: target.keys.length, isSubtree: true }
-  })()
-
-  /** 当前右键目标是否已收藏（菜单文案随状态切换） */
+  /** 当前右键目标是否已收藏（菜单文案随状态切换）；头部展示已随菜单拆入 KeyContextMenu */
+  const menuTarget = keyMenu?.target
   const menuFavorited =
-    menuHead && !menuHead.isSubtree
-      ? state.favorites.some((entry) => entry.key === menuHead.key && entry.db === state.activeDb)
+    menuTarget?.kind === 'key'
+      ? state.favorites.some(
+          (entry) => entry.key === menuTarget.item.key && entry.db === state.activeDb,
+        )
       : false
 
   /* ---------------------------------------------------------------- 状态（视图 / 折叠） */
@@ -1394,13 +1391,8 @@ export function KeyBrowser() {
       </div>
 
       <div
-        ref={listEl}
         className="key-list"
         style={favoritesView ? { display: 'none' } : undefined}
-        onScroll={(event) => {
-          if (selecting || viewMode === 'flat') setFlatScrollTop(event.currentTarget.scrollTop)
-          else setFlatScrollTop(event.currentTarget.scrollTop)
-        }}
       >
         {/*
           全库搜索提示条：吸附在滚动区顶部。
@@ -1432,6 +1424,15 @@ export function KeyBrowser() {
           </div>
         ) : null}
 
+        {/* 列表内容包进内层滚动容器：滚动条只画在内层右侧，不会压到上方的 .remote-bar */}
+        <div
+          className="key-list-scroll"
+          ref={listEl}
+          onScroll={(event) => {
+            if (selecting || viewMode === 'flat') setFlatScrollTop(event.currentTarget.scrollTop)
+            else setFlatScrollTop(event.currentTarget.scrollTop)
+          }}
+        >
         {/* 切库 / 换数据集期间旧键列表已失效，整块换成统一风格的加载态 */}
         {switchingDataset ? (
           <div className="loading-state">
@@ -1570,6 +1571,7 @@ export function KeyBrowser() {
           <p className="placeholder">{t('keyBrowser.selectConnectionFirst')}</p>
         )}
       </div>
+      </div>
 
       <footer className="list-foot" style={favoritesView ? { display: 'none' } : undefined}>
         <span className="mono loaded">
@@ -1612,105 +1614,29 @@ export function KeyBrowser() {
         />
       ) : null}
 
-      {/* 键右键菜单：树形与平铺共用同一份，避免递归节点各挂一个浮层 */}
-      {keyMenu
-        ? createPortal(
-            <div
-              className="key-menu-mask s-key-browser"
-              onClick={closeKeyMenu}
-              onContextMenu={(event) => {
-                event.preventDefault()
-                closeKeyMenu()
-              }}
-            >
-              <div
-                ref={menuRef}
-                className="key-menu s-key-browser"
-                style={{ top: `${keyMenu.top}px`, left: `${keyMenu.left}px` }}
-                onClick={(event) => event.stopPropagation()}
-              >
-                <div className="km-head">
-                  {menuHead && !menuHead.isSubtree ? (
-                    <span className={`type-badge type-${menuHead.type}`} {...tipProps(typeLabel(menuHead.type))}>
-                      {typeAbbr(menuHead.type)}
-                    </span>
-                  ) : (
-                    <DialogIcon name="folder" size={13} className="km-prefix-icon" />
-                  )}
-                  <span className="mono ellipsis" {...tipProps(menuHead?.key ?? '')}>
-                    {menuHead?.key}
-                  </span>
-                </div>
-
-                {menuHead && !menuHead.isSubtree ? (
-                  <>
-                    <button className="km-item" onClick={() => runSingleKeyAction(menuViewValue)}>
-                      <DialogIcon name="eye" size={14} className="km-icon" />
-                      <span>{t('keyBrowser.viewValue')}</span>
-                    </button>
-
-                    <div className="km-group">{t('common.copy')}</div>
-                    <button className="km-item" onClick={() => runSingleKeyAction((item) => void menuCopyName(item))}>
-                      <DialogIcon name="text" size={14} className="km-icon" />
-                      <span>{t('common.copyKeyName')}</span>
-                    </button>
-                    <button className="km-item" onClick={() => runSingleKeyAction((item) => void menuCopyValue(item))}>
-                      <DialogIcon name="copy" size={14} className="km-icon" />
-                      <span>{t('keyBrowser.copyKeyValue')}</span>
-                    </button>
-                    <button className="km-item" onClick={() => runSingleKeyAction((item) => void menuCopyCommand(item))}>
-                      <DialogIcon name="terminal" size={14} className="km-icon" />
-                      <span>{t('keyBrowser.copyCommand')}</span>
-                    </button>
-
-                    <div className="km-group">{t('keyBrowser.manage')}</div>
-                    <button className="km-item" onClick={() => runSingleKeyAction((item) => void toggleFavorite(item.key))}>
-                      <DialogIcon name="star" size={14} className="km-icon" />
-                      <span>{menuFavorited ? t('favorites.remove') : t('favorites.add')}</span>
-                    </button>
-                    <button className="km-item" onClick={() => runSingleKeyAction(menuRename)}>
-                      <DialogIcon name="edit" size={14} className="km-icon" />
-                      <span>{t('common.renameKey')}</span>
-                    </button>
-                    <button className="km-item" onClick={() => runSingleKeyAction(menuSetTtl)}>
-                      <DialogIcon name="clock" size={14} className="km-icon" />
-                      <span>{t('common.setTtl')}</span>
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button className="km-item" onClick={() => runPrefixAction(menuCreateUnder)}>
-                      <DialogIcon name="add" size={14} className="km-icon" />
-                      <span>{t('keyBrowser.addNewKey')}</span>
-                    </button>
-
-                    <div className="km-group">{t('common.copy')}</div>
-                    <button className="km-item" onClick={() => runPrefixAction((node) => void menuCopyPrefix(node))}>
-                      <DialogIcon name="text" size={14} className="km-icon" />
-                      <span>{t('keyBrowser.copyPrefix')}</span>
-                    </button>
-                    <button className="km-item" onClick={() => runPrefixAction((node) => void menuCopySubtreeKeys(node))}>
-                      <DialogIcon name="copy" size={14} className="km-icon" />
-                      <span>{t('keyBrowser.copyAllKeyNames')}</span>
-                    </button>
-                  </>
-                )}
-
-                <div className="km-sep" />
-
-                <button className="km-item danger" onClick={() => runKeyMenuAction((target) => void menuDelete(target))}>
-                  <DialogIcon name="trash" size={14} className="km-icon" />
-                  <span>
-                    {menuHead?.isSubtree
-                      ? t('common.bulkDeleteCountKeys', { count: menuHead.count })
-                      : t('common.deleteKey')}
-                  </span>
-                </button>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
+      {/* 键右键菜单：拆至 keyBrowser/KeyContextMenu，定位与动作仍由本组件持有 */}
+      {keyMenu ? (
+        <KeyContextMenu
+          menu={keyMenu}
+          menuRef={menuRef}
+          onClose={closeKeyMenu}
+          runSingleKeyAction={runSingleKeyAction}
+          runPrefixAction={runPrefixAction}
+          runKeyMenuAction={runKeyMenuAction}
+          onViewValue={menuViewValue}
+          onCopyName={(item) => void menuCopyName(item)}
+          onCopyValue={(item) => void menuCopyValue(item)}
+          onCopyCommand={(item) => void menuCopyCommand(item)}
+          onToggleFavorite={(key) => void toggleFavorite(key)}
+          onRename={menuRename}
+          onSetTtl={menuSetTtl}
+          onCreateUnder={menuCreateUnder}
+          onCopyPrefix={(node) => void menuCopyPrefix(node)}
+          onCopySubtreeKeys={(node) => void menuCopySubtreeKeys(node)}
+          onDelete={(target) => void menuDelete(target)}
+          favorited={menuFavorited}
+        />
+      ) : null}
 
       {/* 重命名键 */}
       {renameTarget ? (

@@ -26,6 +26,7 @@ import { globalActions, globalHolder, globalState, type ConnectionItem } from '@
 import { useActiveApi } from '@/store/useRedis'
 import { useObservable } from '@/store/subscription'
 import { tipProps } from '@/components/tip'
+import { openRepoPage } from '@/utils/repo'
 import { t, useI18n } from '@/i18n'
 import { toConfig } from '@/utils/engine'
 import type { CacheConnectionConfig } from '@shared/types'
@@ -295,6 +296,14 @@ export function App() {
             Key<span className="brand-accent">per</span>
           </span>
           <span className="version mono">v{version}</span>
+          {/* 仓库入口：跟在版本号后面，点击用系统浏览器打开 GitHub 仓库 */}
+          <button
+            className="bar-btn brand-repo"
+            {...tipProps(t('app.viewGithubRepository'))}
+            onClick={openRepoPage}
+          >
+            <DialogIcon name="github" size={14} />
+          </button>
         </div>
 
         {/*

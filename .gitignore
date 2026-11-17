@@ -35,8 +35,7 @@ docs/_tail.md
 # 设计稿（方案预览页）：本地迭代频繁、体积大，不进版本库
 design/
 
-# 官网站点与本地预览服务（本地迭代，不入库）
-site/
+# 官网站点（site/）随 main 发布到 GitHub Pages，站点文件与校验/预览脚本入库
 
 # 从标签附注生成的发版说明，不入库。electron-builder 两处都要读：
 # 根目录那份 → GitHub Release 正文；build/ 那份 → latest.yml 的 releaseNotes。
@@ -47,7 +46,10 @@ release-notes.md
 # 注意 scripts/ 下已有 41 个入库文件（含 build 与 CI 调用的 csp-hash.mjs、
 # i18n-check.mjs、inject-scope.mjs）——已跟踪文件不受本条影响，
 # 但以后新增的要保留的脚本必须 `git add -f scripts/xxx.mjs` 显式加入。
-scripts/
+# 例外：站点校验与本地预览脚本随站点一起入库。
+scripts/*
+!scripts/site-check.mjs
+!scripts/serve-site.mjs
 
 # 根目录的崩溃转储与量测产物
 xargs.exe.stackdump

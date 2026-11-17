@@ -28,6 +28,24 @@ export function remainingTtl(ttl: number, ttlAt: number, now = Date.now()): numb
   return Math.max(0, ttl - elapsed)
 }
 
+/**
+ * setTimeout 能接受的最大延迟（毫秒）。
+ *
+ * 浏览器把延迟压成 32 位有符号整数，超出这个值会溢出成 0/1ms 立即执行。
+ */
+export const MAX_TIMER_DELAY = 2 ** 31 - 1
+
+/**
+ * 值区「TTL 归零后复核」定时器的延迟。
+ *
+ * 长 TTL 的键（30 天、90 天，读回执一类业务键常见）必须钳到上限，
+ * 否则定时器溢出后立即触发：读一次值就立刻再读，表现为值区不停地刷新、
+ * 服务端被持续打请求。到点后组件会重新读值并按新 TTL 续排。
+ */
+export function ttlRecheckDelay(remainingSeconds: number): number {
+  return Math.min(remainingSeconds * 1000 + 300, MAX_TIMER_DELAY)
+}
+
 /** 读取渲染层附加的扫描时间戳（IPC 的 RedisKeyItem 本身不含该字段） */
 export function ttlAtOf(item: object): number | undefined {
   return (item as { ttlAt?: number }).ttlAt

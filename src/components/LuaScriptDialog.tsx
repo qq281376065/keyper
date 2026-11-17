@@ -7,6 +7,7 @@ import { tipProps } from '@/components/tip'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useI18n } from '@/i18n'
+import type { MsgKey } from '@/i18n'
 import { useRedis } from '@/store/useRedis'
 import { copyText } from '@/utils/clipboard'
 import type { CliResult, LuaScript } from '@shared/types'
@@ -16,6 +17,25 @@ function splitLines(text: string): string[] {
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean)
+}
+
+const NAME_MAX = 80
+const NAME_INVALID = /[<>:"/\\|?*\u0000-\u001f]/
+const NAME_RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i
+
+/** 脚本名会直接变成 .lua 文件名，保存前先按同一套规则拦一次，避免只看到主进程的报错 */
+function nameProblem(raw: string, scripts: LuaScript[], selectedId: string): MsgKey | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return 'luaConsole.nameRequired'
+  if (trimmed.length > NAME_MAX) return 'luaConsole.nameTooLong'
+  if (NAME_INVALID.test(trimmed) || /[. ]$/.test(trimmed) || NAME_RESERVED.test(trimmed)) {
+    return 'luaConsole.nameInvalid'
+  }
+  const lower = trimmed.toLowerCase()
+  if (scripts.some((item) => item.id !== selectedId && item.name.toLowerCase() === lower)) {
+    return 'luaConsole.nameExists'
+  }
+  return null
 }
 
 /**
@@ -139,6 +159,11 @@ export function LuaScriptDialog({ onClose }: { onClose: () => void }) {
 
   async function save(): Promise<void> {
     if (!canSave) return
+    const problem = nameProblem(name, scripts, selectedId)
+    if (problem) {
+      notify('err', t(problem))
+      return
+    }
     setSaving(true)
     try {
       const res = await api.luaScripts.save({
@@ -151,11 +176,14 @@ export function LuaScriptDialog({ onClose }: { onClose: () => void }) {
         return
       }
       setScripts(res.data)
-      if (!selectedId) {
-        const created = res.data[0]
-        if (created) setSelectedId(created.id)
-        setQuery('')
+      // 脚本以文件名为 id，改名后 id 会变，保存后统一跟随服务端返回的选中项
+      const saved = res.data[0]
+      if (saved) {
+        setSelectedId(saved.id)
+        setName(saved.name)
+        setScript(saved.script)
       }
+      setQuery('')
       notify('ok', t('luaConsole.saved'))
     } finally {
       setSaving(false)
@@ -471,6 +499,7 @@ export function LuaScriptDialog({ onClose }: { onClose: () => void }) {
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 placeholder={t('luaConsole.namePlaceholder')}
+                maxLength={NAME_MAX}
                 spellCheck={false}
                 autoComplete="off"
                 onKeyDown={(event) => {

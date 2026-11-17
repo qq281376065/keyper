@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Keyper · 多引擎键值缓存管理工具（开源）</title>
+<meta name="description" content="Keyper 是基于 Electron + React 19 + TypeScript 的跨平台键值缓存管理工具，同时支持 Redis 与 Memcached。本地优先、零遥测、引擎可插拔，Apache-2.0 开源。" />
+<meta name="color-scheme" content="dark light" />
+<meta property="og:title" content="Keyper · 多引擎键值缓存管理工具（开源）" />
+<meta property="og:description" content="Electron + React 19 + TypeScript 构建的 Redis / Memcached 桌面客户端。本地优先、引擎可插拔、发布全程可审计。" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://qq281376065.github.io/keyper/" />
+<link rel="canonical" href="https://qq281376065.github.io/keyper/" />
+<meta property="og:image" content="https://qq281376065.github.io/keyper/assets/screenshots/key-browser-dark.png" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%23CE3F33'/%3E%3Cpath d='M22 15v34M42 15 26.5 32 42 49' stroke='%23fff' stroke-width='6.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="assets/css/site.css" />
+</head>
+<body>
+<a class="skip" href="#main" data-i18n="a11y.skip">跳到主要内容</a>
+
+<header class="nav" id="nav">
+  <div class="nav-inner">
+    <a class="brand" href="#top" aria-label="Keyper">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 64 64" width="26" height="26"><rect width="64" height="64" rx="15" fill="currentColor"/><path d="M22 15v34M42 15 26.5 32 42 49" stroke="var(--brand-mark-stroke,#fff)" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+      </span>
+      <span class="brand-name">Keyper</span>
+      <span class="brand-tag" data-i18n="nav.tag">开源键值缓存客户端</span>
+    </a>
+
+    <nav class="nav-links" aria-label="sections">
+      <a href="#principles" data-i18n="nav.principles">开源理念</a>
+      <a href="#engines" data-i18n="nav.engines">双引擎</a>
+      <a href="#features" data-i18n="nav.features">能力</a>
+      <a href="#gallery" data-i18n="nav.gallery">界面</a>
+      <a href="#architecture" data-i18n="nav.architecture">架构</a>
+      <a href="#security" data-i18n="nav.security">安全</a>
+      <a href="#install" data-i18n="nav.install">安装</a>
+      <a href="#changelog" data-i18n="nav.changelog">演进记录</a>
+      <a href="#contribute" data-i18n="nav.contribute">贡献</a>
+    </nav>
+
+    <div class="nav-tools">
+      <div class="seg" role="group" aria-label="language">
+        <button class="seg-btn is-on" data-lang="zh" type="button">中</button>
+        <button class="seg-btn" data-lang="en" type="button">EN</button>
+      </div>
+      <button class="icon-btn" id="theme-btn" type="button" aria-label="切换主题" data-i18n-aria="a11y.theme">
+        <svg class="i-moon" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+        <svg class="i-sun" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 2.6v2.2M12 19.2v2.2M2.6 12h2.2M19.2 12h2.2M5.4 5.4l1.6 1.6M17 17l1.6 1.6M18.6 5.4 17 7M7 17l-1.6 1.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+      </button>
+      <a class="btn btn-ghost btn-sm" href="https://github.com/qq281376065/keyper" target="_blank" rel="noopener noreferrer">
+        <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" fill="currentColor"><path d="M8 .2a8 8 0 0 0-2.5 15.6c.4.07.55-.17.55-.38v-1.3c-2.23.5-2.7-1.07-2.7-1.07-.36-.93-.9-1.18-.9-1.18-.73-.5.06-.5.06-.5.82.06 1.25.84 1.25.84.73 1.25 1.9.9 2.37.7.07-.55.3-.9.55-1.12-1.82-.2-3.74-.9-3.74-4.03 0-.9.32-1.62.84-2.2-.08-.2-.36-1 .08-2.1 0 0 .68-.22 2.24.84a7.4 7.4 0 0 1 4.06 0c1.56-1.06 2.24-.84 2.24-.84.44 1.1.16 1.9.08 2.1.52.58.84 1.3.84 2.2 0 3.13-1.93 3.83-3.76 4.03.3.25.56.75.56 1.5v2.23c0 .22.15.46.56.38A8 8 0 0 0 8 .2Z"/></svg>
+        <span data-i18n="nav.github">仓库</span>
+      </a>
+      <a class="btn btn-primary btn-sm" href="#install" data-i18n="nav.download">下载</a>
+      <button class="icon-btn nav-burger" id="burger" type="button" aria-label="菜单" aria-expanded="false" data-i18n-aria="a11y.menu">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+<a id="top"></a>
+
+<!-- ============ HERO ============ -->
+<section class="hero">
+  <div class="hero-bg" aria-hidden="true">
+    <div class="grid-mesh"></div>
+    <div class="glow glow-a"></div>
+    <div class="glow glow-b"></div>
+  </div>
+
+  <div class="wrap hero-wrap">
+    <div class="hero-copy">
+      <div class="badges">
+        <span class="badge"><i class="dot dot-brand"></i><span data-i18n="hero.badge.oss">开源 · Apache-2.0</span></span>
+        <span class="badge" data-i18n="hero.badge.stack">Electron + React 19 + TypeScript</span>
+        <span class="badge"><i class="dot dot-ok"></i><span data-i18n="hero.badge.notelemetry">零遥测</span></span>
+      </div>
+
+      <h1 class="hero-title">
+        <span class="pixel" data-pixel="Keyper">Keyper</span>
+      </h1>
+      <p class="hero-sub" data-i18n="hero.sub">多引擎键值缓存管理工具</p>
+      <p class="hero-lede" data-i18n-html="hero.lede">
+        把 <b>Redis</b> 与 <b>Memcached</b> 收进同一个桌面客户端：六种数据结构的读写、全库搜索、慢查询、Pub/Sub、监控曲线、SSH 多级跳板与内置 CLI，都在一个可完全自持的界面里完成。
+      </p>
+
+      <div class="cta-row">
+        <a class="btn btn-primary" href="#install"><span data-i18n="hero.cta.download">下载安装包</span>
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0 4.5-4.5M12 15l-4.5-4.5M5 19h14"/></svg>
+        </a>
+        <a class="btn btn-line" href="https://github.com/qq281376065/keyper" target="_blank" rel="noopener noreferrer" data-i18n="hero.cta.source">阅读源码</a>
+        <a class="btn btn-line" href="#gallery" data-i18n="hero.cta.tour">看看界面</a>
+      </div>
+
+      <div class="quick">
+        <div class="code-line" data-copy="git clone https://github.com/qq281376065/keyper.git && cd keyper && npm install">
+          <span class="prompt">$</span><span class="code-txt">git clone https://github.com/qq281376065/keyper.git &amp;&amp; cd keyper &amp;&amp; npm install</span>
+        </div>
+        <div class="code-line" data-copy="npm run dev:web">
+          <span class="prompt">$</span><span class="code-txt">npm run dev:web</span>
+          <span class="code-note" data-i18n="hero.quick.note">浏览器里跑真实组件，不等 Electron 启动</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="hero-visual">
+      <div class="mock" aria-hidden="true">
+        <div class="mock-bar">
+          <span class="mock-logo">K</span>
+          <span class="mock-title">Keyper</span>
+          <span class="mock-ws">
+            <span class="mock-tab is-on">local</span>
+            <span class="mock-tab">mc-session</span>
+          </span>
+          <span class="mock-dots"><i></i><i></i><i></i></span>
+        </div>
+        <div class="mock-body">
+          <div class="mock-side">
+            <div class="mock-side-h">Connections</div>
+            <div class="mock-conn is-on"><i class="eng eng-redis"></i><span>local · 6379</span><em>db0</em></div>
+            <div class="mock-conn"><i class="eng eng-redis"></i><span>cache · 6381</span><em>7.4</em></div>
+            <div class="mock-conn"><i class="eng eng-mc"></i><span>mc-session</span><em>11211</em></div>
+            <div class="mock-side-h">Keys</div>
+            <div class="mock-tree">
+              <div class="tk tk-dir">▾ user <b>128</b></div>
+              <div class="tk tk-leaf"><i class="t t-string"></i>user:1001</div>
+              <div class="tk tk-leaf"><i class="t t-hash"></i>user:1002:profile</div>
+              <div class="tk tk-dir">▾ queue <b>42</b></div>
+              <div class="tk tk-leaf"><i class="t t-list"></i>queue:mail</div>
+              <div class="tk tk-leaf"><i class="t t-zset"></i>queue:rank</div>
+              <div class="tk tk-leaf"><i class="t t-stream"></i>stream:audit</div>
+            </div>
+          </div>
+          <div class="mock-main">
+            <div class="mock-mast">
+              <span class="pill pill-hash">HASH</span>
+              <span class="mock-key">user:1002:profile</span>
+              <span class="mock-meta">TTL 3600<i>·</i>ziplist<i>·</i>412 B</span>
+            </div>
+            <table class="mock-table">
+              <thead><tr><th>#</th><th>field</th><th>value</th><th>TTL</th></tr></thead>
+              <tbody>
+                <tr><td>1</td><td>nickname</td><td>akai_2048</td><td>—</td></tr>
+                <tr><td>2</td><td>email</td><td>ake@example.com</td><td>—</td></tr>
+                <tr><td>3</td><td>session</td><td>8f2c…d41a</td><td>1,842</td></tr>
+                <tr><td>4</td><td>plan</td><td>team</td><td>—</td></tr>
+              </tbody>
+            </table>
+            <div class="mock-cli"><span class="mock-cli-p">local:6379&gt;</span> <span id="typer"></span><span class="caret"></span></div>
+          </div>
+        </div>
+        <div class="mock-foot">
+          <span class="lf"><i class="dot dot-ok"></i>connected</span>
+          <span class="lf">keys 1,204</span>
+          <span class="lf">mem 12.4M</span>
+          <span class="lf">ops 318/s</span>
+          <span class="lf grow">hit 96.4%</span>
+        </div>
+      </div>
+      <p class="mock-cap" data-i18n="hero.mockcap">界面示意 · 真实截图见下方图库</p>
+    </div>
+  </div>
+
+  <div class="wrap stats">
+    <div class="stat"><b>2</b><span data-i18n="stat.engines">引擎模块（Redis / Memcached 互相隔离）</span></div>
+    <div class="stat"><b>6</b><span data-i18n="stat.types">种数据结构读写与可视化</span></div>
+    <div class="stat"><b>9</b><span data-i18n="stat.skins">套皮肤，CSS 变量驱动</span></div>
+    <div class="stat"><b>3</b><span data-i18n="stat.langs">种界面语言，编译期校验</span></div>
+    <div class="stat"><b>21</b><span data-i18n="stat.tests">个 vitest 单元测试文件</span></div>
+    <div class="stat"><b>100<i>%</i></b><span data-i18n="stat.ts">TypeScript，主进程与渲染层同一套类型契约</span></div>
+  </div>
+</section>
+
+<!-- ============ PRINCIPLES ============ -->
+<section class="sec" id="principles">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow" data-i18n="principles.eyebrow">开源理念</span>
+      <h2 data-i18n="principles.h2">把"开源"落到可验证的细节上</h2>
+      <p data-i18n="principles.p">公开源码只是起点。Keyper 关心的是：你能不能读得懂它做了什么、改得动它的设计、并且不必相信任何口头承诺。</p>
+    </div>
+
+    <div class="cards cards-3">
+      <article class="card">
+        <span class="card-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18V8m5 10V5m5 13v-7m5 7V9"/><path d="M3 21h18"/></svg></span>
+        <h3 data-i18n="p1.h">本地优先</h3>
+        <p data-i18n-html="p1.p">连接配置、应用设置与操作日志全部落在本机配置目录。运行期唯一的外部请求是更新检查，而且可以用 <code>KEYPER_UPDATE_URL</code> 指向内网镜像。</p>
+      </article>
+      <article class="card">
+        <span class="card-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v6c0 4.2 2.9 7.6 7 9 4.1-1.4 7-4.8 7-9V6l-7-3Z"/><path d="m9 12 2.2 2.2L15.5 10"/></svg></span>
+        <h3 data-i18n="p2.h">可审计的安全</h3>
+        <p data-i18n="p2.p">沙箱、上下文隔离与 CSP 不是宣传语：脚本哈希由构建期脚本自动写入，<code>npm run csp:check</code> 能校验是否失配，策略本身可在源码里逐条对照。</p>
+      </article>
+      <article class="card">
+        <span class="card-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><path d="M17 13.5v7M13.5 17h7"/></svg></span>
+        <h3 data-i18n="p3.h">引擎可插拔</h3>
+        <p data-i18n="p3.p">引擎经注册表登记，配置、连接池、日志与搜索历史按引擎各自隔离。新增一种引擎是实现一个适配器并注册，不需要改动已有模块的代码路径。</p>
+      </article>
+      <article class="card">
+        <span class="card-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-3.2-6.4"/><path d="M20 4v5h-5"/></svg></span>
+        <h3 data-i18n="p4.h">透明的发布链路</h3>
+        <p data-i18n="p4.p">推送与 PR 跑同一套门禁，标签触发打包，产物与 <code>latest.yml</code>、blockmap 一起公开；客户端做差分更新，只传输与本地版本不同的分块。</p>
+      </article>
+      <article class="card">
+        <span class="card-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6 3.5 12 8 18M16 6l4.5 6-4.5 6"/><path d="M13.5 4.5 10.5 19.5"/></svg></span>
+        <h3 data-i18n="p5.h">把贡献门槛做低</h3>
+        <p data-i18n="p5.p">文案用语义 key，改译文不动调用点；漏译、占位符不一致、引用了不存在的 key，都会在 CI 里被 <code>i18n:check</code> 拦下，而不是等到运行时。</p>
+      </article>
+      <article class="card">
+        <span class="card-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 8v5M12 16h.01"/></svg></span>
+        <h3 data-i18n="p6.h">承认边界</h3>
+        <p data-i18n="p6.p">没做代码签名、含凭据导出是明文、部分平台尚未产出安装包——这些写在文档里，而不是等用户踩到才发现。见下方「当前边界」。</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ENGINES ============ -->
+<section class="sec sec-alt" id="engines">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow" data-i18n="engines.eyebrow">双引擎</span>
+      <h2 data-i18n="engines.h2">两套引擎，互不牵连</h2>
+      <p data-i18n="engines.p">Redis 与 Memcached 作为彼此隔离的模块接入：连接池、IPC 通道、日志字段与搜索历史各走各的，一个模块异常不会影响另一个。连接列表带引擎角标，日志可按模块筛选。</p>
+    </div>
+
+    <div class="tabs" role="tablist" aria-label="engine">
+      <button class="tab is-on" role="tab" aria-selected="true" data-tab="redis" type="button"><i class="eng eng-redis"></i><span data-i18n="eng.tab.redis">Redis</span></button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="memcached" type="button"><i class="eng eng-mc"></i><span data-i18n="eng.tab.mc">Memcached</span></button>
+    </div>
+
+    <div class="panel is-on" data-panel="redis" role="tabpanel">
+      <div class="split">
+        <div class="split-main">
+          <ul class="ticks">
+            <li data-i18n="eng.redis.1">多 DB 切换 + 分页 <code>SCAN</code> + 模式匹配 + 前端二次筛选</li>
+            <li data-i18n="eng.redis.2">六种数据结构：string / hash / list / set / zset / stream，各自匹配对应的编辑语义</li>
+            <li data-i18n="eng.redis.3">Pub/Sub 订阅：频道实底 chip、模式虚线 chip，可单个退订</li>
+            <li data-i18n="eng.redis.4">慢查询日志、键内存分析（按前缀聚合）、键空间通知位配置</li>
+            <li data-i18n="eng.redis.5">监控曲线：2 秒采样、保留 450 点，六个指标各一张折线图</li>
+            <li data-i18n="eng.redis.6">SSH 隧道与多级跳板，生产实例也能安全直连</li>
+            <li data-i18n="eng.redis.7">内置 CLI：370 条命令补全、历史按连接持久化、结果直接回显</li>
+            <li data-i18n="eng.redis.8">Stream 管理：消费组与 PEL、<code>XACK</code> / <code>XCLAIM</code> / <code>XTRIM</code>，低版本自动隐藏入口</li>
+            <li data-i18n="eng.redis.9">Lua 运行器：全局脚本库、<code>KEYS</code> / <code>ARGS</code>、<code>EVAL_RO</code> 与 <code>SCRIPT KILL</code></li>
+          </ul>
+        </div>
+        <aside class="split-side">
+          <div class="mini">
+            <div class="mini-h" data-i18n="eng.redis.types">值类型与可写性</div>
+            <div class="types">
+              <span><i class="t t-string"></i>string <em data-i18n="eng.redis.rw.rw">读写</em></span>
+              <span><i class="t t-hash"></i>hash <em data-i18n="eng.redis.rw.rw">读写</em></span>
+              <span><i class="t t-list"></i>list <em data-i18n="eng.redis.rw.rw">读写</em></span>
+              <span><i class="t t-set"></i>set <em data-i18n="eng.redis.rw.rw">读写</em></span>
+              <span><i class="t t-zset"></i>zset <em data-i18n="eng.redis.rw.rw">读写</em></span>
+              <span><i class="t t-stream"></i>stream <em data-i18n="eng.redis.rw.ro">只读</em></span>
+            </div>
+            <p class="mini-note" data-i18n="eng.redis.note">stream 是追加写日志：改历史 entry 会破坏消费位点、删 entry 会造成消费缺口，因此只提供复制类操作。这是设计决定，不是没做完。</p>
+          </div>
+          <figure class="shot" data-full="assets/screenshots/key-value-zset.png" tabindex="0" role="button">
+            <img src="assets/screenshots/key-value-zset.png" alt="zset 值表格" loading="lazy" />
+            <figcaption data-i18n="eng.redis.cap">zset 默认按 score 降序，序号即排名</figcaption>
+          </figure>
+        </aside>
+      </div>
+    </div>
+
+    <div class="panel" data-panel="memcached" role="tabpanel">
+      <div class="split">
+        <div class="split-main">
+          <ul class="ticks">
+            <li data-i18n="eng.mc.1">全量键浏览走 <code>lru_crawler metadump</code> 遍历完整 LRU，修复仍处于 WARM 段的键重连后不显示</li>
+            <li data-i18n="eng.mc.2">旧服务端自动回退 <code>stats cachedump</code>，并如实标注「可能不完整」</li>
+            <li data-i18n="eng.mc.3">按全局「每页加载键数」分页，支持加载更多 / 加载全部，与 Redis 键区交互一致</li>
+            <li data-i18n="eng.mc.4">批量删除、TTL 修改、前缀重命名：逐键推进、可随时中止、目标已存在则跳过并标记失败</li>
+            <li data-i18n="eng.mc.5">统计与命中率、按 slab 分组、运行参数查看、<code>flush_all</code></li>
+            <li data-i18n="eng.mc.6">监控页签与 Redis 共用同一套采样与绘图骨架，只把数据源换成 <code>stats</code></li>
+          </ul>
+        </div>
+        <aside class="split-side">
+          <div class="mini">
+            <div class="mini-h" data-i18n="eng.mc.diffh">与 Redis 的差异如何体现</div>
+            <ul class="kv">
+              <li><span data-i18n="eng.mc.d1">连接池 / 管理器 / IPC 通道</span><b data-i18n="eng.mc.d1v">各自独立</b></li>
+              <li><span data-i18n="eng.mc.d2">日志模块字段</span><b data-i18n="eng.mc.d2v">可按引擎筛选</b></li>
+              <li><span data-i18n="eng.mc.d3">键遍历方式</span><b data-i18n="eng.mc.d3v">LRU 遍历，非 SCAN</b></li>
+              <li><span data-i18n="eng.mc.d4">Ops/sec 换算</span><b data-i18n="eng.mc.d4v">相邻采样差值</b></li>
+            </ul>
+          </div>
+          <figure class="shot" data-full="assets/screenshots/overview-info.png" tabindex="0" role="button">
+            <img src="assets/screenshots/overview-info.png" alt="服务端信息面板" loading="lazy" />
+            <figcaption data-i18n="eng.mc.cap">详情页页签按引擎裁剪能力</figcaption>
+          </figure>
+        </aside>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FEATURES ============ -->
+<section class="sec" id="features">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow" data-i18n="feat.eyebrow">能力清单</span>
+      <h2 data-i18n="feat.h2">日常真的会用的那些事</h2>
+      <p data-i18n="feat.p">下面每一项都对应已发布版本里的实际行为，可在源码与更新日志中逐条追溯。</p>
+    </div>
+
+    <div class="feat-grid">
+      <article class="feat"><h4 data-i18n="f.1.h">大 key 分页加载</h4><p data-i18n="f.1.p">容器类型不再一次读全量：默认每页 500 条、上限 20000 条，「加载更多」按游标续取——hash / set 用 SCAN 游标，list / zset 用偏移量，stream 用上一页最后的 entry ID。刷新当前键按已加载数量重读，不会退回第一页。</p></article>
+      <article class="feat"><h4 data-i18n="f.2.h">虚拟滚动</h4><p data-i18n="f.2.p">五种表格类型与 string 逐行视图都只渲染视口内的行：可变行高实测缓存 + 前缀和二分查找 + 上下等高占位。万级元素的键也能流畅滚动，粘性表头、列宽拖拽与行内操作不受影响。</p></article>
+      <article class="feat"><h4 data-i18n="f.3.h">键列表原地增量刷新</h4><p data-i18n="f.3.p">刷新不清空列表、不闪骨架屏，按当前已加载数量重扫匹配模式；未变化的键复用原对象，列表行不重绘。选中键若不在新结果里，先单键查询核实，确认已被删除才清空值区。</p></article>
+      <article class="feat"><h4 data-i18n="f.4.h">值区多标签保活</h4><p data-i18n="f.4.p">切走的标签只隐藏、不卸载——筛选、排序、编辑草稿、列宽、滚动位置全部保留；切回已缓存的标签立即渲染并静默刷新。</p></article>
+      <article class="feat"><h4 data-i18n="f.5.h">全库搜索下沉主进程</h4><p data-i18n="f.5.p"><code>SCAN</code> 在主进程执行，边扫边推送进度、可随时中止；结果平铺虚拟滚动。键搜索历史按连接与库隔离，LRU 30 条并持久化。</p></article>
+      <article class="feat"><h4 data-i18n="f.6.h">批量操作面板</h4><p data-i18n="f.6.p">批量删除 / TTL / 前缀重命名走值区面板：清单可搜索排序，逐行显示当前值与目标值，执行时逐键推进并可随时中止，全部结束后只广播一次键列表刷新。</p></article>
+      <article class="feat"><h4 data-i18n="f.7.h">操作日志</h4><p data-i18n="f.7.p">只记录手动操作，按日期与连接筛选；表头吸顶、操作列固定右侧，横向滚动时列不漂移，五列支持升降序，文本按中文排序。</p></article>
+      <article class="feat"><h4 data-i18n="f.8.h">连接导入导出</h4><p data-i18n="f.8.p">导出为带格式头的 JSON，凭据默认剥离，勾选包含需二次确认；导入先出逐条预览（冲突 / 已连接 / 非法条目），默认新建 ID、可切换按 ID 覆盖。URI 批量导入支持注释、最多 200 行、逐行报错且只导入合法行。</p></article>
+      <article class="feat"><h4 data-i18n="f.9.h">应用内增量更新</h4><p data-i18n="f.9.p">在「检查更新」面板内直接下载并安装，走 blockmap 差分只传变化分块，显示百分比、已下载 / 总量与速度；面板可隐藏而下载继续，完成后可选「稍后」或「重启并安装」。</p></article>
+      <article class="feat"><h4 data-i18n="f.10.h">三语言界面</h4><p data-i18n="f.10.p">简体中文 / 繁體中文 / English，右上角即时切换并持久化，首次启动按操作系统语言自动选择；主进程文案（错误信息、日志）随设置同步切换。</p></article>
+      <article class="feat"><h4 data-i18n="f.11.h">九套皮肤</h4><p data-i18n="f.11.p">配色全部由 CSS 变量驱动，组件不感知主题——新增皮肤只需补一组变量。皮肤切换不重载窗口，首帧即生效，不会闪回默认主题。</p></article>
+      <article class="feat"><h4 data-i18n="f.12.h">错误落盘</h4><p data-i18n="f.12.p">渲染层与主进程异常写入 <code>logs/errors-yyyymmdd.log</code>，带堆栈与 5 秒去重，便于把一份日志直接贴进 Issue。</p></article>
+      <article class="feat"><h4 data-i18n="f.13.h">TTL 倒计时</h4><p data-i18n="f.13.p">键列表与值区每秒递减剩余时间；归零后向服务端复核一次——过期键从列表消失、值区清空，不会出现「倒计时已结束、界面还展示缓存」的错觉。</p></article>
+      <article class="feat"><h4 data-i18n="f.14.h">键收藏</h4><p data-i18n="f.14.p">树形与平铺视图共用一套收藏区，行内可单独移除；底部状态栏汇总收藏数与当前筛选命中，分组沿用全局键名分隔符。</p></article>
+      <article class="feat"><h4 data-i18n="f.15.h">值格式解码</h4><p data-i18n="f.15.p">自动识别 JSON / JWT / Base64 / PHP 序列化 / gzip / zlib / 图片 / Hex / MessagePack，检测结论写进状态栏，原文与解码视图一键切换，不猜二进制内容。</p></article>
+      <article class="feat"><h4 data-i18n="f.16.h">CLI 命令补全</h4><p data-i18n="f.16.p">内置 370 条命令目录：输入时展开补全面板，历史按连接持久化，结果可复制、可清屏；按连接分标签，会话互不串台。</p></article>
+      <article class="feat"><h4 data-i18n="f.17.h">Stream 管理</h4><p data-i18n="f.17.p">消费组与消费者明细、PEL 查看与 <code>XACK</code> / <code>XCLAIM</code>、单条 <code>XDEL</code>、<code>XTRIM</code> 裁剪；服务端版本不支持的能力直接隐藏入口，而不是点了才报错。</p></article>
+      <article class="feat"><h4 data-i18n="f.18.h">Lua 运行器</h4><p data-i18n="f.18.p">全局脚本库支持命名保存、单条与批量删除；<code>KEYS</code> / <code>ARGS</code> 传参，带 <code>EVAL_RO</code> 只读开关与 <code>SCRIPT KILL</code>。脚本原样交给服务端执行，权限等同于连接所用账号。</p></article>
+    </div>
+
+    <div class="callout">
+      <div class="callout-txt">
+        <h4 data-i18n="feat.callout.h">性能不是靠"感觉快"</h4>
+        <p data-i18n="feat.callout.p">安装包体积、构建产物体积、渲染耗时都被量化记录：Electron 运行时语言包从 50+ 种裁到界面真正使用的 3 种，渲染层依赖归入 devDependencies 使 asar 只含生产依赖，安装包从 84.0 MB 降到 75.4 MB（-10.3%），app.asar 从 18.9 MiB 降到 3.7 MiB。</p>
+      </div>
+      <div class="callout-nums">
+        <div><b data-i18n="feat.callout.v1">-10.3<i>%</i></b><span data-i18n="feat.callout.n1">安装包体积</span></div>
+        <div><b data-i18n="feat.callout.v2">3.7<i>MiB</i></b><span data-i18n="feat.callout.n2">app.asar</span></div>
+        <div><b data-i18n="feat.callout.v3">500<i>/页</i></b><span data-i18n="feat.callout.n3">大 key 分页</span></div>
+        <div><b data-i18n="feat.callout.v4">450<i>点</i></b><span data-i18n="feat.callout.n4">监控采样窗口</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ GALLERY ============ -->
+<section class="sec sec-alt" id="gallery">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow" data-i18n="gal.eyebrow">界面</span>
+      <h2 data-i18n="gal.h2">同一份数据，九种皮肤</h2>
+      <p data-i18n="gal.p">配色由 CSS 变量驱动，切换只改 <code>data-theme</code>，布局与组件完全不动。因此皮肤不是"另一套界面"，而是同一套界面的另一种取值。</p>
+    </div>
+
+    <div class="skins">
+      <figure class="skin" data-full="assets/screenshots/key-browser-dark.png" tabindex="0" role="button"><img src="assets/screenshots/key-browser-dark.png" alt="dark" loading="lazy" /><figcaption><i class="sw" style="--sw:#1B1D22"></i><span data-i18n="skin.dark">暗色 · Dark</span></figcaption></figure>
+      <figure class="skin" data-full="assets/screenshots/key-browser-light.png" tabindex="0" role="button"><img src="assets/screenshots/key-browser-light.png" alt="light" loading="lazy" /><figcaption><i class="sw" style="--sw:#F4F5F7"></i><span data-i18n="skin.light">亮色 · Light</span></figcaption></figure>
+      <figure class="skin" data-full="assets/screenshots/key-browser-ocean.png" tabindex="0" role="button"><img src="assets/screenshots/key-browser-ocean.png" alt="ocean" loading="lazy" /><figcaption><i class="sw" style="--sw:#0E2A3C"></i><span data-i18n="skin.ocean">深海 · Ocean</span></figcaption></figure>
+      <figure class="skin" data-full="assets/screenshots/key-browser-solarized.png" tabindex="0" role="button"><img src="assets/screenshots/key-browser-solarized.png" alt="solarized" loading="lazy" /><figcaption><i class="sw" style="--sw:#F2E6CE"></i><span data-i18n="skin.solarized">晒淡 · Solarized</span></figcaption></figure>
+      <figure class="skin" data-full="assets/screenshots/key-browser-forest.png" tabindex="0" role="button"><img src="assets/screenshots/key-browser-forest.png" alt="forest" loading="lazy" /><figcaption><i class="sw" style="--sw:#16301F"></i><span data-i18n="skin.forest">森林 · Forest</span></figcaption></figure>
+      <figure class="skin" data-full="assets/screenshots/key-browser-sakura.png" tabindex="0" role="button"><img src="assets/screenshots/key-browser-sakura.png" alt="sakura" loading="lazy" /><figcaption><i class="sw" style="--sw:#F7DDE5"></i><span data-i18n="skin.sakura">樱花 · Sakura</span></figcaption></figure>
+      <figure class="skin" data-full="assets/screenshots/key-browser-mint.png" tabindex="0" role="button"><img src="assets/screenshots/key-browser-mint.png" alt="mint" loading="lazy" /><figcaption><i class="sw" style="--sw:#DCF0E6"></i><span data-i18n="skin.mint">薄荷 · Mint</span></figcaption></figure>
+      <figure class="skin" data-full="assets/screenshots/key-browser-mist.png" tabindex="0" role="button"><img src="assets/screenshots/key-browser-mist.png" alt="mist" loading="lazy" /><figcaption><i class="sw" style="--sw:#E4E9F2"></i><span data-i18n="skin.mist">薄雾 · Mist</span></figcaption></figure>
+      <figure class="skin" data-full="assets/screenshots/key-browser-aurora.png" tabindex="0" role="button"><img src="assets/screenshots/key-browser-aurora.png" alt="aurora" loading="lazy" /><figcaption><i class="sw" style="--sw:#141033"></i><span data-i18n="skin.aurora">极光 · Aurora</span></figcaption></figure>
+    </div>
+
+    <div class="gal-tabs" role="tablist" aria-label="gallery">
+      <button class="gt is-on" data-g="home" role="tab" aria-selected="true" type="button" data-i18n="gal.t.home">主页</button>
+      <button class="gt" data-g="browse" role="tab" aria-selected="false" type="button" data-i18n="gal.t.browse">键浏览</button>
+      <button class="gt" data-g="value" role="tab" aria-selected="false" type="button" data-i18n="gal.t.value">值查看</button>
+      <button class="gt" data-g="server" role="tab" aria-selected="false" type="button" data-i18n="gal.t.server">服务端面板</button>
+      <button class="gt" data-g="tools" role="tab" aria-selected="false" type="button" data-i18n="gal.t.tools">CLI 与日志</button>
+      <button class="gt" data-g="conn" role="tab" aria-selected="false" type="button" data-i18n="gal.t.conn">连接管理</button>
+    </div>
+
+    <div class="gal-panel is-on" data-g="home">
+      <div class="gal-grid g2">
+        <figure class="shot big" data-full="assets/screenshots/home-dark.png" tabindex="0" role="button"><img src="assets/screenshots/home-dark.png" alt="" loading="lazy" /><figcaption data-i18n="gal.home.1">主页 · 暗色：功能导览九宫格与快捷键速查</figcaption></figure>
+        <figure class="shot big" data-full="assets/screenshots/home-light.png" tabindex="0" role="button"><img src="assets/screenshots/home-light.png" alt="" loading="lazy" /><figcaption data-i18n="gal.home.2">主页 · 亮色：卡片底色按「面板色 + 页面底色」现算</figcaption></figure>
+        <figure class="shot" data-full="assets/screenshots/home-aurora.png" tabindex="0" role="button"><img src="assets/screenshots/home-aurora.png" alt="" loading="lazy" /><figcaption data-i18n="gal.home.3">主页 · 极光</figcaption></figure>
+        <figure class="shot" data-full="assets/screenshots/home-sakura.png" tabindex="0" role="button"><img src="assets/screenshots/home-sakura.png" alt="" loading="lazy" /><figcaption data-i18n="gal.home.4">主页 · 樱花</figcaption></figure>
+      </div>
+    </div>
+    <div class="gal-panel" data-g="browse">
+      <div class="gal-grid g2">
+        <figure class="shot big" data-full="assets/screenshots/key-browser-tree.png" tabindex="0" role="button"><img src="assets/screenshots/key-browser-tree.png" alt="" loading="lazy" /><figcaption data-i18n="gal.b.1">树形视图：按分隔符逐段建层，目录节点显示子树内键数量</figcaption></figure>
+        <figure class="shot big" data-full="assets/screenshots/key-browser-tree-light.png" tabindex="0" role="button"><img src="assets/screenshots/key-browser-tree-light.png" alt="" loading="lazy" /><figcaption data-i18n="gal.b.2">树形视图 · 亮色</figcaption></figure>
+        <figure class="shot" data-full="assets/screenshots/search-result.png" tabindex="0" role="button"><img src="assets/screenshots/search-result.png" alt="" loading="lazy" /><figcaption data-i18n="gal.b.3">全库搜索：SCAN 下沉主进程，边扫边推进、可中止</figcaption></figure>
+        <figure class="shot" data-full="assets/screenshots/key-browser-aurora.png" tabindex="0" role="button"><img src="assets/screenshots/key-browser-aurora.png" alt="" loading="lazy" /><figcaption data-i18n="gal.b.4">平铺视图 · 极光</figcaption></figure>
+      </div>
+    </div>
+    <div class="gal-panel" data-g="value">
+      <div class="gal-grid g2">
+        <figure class="shot" data-full="assets/screenshots/key-value-string.png" tabindex="0" role="button"><img src="assets/screenshots/key-value-string.png" alt="" loading="lazy" /><figcaption data-i18n="gal.v.1">string：编辑 / 复制 / JSON 美化 / 自动换行 / 导出 / 刷新 收进一个分段控件</figcaption></figure>
+        <figure class="shot" data-full="assets/screenshots/key-value-hash.png" tabindex="0" role="button"><img src="assets/screenshots/key-value-hash.png" alt="" loading="lazy" /><figcaption data-i18n="gal.v.2">hash：序号列固定不参与排序，field / value 可点表头排序</figcaption></figure>
+        <figure class="shot" data-full="assets/screenshots/key-value-hash-light.png" tabindex="0" role="button"><img src="assets/screenshots/key-value-hash-light.png" alt="" loading="lazy" /><figcaption data-i18n="gal.v.3">hash · 亮色，含字段级 TTL 列</figcaption></figure>
+        <figure class="shot" data-full="assets/screenshots/key-value-string-light.png" tabindex="0" role="button"><img src="assets/screenshots/key-value-string-light.png" alt="" loading="lazy" /><figcaption data-i18n="gal.v.4">string · 亮色，实底行号槽</figcaption></figure>
+      </div>
+      <p class="gal-note" data-i18n="gal.v.note">值区头部是报头（masthead）：上行 9px 大写类型眉标并取该类型徽标色，下行 18px 键名独占一整行，右对齐 TTL / encoding / 大小——长键名能多显示约 40px。</p>
+    </div>
+    <div class="gal-panel" data-g="server">
+      <div class="gal-grid g2">
+        <figure class="shot" data-full="assets/screenshots/overview-info.png" tabindex="0" role="button"><img src="assets/screenshots/overview-info.png" alt="" loading="lazy" /><figcaption data-i18n="gal.s.1">Redis 信息详情：9 个段落，每段可折叠</figcaption></figure>
+        <figure class="shot" data-full="assets/screenshots/overview-info-light.png" tabindex="0" role="button"><img src="assets/screenshots/overview-info-light.png" alt="" loading="lazy" /><figcaption data-i18n="gal.s.2">信息详情 · 亮色</figcaption></figure>
+        <figure class="shot" data-full="assets/screenshots/overview-slowlog.png" tabindex="0" role="button"><img src="assets/screenshots/overview-slowlog.png" alt="" loading="lazy" /><figcaption data-i18n="gal.s.3">慢查询日志：ID 列与相对时间、阈值说明</figcaption></figure>
+        <figure class="shot" data-full="assets/screenshots/overview-memory.png" tabindex="0" role="button"><img src="assets/screenshots/overview-memory.png" alt="" loading="lazy" /><figcaption data-i18n="gal.s.4">键内存分析：按前缀聚合，扫描上限 10000 键</figcaption></figure>
+        <figure class="shot" data-full="assets/screenshots/overview-pubsub.png" tabindex="0" role="button"><img src="assets/screenshots/overview-pubsub.png" alt="" loading="lazy" /><figcaption data-i18n="gal.s.5">Pub/Sub：频道实底 chip、模式虚线 chip，点 × 单个退订</figcaption></figure>
+        <figure class="shot" data-full="assets/screenshots/key-browser-mist.png" tabindex="0" role="button"><img src="assets/screenshots/key-browser-mist.png" alt="" loading="lazy" /><figcaption data-i18n="gal.s.6">薄雾皮肤下的键浏览器</figcaption></figure>
+      </div>
+    </div>
+    <div class="gal-panel" data-g="tools">
+      <div class="gal-grid g2">
+        <figure class="shot" data-full="assets/screenshots/cli-console.png" tabindex="0" role="button"><img src="assets/screenshots/cli-console.png" alt="" loading="lazy" /><figcaption data-i18n="gal.t.1">内置 CLI：按连接分标签，结果直接回显</figcaption></figure>
+        <figure class="shot" data-full="assets/screenshots/operation-log.png" tabindex="0" role="button"><img src="assets/screenshots/operation-log.png" alt="" loading="lazy" /><figcaption data-i18n="gal.t.2">操作日志：表头吸顶、操作列固定右侧</figcaption></figure>
+      </div>
+    </div>
+    <div class="gal-panel" data-g="conn">
+      <div class="gal-grid g2">
+        <figure class="shot" data-full="assets/screenshots/dialog-connection.png" tabindex="0" role="button"><img src="assets/screenshots/dialog-connection.png" alt="" loading="lazy" /><figcaption data-i18n="gal.c.1">新建连接：支持 SSH 隧道与多级跳板</figcaption></figure>
+        <figure class="shot" data-full="assets/screenshots/dialog-connection-light.png" tabindex="0" role="button"><img src="assets/screenshots/dialog-connection-light.png" alt="" loading="lazy" /><figcaption data-i18n="gal.c.2">新建连接 · 亮色，配色走语义 token</figcaption></figure>
+      </div>
+    </div>
+
+    <p class="gal-note" data-i18n="gal.foot">截图取自浏览器预览模式，数据全部来自内置演示配置——不包含任何真实环境的地址、账号或业务键名。</p>
+  </div>
+</section>
+
+<!-- ============ ARCHITECTURE ============ -->
+<section class="sec" id="architecture">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow" data-i18n="arch.eyebrow">架构</span>
+      <h2 data-i18n="arch.h2">三层进程模型，一份类型契约</h2>
+      <p data-i18n="arch.p">渲染层拿不到 Node 能力，一切经 contextBridge 白名单出入；主进程与渲染层共用 <code>shared/</code> 里的数据模型与 IPC 通道常量，接口改动在编译期就会暴露。</p>
+    </div>
+
+    <div class="arch">
+      <div class="arch-layer">
+        <div class="arch-tag" data-i18n="arch.l1">渲染进程</div>
+        <div class="arch-boxes">
+          <div class="abox"><b>React 19</b><span data-i18n="arch.b1">Vite 6 + React Compiler 1.0 构建期自动记忆化</span></div>
+          <div class="abox"><b>store/</b><span data-i18n="arch.b2">Proxy + 版本号的极简响应式 store，会话 / 全局 / 订阅</span></div>
+          <div class="abox"><b>components/</b><span data-i18n="arch.b3">50+ 界面组件 + ui/ 原子组件</span></div>
+          <div class="abox"><b>hooks/</b><span data-i18n="arch.b4">设置、主题、搜索历史、弹窗拖拽、六个值类型编辑器</span></div>
+        </div>
+      </div>
+      <div class="arch-link">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M7 9l5-5 5 5M7 15l5 5 5-5"/></svg>
+        <span data-i18n="arch.link1">contextBridge · 白名单 IPC · <code>ipcRenderer.invoke</code></span>
+      </div>
+      <div class="arch-layer">
+        <div class="arch-tag" data-i18n="arch.l2">主进程</div>
+        <div class="arch-boxes">
+          <div class="abox"><b>engines/registry</b><span data-i18n="arch.b5">引擎注册表：适配器登记与查询</span></div>
+          <div class="abox"><b>connection-manager</b><span data-i18n="arch.b6">Redis 连接池 + 全部 Redis 命令</span></div>
+          <div class="abox"><b>engines/memcached</b><span data-i18n="arch.b7">client / manager / pool，与 Redis 完全隔离</span></div>
+          <div class="abox"><b>ssh-tunnel</b><span data-i18n="arch.b8">本地端口转发，多级跳板</span></div>
+          <div class="abox"><b>credential-crypto</b><span data-i18n="arch.b9">safeStorage 加密，不可用时降级并标记</span></div>
+          <div class="abox"><b>log-service</b><span data-i18n="arch.b10">手动操作日志，按天分片、超期清理</span></div>
+          <div class="abox"><b>auto-update</b><span data-i18n="arch.b11">electron-updater 差分下载与安装</span></div>
+          <div class="abox"><b>i18n</b><span data-i18n="arch.b12">主进程文案随设置同步切换</span></div>
+        </div>
+      </div>
+      <div class="arch-link">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M7 9l5-5 5 5M7 15l5 5 5-5"/></svg>
+        <span data-i18n="arch.link2">ioredis 5（TLS / ACL / 分页 SCAN） · ssh2 · 本机配置目录</span>
+      </div>
+      <div class="arch-layer">
+        <div class="arch-tag" data-i18n="arch.l3">服务端 / 本机</div>
+        <div class="arch-boxes">
+          <div class="abox"><b>Redis</b><span data-i18n="arch.r1">7.x 及以上，六种数据结构</span></div>
+          <div class="abox"><b>Memcached</b><span data-i18n="arch.r2">stats / lru_crawler metadump</span></div>
+          <div class="abox"><b>config/</b><span data-i18n="arch.r3">连接、设置、搜索历史、日志</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arch-cols">
+      <div class="arch-col">
+        <h3 data-i18n="arch.treeh">目录结构（节选）</h3>
+        <div class="code-block">
+<pre><code data-i18n="code.tree">Keyper/
+├── electron/                <span class="cmt"># 主进程</span>
+│   ├── main.ts              <span class="cmt"># 窗口、单实例、生命周期</span>
+│   ├── preload.ts           <span class="cmt"># contextBridge 暴露 window.redisApi</span>
+│   ├── ipc/index.ts         <span class="cmt"># 通道注册 + 统一错误包裹</span>
+│   └── services/
+│       ├── engines/
+│       │   ├── registry.ts  <span class="cmt"># 引擎注册表</span>
+│       │   └── memcached/   <span class="cmt"># client / manager / pool</span>
+│       ├── connection-manager.ts
+│       ├── ssh-tunnel.ts
+│       ├── credential-crypto.ts
+│       └── auto-update.ts
+├── shared/                  <span class="cmt"># 两个进程共享的类型契约</span>
+│   ├── types.ts  api.ts  keyspace.ts
+│   └── i18n/index.ts
+├── lang/                    <span class="cmt"># en.ts 是唯一事实来源</span>
+│   ├── en.ts  zh-CN.ts  zh-TW.ts
+├── src/                     <span class="cmt"># 渲染进程</span>
+│   ├── App.tsx  api/  store/  hooks/
+│   ├── components/  services/  styles/
+│   └── preview/             <span class="cmt"># 纯浏览器预览页</span>
+├── tests/unit/              <span class="cmt"># 21 个 vitest spec</span>
+├── docs/                    <span class="cmt"># 架构、约定与踩坑记录</span>
+├── build/                   <span class="cmt"># 图标与 NSIS 定制脚本</span>
+└── .github/workflows/       <span class="cmt"># ci.yml + release.yml + site.yml</span></code></pre>
+        </div>
+      </div>
+      <div class="arch-col">
+        <h3 data-i18n="arch.stackh">技术栈</h3>
+        <table class="tbl">
+          <thead><tr><th data-i18n="arch.tbl.layer">层</th><th data-i18n="arch.tbl.pick">选型</th><th data-i18n="arch.tbl.note">说明</th></tr></thead>
+          <tbody>
+            <tr><td data-i18n="arch.row1.l">主进程</td><td class="mono">Electron 33 + TS 5.7</td><td data-i18n="arch.row1.n">窗口、IPC、连接池、引擎注册表</td></tr>
+            <tr><td data-i18n="arch.row2.l">渲染进程</td><td class="mono">React 19 + Vite 6</td><td data-i18n="arch.row2.n">界面与交互，状态层在 src/store/</td></tr>
+            <tr><td data-i18n="arch.row3.l">编译优化</td><td class="mono">React Compiler 1.0</td><td data-i18n="arch.row3.n">构建期自动记忆化，直接用 React 自带 runtime</td></tr>
+            <tr><td data-i18n="arch.row4.l">通信</td><td class="mono">contextBridge</td><td data-i18n="arch.row4.n">上下文隔离，渲染进程不接触 Node</td></tr>
+            <tr><td data-i18n="arch.row5.l">Redis 客户端</td><td class="mono">ioredis 5</td><td data-i18n="arch.row5.n">TLS / ACL / 分页 SCAN</td></tr>
+            <tr><td data-i18n="arch.row6.l">应用内更新</td><td class="mono">electron-updater 6</td><td data-i18n="arch.row6.n">blockmap 差分、进度、退出时自动安装</td></tr>
+            <tr><td data-i18n="arch.row7.l">CI / 发布</td><td class="mono">GitHub Actions</td><td data-i18n="arch.row7.n">push/PR 全量校验，标签出包并发布 Release</td></tr>
+            <tr><td data-i18n="arch.row8.l">打包</td><td class="mono">electron-builder</td><td data-i18n="arch.row8.n">NSIS / DMG / AppImage+deb，仅打包 3 个界面语言</td></tr>
+          </tbody>
+        </table>
+        <div class="mini">
+          <div class="mini-h" data-i18n="arch.i18nh">多语言是怎么保证不漏的</div>
+          <ul class="ticks ticks-sm">
+            <li data-i18n="arch.i18n1"><code>lang/en.ts</code> 是唯一事实来源，导出 <code>MsgKey = keyof typeof en</code></li>
+            <li data-i18n="arch.i18n2">简繁字典声明为 <code>Record&lt;MsgKey, string&gt;</code>，缺译多译都编译失败</li>
+            <li data-i18n="arch.i18n3">运行时回退链「当前语言 → 英文 → key」，不会渲染成空白</li>
+            <li data-i18n="arch.i18n4"><code>npm run i18n:check</code> 校验键集与占位符一致、英文译文不残留中文、源码引用的 key 存在且非孤儿</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SECURITY ============ -->
+<section class="sec sec-alt" id="security">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow" data-i18n="sec.eyebrow">安全</span>
+      <h2 data-i18n="sec.h2">凭据只留在你这一侧</h2>
+      <p data-i18n="sec.p">Keyper 没有账号体系、没有服务端，也没有把连接信息发往任何第三方的代码路径。下面是可以在源码里逐条核对的实现细节。</p>
+    </div>
+
+    <div class="cards cards-2 sec-cards">
+      <article class="card card-wide">
+        <h3 data-i18n="s.1.h">进程隔离</h3>
+        <p data-i18n="s.1.p">渲染进程开启 <code>contextIsolation</code>、关闭 <code>nodeIntegration</code>，并启用 <code>sandbox: true</code>：渲染层与 preload 都拿不到 <code>require</code> / <code>process</code> / <code>module</code> / <code>Buffer</code>，能力仅经 contextBridge 白名单暴露。</p>
+      </article>
+      <article class="card card-wide">
+        <h3 data-i18n="s.2.h">严格的 CSP</h3>
+        <p data-i18n="s.2.p"><code>default-src 'none'</code>，脚本走 sha256 哈希、样式不含 <code>unsafe-inline</code>。生产靠构建产物里的 <code>&lt;meta&gt;</code> 生效（<code>file://</code> 下响应头无效），开发由主进程注入另一套带 HMR 放行的策略。首屏主题脚本的哈希由脚本在构建时自动写入，<code>npm run csp:check</code> 可校验是否失配。</p>
+      </article>
+      <article class="card card-wide">
+        <h3 data-i18n="s.3.h">凭据存储与传输</h3>
+        <p data-i18n="s.3.p">连接密码优先调用系统钥匙串（<code>safeStorage</code>）加密后落盘；仅在钥匙串不可用时降级为明文，并以 <code>raw:</code> 前缀显式标记。导出文件默认剥离凭据；显式勾选「包含凭据」后，Redis / SSH 密码、私钥与口令会以明文写入用户选择的文件并需二次确认——不做二次加密，需自行保管。</p>
+      </article>
+      <article class="card card-wide">
+        <h3 data-i18n="s.4.h">导航与外链</h3>
+        <p data-i18n="s.4.p">应用内导航、<code>&lt;webview&gt;</code> 挂载、Chromium 权限请求一律拒绝；外链交由系统浏览器打开，且只放行 https 与受信任域。</p>
+      </article>
+      <article class="card card-wide">
+        <h3 data-i18n="s.5.h">更新链路</h3>
+        <p data-i18n="s.5.p">自动更新从配置的 GitHub Releases（HTTPS）拉取，安装包与增量元数据必须同源发布；可用 <code>KEYPER_UPDATE_URL</code> 指向内网 / 镜像的 generic 更新源。未打包版本自动跳过自动更新，回退到版本页检查。</p>
+      </article>
+      <article class="card card-wide">
+        <h3 data-i18n="s.6.h">安装器环境检查</h3>
+        <p data-i18n="s.6.p">传统「检查 VC++ / .NET / Node.js」在这里是无效检查——运行时随包携带，主进程不调用任何外部程序。安装页实际检测会导致「装完打不开」的条件：Windows 内部版本 ≥ 17763、必须 x64（不通过硬性中止）、磁盘 ≥ 600 MB、安装目录实写探针文件。</p>
+      </article>
+    </div>
+
+    <div class="limits">
+      <h3 data-i18n="lim.h">当前边界</h3>
+      <p data-i18n="lim.p">开源的价值在于把没做的事也写清楚。以下是已知边界，欢迎在 Issue 里讨论优先级。</p>
+      <ul class="lim-list">
+        <li><span class="lim-k" data-i18n="lim.1.k">代码签名</span><span data-i18n="lim.1.v">Windows 安装包目前未做代码签名，正式分发前应补齐，以避免 SmartScreen 告警。</span></li>
+        <li><span class="lim-k" data-i18n="lim.2.k">平台产物</span><span data-i18n="lim.2.v">发布流水线当前产出 Windows NSIS 安装包；macOS / Linux 的打包配置就绪但尚未产出安装包。</span></li>
+        <li><span class="lim-k" data-i18n="lim.3.k">凭据导出</span><span data-i18n="lim.3.v">勾选「包含凭据」的导出文件是明文，不做二次加密。</span></li>
+        <li><span class="lim-k" data-i18n="lim.4.k">钥匙串降级</span><span data-i18n="lim.4.v">系统钥匙串不可用时凭据降级为明文存储，以 <code>raw:</code> 前缀标记。</span></li>
+        <li><span class="lim-k" data-i18n="lim.5.k">JSON 美化</span><span data-i18n="lim.5.v">只对 string 提供。容器类型本就是结构化展示，逐项缩进会让行高参差、信息密度下降——这是设计决定。</span></li>
+        <li><span class="lim-k" data-i18n="lim.6.k">Lua 脚本</span><span data-i18n="lim.6.v">运行器把脚本原样交给服务端执行，权限等同于当前连接所用账号；<code>EVAL_RO</code> 只是改用只读命令，不是沙箱。</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============ INSTALL ============ -->
+<section class="sec" id="install">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow" data-i18n="ins.eyebrow">安装与开发</span>
+      <h2 data-i18n="ins.h2">三条路径，任选一条</h2>
+      <p data-i18n="ins.p">下载安装包、从源码构建、或者只跑渲染层调界面——三者互不干扰。</p>
+    </div>
+
+    <div class="tabs" role="tablist" aria-label="install">
+      <button class="tab is-on" role="tab" aria-selected="true" data-tab="i-dl" type="button" data-i18n="ins.t.dl">下载</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="i-src" type="button" data-i18n="ins.t.src">从源码构建</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="i-dev" type="button" data-i18n="ins.t.dev">开发命令</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="i-mirror" type="button" data-i18n="ins.t.mirror">国内镜像</button>
+    </div>
+
+    <div class="panel is-on" data-panel="i-dl">
+      <div class="dl-card">
+        <div class="dl-main">
+          <div class="dl-ver"><span class="mono" data-i18n="ins.dl.file">Keyper-&lt;最新版本&gt;-win-x64.exe</span><span class="chip" data-i18n="ins.dl.chip">NSIS · x64</span></div>
+          <p data-i18n="ins.dl.p">构建产物落在 <code>release/&lt;版本&gt;/</code>，同目录生成 <code>latest.yml</code> 与 <code>*.blockmap</code>（增量更新分块索引），安装目录内打包 <code>app-update.yml</code>（更新源配置）。安装包的 sha512 校验值以 Release 中的 <code>latest.yml</code> 为准。</p>
+          <ul class="ticks ticks-sm">
+            <li data-i18n="ins.dl.1">Windows 10 1809（内部版本 17763）及以上，x64</li>
+            <li data-i18n="ins.dl.2">安装时把安装目录写入当前用户 PATH，卸载按分号边界逐段移除，重复安装不产生重复条目</li>
+            <li data-i18n="ins.dl.3">升级模式沿用原安装目录并保留 <code>config/</code>，用户数据不会被清掉</li>
+            <li data-i18n="ins.dl.4">安装向导为三段式（安装范围 / 安装目录 / 就绪确认），窗口运行时可放大，低分辨率屏幕也不挤</li>
+          </ul>
+        </div>
+        <div class="dl-side">
+          <a class="btn btn-primary btn-block" href="https://github.com/qq281376065/keyper/releases" target="_blank" rel="noopener noreferrer" data-i18n="ins.dl.btn">到 GitHub Releases 下载</a>
+          <a class="btn btn-line btn-block" href="https://github.com/qq281376065/keyper/releases/latest" target="_blank" rel="noopener noreferrer" data-i18n="ins.dl.btn2">最新版本说明</a>
+          <p class="dl-note" data-i18n="ins.dl.note">安装包未做代码签名，首次运行可能遇到系统提示。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" data-panel="i-src">
+      <div class="code-block" data-copy>
+<pre><code data-i18n="code.src">git clone https://github.com/qq281376065/keyper.git
+cd keyper
+npm install
+npm run build        <span class="cmt"># 类型检查 + 构建产物到 dist/ 与 dist-electron/</span>
+npm run dist         <span class="cmt"># 当前平台打包</span>
+npm run dist:win     <span class="cmt"># Windows 安装包</span>
+npm run dist:win:alt <span class="cmt"># 换一个输出目录，避免与旧产物混在一起</span></code></pre>
+      </div>
+      <p class="panel-note" data-i18n="ins.src.p">要求 Node.js ≥ 18。构建脚本会先跑 <code>typecheck</code>，类型不过就不产出产物；构建末尾自动写入 CSP 哈希，可用 <code>npm run csp:check</code> 复核。</p>
+    </div>
+
+    <div class="panel" data-panel="i-dev">
+      <div class="code-block" data-copy>
+<pre><code data-i18n="code.dev">npm run dev          <span class="cmt"># Electron 真实窗口，IPC 与 ioredis 全链路生效</span>
+npm run dev:web      <span class="cmt"># 纯浏览器调界面：只起 Vite，数据走 mock，支持热更新</span>
+npm run build &amp;&amp; npm run preview   <span class="cmt"># 生产构建产物预览（127.0.0.1:4173）</span>
+npm run typecheck    <span class="cmt"># 主进程 + 渲染进程类型检查</span>
+npm run test         <span class="cmt"># vitest 单元测试</span>
+npm run i18n:check   <span class="cmt"># 三份字典键集、占位符与源码引用一致性</span>
+npm run csp:check    <span class="cmt"># 校验 CSP 哈希是否失配</span></code></pre>
+      </div>
+      <p class="panel-note" data-i18n="ins.dev.p">界面只有一份实现。浏览器模式下没有主进程，设置与日志等能力由 <code>src/api/mock.ts</code> 提供演示数据；要验证真实行为（日志写入配置目录的 <code>logs/</code>、设置持久化）请用 <code>npm run dev</code>。</p>
+    </div>
+
+    <div class="panel" data-panel="i-mirror">
+      <div class="code-block" data-copy>
+<pre><code data-i18n="code.mirror">npm config set registry https://registry.npmmirror.com
+set ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/      <span class="cmt"># Windows</span>
+export ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/   <span class="cmt"># macOS / Linux</span></code></pre>
+      </div>
+      <p class="panel-note" data-i18n="ins.mirror.p"><code>electron-builder</code> 封装 NSIS 时还要额外下载 <code>nsis</code>、<code>nsis-resources</code>、<code>winCodeSign</code> 等工具链，默认从 GitHub Releases 拉取，国内常连接超时，表现为 <code>ERR_ELECTRON_BUILDER_CANNOT_EXECUTE</code>。这与 Electron 运行时二进制的镜像是两回事，且配置文件里没有对应项——只能通过环境变量生效。项目已在 <code>package.json</code> 的 <code>config</code> 字段声明，<code>npm run</code> 执行时自动注入。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ RELEASE / CI ============ -->
+<section class="sec sec-alt" id="release">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow" data-i18n="rel.eyebrow">持续集成与发布</span>
+      <h2 data-i18n="rel.h2">从 push 到差分更新，每一步都在流水线里</h2>
+      <p data-i18n="rel.p">同一分支的新提交会取消上一轮，避免排队堆积。标签与 <code>package.json</code> 版本不一致时直接失败；同一个标签只保留一份资产最全的 Release。</p>
+    </div>
+
+    <div class="pipe">
+      <div class="pipe-step">
+        <span class="pipe-n">01</span>
+        <h4>npm ci</h4>
+        <p data-i18n="rel.s1">锁定依赖树，杜绝"我这儿能跑"。</p>
+      </div>
+      <div class="pipe-arrow" aria-hidden="true"></div>
+      <div class="pipe-step">
+        <span class="pipe-n">02</span>
+        <h4>i18n:check</h4>
+        <p data-i18n="rel.s2">三份字典键集与占位符一致、无孤儿 key。</p>
+      </div>
+      <div class="pipe-arrow" aria-hidden="true"></div>
+      <div class="pipe-step">
+        <span class="pipe-n">03</span>
+        <h4>typecheck</h4>
+        <p data-i18n="rel.s3">主进程与渲染进程各自过一遍类型。</p>
+      </div>
+      <div class="pipe-arrow" aria-hidden="true"></div>
+      <div class="pipe-step">
+        <span class="pipe-n">04</span>
+        <h4>vitest</h4>
+        <p data-i18n="rel.s4">21 个单元测试 spec，覆盖引擎隔离、凭据加密、格式解码与 i18n。</p>
+      </div>
+      <div class="pipe-arrow" aria-hidden="true"></div>
+      <div class="pipe-step">
+        <span class="pipe-n">05</span>
+        <h4>vite build</h4>
+        <p data-i18n="rel.s5">产出渲染层与主进程产物并写入 CSP 哈希。</p>
+      </div>
+    </div>
+
+    <div class="rel-cols">
+      <div class="rel-col">
+        <h3 data-i18n="rel.gh">两条工作流</h3>
+        <table class="tbl">
+          <thead><tr><th data-i18n="rel.tbl.wf">工作流</th><th data-i18n="rel.tbl.trig">触发</th><th data-i18n="rel.tbl.body">内容</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">ci.yml</td><td data-i18n="rel.ci.trig">push（任意分支）/ PR 到默认分支</td><td data-i18n="rel.ci.body">npm ci → i18n:check → typecheck → vitest → vite build</td></tr>
+            <tr><td class="mono">release.yml</td><td data-i18n="rel.rl.trig">推送 v* 标签 / 手动运行</td><td data-i18n="rel.rl.body">校验标签与版本一致 → 从标签附注导出 release-notes.md（根目录与 build/ 各一份）→ 保留该标签资产最全的 Release，草稿先取消 → Windows 打包并追加安装包、latest.yml 与 blockmap → 重试探测下载地址并复核 Release 数量</td></tr>
+          </tbody>
+        </table>
+        <p class="note" data-i18n="rel.ghnote">标签触发自动发布 Release，手动运行默认只构建、勾上 <code>publish</code> 才发布。同一版本要重发走手动运行；删除或移动标签会让 GitHub 连带删掉对应的 Release。</p>
+      </div>
+      <div class="rel-col">
+        <h3 data-i18n="rel.upd">应用内更新</h3>
+        <ol class="steps">
+          <li data-i18n="rel.u1">客户端读取更新源的 <code>latest.yml</code>，比较版本</li>
+          <li data-i18n="rel.u2">下载走 blockmap 差分，只传输与本地安装包不同的分块</li>
+          <li data-i18n="rel.u3">面板显示百分比、已下载 / 总量与速度；收起面板不中断下载</li>
+          <li data-i18n="rel.u4">完成后可选「稍后 / 重启并安装」，选择稍后时退出应用自动安装</li>
+        </ol>
+        <div class="code-block" data-copy>
+<pre><code data-i18n="code.update"><span class="cmt"># 指向内网 / 镜像的 generic 更新源（目录内放 latest.yml 与安装包）</span>
+set KEYPER_UPDATE_URL=https://mirror.internal/keyper/</code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CHANGELOG ============ -->
+<section class="sec" id="changelog">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow" data-i18n="chg.eyebrow">演进记录</span>
+      <h2 data-i18n="chg.h2">每一次改动都留下理由</h2>
+      <p data-i18n="chg.p">这里只记改动的原因与结论，不写版本号：逐版说明、下载物与变更清单以 GitHub Releases 为准，所以这一页不会因为发新版本而过期。</p>
+    </div>
+
+    <div class="tl">
+      <article class="tl-item is-on">
+        <div class="tl-side"><b data-i18n="chg.kn1">发版加固</b></div>
+        <div class="tl-body">
+          <h4 data-i18n="chg.n1.h">让每个标签只对应一份可信产物</h4>
+          <ul class="ticks ticks-sm">
+            <li data-i18n="chg.n1.1">发版说明只写一处（附注标签正文），由工作流导出根目录与 <code>build/</code> 两份：前者成为 Release 正文，后者进 <code>latest.yml</code> 供客户端更新面板显示，避免两处文案各写各的</li>
+            <li data-i18n="chg.n1.2">同一个标签只保留资产最全的一份 Release，被降级成草稿的先取消草稿、其余删除；发布后重试探测下载地址并复核 Release 数量</li>
+            <li data-i18n="chg.n1.3">把「删标签 / 强推会让 GitHub 连带删掉 Release」写进文档，重发同一版本改走手动运行并勾选 publish</li>
+          </ul>
+        </div>
+      </article>
+      <article class="tl-item">
+        <div class="tl-side"><b data-i18n="chg.kn2">Lua 与脚本库</b></div>
+        <div class="tl-body">
+          <h4 data-i18n="chg.n2.h">能跑的脚本，也要管得住</h4>
+          <ul class="ticks ticks-sm">
+            <li data-i18n="chg.n2.1">全局脚本库支持命名保存、单条与批量删除，<code>KEYS</code> / <code>ARGS</code> 分别填写后执行</li>
+            <li data-i18n="chg.n2.2"><code>EVAL_RO</code> 只读开关与 <code>SCRIPT KILL</code> 常驻工具栏，跑飞的脚本能立刻停下</li>
+          </ul>
+        </div>
+      </article>
+      <article class="tl-item">
+        <div class="tl-side"><b data-i18n="chg.kn3">CLI 与 Stream</b></div>
+        <div class="tl-body">
+          <h4 data-i18n="chg.n3.h">把运维动作搬进界面</h4>
+          <ul class="ticks ticks-sm">
+            <li data-i18n="chg.n3.1">CLI 补全建立在 370 条命令目录上，历史按连接持久化，输出可复制、可清屏</li>
+            <li data-i18n="chg.n3.2">Stream 消费组、消费者明细、PEL 与 <code>XACK</code> / <code>XCLAIM</code> / <code>XTRIM</code> 收进值区，单条 <code>XDEL</code> 不误伤整条流</li>
+            <li data-i18n="chg.n3.3">能力位决定入口显隐：服务端版本不支持时直接不出现，而不是点了才报错</li>
+          </ul>
+        </div>
+      </article>
+      <article class="tl-item">
+        <div class="tl-side"><b data-i18n="chg.kn4">键的生存状态</b></div>
+        <div class="tl-body">
+          <h4 data-i18n="chg.n4.h">倒计时、收藏与格式解码</h4>
+          <ul class="ticks ticks-sm">
+            <li data-i18n="chg.n4.1">TTL 倒计时每秒递减，归零后向服务端复核：过期键从列表消失、值区清空，界面不再展示已经不存在的缓存</li>
+            <li data-i18n="chg.n4.2">树形与平铺视图共用一套收藏区，状态栏汇总收藏数与筛选命中</li>
+            <li data-i18n="chg.n4.3">值格式自动识别 JSON / JWT / Base64 / PHP 序列化 / gzip / 图片 / MessagePack，检测结论写进状态栏，原文与解码视图随时切换</li>
+          </ul>
+        </div>
+      </article>
+      <article class="tl-item">
+        <div class="tl-side"><b data-i18n="chg.kn5">先立契约</b></div>
+        <div class="tl-body">
+          <h4 data-i18n="chg.n5.h">六个特性，一套契约</h4>
+          <ul class="ticks ticks-sm">
+            <li data-i18n="chg.n5.1">共享类型契约、限值常量与 Stream 能力位先行落地，后面的倒计时、收藏、解码、CLI、Stream、Lua 全部长在这套契约上</li>
+            <li data-i18n="chg.n5.2">渲染层与主进程同时改一处类型即可，能力探测结果由主进程统一返回，界面不各自判断</li>
+          </ul>
+        </div>
+      </article>
+      <article class="tl-item">
+        <div class="tl-side"><b data-i18n="chg.k10">组件统一</b></div>
+        <div class="tl-body">
+          <h4 data-i18n="chg.10.h">传输弹窗统一与公共组件抽取</h4>
+          <ul class="ticks ticks-sm">
+            <li data-i18n="chg.10.1">导入 / 导出 / 从连接串导入三个弹窗接入同一套 <code>DialogShell</code>，移除三份重复的弹窗外壳代码</li>
+            <li data-i18n="chg.10.2">导出摘要卡集中展示连接总数、引擎分布、传输格式与凭据状态；勾选「包含凭据」后摘要同步切换为「包含（明文）」</li>
+            <li data-i18n="chg.10.3">修复导入预览提前过期：一次性令牌曾被提前消费，写盘失败后预览立即失效，只能重新选文件；改为保存成功后再释放</li>
+            <li data-i18n="chg.10.4">新增 <code>Tag</code> / <code>InlineNotice</code> / <code>SwitchRow</code> / <code>EngineTag</code>，把重复的状态胶囊、警示条、开关行与引擎标签收敛为单一样式</li>
+          </ul>
+        </div>
+      </article>
+      <article class="tl-item">
+        <div class="tl-side"><b data-i18n="chg.k9">缺陷修复</b></div>
+        <div class="tl-body">
+          <h4 data-i18n="chg.9.h">修掉两个"每天都在碰"的缺陷</h4>
+          <ul class="ticks ticks-sm">
+            <li data-i18n="chg.9.1">复制失效：权限探测被一律拒绝导致 <code>clipboard.writeText</code> 抛错，而 <code>execCommand('copy')</code> 降级路径在新版 Chromium 已废弃，16 处调用全部失败。现按实际权限名放行 <code>clipboard-read</code>，其余仍全部拒绝</li>
+            <li data-i18n="chg.9.2">提示一闪而过：渲染层一个 200ms 的隐藏定时器把 store 里配置的 5~6.5 秒覆盖掉。删除该定时器，显隐统一由 store 控制</li>
+            <li data-i18n="chg.9.3">值区头部还原为「胶囊类型 | key」两段式，并修正元信息行间距与 ⋮ 按钮基线居中</li>
+          </ul>
+        </div>
+      </article>
+      <article class="tl-item">
+        <div class="tl-side"><b data-i18n="chg.k8">性能与发布</b></div>
+        <div class="tl-body">
+          <h4 data-i18n="chg.8.h">大 key、虚拟滚动与发布流水线</h4>
+          <ul class="ticks ticks-sm">
+            <li data-i18n="chg.8.1">大 key 分页加载（每页 500 / 上限 20000）与键列表原地增量刷新</li>
+            <li data-i18n="chg.8.2">五种表格类型虚拟滚动；监控指标曲线与键空间通知页签</li>
+            <li data-i18n="chg.8.3">Memcached 批量删除 / TTL / 前缀重命名；应用内增量更新接入 electron-updater</li>
+            <li data-i18n="chg.8.4">GitHub Actions CI 与发布流水线；安装包从 84.0 MB 降到 75.4 MB，app.asar 从 18.9 MiB 降到 3.7 MiB</li>
+          </ul>
+        </div>
+      </article>
+      <article class="tl-item">
+        <div class="tl-side"><b data-i18n="chg.k7">交互细节</b></div>
+        <div class="tl-body">
+          <h4 data-i18n="chg.7.h">把"手感"当成一等公民</h4>
+          <ul class="ticks ticks-sm">
+            <li data-i18n="chg.7.1">15 类图标按钮统一 hover 阴影，与页签、连接磁贴共用同一档影子，9 套皮肤自动跟随</li>
+            <li data-i18n="chg.7.2">13 个组件里的原生 <code>title</code> 全部换成项目统一的自绘提示，并修掉嵌套提示消失不复现的缺陷</li>
+            <li data-i18n="chg.7.3">修复九套浅色皮肤下主页卡片全是纯白——覆盖规则写在 <code>@layer components</code> 里，被 Tailwind 的 utilities 层静默压过</li>
+            <li data-i18n="chg.7.4">新增 <code>README.en.md</code>，章节、表格、代码块与截图与中文版一一对应</li>
+          </ul>
+        </div>
+      </article>
+      <article class="tl-item">
+        <div class="tl-side"><b data-i18n="chg.k6">多语言</b></div>
+        <div class="tl-body">
+          <h4 data-i18n="chg.6.h">三语言界面</h4>
+          <ul class="ticks ticks-sm">
+            <li data-i18n="chg.6.1">简体中文 / 繁體中文 / English，字典按语言拆分到 <code>lang/</code>，改用语义 key，<code>MsgKey</code> 由英文目录推导、另两份编译期校验</li>
+            <li data-i18n="chg.6.2">Memcached 键浏览改用 <code>lru_crawler metadump</code> 遍历完整 LRU，旧服务端自动回退并标注「可能不完整」</li>
+            <li data-i18n="chg.6.3">修复启动主题闪回：设置读取完成前不再被默认主题覆盖，已保存皮肤从首帧生效</li>
+          </ul>
+        </div>
+      </article>
+      <article class="tl-item">
+        <div class="tl-side"><b data-i18n="chg.k4">编译与保活</b></div>
+        <div class="tl-body">
+          <h4 data-i18n="chg.4.h">React 19 + Compiler</h4>
+          <ul class="ticks ticks-sm">
+            <li data-i18n="chg.4.1">升级 React 19 并接入 React Compiler 1.0：构建期自动记忆化，不引入额外运行依赖（体积 +54.7 kB，gzip +23.7 kB）</li>
+            <li data-i18n="chg.4.2">值区多标签保活（<code>&lt;Activity&gt;</code>）：切走只隐藏不卸载，筛选 / 排序 / 草稿 / 列宽 / 滚动位置全部保留</li>
+            <li data-i18n="chg.4.3">操作日志连接列前置、表头吸顶、操作列固定右侧，五列支持升降序</li>
+          </ul>
+        </div>
+      </article>
+      <article class="tl-item">
+        <div class="tl-side"><b data-i18n="chg.k3">引擎扩展</b></div>
+        <div class="tl-body">
+          <h4 data-i18n="chg.3.h">引入 Memcached 引擎模块</h4>
+          <ul class="ticks ticks-sm">
+            <li data-i18n="chg.3.1">与 Redis 完全隔离：独立连接池 / 管理器 / IPC 通道 / 日志字段，连接列表带引擎角标、新建弹窗可选引擎</li>
+            <li data-i18n="chg.3.2">Memcached 信息面板：服务 / 内存 / 命中 / 状态四张概览卡 + 统计页签 + 按 slab 分组的键浏览 + 设置页签</li>
+            <li data-i18n="chg.3.3">项目更名为 Keyper，引擎图形标识与顶栏横版品牌同步上线</li>
+          </ul>
+        </div>
+      </article>
+    </div>
+    <p class="tl-more"><a class="btn btn-line" href="https://github.com/qq281376065/keyper/releases" target="_blank" rel="noopener noreferrer" data-i18n="chg.more">完整 Release 记录</a></p>
+  </div>
+</section>
+
+<!-- ============ CONTRIBUTE ============ -->
+<section class="sec sec-alt" id="contribute">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow" data-i18n="con.eyebrow">参与贡献</span>
+      <h2 data-i18n="con.h2">四个可上手的扩展点</h2>
+      <p data-i18n="con.p">Keyper 把常见的扩展动作都留了明确的入口，改动范围可控、校验脚本能自己确认对不对。</p>
+    </div>
+
+    <div class="contrib">
+      <article class="cstep">
+        <div class="cstep-h"><span class="cstep-n">1</span><h4 data-i18n="con.1.h">新增一种引擎</h4></div>
+        <p data-i18n="con.1.p">在 <code>electron/services/engines/</code> 下实现一个适配器并在 <code>registry.ts</code> 登记，配置、连接池、日志与搜索历史按引擎各自存放——不需要改动已有模块的代码路径。</p>
+      </article>
+      <article class="cstep">
+        <div class="cstep-h"><span class="cstep-n">2</span><h4 data-i18n="con.2.h">新增一种语言</h4></div>
+        <div class="code-block code-sm" data-copy>
+<pre><code data-i18n="code.lang"><span class="cmt"># 1. 在 lang/ 下加文件并实现 Record&lt;MsgKey, string&gt;</span>
+<span class="cmt"># 2. 在 shared/i18n 注册 LocaleCode / LOCALES /</span>
+<span class="cmt">#    LOCALE_NAMES / LOCALE_HTML_LANG / DICTIONARIES</span>
+npm run i18n:check   <span class="cmt"># 3.</span></code></pre>
+        </div>
+      </article>
+      <article class="cstep">
+        <div class="cstep-h"><span class="cstep-n">3</span><h4 data-i18n="con.3.h">新增一条文案</h4></div>
+        <div class="code-block code-sm" data-copy>
+<pre><code data-i18n="code.str"><span class="cmt"># 1. lang/en.ts 按命名空间加语义 key</span>
+<span class="cmt"># 2. zh-CN / zh-TW 补同名两条译文</span>
+t('ns.key', { … })   <span class="cmt"># 3. 源码里调用</span>
+npm run i18n:check   <span class="cmt"># 4.</span></code></pre>
+        </div>
+      </article>
+      <article class="cstep">
+        <div class="cstep-h"><span class="cstep-n">4</span><h4 data-i18n="con.4.h">新增一套皮肤</h4></div>
+        <p data-i18n="con.4.p">配色全部由 CSS 变量驱动、组件不感知主题，因此补一组变量即可；<code>data-theme</code> 切换即生效，无需改动组件。</p>
+      </article>
+    </div>
+
+    <div class="pr">
+      <div class="pr-col">
+        <h3 data-i18n="con.prh">提交流程</h3>
+        <ol class="steps">
+          <li data-i18n="con.pr1">Fork 仓库，从默认分支切出分支</li>
+          <li data-i18n="con.pr2"><code>npm install</code>，用 <code>npm run dev:web</code> 调界面、<code>npm run dev</code> 验真实链路</li>
+          <li data-i18n="con.pr3">本地过门禁：<code>npm run i18n:check</code> · <code>npm run typecheck</code> · <code>npm run test</code></li>
+          <li data-i18n="con.pr4">提 PR 到默认分支，CI 会自动跑同一套校验</li>
+        </ol>
+        <p class="note" data-i18n="con.prtip">PR 里请带上"为什么这样改"。Keyper 的变更记录把设计决定与踩过的坑一起写下来，这类信息比 diff 本身更有价值。</p>
+      </div>
+      <div class="pr-col">
+        <h3 data-i18n="con.ish">问题与反馈</h3>
+        <ul class="ticks">
+          <li data-i18n="con.i1">Bug：附上 <code>logs/errors-yyyymmdd.log</code> 里的堆栈（含 5 秒去重），以及复现时的引擎与 Redis / Memcached 版本</li>
+          <li data-i18n="con.i2">功能建议：说明使用场景，而不只是想要哪个按钮</li>
+          <li data-i18n="con.i3">界面与文案：任何语言的漏译、占位符不一致都算 bug，CI 会拦但可能漏过语义问题</li>
+        </ul>
+        <div class="pr-links">
+          <a class="btn btn-primary" href="https://github.com/qq281376065/keyper" target="_blank" rel="noopener noreferrer" data-i18n="con.link.repo">GitHub 仓库</a>
+          <a class="btn btn-line" href="https://github.com/qq281376065/keyper/issues" target="_blank" rel="noopener noreferrer" data-i18n="con.link.issues">提交 Issue</a>
+          <a class="btn btn-line" href="https://github.com/qq281376065/keyper/blob/main/README.md" target="_blank" rel="noopener noreferrer" data-i18n="con.link.contrib">贡献与开发文档</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FAQ ============ -->
+<section class="sec" id="faq">
+  <div class="wrap wrap-narrow">
+    <div class="sec-head">
+      <span class="eyebrow" data-i18n="faq.eyebrow">常见问题</span>
+      <h2 data-i18n="faq.h2">可能会想先问的</h2>
+    </div>
+    <div class="faq">
+      <details open>
+        <summary data-i18n="faq.1.q">数据会上传到任何地方吗？</summary>
+        <p data-i18n="faq.1.a">不会。Keyper 没有账号体系也没有自己的服务端，连接配置、设置与操作日志都落在本机配置目录。运行期唯一的外部请求是自动更新检查，指向 GitHub Releases，并且可以用 <code>KEYPER_UPDATE_URL</code> 换成内网镜像。</p>
+      </details>
+      <details>
+        <summary data-i18n="faq.2.q">为什么 stream 只能读不能改？</summary>
+        <p data-i18n="faq.2.a">stream 是追加写的消息日志：改历史 entry 会破坏消费位点语义，删 entry 会造成消费缺口。所以值区只提供复制类操作，并明确标注只读——这是设计决定，不是没做完。</p>
+      </details>
+      <details>
+        <summary data-i18n="faq.3.q">为什么 JSON 美化只对 string 提供？</summary>
+        <p data-i18n="faq.3.a">只有整块文本才谈得上缩进重排。hash / list / set 本质已是结构化展示，逐项缩进会让行高参差、一屏内信息密度下降；zset 的 member/score 与 stream 的固定结构更没有美化空间。</p>
+      </details>
+      <details>
+        <summary data-i18n="faq.4.q">支持哪些服务端版本？</summary>
+        <p data-i18n="faq.4.a">Redis 7.x 及以上（字段级 TTL 等能力按版本探测，低版本会隐藏对应入口并在状态栏说明原因）；Memcached 优先使用 <code>lru_crawler metadump</code>，旧服务端自动回退 <code>stats cachedump</code> 并标注结果可能不完整。</p>
+      </details>
+      <details>
+        <summary data-i18n="faq.5.q">有 macOS / Linux 安装包吗？</summary>
+        <p data-i18n="faq.5.a">electron-builder 的 DMG / AppImage + deb 配置已就绪，但发布流水线目前只产出 Windows NSIS 安装包。可以在源码里用 <code>npm run dist</code> 为当前平台打包。</p>
+      </details>
+      <details>
+        <summary data-i18n="faq.6.q">许可证是什么？</summary>
+        <p data-i18n="faq.6.a">仓库的 <code>LICENSE</code> 文件是 Apache License 2.0。注意 <code>package.json</code> 的 <code>license</code> 字段目前写的是 MIT，两者不一致——以 LICENSE 文件为准，这个字段应当被修正。</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CTA ============ -->
+<section class="final">
+  <div class="wrap final-in">
+    <div>
+      <h2 data-i18n="fin.h">读一读它是怎么写的</h2>
+      <p data-i18n="fin.p">代码是唯一不会过期的文档。从 <code>electron/services/engines/registry.ts</code> 开始，二十分钟能看懂引擎是怎么插进去的。</p>
+    </div>
+    <div class="final-btns">
+      <a class="btn btn-primary" href="https://github.com/qq281376065/keyper" target="_blank" rel="noopener noreferrer" data-i18n="fin.star">在 GitHub 上查看</a>
+      <a class="btn btn-line" href="#install" data-i18n="fin.dl">下载安装包</a>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-in">
+    <div class="foot-brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 64 64" width="24" height="24"><rect width="64" height="64" rx="15" fill="currentColor"/><path d="M22 15v34M42 15 26.5 32 42 49" stroke="var(--brand-mark-stroke,#fff)" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+      </span>
+      <div>
+        <b>Keyper</b>
+        <p data-i18n="foot.tag">多引擎键值缓存管理工具 · 开源</p>
+      </div>
+    </div>
+    <div class="foot-cols">
+      <div>
+        <h5 data-i18n="foot.c1">项目</h5>
+        <a href="https://github.com/qq281376065/keyper" target="_blank" rel="noopener noreferrer" data-i18n="foot.l.repo">仓库</a>
+        <a href="https://github.com/qq281376065/keyper/releases" target="_blank" rel="noopener noreferrer" data-i18n="foot.l.rel">发行版</a>
+        <a href="https://github.com/qq281376065/keyper/issues" target="_blank" rel="noopener noreferrer" data-i18n="foot.l.iss">Issue</a>
+        <a href="https://github.com/qq281376065/keyper/blob/main/README.en.md" target="_blank" rel="noopener noreferrer" data-i18n="foot.l.readme">英文 README</a>
+      </div>
+      <div>
+        <h5 data-i18n="foot.c2">文档</h5>
+        <a href="#architecture" data-i18n="foot.l.arch">架构</a>
+        <a href="#security" data-i18n="foot.l.sec">安全说明</a>
+        <a href="#install" data-i18n="foot.l.dev">开发命令</a>
+        <a href="#contribute" data-i18n="foot.l.con">贡献</a>
+      </div>
+      <div>
+        <h5 data-i18n="foot.c3">许可</h5>
+        <a href="https://www.apache.org/licenses/LICENSE-2.0" target="_blank" rel="noopener noreferrer">Apache License 2.0</a>
+        <a href="#release" data-i18n="foot.l.ci">CI 与发布</a>
+        <a href="#changelog" data-i18n="foot.l.log">更新日志</a>
+      </div>
+    </div>
+  </div>
+  <div class="wrap foot-bot">
+    <span data-i18n="foot.copy">本站展示的内容取自 Keyper 仓库的 README、CHANGELOG 与真实构建产物。界面截图来自浏览器预览模式的演示数据。</span>
+    <span class="mono">Apache-2.0</span>
+  </div>
+</footer>
+
+<!-- lightbox -->
+<div class="lb" id="lb" role="dialog" aria-modal="true" aria-hidden="true" aria-label="preview">
+  <button class="lb-x" id="lb-x" type="button" aria-label="close">&times;</button>
+  <button class="lb-nav lb-prev" id="lb-prev" type="button" aria-label="prev">&#8249;</button>
+  <figure class="lb-fig"><img id="lb-img" src="" alt="" /><figcaption id="lb-cap"></figcaption></figure>
+  <button class="lb-nav lb-next" id="lb-next" type="button" aria-label="next">&#8250;</button>
+</div>
+
+<script src="assets/i18n.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

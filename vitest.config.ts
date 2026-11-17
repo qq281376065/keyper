@@ -22,6 +22,8 @@ export default defineConfig({
     environmentMatchGlobs: [
       /* searchHistory 用 renderHook 驱动 React hook，需要 DOM */
       ['tests/unit/searchHistory.spec.ts', 'jsdom'],
+      /* rendererPerf 的 useCoalescedStream 用 renderHook，需要 DOM */
+      ['tests/unit/rendererPerf.spec.ts', 'jsdom'],
     ],
   },
 })
