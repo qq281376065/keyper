@@ -27,6 +27,11 @@ export interface KeyTreeNodeProps {
   isFavorite?: (key: string) => boolean
   /** 点击收藏图标：收藏 / 取消收藏 */
   onToggleFavorite?: (key: string) => void
+  /**
+   * 只渲染本行、不递归子节点（虚拟滚动模式）。
+   * 子行由父层展平后按视口切片单独渲染，行高固定可 O(1) 定位。
+   */
+  rowOnly?: boolean
 }
 
 /**
@@ -54,6 +59,7 @@ export function KeyTreeNode({
   onContext,
   isFavorite,
   onToggleFavorite,
+  rowOnly,
 }: KeyTreeNodeProps) {
   const { t } = useI18n()
   const checkboxRef = useRef<HTMLInputElement | null>(null)
@@ -187,7 +193,7 @@ export function KeyTreeNode({
         ) : null}
       </div>
 
-      {hasChildren && !isCollapsed
+      {hasChildren && !isCollapsed && !rowOnly
         ? node.children.map((child) => (
             <KeyTreeNode
               key={child.path}

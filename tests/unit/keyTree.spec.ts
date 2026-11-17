@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { RedisKeyItem } from '@shared/types'
-import { buildKeyTree, collectParents, collectParentsBelow } from '@/utils/keyTree'
+import { buildKeyTree, collectParents, collectParentsBelow, flattenVisibleTree } from '@/utils/keyTree'
 
 function item(key: string, type: RedisKeyItem['type'] = 'string'): RedisKeyItem {
   return { key, type, ttl: -1 }
@@ -101,5 +101,49 @@ describe('buildKeyTree · 全库搜索结果', () => {
     const countLeaves = (nodes: ReturnType<typeof buildKeyTree>): number =>
       nodes.reduce((sum, n) => sum + (n.leaf ? 1 : 0) + countLeaves(n.children), 0)
     expect(countLeaves(tree)).toBe(hits.length)
+  })
+})
+
+describe('flattenVisibleTree · 树形虚拟滚动展平', () => {
+  const tree = () =>
+    buildKeyTree([item('a:aa:1'), item('a:aa:2'), item('a:bb'), item('b:1'), item('top')])
+
+  it('全展开时前序展平，深度逐层递增', () => {
+    const rows = flattenVisibleTree(tree(), new Set())
+    expect(rows.map((r) => r.node.path)).toEqual([
+      'a', 'a:aa', 'a:aa:1', 'a:aa:2', 'a:bb', 'b', 'b:1', 'top',
+    ])
+    expect(rows.map((r) => r.depth)).toEqual([0, 1, 2, 2, 1, 0, 1, 0])
+  })
+
+  it('折叠节点自身占一行，子树不入列', () => {
+    const rows = flattenVisibleTree(tree(), new Set(['a:aa']))
+    expect(rows.map((r) => r.node.path)).toEqual(['a', 'a:aa', 'a:bb', 'b', 'b:1', 'top'])
+  })
+
+  it('折叠顶层目录：整棵子树只剩一行', () => {
+    const rows = flattenVisibleTree(tree(), new Set(['a', 'b']))
+    expect(rows.map((r) => r.node.path)).toEqual(['a', 'b', 'top'])
+    expect(rows.every((r) => r.depth === 0)).toBe(true)
+  })
+
+  it('全部折叠 = 只剩根级行（与 collectParents 配套）', () => {
+    const t = tree()
+    const rows = flattenVisibleTree(t, new Set(collectParents(t)))
+    expect(rows.map((r) => r.node.path)).toEqual(['a', 'b', 'top'])
+  })
+
+  it('空树展平为空数组', () => {
+    expect(flattenVisibleTree([], new Set())).toEqual([])
+  })
+
+  it('展平行数 = 可见行数：每个未折叠目录的子节点都计入', () => {
+    const t = tree()
+    const rows = flattenVisibleTree(t, new Set())
+    /* 手工计数：a(1)+aa(1)+2 叶+bb(1)+b(1)+1 叶+top(1) = 8 */
+    expect(rows.length).toBe(8)
+    /* 每个叶子键恰好出现一次 */
+    const leafKeys = rows.filter((r) => r.node.leaf).map((r) => r.node.leaf!.key)
+    expect(leafKeys.sort()).toEqual(['a:aa:1', 'a:aa:2', 'a:bb', 'b:1', 'top'].sort())
   })
 })

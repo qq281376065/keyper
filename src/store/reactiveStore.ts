@@ -44,6 +44,26 @@ export function createStore<T extends object>(initial: T, options: StoreOptions 
   let batchDepth = 0
   let batchDirty = false
 
+  /*
+   * 顶层字段版本表：每个根级字段独立计数，写入时只递增被改字段。
+   * 选择器订阅（useSessionFields）据此判断「我关心的字段变没变」——
+   * CLI 输出 / 搜索进度写 cliEntries / remoteSearch 时，只订阅
+   * activeId / serverInfo 的概览卡片不再被连带重渲染。
+   * 深层写入（state.keys.push）沿路径找到根字段（keys）递增，语义一致。
+   */
+  const fieldVersions = new Map<string, number>()
+  const pendingFields = new Set<string>()
+
+  function bumpField(path: string[]): void {
+    const rootKey = path[0]
+    if (rootKey === undefined) return
+    if (batchDepth > 0) {
+      pendingFields.add(rootKey)
+      return
+    }
+    fieldVersions.set(rootKey, (fieldVersions.get(rootKey) ?? 0) + 1)
+  }
+
   function emit(): void {
     if (batchDepth > 0) {
       batchDirty = true
@@ -61,6 +81,10 @@ export function createStore<T extends object>(initial: T, options: StoreOptions 
       batchDepth -= 1
       if (batchDepth === 0 && batchDirty) {
         batchDirty = false
+        for (const key of pendingFields) {
+          fieldVersions.set(key, (fieldVersions.get(key) ?? 0) + 1)
+        }
+        pendingFields.clear()
         version += 1
         for (const listener of [...listeners]) listener()
       }
@@ -112,6 +136,7 @@ export function createStore<T extends object>(initial: T, options: StoreOptions 
         // 共享引用（如把全局数组赋给会话字段）不能算子树变更
         if (isPlain(previous)) proxyCache.delete(previous as object)
         invalidate([...path, prop])
+        bumpField([...path, prop])
         emit()
         return done
       },
@@ -122,6 +147,7 @@ export function createStore<T extends object>(initial: T, options: StoreOptions 
         if (!done) return done
         if (isPlain(previous)) proxyCache.delete(previous as object)
         invalidate([...path, prop])
+        bumpField([...path, prop])
         emit()
         return done
       },
@@ -159,12 +185,18 @@ export function createStore<T extends object>(initial: T, options: StoreOptions 
     return version
   }
 
+  /** 顶层字段版本快照（选择器订阅用）：未写过的字段为 0 */
+  function getFieldVersion(key: string): number {
+    return fieldVersions.get(key) ?? 0
+  }
+
   const root = wrap(initial as unknown as Record<string, unknown>, []) as T
 
   Object.defineProperties(root as unknown as Record<string, unknown>, {
     __subscribe: { value: subscribe, enumerable: false },
     __getVersion: { value: getVersion, enumerable: false },
     __batch: { value: batch, enumerable: false },
+    __getFieldVersion: { value: getFieldVersion, enumerable: false },
   })
 
   return root
@@ -182,4 +214,9 @@ export function storeVersion<T extends object>(store: T): number {
 /** 批量写入：fn 内的全部字段写入合并为一次订阅通知（嵌套安全） */
 export function storeBatch<T extends object>(store: T, fn: () => void): void {
   ;(store as unknown as { __batch: (fn: () => void) => void }).__batch(fn)
+}
+
+/** 顶层字段版本（选择器订阅用）：只在该根字段被写入时递增 */
+export function storeFieldVersion<T extends object>(store: T, key: string): number {
+  return (store as unknown as { __getFieldVersion: (k: string) => number }).__getFieldVersion(key)
 }

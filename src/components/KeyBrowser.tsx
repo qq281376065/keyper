@@ -23,6 +23,7 @@ import {
   buildKeyTree,
   collectParents,
   collectParentsBelow,
+  flattenVisibleTree,
   type KeyTreeNode as KeyTreeNodeModel,
 } from '@/utils/keyTree'
 import type { RedisKeyItem } from '@shared/types'
@@ -479,6 +480,10 @@ export function KeyBrowser() {
     setCollapsed(new Set())
     setExpandState('none')
     appliedDatasetKey.current = ''
+    /* 树形虚拟滚动：数据集切换后可见行序列整体变化，滚动位置归零，
+     * 否则旧偏移会落在新序列的错误行上（平铺视图同理） */
+    setFlatScrollTop(0)
+    if (listEl.current) listEl.current.scrollTop = 0
   }, [datasetKey])
 
   useEffect(() => {
@@ -744,6 +749,24 @@ export function KeyBrowser() {
     Math.ceil((flatScrollTop + flatViewH) / FLAT_ROW_H) + FLAT_OVERSCAN,
   )
   const visibleFlatKeys = displayKeys.slice(flatStart, flatEnd)
+
+  /*
+   * 树形虚拟滚动：按当前折叠态展平成可见行，与平铺共用滚动容器与
+   * 固定行高 spacer 方案。行高取 CSS 的 calc(var(--row-h) + 2px)，
+   * 这里按密度换算（compact 22 / comfortable 28，见 settings.applyToDom）。
+   * 全部展开数千键时 DOM 只保留视口内的行，不再整树递归渲染。
+   */
+  const treeRowH = (settings.density === 'compact' ? 22 : 28) + 2
+  const treeRows = useMemo(
+    () => flattenVisibleTree(treeNodes, collapsed),
+    [treeNodes, collapsed],
+  )
+  const treeStart = Math.max(0, Math.floor(flatScrollTop / treeRowH) - FLAT_OVERSCAN)
+  const treeEnd = Math.min(
+    treeRows.length,
+    Math.ceil((flatScrollTop + flatViewH) / treeRowH) + FLAT_OVERSCAN,
+  )
+  const visibleTreeRows = treeRows.slice(treeStart, treeEnd)
 
   useEffect(() => {
     const el = listEl.current
@@ -1441,11 +1464,15 @@ export function KeyBrowser() {
           </div>
         ) : connected && viewMode === 'tree' ? (
           <>
-            {treeNodes.map((node) => (
+            {/* 树形虚拟滚动 spacer：撑起窗口上方高度，滚动条与全量渲染一致 */}
+            {treeRows.length ? (
+              <div className="flat-spacer" aria-hidden="true" style={{ height: `${treeStart * treeRowH}px` }} />
+            ) : null}
+            {visibleTreeRows.map(({ node, depth }) => (
               <KeyTreeNode
                 key={node.path}
                 node={node}
-                depth={0}
+                depth={depth}
                 separator={separator}
                 selectedKey={state.selectedKey}
                 collapsed={collapsed}
@@ -1459,8 +1486,16 @@ export function KeyBrowser() {
                 onContext={handleNodeContext}
                 isFavorite={(key) => favoriteKeys.has(key)}
                 onToggleFavorite={(key) => void toggleFavorite(key)}
+                rowOnly
               />
             ))}
+            {treeRows.length ? (
+              <div
+                className="flat-spacer"
+                aria-hidden="true"
+                style={{ height: `${(treeRows.length - treeEnd) * treeRowH}px` }}
+              />
+            ) : null}
             {/* 扫描未完成前不显示空态：列表空 ≠ 没有结果，可能是还没扫到 */}
             {!treeNodes.length && !state.loadingKeys && !remoteScanning ? (
               <p className="placeholder">

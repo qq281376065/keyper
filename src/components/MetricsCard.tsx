@@ -6,8 +6,7 @@ import { tipProps } from '@/components/tip'
 import { useI18n } from '@/i18n'
 import type { MsgKey } from '@shared/i18n'
 import { useRedis } from '@/store/useRedis'
-import { useObservable } from '@/store/subscription'
-import { useSessionStore } from '@/hooks/useSessionStore'
+import { useSessionFields } from '@/hooks/useSessionStore'
 import type { MetricsSample } from '@shared/types'
 
 /** 数据源引擎：Memcached 复用采样与绘图骨架，只是 stats 字段名不同 */
@@ -790,7 +789,7 @@ interface MetricsCardProps {
 export function MetricsCard({ active, engine = 'redis' }: MetricsCardProps) {
   const { t } = useI18n()
   const { state, activeConnection } = useRedis()
-  useObservable(useSessionStore())
+  useSessionFields(['activeId'])
 
   const activeId = state.activeId
   const connected = activeConnection?.status === 'connected'

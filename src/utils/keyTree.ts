@@ -118,3 +118,34 @@ export function collectParentsBelow(
   }
   return result
 }
+
+/** 树形虚拟滚动的可见行：节点 + 深度（展平后按下标切片渲染） */
+export interface FlatTreeRow {
+  node: KeyTreeNode
+  depth: number
+}
+
+/**
+ * 把树按「当前折叠态」展平成可见行序列（前序遍历）。
+ *
+ * 虚拟滚动的前提是「行号 → 内容」可 O(1) 定位：递归组件做不到
+ * （折叠子树整块消失，行号不连续），展平后第 i 行就是 rows[i]，
+ * 与平铺视图共用同一套固定行高 spacer 方案。
+ *
+ * 折叠节点自身仍占一行（显示折叠箭头与计数），只是子树不入列 ——
+ * 与递归渲染的视觉完全一致。
+ */
+export function flattenVisibleTree(
+  nodes: KeyTreeNode[],
+  collapsed: ReadonlySet<string>,
+  depth = 0,
+  out: FlatTreeRow[] = [],
+): FlatTreeRow[] {
+  for (const node of nodes) {
+    out.push({ node, depth })
+    if (node.children.length && !collapsed.has(node.path)) {
+      flattenVisibleTree(node.children, collapsed, depth + 1, out)
+    }
+  }
+  return out
+}
