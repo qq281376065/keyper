@@ -43,6 +43,37 @@ export default defineConfig(({ command, mode }) => {
       /* Tailwind v4: only for shadcn / Cult UI components under components/ui.
          Existing UI keeps src/styles; preflight is disabled so legacy CSS is untouched. */
       tailwindcss(),
+      /*
+       * 生产构建剔除 mock：2600+ 行预览数据与逻辑只在纯浏览器 dev 预览
+       * （npm run dev:web）时需要，Electron 生产包永远走 IPC 桥。
+       * 用 resolveId/load 把 mock 模块替换为空壳（保留具名导出形状，
+       * 运行期不可达），比动态 import 更彻底 —— 不产生额外 chunk，
+       * 也不改变 api 的同步契约（事件订阅返回取消函数而非 Promise）。
+       */
+      ...(isBuild && !webOnly
+        ? [
+            {
+              name: 'strip-mock-in-production',
+              enforce: 'pre' as const,
+              resolveId(source: string, importer: string | undefined) {
+                if (
+                  (source === './mock' || source === './mock.ts') &&
+                  importer &&
+                  importer.replace(/\\/g, '/').endsWith('/src/api/index.ts')
+                ) {
+                  return '\0empty-mock'
+                }
+                return null
+              },
+              load(id: string) {
+                if (id === '\0empty-mock') {
+                  return 'export const mockApi = {};'
+                }
+                return null
+              },
+            },
+          ]
+        : []),
       ...(webOnly
         ? []
         : [

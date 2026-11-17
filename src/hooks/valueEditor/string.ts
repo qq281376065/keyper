@@ -37,9 +37,13 @@ export function useStringEditor(ctx: ValueEditorContext) {
   /**
    * string 值的解析结果只算一次，两处消费（显示文本 / 统计）：
    * raw 是原始值，prettyText 是美化后的文本，jsonOk 标记是否合法 JSON。
+   *
+   * useMemo 按 rawValue 缓存：原实现每次渲染都 JSON.parse+stringify 全值，
+   * 值区任何重渲染（store 广播 / 父组件更新）都重复解析 MB 级 JSON。
    */
   const rawValue = typeof value?.value === 'string' ? value.value : ''
-  const parsed = prettyJson(rawValue)
+  const parsed = useMemo(() => prettyJson(rawValue), [rawValue])
+  const rawBytes = useMemo(() => utf8Bytes(rawValue), [rawValue])
   const stringParsed = { raw: rawValue, prettyText: parsed.ok ? parsed.text : rawValue, jsonOk: parsed.ok }
 
   /** string：整体美化（不合法 JSON 或关闭美化时原样显示） */
@@ -158,7 +162,7 @@ export function useStringEditor(ctx: ValueEditorContext) {
   const stringStats = {
     chars: text.length,
     lines: statsLines.length,
-    bytes: utf8Bytes(stringParsed.raw),
+    bytes: rawBytes,
     longest:
       longestLine.no > 0
         ? t('valueEditorString.lineNumberChars', { no: longestLine.no, chars: longestLine.len })

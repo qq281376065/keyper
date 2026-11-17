@@ -6,6 +6,7 @@ import { useI18n } from '@/i18n'
 import { useRedis } from '@/store/useRedis'
 import { useObservable } from '@/store/subscription'
 import { useSessionStore } from '@/hooks/useSessionStore'
+import { useCoalescedStream } from '@/hooks/useCoalescedStream'
 import type { PubsubMessage } from '@shared/types'
 
 /** 消息流保留上限：Pub/Sub 是高频流，无上限会把渲染层拖死 */
@@ -91,7 +92,9 @@ export function PubsubCard() {
   }
 
   /* ---------------------------------------------------------------- 消息流 */
-  const [messages, setMessages] = useState<PubsubMessage[]>([])
+  /* 合帧缓冲：高频频道下每帧最多一次 setState（原逐条 setMessages） */
+  const { items: messages, push: pushMessage, clear: clearMessages } =
+    useCoalescedStream<PubsubMessage>(MAX_MESSAGES)
   const listRef = useRef<HTMLDivElement | null>(null)
   /**
    * 当前连接 id 的实时副本：消息回调注册一次，回调里要读到最新 id，
@@ -104,12 +107,10 @@ export function PubsubCard() {
     const off = api.redis.onPubsubMessage((message) => {
       /* 多连接并存时只显示当前连接的消息 */
       if (message.connectionId !== activeIdRef.current) return
-      setMessages((prev) => {
-        const next = [...prev, message]
-        return next.length > MAX_MESSAGES ? next.slice(next.length - MAX_MESSAGES) : next
-      })
+      pushMessage(message)
     })
     return () => off?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   /* 新消息自动滚到底部：消息流是「追最新」的阅读模式 */
@@ -140,7 +141,7 @@ export function PubsubCard() {
   function resetPanel(): void {
     setChannels([])
     setPatterns([])
-    setMessages([])
+    clearMessages()
     setLastReceivers(null)
   }
 
@@ -282,7 +283,7 @@ export function PubsubCard() {
       <div className="ps-stream-head">
         <span>{t('pubsubCard.messageStream', { count: messages.length })}</span>
         {messages.length ? (
-          <button className="ps-clear" onClick={() => setMessages([])}>
+          <button className="ps-clear" onClick={clearMessages}>
             <DialogIcon name="clear" size={11} className="ti" />
             {t('common.clear')}
           </button>

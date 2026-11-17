@@ -502,20 +502,23 @@ export function SlowlogCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId, connected])
 
-  /* 相对时间每秒刷新；页签不在前台时停表，避免隐藏面板持续重渲染 */
+  /*
+   * 单一 1s 定时器：相对时间刷新 + 自动查询轮询共用。
+   * 原实现两个并存的 setInterval 每秒各 setState 一次（双倍重渲染）；
+   * 合并后每 tick 只更新一次 nowMs，自动查询到点才额外拉数据。
+   * 页签不在前台时停表，避免隐藏面板持续重渲染。
+   */
   useEffect(() => {
     if (!active) return
     setNowMs(Date.now())
-    const timer = window.setInterval(() => setNowMs(Date.now()), 1000)
-    return () => window.clearInterval(timer)
-  }, [active])
-
-  /* 自动查询：只在前台页签运行；到点只刷新窗口，不重置筛选 */
-  useEffect(() => {
-    if (!active || !connected || !activeId || autoState !== 'running') return
     const timer = window.setInterval(() => {
       setNowMs(Date.now())
-      if (Date.now() - lastQueryRef.current >= AUTO_INTERVAL_MS) {
+      if (
+        connected &&
+        activeId &&
+        autoState === 'running' &&
+        Date.now() - lastQueryRef.current >= AUTO_INTERVAL_MS
+      ) {
         void loadSlowlog({ silent: true })
       }
     }, 1000)

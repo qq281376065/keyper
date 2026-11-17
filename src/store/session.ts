@@ -577,11 +577,19 @@ export function createSession(
         })
         if (!res.ok) throw new Error(res.error)
 
+        /*
+         * 批内先收集普通数组，整批一次赋值：
+         * 原逐键 state.keys.push 每键触发一次 Proxy set → 全组件广播，
+         * 5000 键 = 5000 次通知；整批赋值每页只广播一次。
+         */
+        const batch: TimedKeyItem[] = []
+        const at = Date.now()
         for (const item of res.data.keys) {
           if (seen.has(item.key)) continue
           seen.add(item.key)
-          state.keys.push({ ...item, ttlAt: Date.now() })
+          batch.push({ ...item, ttlAt: at })
         }
+        if (batch.length) state.keys = [...state.keys, ...batch]
         cursor = res.data.cursor
         state.cursor = cursor
       }
