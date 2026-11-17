@@ -51,15 +51,25 @@ function settingsFile(): string {
  */
 let systemLocale: LocaleCode | null = null
 
+/*
+ * 进程内缓存：settings.json 的唯一写入口是本模块 saveSettings，
+ * 读多写少（日志 prune / 语言同步 / IPC settingsGet 都读），
+ * 不必每次 existsSync+readFileSync+JSON.parse 全量读盘。
+ * 外部手改文件属于罕见场景，重启即生效（与便携模式文档口径一致）。
+ */
+let cached: AppSettings | null = null
+
 export function setSystemLocale(language: string | undefined): void {
   systemLocale = language ? detectLocale(language) : null
 }
 
 export function loadSettings(): AppSettings {
+  if (cached) return cached
   const file = settingsFile()
   if (!fs.existsSync(file)) {
     const initial = { ...DEFAULT_SETTINGS }
     if (systemLocale) initial.locale = systemLocale
+    cached = initial
     return initial
   }
   try {
@@ -68,11 +78,13 @@ export function loadSettings(): AppSettings {
     merged.locale = isLocale(raw.locale)
       ? raw.locale
       : (systemLocale ?? DEFAULT_SETTINGS.locale)
+    cached = merged
     return merged
   } catch (error) {
     console.error('[settings] 读取失败，回退默认值:', error)
     const fallback = { ...DEFAULT_SETTINGS }
     if (systemLocale) fallback.locale = systemLocale
+    cached = fallback
     return fallback
   }
 }
@@ -95,6 +107,7 @@ export function saveSettings(patch: Partial<AppSettings>): AppSettings {
   const file = settingsFile()
   fs.mkdirSync(path.dirname(file), { recursive: true })
   fs.writeFileSync(file, JSON.stringify(merged, null, 2), 'utf-8')
+  cached = merged
   setActiveLocale(merged.locale)
   return merged
 }

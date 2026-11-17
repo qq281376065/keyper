@@ -5,7 +5,7 @@ import { BrowserWindow, Menu, app, nativeTheme, session, shell } from 'electron'
 import { IPC } from '../shared/api'
 import { registerIpcHandlers } from './ipc'
 import { connectionManager } from './services/connection-manager'
-import { appendErrorLog, pruneOldLogs } from './services/log-service'
+import { appendErrorLog, flushLogs, pruneOldLogs } from './services/log-service'
 import { configDir, scriptsDir } from './services/config-path'
 import { setSystemLocale, syncMainLocale } from './services/settings-store'
 import { CLOSE_CONFIRM, CLOSE_HANDLED, closeSignal } from './services/close-signal'
@@ -224,6 +224,8 @@ let mainWindow: BrowserWindow | null = null
  * 否则会出现"点确定 → 又弹一次"的循环。
  */
 let quitConfirmed = false
+/** 退出前日志 flush 只做一次（before-quit 会被重入） */
+let logsFlushed = false
 
 /**
  * 等渲染层弹出自绘确认框的最长时间。
@@ -559,13 +561,22 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
-app.on('before-quit', () => {
+app.on('before-quit', (event) => {
   /*
    * 走到这里说明是「程序级退出」（Cmd+Q、系统注销、更新后重启），
    * 而不是用户点窗口的关闭按钮 —— 此时不该再拦一次确认。
+   *
+   * 日志已改异步追加：退出前等队列落盘（只等一次，flushed 标志防重入），
+   * 否则最后几条操作日志会丢。等待期间 preventDefault 挂起退出，
+   * 落盘完成后重新 app.quit()。
    */
   quitConfirmed = true
   connectionManager.disconnectAll()
+  if (!logsFlushed) {
+    logsFlushed = true
+    event.preventDefault()
+    void flushLogs().finally(() => app.quit())
+  }
 })
 
 /*
@@ -592,7 +603,8 @@ closeSignal.on(CLOSE_CONFIRM, () => {
    * 已断开的连接走 disconnect() 是幂等的，重复调用无副作用。
    */
   connectionManager.disconnectAll()
-  w.destroy()
+  /* destroy 不触发 before-quit：这里同步等日志落盘后再销毁窗口 */
+  void flushLogs().finally(() => w.destroy())
 })
 
 /*
