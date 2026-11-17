@@ -20,9 +20,16 @@ registering it; no existing code path has to change.
 > shared type contracts and packaging configuration follow that structure; the renderer has been
 > rebuilt around a multi-engine architecture.
 
-Current version: `1.1.5`
+Current version: `1.1.6`
 
-What changed in this release (1.1.4 → 1.1.5):
+What changed in this release (1.1.5 → 1.1.6):
+
+- **Tree-structure view for string values (Redis + Memcached)**: the format menu gains a "Tree structure" option — valid JSON objects/arrays convert to a tree with ± collapse boxes, │├└ connector lines, semantic type icons (object blue braces / array purple brackets / string blue dot / int green / bool yellow / null red) and structural counts `{Object:n}` / `[Array:n]`. Defaults to fully collapsed (the capsule's selected state tracks expansion); expand/collapse are icon-only segmented capsules; subtrees render lazily so huge JSON only pays for what is expanded. Long strings are truncated with a "View" dialog built on the shared DialogShell (raw / pretty-JSON toggle, word wrap, char/line/byte stats, copy). Non-JSON or scalar values get a readable error.
+- **Skin refresh**: Forest / Aurora retired; **Phosphor** (dark) and **Berry Pop** (light) join the lineup. Existing settings migrate automatically (forest→phosphor, aurora→berry); the total stays at nine skins.
+- **CSS slimming**: removed 604 legacy dual-form selectors left over from the Vue port (two full className scans confirmed zero same-element hits; 26 rules with real dual-mount usage kept). Source 414KB→397KB, built CSS 346KB→339KB, zero visual regression.
+- **Full regression**: 23 specs / 245 tests (27 real-Redis integration tests skip without the disposable instance), 1670 i18n keys, 15 style-convention assertions, type checking for both projects, production build and CSP validation all pass; browser-verified tree expand/collapse, long-value dialog, skin switching, context menus and settings dialog with no style regression.
+
+Previous release (1.1.4 → 1.1.5):
 
 - **Performance pass (main process)**: very large string values now load in segments via STRLEN + GETRANGE (2MB first page, 2MB per continuation, 32MB hard cap for copy/export whole reads; multi-byte UTF-8 characters are never split across segments), so a single huge key can no longer exhaust memory and IPC. Binary reads probe the size first and fetch only the capped range; gzip / zlib decompression is now asynchronous (no longer blocks the main-process event loop). Whole-key saves run atomically in MULTI with 500-element chunking, and stream rewrites take a single round trip. Seven micro-operations (add member / delete element / rename, etc.) are merged into one pipeline each (saving 2–4 RTTs per action over SSH tunnels); renames use RENAMENX to keep the no-overwrite guarantee.
 - **Bulk operations moved into the main process**: delete / TTL / prefix-rename now start with one IPC call and execute in chunks in the main process — a 1000-key task drops from 1000 IPC round trips to 1. Per-key failure details, cancellation (stops at the next chunk boundary) and list synchronization are preserved; the operation log writes one summary per task.
@@ -34,7 +41,7 @@ What changed in this release (1.1.4 → 1.1.5):
 - **GitHub repository entry points**: a repository icon after the brand version in the top bar and a "Source repository" button on the home page, opened through the main process's https + github.com allowlist.
 - **Full regression**: 23 specs / 261 tests (including 27 real-Redis integration tests on a disposable Docker instance), 1656 i18n keys, 15 style-convention assertions, type checking for both projects, production build and CSP validation all pass; browser-verified tree virtualization slicing, tri-state selection, context menus, and CLI running alongside live metrics sampling.
 
-Previous release (1.1.3 → 1.1.4):
+Earlier (1.1.3 → 1.1.4):
 
 - **Full-db search stats panel: scrollbar no longer bleeds through**: the earlier fix stayed inside the scroll container (full-width patch + top-pin), but the native scrollbar thumb belongs to the scroll layer and always painted over the panel's top-right corner — no z-index / background / negative margin could cover it. The panel is now moved out of the scroll layer: `.key-list` becomes a flex container that no longer scrolls itself; the list content is wrapped in an inner `.key-list-scroll` (overflow-y:auto) that owns the scrollbar, so the thumb paints only on the inner layer's right edge and never overlaps the panel. The panel stays top-pinned and full-width, and remains stable when the detail pane is narrow. Redis key browser only; Memcached untouched.
 
@@ -390,7 +397,7 @@ values editable on double click; paged loading for large keys (500 per page, 20,
 incremental key-list refresh; virtual scrolling for all six value types; monitoring charts (Redis
 and Memcached); Memcached batch delete / TTL / prefix rename; in-app incremental updates
 (electron-updater); GitHub Actions CI and release pipeline; batch delete of two or more keys routed
-through the value panel; nine skins (including Aurora); credential expiry banner; solid line-number
+through the value panel; nine skins (including Phosphor / Berry Pop); credential expiry banner; solid line-number
 gutter for string values; installer start-menu shortcut page; error log files (renderer and
 main-process exceptions written to `logs/errors-yyyymmdd.log` with stack traces and 5-second
 de-duplication); connection import/export (JSON, credentials excluded by default) and batch URI
