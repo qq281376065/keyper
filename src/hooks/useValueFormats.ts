@@ -9,15 +9,18 @@ import {
   decodePhpSerialized,
   detectImageMime,
   detectTextFormats,
+  isJsonText,
   toHexRows,
   type ValueFormatId,
 } from '@/utils/valueFormats'
 import type { ValueBinaryOptions, ValueBinaryResult } from '@shared/types'
+import { buildJsonTree, type JsonTreeNode, type JsonTreeStats } from '@/utils/jsonTree'
 
 export type FormatView =
   | { kind: 'text'; text: string; bytes?: number; truncated?: boolean }
   | { kind: 'hex'; rows: string[]; bytes: number; truncated: boolean }
   | { kind: 'image'; base64: string; mime: string; bytes: number; truncated: boolean }
+  | { kind: 'tree'; root: JsonTreeNode; stats: JsonTreeStats }
 
 export interface ValueFormatsApi {
   format: ValueFormatId | null
@@ -45,10 +48,12 @@ export function useValueFormats(
   const [error, setError] = useState<string | null>(null)
   const seq = useRef(0)
 
-  const detected = useMemo(
-    () => detectTextFormats(rawText).filter((item) => item !== 'json'),
-    [rawText],
-  )
+  const detected = useMemo(() => {
+    const formats = detectTextFormats(rawText).filter((item) => item !== 'json')
+    /* JSON 对象/数组可转树形：检测到时把「树形结构」排到最前（状态栏与菜单同序） */
+    if (isJsonText(rawText)) formats.unshift('tree')
+    return formats
+  }, [rawText])
 
   const loadBinary = (options?: ValueBinaryOptions): Promise<{ ok: boolean; data?: ValueBinaryResult; error?: string }> => {
     if (!connectionId) return Promise.resolve({ ok: false, error: t('valueFormats.errorNoConnection') })
@@ -85,7 +90,18 @@ export function useValueFormats(
     setView(null)
 
     try {
-      if (next === 'jwt') {
+      if (next === 'tree') {
+        /* 树形结构：仅接受 JSON 对象/数组根；标量 JSON 无树形意义 */
+        const result = buildJsonTree(rawText)
+        if (!result.ok) {
+          throw new Error(
+            result.error === 'not-json'
+              ? t('valueFormats.treeNotJson')
+              : t('valueFormats.treeNotStructured'),
+          )
+        }
+        setView({ kind: 'tree', root: result.root, stats: result.stats })
+      } else if (next === 'jwt') {
         const result = decodeJwt(rawText)
         if (!result.ok) throw new Error(result.error)
         setView({ kind: 'text', text: jsonText(result.value) })

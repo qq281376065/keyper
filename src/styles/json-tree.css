@@ -1,0 +1,264 @@
+/* ============================================================
+   JsonTreeView —— 作用域 .s-json-tree-view
+   string 值「树形结构」格式视图。行结构参考 firefox-toolkit-addon
+   JSON 查看器中栏树：缩进竖线 + ├└ 连线 + ± 折叠方块 + 类型图标 + 标题。
+
+   连线几何（按参考项目公式，行高改动时必须同步）：
+     行高 = .jt-row 20px（装饰列 18px + 上下 padding 1×2）+ .jt-li 上下各 1px = 22px
+     装饰列距行上边界 = li 1px + row padding 1px = 2px
+     ⇒ 竖线上下各外扩 2px（top:-2px; bottom:-2px → 18+4=22px）首尾相接；
+       ├└ 横线落在装饰列垂直中心 18÷2=9px，扣半线高 → top:8.5px；
+       └ 竖线自 -2px 画到横线处（10.5px）收住。
+   ============================================================ */
+.s-json-tree-view{
+  /* 图标形状（共享 mask；颜色由各 .jt-ico-* 决定） */
+  --jt-mask-dot: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 4.4A3.6 3.6 0 1 0 8 11.6A3.6 3.6 0 1 0 8 4.4Z' fill='black'/%3E%3C/svg%3E");
+  --jt-mask-object: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M6.1 4.2C4.9 4.2 5.4 6.8 3.7 8C5.4 9.2 4.9 11.8 6.1 11.8' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M9.9 4.2C11.1 4.2 10.6 6.8 12.3 8C10.6 9.2 11.1 11.8 9.9 11.8' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --jt-mask-array: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M6.1 4.2H4.1V11.8H6.1' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M9.9 4.2H11.9V11.8H9.9' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --jt-mask-plus: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='2.8' y='2.8' width='10.4' height='10.4' rx='3.2' fill='none' stroke='black' stroke-width='1.5'/%3E%3Cpath d='M8 5.7V10.3M5.7 8H10.3' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  --jt-mask-minus: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='2.8' y='2.8' width='10.4' height='10.4' rx='3.2' fill='none' stroke='black' stroke-width='1.5'/%3E%3Cpath d='M5.7 8H10.3' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  /* 暗色默认：连线/箭头用弱化文本色，图标语义色取亮档 */
+  --jt-line: var(--border-strong);
+  --jt-arrow: var(--text-muted);
+  --jt-arrow-hi: var(--accent);
+  --jt-c-object: #5ab4ff;
+  --jt-c-array: #a78bfa;
+  --jt-c-string: #7cb3ff;
+  --jt-c-int: #4ade80;
+  --jt-c-float: #4ade80;
+  --jt-c-bool: #fbbf24;
+  --jt-c-null: #f87171;
+}
+:root[data-theme="light"] .s-json-tree-view,
+:root[data-theme="solarized"] .s-json-tree-view{
+  --jt-c-object: #2f80ed;
+  --jt-c-array: #7c3aed;
+  --jt-c-string: #3b82f6;
+  --jt-c-int: #16a34a;
+  --jt-c-float: #16a34a;
+  --jt-c-bool: #ca8a04;
+  --jt-c-null: #e5484d;
+}
+.s-json-tree-view.jt-wrap, .s-json-tree-view .jt-wrap{
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.s-json-tree-view .jt-toolbar{
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.s-json-tree-view .jt-stat{
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+.s-json-tree-view .jt-body{
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 6px 10px 10px;
+}
+.s-json-tree-view .jt-ul{
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.s-json-tree-view .jt-li{
+  padding: 1px 0;
+}
+.s-json-tree-view .jt-row{
+  display: flex;
+  align-items: flex-start;
+  min-height: 20px;
+  padding: 1px 2px;
+  border-radius: 4px;
+}
+.s-json-tree-view .jt-row:hover{
+  background: var(--bg-hover);
+}
+/* 装饰列：固定 16px 宽 18px 高，不收缩 */
+.s-json-tree-view .jt-indent,
+.s-json-tree-view .jt-hit,
+.s-json-tree-view .jt-icon{
+  flex: 0 0 16px;
+  width: 16px;
+  height: 18px;
+  margin: 0;
+}
+.s-json-tree-view .jt-indent{
+  position: relative;
+}
+/* │├ 竖线贯穿整行（上下外扩 2px 接合相邻行） */
+.s-json-tree-view .jt-indent.jt-line::before,
+.s-json-tree-view .jt-indent.jt-join::before{
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -2px;
+  bottom: -2px;
+  width: 1px;
+  margin-left: -.5px;
+  background: var(--jt-line);
+}
+/* └ 竖线画到横线处收住 */
+.s-json-tree-view .jt-indent.jt-joinbottom::before{
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -2px;
+  height: 10.5px;
+  width: 1px;
+  margin-left: -.5px;
+  background: var(--jt-line);
+}
+/* ├└ 横线：半列宽，接到下一装饰列 */
+.s-json-tree-view .jt-indent.jt-join::after,
+.s-json-tree-view .jt-indent.jt-joinbottom::after{
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 8.5px;
+  width: 8px;
+  height: 1px;
+  background: var(--jt-line);
+}
+/* ± 折叠方块：mask 轮廓 + 变量取色，hover 提亮 */
+.s-json-tree-view .jt-hit{
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  background-color: var(--jt-arrow);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: 16px 16px;
+  mask-size: 16px 16px;
+}
+.s-json-tree-view .jt-hit:hover{
+  background-color: var(--jt-arrow-hi);
+}
+.s-json-tree-view .jt-hit.jt-collapsed{
+  -webkit-mask-image: var(--jt-mask-plus);
+  mask-image: var(--jt-mask-plus);
+}
+.s-json-tree-view .jt-hit.jt-expanded{
+  -webkit-mask-image: var(--jt-mask-minus);
+  mask-image: var(--jt-mask-minus);
+}
+/* 类型图标：object 蓝括号 / array 紫括号 / 标量语义色点 */
+.s-json-tree-view .jt-icon{
+  background-color: var(--jt-c-string);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: 16px 16px;
+  mask-size: 16px 16px;
+  -webkit-mask-image: var(--jt-mask-dot);
+  mask-image: var(--jt-mask-dot);
+}
+.s-json-tree-view .jt-ico-object{ background-color: var(--jt-c-object); -webkit-mask-image: var(--jt-mask-object); mask-image: var(--jt-mask-object); }
+.s-json-tree-view .jt-ico-array{ background-color: var(--jt-c-array); -webkit-mask-image: var(--jt-mask-array); mask-image: var(--jt-mask-array); }
+.s-json-tree-view .jt-ico-string{ background-color: var(--jt-c-string); }
+.s-json-tree-view .jt-ico-int{ background-color: var(--jt-c-int); }
+.s-json-tree-view .jt-ico-float{ background-color: var(--jt-c-float); }
+.s-json-tree-view .jt-ico-bool{ background-color: var(--jt-c-bool); }
+.s-json-tree-view .jt-ico-null{ background-color: var(--jt-c-null); }
+/* 标题：独占剩余宽度，长值在盒内换行 */
+.s-json-tree-view .jt-title{
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  white-space: normal;
+  word-break: break-all;
+  color: var(--text-primary);
+}
+.s-json-tree-view .jt-tk{
+  color: var(--text-primary);
+}
+.s-json-tree-view .jt-struct{
+  cursor: pointer;
+}
+.s-json-tree-view .jt-colon{
+  color: var(--text-muted);
+}
+.s-json-tree-view .jt-val-string{ color: var(--jt-c-string); }
+.s-json-tree-view .jt-val-int,
+.s-json-tree-view .jt-val-float{ color: var(--jt-c-int); }
+.s-json-tree-view .jt-val-bool{ color: var(--jt-c-bool); }
+.s-json-tree-view .jt-val-null{ color: var(--jt-c-null); }
+/* 长值「查看」胶囊 */
+.s-json-tree-view .jt-view-btn{
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  font-size: var(--fs-xs);
+  line-height: 16px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  user-select: none;
+  vertical-align: baseline;
+}
+.s-json-tree-view .jt-view-btn:hover{
+  color: var(--bg-panel);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+/* 长值查看弹窗 */
+.s-json-tree-view.jt-dlg-mask, .s-json-tree-view .jt-dlg-mask{
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, .45);
+}
+.s-json-tree-view .jt-dlg{
+  width: min(640px, calc(100vw - 48px));
+  max-height: min(480px, calc(100vh - 64px));
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: var(--lift-shadow, 0 8px 24px rgba(0,0,0,.3));
+  overflow: hidden;
+}
+.s-json-tree-view .jt-dlg-head{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--fs-sm);
+}
+.s-json-tree-view .jt-dlg-count{
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  flex: 0 0 auto;
+}
+.s-json-tree-view .jt-dlg-body{
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+}

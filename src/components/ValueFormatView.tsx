@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '@/api'
 import { DialogIcon } from '@/components/DialogIcon'
+import { JsonTreeView } from '@/components/JsonTreeView'
 import { useI18n } from '@/i18n'
 import { useRedis } from '@/store/useRedis'
 import type { ValueFormatsApi } from '@/hooks/useValueFormats'
@@ -121,6 +122,22 @@ export function ValueFormatView({ formats, keyName }: { formats: ValueFormatsApi
           truncated={view.truncated}
           keyName={keyName}
         />
+      </div>
+    )
+  }
+
+  if (view.kind === 'tree') {
+    return (
+      <div className="format-view-wrap">
+        <div className="format-view-head">
+          <span className="mono">{t('valueFormats.tree')}</span>
+          <span className="spacer" />
+          <button className="tool" onClick={formats.reset}>
+            <DialogIcon name="cancel" size={12} className="ti" />
+            {t('valueFormats.raw')}
+          </button>
+        </div>
+        <JsonTreeView root={view.root} stats={view.stats} />
       </div>
     )
   }

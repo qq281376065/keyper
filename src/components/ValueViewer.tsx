@@ -1400,11 +1400,13 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
       ? t('valueFormats.detectedStatus', {
           formats: valueFormats.detected
             .map((item) =>
-              item === 'jwt'
-                ? t('valueFormats.jwt')
-                : item === 'base64'
-                  ? t('valueFormats.base64')
-                  : t('valueFormats.php'),
+              item === 'tree'
+                ? t('valueFormats.tree')
+                : item === 'jwt'
+                  ? t('valueFormats.jwt')
+                  : item === 'base64'
+                    ? t('valueFormats.base64')
+                    : t('valueFormats.php'),
             )
             .join(' / '),
         })

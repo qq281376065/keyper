@@ -8,6 +8,7 @@
 export type ValueFormatId =
   | 'raw'
   | 'json'
+  | 'tree'
   | 'jwt'
   | 'base64'
   | 'php'
