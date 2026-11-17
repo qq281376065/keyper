@@ -124,7 +124,7 @@ Memcached 逐项对齐 Redis：破坏性操作、删除图标、TTL、行高/悬
 ```
 
 `--shadow-ink` 暗色 `0 0 0` / 亮色 `15 23 42`；`--lift-a1/a2` 暗色 `.30/.345`、
-亮色 `.13/.19`（ocean/forest 同暗色）。**必须使用**：页签 hover/active、连接磁贴、
+亮色 `.13/.19`（ocean/phosphor 同暗色）。**必须使用**：页签 hover/active、连接磁贴、
 DB 工具条 mini、`.btn-ghost.icon`、`.dlg-close`、`.more-btn`、`.add-btn`、
 `.rail-toggle`、`.tabbar-btn`、`.bar-btn`、`.win-btn`、`.del-btn`、`.row-act`、`.op`、
 `.hp-del`、`.s-theme-switch .trigger`、`.flyout-close`；选中态再叠
@@ -133,10 +133,12 @@ DB 工具条 mini、`.btn-ghost.icon`、`.dlg-close`、`.more-btn`、`.add-btn`�
 
 ## 5. 主题与皮肤
 
-9 套：dark（默认）、light、ocean、solarized、forest、sakura、mint、mist、aurora，
+9 套：dark（默认）、light、ocean、solarized、phosphor、sakura、mint、mist、berry，
 判定用 `<html data-theme>`。`index.html` 的 SCHEME 首帧脚本防闪烁（只列 7 套，
 dark/light 走 system 分支），持久化 key `keyper:theme`（兼容旧 `redisdocter:theme`）。
-Tailwind 的 `@custom-variant dark` **只认 dark / ocean / forest 三套暗色**。
+Tailwind 的 `@custom-variant dark` **只认 dark / ocean / phosphor 三套暗色**。
+已下线皮肤 forest（墨林）/ aurora（极光）由 `normalizeThemeMode` 就近迁移
+（forest→phosphor、aurora→light），首帧脚本里的 RETIRED 表与其保持一致。
 
 **新增皮肤必须同批改 6 处**：`main.css` 变量块 → `index.html` SCHEME →
 `src/services/theme.ts` 的 `SkinId` 与 `SKIN_SCHEME` → `tailwind.css` dark 变体（暗色系）→

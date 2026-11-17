@@ -116,7 +116,7 @@ Props `UnifiedButtonProps`：`variant/size/shadow/rounded/asChild/showBackground
 - `tailwind.css` 声明 `@layer theme, base, components, utilities`，只 import
   `theme.css`/`utilities.css`，**刻意关闭 Preflight**；`@theme inline` 把 shadcn 语义名
   映射到应用变量（`--bg-app` / `--accent` / `--card` …）；`@custom-variant dark`
-  重绑到 `[data-theme='dark'|'ocean'|'forest']`（只认这 3 套暗色）。
+  重绑到 `[data-theme='dark'|'ocean'|'phosphor']`（只认这 3 套暗色）。
 - `main.css` 把 `button/input` 元素默认值包进 `@layer base`，否则会压过 utilities；
   `--lift-shadow` / `--lift-a1/a2` 与 9 套主题也在这里；按钮胶囊白名单 `999px !important` 同文件。
 - `tailwind-cards.css` 专门给这套组件打补丁：`.cta-animate{padding:0}`（补 Preflight 缺失的

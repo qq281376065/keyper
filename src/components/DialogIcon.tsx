@@ -67,14 +67,14 @@ export type DialogIconName =
     /* 连接栏收起 / 展开 */
   | 'sidebar-collapse'
   | 'sidebar-expand'
-    /* 皮肤即主题：深海 / 暖纸 / 墨林 / 樱花 / 薄荷 / 雾蓝 */
+    /* 皮肤即主题：深海 / 暖纸 / 荧光终端 / 樱花 / 薄荷 / 雾蓝 / 莓果气泡 */
   | 'ocean'
   | 'solarized'
-  | 'forest'
+  | 'phosphor'
   | 'sakura'
   | 'mint'
   | 'mist'
-  | 'aurora'
+  | 'berry'
     /* 密码可见性切换：闭眼 */
   | 'eye-off'
     /* 连接项「更多操作」：实心三点（比描线 menu 更醒目） */
@@ -653,14 +653,15 @@ function renderGlyph(name: DialogIconName): React.ReactElement | null {
       </g>
     )
   }
-  /** 墨林皮肤：双层云杉。
-      一笔勾出「上层小三角 + 下层大三角」的树冠轮廓 + 居中树杆，
-      两笔即一棵树；13px 下靠"两层收窄的三角形"读出森林的意象。 */
-  if (name === 'forest') {
+  /** 荧光终端皮肤：CRT 提示符（> 加光标下划线）。
+      终端窗口的「命令提示符 + 闪烁光标」是 phosphor 的本体意象，
+      两笔即读出「命令行」；与 terminal（方框窗体）区分 ——
+      那是"打开终端"动作，这是"磷光屏"皮肤本身。 */
+  if (name === 'phosphor') {
     return (
       <g>
-        <path d="M8 2.4 4.6 7h2.2L4.2 11.2h7.6L9.2 7h2.2L8 2.4z" />
-        <path d="M8 11.2v2.4" />
+        <path d="M3.4 4.4 7 8l-3.6 3.6" />
+        <path d="M8.6 12h4" />
       </g>
     )
   }
@@ -699,15 +700,15 @@ function renderGlyph(name: DialogIconName): React.ReactElement | null {
       </g>
     )
   }
-  /** 极光皮肤：两道弧形光带 + 右上角一颗星。
-      上带弧度更大、下带更平，形成「幕帘向外扩散」的层次；
-      星点是极光夜空里唯一的实心元素，尺寸压到 r=0.9 避免抢焦点。 */
-  if (name === 'aurora') {
+  /** 莓果气泡皮肤：两颗圆果 + 一片小叶。
+      大圆压小圆的双果轮廓是「莓果」的最简读法，顶部短斜线是果柄；
+      与 sakura（四瓣围绕中心）的区别在"实心果 vs 花瓣"，小尺寸不混淆。 */
+  if (name === 'berry') {
     return (
       <g>
-        <path d="M2.6 9.6c2.2-3.3 4.4-5 6.6-5s4.3 1.7 6.2 5" />
-        <path d="M3.7 12.9c1.8-2.5 3.6-3.8 5.4-3.8s3.5 1.3 5.1 3.8" />
-        <circle cx="12.7" cy="3.5" r=".9" />
+        <circle cx="6.2" cy="9.4" r="3.4" />
+        <circle cx="11" cy="7" r="2.4" />
+        <path d="M8.6 4.6c.8-1.2 1.8-1.9 3-2.2" />
       </g>
     )
   }

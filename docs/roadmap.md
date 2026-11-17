@@ -85,7 +85,7 @@
 | 2.5 | `ui/dialog.tsx` / `ui/select.tsx` 仍在用 `animate-in` / `zoom-in-95` 等**全库无定义**的死类 | 装 `tw-animate-css` 激活，或直接删掉这些类 | 弹窗/下拉终于有入场动画 | 低；注意不引 Preflight |
 | 2.6 | `--color-destructive` 映射到 `var(--accent)` | 改为独立危险色令牌，9 套皮肤各配一份 | 危险态不再与强调色同色 | 低，需全主题目视核对 |
 | 2.7 | Slot 双版本：`button.tsx` 用 `radix-ui` 的 `Slot.Root`，`bg-animate-button.tsx` 用 `@radix-ui/react-slot` | 统一到一处依赖 | 减少双事件/双 ref 隐患 | 中，涉及 Cult UI 组件 |
-| 2.8 | 9 套皮肤，Tailwind `@custom-variant dark` 只认 dark / ocean / forest | 补齐或显式声明「浅色皮肤不走 dark:」并在文档写清 | 避免新组件在 6 套浅色下落到 `bg-white` | 低 |
+| 2.8 | 9 套皮肤，Tailwind `@custom-variant dark` 只认 dark / ocean / phosphor | 补齐或显式声明「浅色皮肤不走 dark:」并在文档写清 | 避免新组件在 6 套浅色下落到 `bg-white` | 低 |
 
 ---
 

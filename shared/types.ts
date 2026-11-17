@@ -751,9 +751,10 @@ export interface AppSettings {
   /* -------------------------------------------------- 以下为界面状态记忆 */
 
   /**
-   * 主题：跟随系统 / 亮色 / 暗色，外加七套皮肤（深海/墨林/暖纸/樱花/薄荷/雾蓝/极光）。
+   * 主题：跟随系统 / 亮色 / 暗色，外加七套皮肤（深海/荧光终端/暖纸/樱花/薄荷/雾蓝/莓果气泡）。
    * 皮肤即主题 —— 选项直接落在 data-theme 上，不单独建皮肤体系；
-   * 皮肤自带明暗（深海/墨林=暗，其余=亮），原生控件由 colorScheme 跟随。
+   * 皮肤自带明暗（深海/荧光终端=暗，其余=亮），原生控件由 colorScheme 跟随。
+   * 历史值 forest/aurora 已下线，读取时由 normalizeThemeMode 就近迁移。
    */
   theme:
     | 'system'
@@ -761,11 +762,11 @@ export interface AppSettings {
     | 'dark'
     | 'ocean'
     | 'solarized'
-    | 'forest'
+    | 'phosphor'
     | 'sakura'
     | 'mint'
     | 'mist'
-    | 'aurora'
+    | 'berry'
   /** 键列表视图：树形 / 平铺 */
   viewMode: 'tree' | 'flat'
   /** CLI 控制台是否收起 */

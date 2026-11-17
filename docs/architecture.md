@@ -137,8 +137,8 @@ masthead 显示 TTL/size/flags，书签与统计卡与 Redis 同构。
 
 `src/main.tsx` 加载顺序：`main.css` → `components.css` → `tailwind.css`。
 
-- `main.css`（1404 行）：设计令牌、9 套主题（dark 默认 + light/ocean/solarized/forest/
-  sakura/mint/mist/aurora）、全局元素、按钮胶囊 `999px !important` 白名单、
+- `main.css`（1404 行）：设计令牌、9 套主题（dark 默认 + light/ocean/solarized/phosphor/
+  sakura/mint/mist/berry）、全局元素、按钮胶囊 `999px !important` 白名单、
   `--lift-shadow` / `--lift-a1/a2`。**新增按钮类名必须登记进白名单**，
   页签 / 抽屉把手 / 表单控件是显式豁免。
 - `components.css`（约 12600 行）：36 个组件作用域段，选择器形态

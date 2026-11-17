@@ -24,16 +24,16 @@ const BASE_OPTIONS: Array<{ value: ThemeMode; label: MsgKey; icon: ThemeIcon }> 
 /*
  * 皮肤即主题：配色皮肤与明暗档位并列在同一个菜单里，
  * 中间用分隔线区分「明暗档位」与「配色皮肤」两组。
- * 顺序：暗色系在前（深海/墨林），亮色系在后（暖纸/樱花/薄荷/雾蓝/极光）。
+ * 顺序：暗色系在前（深海/荧光终端），亮色系在后（暖纸/樱花/薄荷/雾蓝/莓果气泡）。
  */
 const SKIN_OPTIONS: Array<{ value: SkinId; label: MsgKey; icon: ThemeIcon }> = [
   { value: 'ocean', label: 'theme.ocean', icon: 'ocean' },
-  { value: 'forest', label: 'theme.forest', icon: 'forest' },
+  { value: 'phosphor', label: 'theme.phosphor', icon: 'phosphor' },
   { value: 'solarized', label: 'theme.solarized', icon: 'solarized' },
   { value: 'sakura', label: 'theme.sakura', icon: 'sakura' },
   { value: 'mint', label: 'theme.mint', icon: 'mint' },
   { value: 'mist', label: 'theme.mist', icon: 'mist' },
-  { value: 'aurora', label: 'theme.aurora', icon: 'aurora' },
+  { value: 'berry', label: 'theme.berry', icon: 'berry' },
 ]
 
 const ALL_OPTIONS = [...BASE_OPTIONS, ...SKIN_OPTIONS]

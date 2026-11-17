@@ -41,12 +41,12 @@ const THEMES: Array<{ value: ThemeMode; label: MsgKey }> = [
 ]
 const SKINS: Array<{ value: ThemeMode; label: MsgKey }> = [
   { value: 'ocean', label: 'theme.ocean' },
-  { value: 'forest', label: 'theme.forest' },
+  { value: 'phosphor', label: 'theme.phosphor' },
   { value: 'solarized', label: 'theme.solarized' },
   { value: 'sakura', label: 'theme.sakura' },
   { value: 'mint', label: 'theme.mint' },
   { value: 'mist', label: 'theme.mist' },
-  { value: 'aurora', label: 'theme.aurora' },
+  { value: 'berry', label: 'theme.berry' },
 ]
 
 /** 全局设置弹窗：外观 / 数据浏览 / 操作日志三组 */

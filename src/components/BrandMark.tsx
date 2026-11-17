@@ -23,7 +23,7 @@ import { useId } from 'react'
  * 2. **stop-color 走 CSS 而非属性**。写死 stopColor 就没法跟随主题；
  *    交给类名 + CSS 变量，改皮肤时不用重渲染组件。
  *
- * 符号色 `--brand-fg` 默认白。亮色皮肤（如 forest/薄荷）若白字对比不足，
+ * 符号色 `--brand-fg` 默认白。个别皮肤（如深海玻璃底）若白字对比不足，
  * 只需在主题块里覆盖这一个变量，不必改组件。
  */
 export function BrandMark({ className }: { className?: string }) {

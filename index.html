@@ -15,17 +15,20 @@
         var SCHEME = {
           ocean: 'dark',
           solarized: 'light',
-          forest: 'dark',
+          phosphor: 'dark',
           sakura: 'light',
           mint: 'light',
           mist: 'light',
-          aurora: 'light',
+          berry: 'light',
         }
+        /* 已下线皮肤的就近迁移，与 theme.ts 的 RETIRED_SKINS 保持一致 */
+        var RETIRED = { forest: 'phosphor', aurora: 'light' }
         try {
           // 先读新 key；老用户的历史偏好在旧 key 里，回退读一次
           var stored = localStorage.getItem('keyper:theme')
                     || localStorage.getItem('redisdocter:theme')
                     || 'system'
+          if (RETIRED[stored]) stored = RETIRED[stored]
           if (SCHEME[stored]) {
             document.documentElement.dataset.theme = stored
             document.documentElement.style.colorScheme = SCHEME[stored]

@@ -2,7 +2,7 @@ import { useSettings } from '@/services/settings'
 import { defineStore } from '@/store'
 
 /** 皮肤 id：皮肤即主题，直接作为 data-theme 值的扩展取值 */
-export type SkinId = 'ocean' | 'solarized' | 'forest' | 'sakura' | 'mint' | 'mist' | 'aurora'
+export type SkinId = 'ocean' | 'solarized' | 'phosphor' | 'sakura' | 'mint' | 'mist' | 'berry'
 /** 主题模式：跟随系统 / 明暗 / 七套皮肤（皮肤即主题） */
 export type ThemeMode = 'system' | 'light' | 'dark' | SkinId
 /** 实际明暗 —— 原生控件（滚动条/输入光标）只认 light|dark，皮肤需归并 */
@@ -14,11 +14,29 @@ export type AppliedTheme = ResolvedTheme | SkinId
 export const SKIN_SCHEME: Record<SkinId, ResolvedTheme> = {
   ocean: 'dark',
   solarized: 'light',
-  forest: 'dark',
+  phosphor: 'dark',
   sakura: 'light',
   mint: 'light',
   mist: 'light',
+  berry: 'light',
+}
+
+/**
+ * 已移除皮肤的迁移映射。
+ * forest（墨林）/ aurora（极光）在皮肤改版时下线；老配置里还存着这两个值，
+ * 若不迁移，data-theme 会落到没有任何 CSS 块的值上，整个界面退回 :root 暗色。
+ * 按明暗档就近映射：墨林（暗绿）→ 荧光终端（暗绿系），极光（亮）→ 亮色。
+ */
+const RETIRED_SKINS: Record<string, ThemeMode> = {
+  forest: 'phosphor',
   aurora: 'light',
+}
+
+/** 归一化主题值：未知值回 system，已下线皮肤按映射迁移 */
+export function normalizeThemeMode(value: unknown): ThemeMode {
+  if (typeof value !== 'string') return 'system'
+  if (RETIRED_SKINS[value]) return RETIRED_SKINS[value]
+  return THEME_MODES.has(value) ? (value as ThemeMode) : 'system'
 }
 
 /**
@@ -53,8 +71,9 @@ const THEME_MODES = new Set<string>(['system', 'light', 'dark', ...Object.keys(S
  * 首次升级迁移：把 localStorage 里的旧值搬到 settings。
  *
  * 只在 settings 仍是默认值（system）而 localStorage 有明确偏好时生效，
- * 避免覆盖用户在设置界面里已经选好的值。皮肤也是主题（如 aurora），
+ * 避免覆盖用户在设置界面里已经选好的值。皮肤也是主题（如 berry），
  * 必须一并迁移 —— 过去只认 light/dark，皮肤偏好会在设置文件缺失时丢失。
+ * 已下线皮肤（forest/aurora）经 normalizeThemeMode 就近迁移。
  */
 export function migrateThemeFromStorage(): void {
   if (settings.theme !== 'system') return
@@ -71,7 +90,9 @@ export function migrateThemeFromStorage(): void {
       localStorage.setItem(THEME_STORAGE_KEY, legacy)
       localStorage.removeItem(LEGACY_THEME_STORAGE_KEY)
     }
-    if (value && THEME_MODES.has(value)) settings.theme = value as ThemeMode
+    if (value && (THEME_MODES.has(value) || value in RETIRED_SKINS)) {
+      settings.theme = normalizeThemeMode(value)
+    }
   } catch {
     /* 隐私模式等场景下读取失败，按默认处理 */
   }
@@ -97,9 +118,16 @@ function apply(theme: AppliedTheme): void {
     theme === 'light' || theme === 'dark' ? theme : SKIN_SCHEME[theme]
 }
 
-/** 把当前主题落到 DOM，并同步 localStorage 副本（index.html 首屏脚本要读） */
+/** 把当前主题落到 DOM，并同步 localStorage 副本（index.html 首屏脚本要读）。
+ *  settings.json 可能还存着已下线皮肤（forest/aurora），先归一化再应用，
+ *  发现旧值时顺手写回 settings，一次性完成迁移。 */
 export function applyTheme(): void {
-  const mode = settings.theme as ThemeMode
+  const raw = settings.theme as ThemeMode
+  const mode = normalizeThemeMode(raw)
+  if (mode !== raw) {
+    settings.theme = mode
+    void save({ theme: mode })
+  }
   apply(appliedTheme(mode))
   try {
     localStorage.setItem(THEME_STORAGE_KEY, mode)

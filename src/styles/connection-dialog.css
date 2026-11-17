@@ -165,8 +165,8 @@
  *   所以必须两套主题下都成立。
  *
  * 色值分档：
- *   深色系（dark/ocean/forest）  #dc2626 —— 在暗底上足够亮，白字对比度 4.9
- *   浅色系（其余皮肤）           #e11d48 —— 亮底上更深一档，白字对比度 5.0
+ *   深色系（dark/ocean/phosphor）  #dc2626 —— 在暗底上足够亮，白字对比度 4.9
+ *   浅色系（其余皮肤）             #e11d48 —— 亮底上更深一档，白字对比度 5.0
  * 两者都高于 AA 的 4.5:1。
  */
 .dlg-close.dlg-close:hover {
@@ -178,7 +178,7 @@
 :root[data-theme='sakura'] .dlg-close.dlg-close:hover,
 :root[data-theme='mint'] .dlg-close.dlg-close:hover,
 :root[data-theme='mist'] .dlg-close.dlg-close:hover,
-:root[data-theme='aurora'] .dlg-close.dlg-close:hover {
+:root[data-theme='berry'] .dlg-close.dlg-close:hover {
   background: #e11d48;
 }
 /* 键盘聚焦同样给出红色提示，与悬停一致 */

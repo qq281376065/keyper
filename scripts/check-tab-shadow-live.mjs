@@ -172,7 +172,7 @@ const skinProbe = await ev(`
   };
   const inkOf = () => getComputedStyle(document.documentElement).getPropertyValue('--shadow-ink').trim();
   const panelOf = () => getComputedStyle(document.documentElement).getPropertyValue('--bg-panel').trim();
-  const themes = ['light', 'dark', 'ocean', 'solarized', 'forest', 'sakura', 'mint', 'mist', 'aurora'];
+  const themes = ['light', 'dark', 'ocean', 'solarized', 'phosphor', 'sakura', 'mint', 'mist', 'berry'];
   const rows = [];
   for (const th of themes) {
     document.documentElement.dataset.theme = th;
@@ -227,8 +227,8 @@ if (!Array.isArray(skinProbe)) {
 
   ok('每套皮肤阴影在其底色上都看得见（通道差 ≥ 10）', worst[0].diff >= 10,
      `最弱 ${worst[0].th}：${worst[0].diff}（alpha ${worst[0].a}）`)
-  ok('暗色三套都达标', ['dark', 'ocean', 'forest'].every((th) => worst.find((w) => w.th === th).diff >= 10),
-     ['dark', 'ocean', 'forest'].map((th) => th + ':' + worst.find((w) => w.th === th).diff).join(' '))
+  ok('暗色三套都达标', ['dark', 'ocean', 'phosphor'].every((th) => worst.find((w) => w.th === th).diff >= 10),
+     ['dark', 'ocean', 'phosphor'].map((th) => th + ':' + worst.find((w) => w.th === th).diff).join(' '))
 }
 
 let fails = 0

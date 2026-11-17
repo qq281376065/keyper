@@ -27,17 +27,17 @@
 :root[data-theme='sakura'],
 :root[data-theme='mint'],
 :root[data-theme='mist'],
-:root[data-theme='aurora'] {
+:root[data-theme='berry'] {
   --card-frame-bg: color-mix(in srgb, var(--bg-app) 62%, var(--border) 38%);
 }
 /*
- * 暗色系皮肤（dark / ocean / forest）：外框要比内层面（--bg-elevated）暗一档。
+ * 暗色系皮肤（dark / ocean / phosphor）：外框要比内层面（--bg-elevated）暗一档。
  * 这里直接用 --bg-panel 再压暗一点，避免写死的中性灰 #1a1d24 落到
- * ocean（蓝黑）/ forest（墨绿）上显得发灰、串色。
+ * ocean（蓝黑）/ phosphor（墨绿黑）上显得发灰、串色。
  */
 :root[data-theme='dark'],
 :root[data-theme='ocean'],
-:root[data-theme='forest'] {
+:root[data-theme='phosphor'] {
   --card-frame-bg: color-mix(in srgb, var(--bg-panel) 72%, #000000 28%);
 }
 
@@ -59,19 +59,19 @@
 :root[data-theme='sakura'],
 :root[data-theme='mint'],
 :root[data-theme='mist'],
-:root[data-theme='aurora'] {
+:root[data-theme='berry'] {
   --card-face-bg: color-mix(in srgb, var(--bg-panel) 42%, var(--bg-app) 58%);
 }
 :root[data-theme='dark'],
 :root[data-theme='ocean'],
-:root[data-theme='forest'] {
+:root[data-theme='phosphor'] {
   --card-face-bg: var(--bg-elevated);
 }
 
 /*
- * 薄荷 / 雾蓝 / 极光：这三套的面板色本身就是纯白或近白，
+ * 薄荷 / 雾蓝 / 莓果气泡：这三套的面板色本身就是纯白或近白，
  * 按上面的「面板 + 页面底」算出来仍是三种几乎分不出的近白
- * （#F7FBF7 / #F5F7FA / #FBFCFD）。
+ * （#F7FBF7 / #F5F7FA / #FDFBFC）。
  *
  * 改为掺入各自的主色：面板色 92% + 强调色 8%。比例取 8% 是因为
  * 卡面是大面积色块，再高就开始"染色"、九宫格里的正文会显得发灰；
@@ -79,7 +79,7 @@
  */
 :root[data-theme='mint'],
 :root[data-theme='mist'],
-:root[data-theme='aurora'] {
+:root[data-theme='berry'] {
   --card-face-bg: color-mix(in srgb, var(--bg-panel) 92%, var(--accent) 8%);
 }
 

@@ -46,7 +46,7 @@ ok('远影 alpha 与近影同步（.345 / .19）',
   a2.filter((v) => v === '.345').length === 3 && a2.filter((v) => v === '.19').length === 6, a2.join(','))
 
 /* dark 是 :root 默认档，不写显式 data-theme 块；其余 8 套各有显式块 */
-const EXPLICIT_THEMES = ['light', 'solarized', 'sakura', 'mint', 'mist', 'aurora', 'ocean', 'forest']
+const EXPLICIT_THEMES = ['light', 'solarized', 'sakura', 'mint', 'mist', 'berry', 'ocean', 'phosphor']
 const missingThemes = EXPLICIT_THEMES.filter((t) => !new RegExp(`data-theme=['"]${t}['"]`).test(main))
 ok('8 套显式皮肤块齐全（dark 为 :root 默认档）',
   missingThemes.length === 0 && /:root\s*\{/.test(main),

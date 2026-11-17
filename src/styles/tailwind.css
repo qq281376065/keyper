@@ -41,17 +41,17 @@
  * 一片纯白（实测 rgb(255,255,255)）。
  *
  * 这条把 dark 变体重绑定到属性选择器上，并且必须把三套「暗色系皮肤」
- * 一并列出：ocean（深海）与 forest（森林）的 --bg-app 分别是 #0d1420 /
- * #0e1512，同样是深底 + 浅字，漏掉它们时卡片内层会是纯白、标题却是
- * 浅色（#e2ece5），几乎看不见。
+ * 一并列出：ocean（深海）与 phosphor（荧光终端）的 --bg-app 分别是 #0d1420 /
+ * #070C08，同样是深底 + 浅字，漏掉它们时卡片内层会是纯白、标题却是
+ * 浅色（#D6E8D8），几乎看不见。
  */
 @custom-variant dark (&:where(
   [data-theme='dark'],
   [data-theme='ocean'],
-  [data-theme='forest'],
+  [data-theme='phosphor'],
   [data-theme='dark'] *,
   [data-theme='ocean'] *,
-  [data-theme='forest'] *
+  [data-theme='phosphor'] *
 ));
 
 @theme inline {

@@ -195,14 +195,14 @@ const THEMES: Array<{ value: string; label: string }> = [
   { value: 'light', label: '亮色' },
   { value: 'ocean', label: '深海' },
   { value: 'solarized', label: '暖纸' },
-  { value: 'forest', label: '墨林' },
+  { value: 'phosphor', label: '荧光终端' },
   { value: 'sakura', label: '樱花' },
   { value: 'mint', label: '薄荷' },
   { value: 'mist', label: '雾蓝' },
-  { value: 'aurora', label: '极光' },
+  { value: 'berry', label: '莓果气泡' },
 ]
 
-const LIGHT_THEMES = new Set(['light', 'solarized', 'sakura', 'mint', 'mist', 'aurora'])
+const LIGHT_THEMES = new Set(['light', 'solarized', 'sakura', 'mint', 'mist', 'berry'])
 
 const STATES: Array<{ key: string; label: string }> = [
   { key: 'prod', label: '已连接' },

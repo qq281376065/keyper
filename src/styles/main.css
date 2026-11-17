@@ -391,15 +391,16 @@
   --badge-none-bg: rgba(147, 161, 161, 0.14);
 }
 
-/* ---------- 皮肤：墨林 forest（暗色系） ----------
-   夜森林深墨绿底 + 苔藓绿强调：低饱和绿抗疲劳，
-   适合夜间长时间盯库；与「成功状态绿」错开明度不混淆。 */
-:root[data-theme="forest"] {
-  --bg-app: #0e1512;
-  --bg-panel: #131c17;
-  --bg-elevated: #19241d;
-  --bg-hover: #1f2c24;
-  --bg-active: #26352b;
+/* ---------- 皮肤：荧光终端 phosphor（暗色系） ----------
+   近黑绿底 + 荧光绿单色体系：CRT 磷光屏意象。
+   全局等宽字体 + 主按钮磷光辉光（见文件后段造型层），
+   与「成功状态绿」共用色相但语义位置不同，不会混淆。 */
+:root[data-theme="phosphor"] {
+  --bg-app: #070C08;
+  --bg-panel: #0C130D;
+  --bg-elevated: #111A12;
+  --bg-hover: #162418;
+  --bg-active: #1C2E1E;
 
   /* 阴影墨色（rgb 三元组，配 rgb(var(--shadow-ink) / 透明度) 用）：0 0 0 —— 浅底带色相更自然，暗底只有纯黑压得出层次 */
   --shadow-ink: 0 0 0;
@@ -407,61 +408,65 @@
      暗色纯黑 .30/.345，亮色冷灰蓝 .13/.19；页签与 DB 工具条小按钮共用 */
   --lift-a1: .30;
   --lift-a2: .345;
-  --border: #243329;
-  --border-strong: #354a3b;
+  --border: #1D3320;
+  --border-strong: #2E4F33;
 
-  --text-primary: #e2ece5;
-  --text-secondary: #9db4a7;
-  --text-muted: #687f72;
+  --text-primary: #D6E8D8;
+  --text-secondary: #8FAF93;
+  --text-muted: #6E8F73;
 
-  --accent: #58c98d;
-  /* 品牌图标渐变（K 形钥匙底）：#1A8259 → #0A5138，符号色白，两端对白字均 ≥ 4.5:1 */
-  --brand-from: #1A8259;
-  --brand-to: #0A5138;
-  --brand-fg: #ffffff;
-  /* 顶栏字标「per」的颜色：与品牌渐变同色相，对 --bg-panel 对比 ≥5（暗绿底） */
-  --brand-text: #5ACA8E;
-  /* CTA 主按钮（新建连接）锥形渐变：#B6F2CF → #5BD9A4，文字 #04241A（墨林） */
-  --cta-a: #B6F2CF;
-  --cta-b: #5BD9A4;
-  --cta-fg: #04241A;
-  --accent-hover: #6fdca1;
-  --accent-soft: rgba(88, 201, 141, 0.14);
-  --on-accent: #06251a;
+  /*
+   * 强调色：荧光绿 #46E871。对 --bg-panel 11.7，深字 #03240D 压其上 10.3，
+   * 选中淡底（13%）上的强调字 9.2 —— 三项全部远高于 AA。
+   */
+  --accent: #46E871;
+  /* 品牌图标渐变（K 形钥匙底）：#1E7A38 → #0F5223，符号色白，两端 5.39 / 9.33 */
+  --brand-from: #1E7A38;
+  --brand-to: #0F5223;
+  --brand-fg: #FFFFFF;
+  /* 顶栏字标「per」的颜色：荧光绿亮档，对 --bg-panel 10.7 */
+  --brand-text: #4ADE6C;
+  /* CTA 主按钮（新建连接）锥形渐变：#B8F5C6 → #4ADE6C，文字 #03240D */
+  --cta-a: #B8F5C6;
+  --cta-b: #4ADE6C;
+  --cta-fg: #03240D;
+  --accent-hover: #66F08C;
+  --accent-soft: rgba(70, 232, 113, 0.13);
+  --on-accent: #03240D;
 
-  --blue: #5fbbf8;
-  --green: #3ddc97;
-  --amber: #eebb62;
-  --danger-soft: rgba(255, 145, 132, 0.14);
-  --ok-soft: rgba(61, 220, 151, 0.14);
-  --amber-soft: rgba(238, 187, 98, 0.14);
-  --purple: #b8a6f5;
-  --pink: #f58fc8;
+  --blue: #5CC8E8;
+  --green: #46E871;
+  --amber: #E8D44D;
+  --danger-soft: rgba(255, 122, 107, 0.14);
+  --ok-soft: rgba(70, 232, 113, 0.14);
+  --amber-soft: rgba(232, 212, 77, 0.14);
+  --purple: #C9A8FF;
+  --pink: #FF9ECF;
 
-  --scrollbar-thumb: #2a3d32;
-  --scrollbar-thumb-hover: #3a5244;
+  --scrollbar-thumb: #224026;
+  --scrollbar-thumb-hover: #2F5436;
 
-  --mask: rgba(4, 10, 7, 0.66);
-  --shadow-panel: 0 8px 24px rgba(0, 0, 0, 0.45);
-  --cli-bg: #0a120e;
-  --cli-output: #7fe3b0;
-  --cli-error: #ff9184;
-  --cli-dim: #44604f;
+  --mask: rgba(2, 5, 3, 0.7);
+  --shadow-panel: 0 8px 24px rgba(0, 0, 0, 0.55);
+  --cli-bg: #050A06;
+  --cli-output: #46E871;
+  --cli-error: #FF7A6B;
+  --cli-dim: #3D5C42;
 
-  --badge-string-fg: #5eead4;
-  --badge-string-bg: rgba(61, 220, 151, 0.14);
-  --badge-hash-fg: #93c5fd;
-  --badge-hash-bg: rgba(95, 187, 248, 0.14);
-  --badge-list-fg: #fcd34d;
-  --badge-list-bg: rgba(238, 187, 98, 0.14);
-  --badge-set-fg: #c4b5fd;
-  --badge-set-bg: rgba(184, 166, 245, 0.14);
-  --badge-zset-fg: #f9a8d4;
-  --badge-zset-bg: rgba(245, 143, 200, 0.14);
-  --badge-stream-fg: #7dd3fc;
-  --badge-stream-bg: rgba(90, 200, 247, 0.14);
+  --badge-string-fg: #6EF58F;
+  --badge-string-bg: rgba(70, 232, 113, 0.14);
+  --badge-hash-fg: #7FD4EE;
+  --badge-hash-bg: rgba(92, 200, 232, 0.14);
+  --badge-list-fg: #F0E06A;
+  --badge-list-bg: rgba(232, 212, 77, 0.14);
+  --badge-set-fg: #D8C2FF;
+  --badge-set-bg: rgba(201, 168, 255, 0.14);
+  --badge-zset-fg: #FFB5DA;
+  --badge-zset-bg: rgba(255, 158, 207, 0.14);
+  --badge-stream-fg: #7FD4EE;
+  --badge-stream-bg: rgba(92, 200, 232, 0.14);
   --badge-none-fg: var(--text-muted);
-  --badge-none-bg: rgba(104, 127, 114, 0.14);
+  --badge-none-bg: rgba(110, 143, 115, 0.14);
 }
 
 /* ---------- 皮肤：樱花 sakura（亮色系） ----------
@@ -683,91 +688,96 @@
   --badge-none-bg: rgba(130, 149, 169, 0.12);
 }
 
-/* ---------- 皮肤：极光 aurora（亮色系） ----------
-   近白底 + 蓝紫双色：主色 #4a63e0（蓝）、副色 #8b3fd0（紫）。
-   两色只在「主按钮」以渐变形式同时出现，其余位置保持单色 ——
-   整屏渐变会失去焦点，工具型界面尤其不能这样。
+/* ---------- 皮肤：莓果气泡 berry（亮色系） ----------
+   白底 + 莓紫红强调 + 柠檬黄副色：杂志 / 流行封面感。
+   莓→紫渐变只出现在「主按钮」，CTA（新建连接）走柠檬黄 ——
+   两块彩色各司其职，其余位置保持单色，工具型界面不能整屏渐变。
 
-   与其他亮色皮肤的区别有两处，都不靠抢色相：
-     1. 圆角整体放大到 8/10/13（默认 4/6/10），这是观感的直接来源；
-     2. 唯一带渐变强调的一套（见下方 .btn-primary 覆盖）。 */
-:root[data-theme="aurora"] {
-  --bg-app: #f8f9fc;
-  --bg-panel: #ffffff;
-  --bg-elevated: #f2f4fa;
-  --bg-hover: #eaeef8;
-  --bg-active: #dfe5f4;
+   与其他亮色皮肤的区别有两处：
+     1. 圆角整体放大到 9/12/16（默认 4/6/10），气泡感的形态来源；
+     2. 投影带莓色色相（--shadow-panel / --conn-tile-shadow*）。 */
+:root[data-theme="berry"] {
+  --bg-app: #FAF4F7;
+  --bg-panel: #FFFFFF;
+  --bg-elevated: #F7EDF3;
+  --bg-hover: #F1DEE9;
+  --bg-active: #E9CBDC;
 
-  /* 阴影墨色（rgb 三元组，配 rgb(var(--shadow-ink) / 透明度) 用）：20 24 40 —— 浅底带色相更自然，暗底只有纯黑压得出层次 */
+  /* 阴影墨色（rgb 三元组，配 rgb(var(--shadow-ink) / 透明度) 用）：46 22 38 —— 浅底带色相更自然，暗底只有纯黑压得出层次 */
   --shadow-ink: 15 23 42;
   /* 浮起阴影的两层不透明度：与连接磁贴（--conn-tile-shadow*）同一档 ——
      暗色纯黑 .30/.345，亮色冷灰蓝 .13/.19；页签与 DB 工具条小按钮共用 */
   --lift-a1: .13;
   --lift-a2: .19;
-  --border: #e6e9f3;
-  --border-strong: #cbd2e6;
+  --border: #EBD8E3;
+  --border-strong: #D4AFC6;
 
-  --text-primary: #161a24;
-  --text-secondary: #4a5266;
-  --text-muted: #7d859a;
+  --text-primary: #2E1626;
+  --text-secondary: #6D4A60;
+  --text-muted: #8D6580;
 
-  --accent: #4a63e0;
-  /* 品牌图标渐变（K 形钥匙底）：#4A63E0 → #6E2FB8，符号色白，两端对白字均 ≥ 4.5:1 */
-  --brand-from: #4A63E0;
-  --brand-to: #6E2FB8;
+  /*
+   * 强调色：莓紫红 #B01F82。对 --bg-panel 6.24、白字压其上 6.24、
+   * 选中淡底（10%）上的强调字 5.13 —— 全部高于 AA。
+   */
+  --accent: #B01F82;
+  /* 品牌图标渐变（K 形钥匙底）：#C2258E → #8F1D6B，符号色白，两端 5.32 / 8.22 */
+  --brand-from: #C2258E;
+  --brand-to: #8F1D6B;
   --brand-fg: #ffffff;
-  /* 顶栏字标「per」的颜色：与品牌渐变同色相，对 --bg-panel 对比 ≥5（白底） */
-  --brand-text: #4761E0;
-  /* CTA 主按钮（新建连接）锥形渐变：#C9D2FA → #7E8FF2，文字 #14163A（极光） */
-  --cta-a: #C9D2FA;
-  --cta-b: #7E8FF2;
-  --cta-fg: #14163A;
-  --accent-hover: #3a50c9;
-  --accent-soft: rgba(74, 99, 224, 0.1);
+  /* 顶栏字标「per」的颜色：与品牌渐变同色相，对 --bg-panel 6.24（白底） */
+  --brand-text: #B01F82;
+  /* CTA 主按钮（新建连接）锥形渐变：#FFF3B0 → #FFD43B，文字 #4A3305（柠檬黄） */
+  --cta-a: #FFF3B0;
+  --cta-b: #FFD43B;
+  --cta-fg: #4A3305;
+  --accent-hover: #98196F;
+  --accent-soft: rgba(176, 31, 130, 0.1);
   --on-accent: #ffffff;
 
-  --blue: #4a63e0;
-  --green: #10896a;
-  --amber: #95601a;
+  --blue: #1D6FE0;
+  --green: #0B7A52;
+  --amber: #A16207;
   --danger-soft: rgba(192, 39, 27, 0.1);
-  --ok-soft: rgba(16, 137, 106, 0.1);
-  --amber-soft: rgba(149, 96, 26, 0.1);
-  --purple: #8b3fd0;
-  --pink: #c1348c;
+  --ok-soft: rgba(11, 122, 82, 0.1);
+  --amber-soft: rgba(161, 98, 7, 0.1);
+  --purple: #7C4DDB;
+  --pink: #C3247F;
 
-  --scrollbar-thumb: #d5dae8;
-  --scrollbar-thumb-hover: #bfc6db;
+  --scrollbar-thumb: #E3C6D7;
+  --scrollbar-thumb-hover: #D0A8C0;
 
-  --mask: rgba(22, 26, 36, 0.4);
-  --shadow-panel: 0 1px 2px rgba(16, 24, 40, 0.04), 0 14px 34px -22px rgba(70, 90, 180, 0.34);
-  --cli-bg: #f4f6fc;
-  --cli-output: #0f6b52;
-  --cli-error: #c0271b;
-  --cli-dim: #a2aac0;
+  --mask: rgba(46, 22, 38, 0.42);
+  /* 莓色软影：白底上带色相的投影，杂志封面感 */
+  --shadow-panel: 0 2px 4px rgba(176, 31, 130, 0.06), 0 16px 36px -18px rgba(176, 31, 130, 0.35);
+  --cli-bg: #F8F1F5;
+  --cli-output: #0B7A52;
+  --cli-error: #C0271B;
+  --cli-dim: #B395A8;
 
-  --badge-string-fg: #10896a;
-  --badge-string-bg: rgba(16, 137, 106, 0.09);
-  --badge-hash-fg: #4a63e0;
-  --badge-hash-bg: rgba(74, 99, 224, 0.09);
-  --badge-list-fg: #8a5814;
-  --badge-list-bg: rgba(138, 88, 20, 0.09);
-  --badge-set-fg: #8b3fd0;
-  --badge-set-bg: rgba(139, 63, 208, 0.09);
-  --badge-zset-fg: #c1348c;
-  --badge-zset-bg: rgba(193, 52, 140, 0.09);
-  --badge-stream-fg: #0b7ea3;
-  --badge-stream-bg: rgba(11, 126, 163, 0.09);
+  --badge-string-fg: #0B7A52;
+  --badge-string-bg: rgba(11, 122, 82, 0.12);
+  --badge-hash-fg: #1D6FE0;
+  --badge-hash-bg: rgba(29, 111, 224, 0.12);
+  --badge-list-fg: #92610A;
+  --badge-list-bg: rgba(161, 98, 7, 0.12);
+  --badge-set-fg: #6D3FC4;
+  --badge-set-bg: rgba(124, 77, 219, 0.12);
+  --badge-zset-fg: #B3246F;
+  --badge-zset-bg: rgba(195, 36, 127, 0.12);
+  --badge-stream-fg: #0B7EA3;
+  --badge-stream-bg: rgba(11, 126, 163, 0.12);
   --badge-none-fg: var(--text-muted);
-  --badge-none-bg: rgba(125, 133, 154, 0.1);
+  --badge-none-bg: rgba(141, 101, 128, 0.12);
 
-  /* 形态：比其他皮肤更圆，是极光的观感来源之一 */
-  --radius-sm: 8px;
-  --radius-md: 10px;
-  --radius-lg: 13px;
+  /* 形态：比其他皮肤更圆，是莓果气泡的观感来源之一 */
+  --radius-sm: 9px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
 
   /* 渐变强调：仅本主题定义，其他主题不读这两个变量 */
-  --accent-alt: #8b3fd0;
-  --accent-gradient: linear-gradient(96deg, #4a63e0 0%, #6f4fe8 52%, #8b3fd0 100%);
+  --accent-alt: #9C27B0;
+  --accent-gradient: linear-gradient(96deg, #C2258E 0%, #9C27B0 100%);
 }
 
 /*
@@ -781,33 +791,57 @@
 :root[data-theme="solarized"],
 :root[data-theme="sakura"],
 :root[data-theme="mint"],
-:root[data-theme="mist"],
-:root[data-theme="aurora"] {
+:root[data-theme="mist"] {
   --conn-tile-shadow: 0 1px 2px rgba(15, 23, 42, 0.11), 0 6px 14px -5px rgba(15, 23, 42, 0.15);
   --conn-tile-shadow-hover: 0 1px 2px rgba(15, 23, 42, 0.13), 0 9px 20px -5px rgba(15, 23, 42, 0.19);
 }
 
+/* 莓果气泡的磁贴投影带莓色色相（杂志封面感），单独一档覆盖亮色组 */
+:root[data-theme="berry"] {
+  --conn-tile-shadow: 0 1px 2px rgba(46, 22, 38, 0.1), 0 6px 16px -6px rgba(176, 31, 130, 0.22);
+  --conn-tile-shadow-hover: 0 2px 3px rgba(46, 22, 38, 0.12), 0 10px 22px -6px rgba(176, 31, 130, 0.3);
+}
+
 /*
- * 极光专属质感：主按钮走蓝紫渐变。
+ * 莓果气泡专属质感：主按钮走莓→紫渐变。
  *
  * 只在本主题下覆盖 —— 其他主题的 .btn-primary 仍是纯色 var(--accent)，
  * 所以这里不能直接改全局规则，否则会把所有皮肤一起改掉。
  * hover 用 filter: brightness 而不是再写一套渐变值，少一处维护。
  */
-:root[data-theme="aurora"] .btn-primary {
+:root[data-theme="berry"] .btn-primary {
   background: var(--accent-gradient);
   border-color: transparent;
-  box-shadow: 0 2px 8px -3px rgba(74, 99, 224, 0.5);
+  box-shadow: 0 3px 10px -3px rgba(176, 31, 130, 0.5);
 }
 
-:root[data-theme="aurora"] .btn-primary:hover:not(:disabled) {
+:root[data-theme="berry"] .btn-primary:hover:not(:disabled) {
   background: var(--accent-gradient);
   border-color: transparent;
   filter: brightness(1.07);
 }
 
-:root[data-theme="aurora"] .btn-primary:disabled {
+:root[data-theme="berry"] .btn-primary:disabled {
   filter: none;
+}
+
+/*
+ * 荧光终端专属质感：CRT 磷光屏。
+ *   1. 全局等宽字体（终端界面的本体语言）；
+ *   2. 主按钮磷光辉光；CLI 文字微光（cli-log 本就是固定深底，
+ *      微光在九套主题下只有这一套打开）。
+ * 只在本主题下覆盖，其他主题不受影响。
+ */
+:root[data-theme="phosphor"] body {
+  font-family: var(--font-mono);
+}
+
+:root[data-theme="phosphor"] .btn-primary {
+  box-shadow: 0 0 10px -2px rgba(70, 232, 113, 0.55);
+}
+
+:root[data-theme="phosphor"] .cli-log .entry .text {
+  text-shadow: 0 0 6px rgba(70, 232, 113, 0.3);
 }
 
 
