@@ -8,6 +8,7 @@ import type { ValueFormatId } from '@/utils/valueFormats'
 const MENU_WIDTH = 200
 
 const TEXT_ITEMS: Array<{ id: ValueFormatId; key: MsgKey; icon: DialogIconName }> = [
+  { id: 'tree', key: 'valueFormats.tree', icon: 'tree' },
   { id: 'jwt', key: 'valueFormats.jwt', icon: 'key' },
   { id: 'base64', key: 'valueFormats.base64', icon: 'convert' },
   { id: 'php', key: 'valueFormats.php', icon: 'code' },

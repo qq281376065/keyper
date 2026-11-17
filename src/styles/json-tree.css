@@ -1,0 +1,403 @@
+/* ============================================================
+   JsonTreeView —— 作用域 .s-json-tree-view
+   string 值「树形结构」格式视图。行结构参考 firefox-toolkit-addon
+   JSON 查看器中栏树：缩进竖线 + ├└ 连线 + ± 折叠方块 + 类型图标 + 标题。
+
+   连线几何（按参考项目公式，行高改动时必须同步）：
+     行高 = .jt-row 20px（装饰列 18px + 上下 padding 1×2）+ .jt-li 上下各 1px = 22px
+     装饰列距行上边界 = li 1px + row padding 1px = 2px
+     ⇒ 竖线上下各外扩 2px（top:-2px; bottom:-2px → 18+4=22px）首尾相接；
+       ├└ 横线落在装饰列垂直中心 18÷2=9px，扣半线高 → top:8.5px；
+       └ 竖线自 -2px 画到横线处（10.5px）收住。
+   ============================================================ */
+.s-json-tree-view{
+  /* 图标形状（共享 mask；颜色由各 .jt-ico-* 决定） */
+  --jt-mask-dot: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 4.4A3.6 3.6 0 1 0 8 11.6A3.6 3.6 0 1 0 8 4.4Z' fill='black'/%3E%3C/svg%3E");
+  --jt-mask-object: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M6.1 4.2C4.9 4.2 5.4 6.8 3.7 8C5.4 9.2 4.9 11.8 6.1 11.8' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M9.9 4.2C11.1 4.2 10.6 6.8 12.3 8C10.6 9.2 11.1 11.8 9.9 11.8' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --jt-mask-array: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M6.1 4.2H4.1V11.8H6.1' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M9.9 4.2H11.9V11.8H9.9' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --jt-mask-plus: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='2.8' y='2.8' width='10.4' height='10.4' rx='3.2' fill='none' stroke='black' stroke-width='1.5'/%3E%3Cpath d='M8 5.7V10.3M5.7 8H10.3' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  --jt-mask-minus: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='2.8' y='2.8' width='10.4' height='10.4' rx='3.2' fill='none' stroke='black' stroke-width='1.5'/%3E%3Cpath d='M5.7 8H10.3' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  /* 暗色默认：连线/箭头用弱化文本色，图标语义色取亮档 */
+  --jt-line: var(--border-strong);
+  --jt-arrow: var(--text-muted);
+  --jt-arrow-hi: var(--accent);
+  --jt-c-object: #5ab4ff;
+  --jt-c-array: #a78bfa;
+  --jt-c-string: #7cb3ff;
+  --jt-c-int: #4ade80;
+  --jt-c-float: #4ade80;
+  --jt-c-bool: #fbbf24;
+  --jt-c-null: #f87171;
+}
+:root[data-theme="light"] .s-json-tree-view,
+:root[data-theme="solarized"] .s-json-tree-view{
+  --jt-c-object: #2f80ed;
+  --jt-c-array: #7c3aed;
+  --jt-c-string: #3b82f6;
+  --jt-c-int: #16a34a;
+  --jt-c-float: #16a34a;
+  --jt-c-bool: #ca8a04;
+  --jt-c-null: #e5484d;
+}
+.s-json-tree-view.jt-wrap, .s-json-tree-view .jt-wrap{
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.s-json-tree-view .jt-toolbar{
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  /*
+   * 固定整条 26px：内容垂直居中由 align-items:center 保证。
+   * 此前高度由内容撑开（统计行高 20px + padding），统计与胶囊的
+   * 视觉中心随字号/图标尺寸漂移；固定高度 + 居中是唯一稳定解。
+   */
+  height: 28px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--border);
+}
+.s-json-tree-view .jt-stat{
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  /* 行高收紧到 1：文字盒高=字号，flex 居中按盒高对齐，
+     默认行高的上下留白会让视觉中心偏离几何中心 */
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+}
+/* 图标组合胶囊：凹槽 + 连续段，与值区 .seg-group 同形态但更矮（20px） */
+.s-json-tree-view .jt-seg{
+  display: inline-flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 2px;
+  height: 20px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+.s-json-tree-view .jt-seg-btn{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  /* 内部块方角、首尾圆头由容器 overflow 裁出 —— 分段控件语义 */
+  border-radius: 0 !important;
+  background: transparent;
+  padding: 0 7px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  box-shadow: none;
+  transition: background-color 0.15s, color 0.15s, box-shadow 0.15s;
+}
+.s-json-tree-view .jt-seg-btn:hover{
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-radius: 999px !important;
+}
+/*
+ * 选中态：与值区 seg-group 同一套「状态色填充 + 反色文字 + 内描边」——
+ * accent-soft / accent 由各皮肤自带，9 套皮肤下都成立，不依赖灰度差。
+ */
+.s-json-tree-view .jt-seg-btn.on{
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 999px !important;
+  /* 品牌内描边 + 浮起阴影（项目按钮选中态规范，皮肤变量驱动） */
+  box-shadow:
+    var(--lift-shadow),
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 32%, transparent);
+}
+.s-json-tree-view .jt-seg-btn.on:hover{
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.s-json-tree-view .jt-body{
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 6px 10px 10px;
+}
+/*
+ * 树形格式专属：外层 .value-body 的 padding 归零。
+ * 树自带工具条（jt-toolbar）与内边距，外层再留 12px 8px 会出现双倍空隙；
+ * 仅树形命中（ValueViewer / MemcachedValueViewer 按 format==='tree' 挂类），
+ * 原文 / JSON 美化 / 解码视图等其他形态保持原有 padding 不变。
+ */
+.value-body.value-body-tree{
+  padding: 0;
+}
+.s-json-tree-view .jt-ul{
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.s-json-tree-view .jt-li{
+  padding: 1px 0;
+}
+.s-json-tree-view .jt-row{
+  display: flex;
+  align-items: flex-start;
+  min-height: 20px;
+  padding: 1px 2px;
+  border-radius: 4px;
+}
+.s-json-tree-view .jt-row:hover{
+  background: var(--bg-hover);
+}
+/* 装饰列：固定 16px 宽 18px 高，不收缩 */
+.s-json-tree-view .jt-indent,
+.s-json-tree-view .jt-hit,
+.s-json-tree-view .jt-icon{
+  flex: 0 0 16px;
+  width: 16px;
+  height: 18px;
+  margin: 0;
+}
+.s-json-tree-view .jt-indent{
+  position: relative;
+}
+/* │├ 竖线贯穿整行（上下外扩 2px 接合相邻行） */
+.s-json-tree-view .jt-indent.jt-line::before,
+.s-json-tree-view .jt-indent.jt-join::before{
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -2px;
+  bottom: -2px;
+  width: 1px;
+  margin-left: -.5px;
+  background: var(--jt-line);
+}
+/* └ 竖线画到横线处收住 */
+.s-json-tree-view .jt-indent.jt-joinbottom::before{
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -2px;
+  height: 10.5px;
+  width: 1px;
+  margin-left: -.5px;
+  background: var(--jt-line);
+}
+/* ├└ 横线：半列宽，接到下一装饰列 */
+.s-json-tree-view .jt-indent.jt-join::after,
+.s-json-tree-view .jt-indent.jt-joinbottom::after{
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 8.5px;
+  width: 8px;
+  height: 1px;
+  background: var(--jt-line);
+}
+/* ± 折叠方块：mask 轮廓 + 变量取色，hover 提亮 */
+.s-json-tree-view .jt-hit{
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  background-color: var(--jt-arrow);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: 16px 16px;
+  mask-size: 16px 16px;
+}
+.s-json-tree-view .jt-hit:hover{
+  background-color: var(--jt-arrow-hi);
+}
+.s-json-tree-view .jt-hit.jt-collapsed{
+  -webkit-mask-image: var(--jt-mask-plus);
+  mask-image: var(--jt-mask-plus);
+}
+.s-json-tree-view .jt-hit.jt-expanded{
+  -webkit-mask-image: var(--jt-mask-minus);
+  mask-image: var(--jt-mask-minus);
+}
+/* 类型图标：object 蓝括号 / array 紫括号 / 标量语义色点 */
+.s-json-tree-view .jt-icon{
+  background-color: var(--jt-c-string);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: 16px 16px;
+  mask-size: 16px 16px;
+  -webkit-mask-image: var(--jt-mask-dot);
+  mask-image: var(--jt-mask-dot);
+}
+.s-json-tree-view .jt-ico-object{ background-color: var(--jt-c-object); -webkit-mask-image: var(--jt-mask-object); mask-image: var(--jt-mask-object); }
+.s-json-tree-view .jt-ico-array{ background-color: var(--jt-c-array); -webkit-mask-image: var(--jt-mask-array); mask-image: var(--jt-mask-array); }
+.s-json-tree-view .jt-ico-string{ background-color: var(--jt-c-string); }
+.s-json-tree-view .jt-ico-int{ background-color: var(--jt-c-int); }
+.s-json-tree-view .jt-ico-float{ background-color: var(--jt-c-float); }
+.s-json-tree-view .jt-ico-bool{ background-color: var(--jt-c-bool); }
+.s-json-tree-view .jt-ico-null{ background-color: var(--jt-c-null); }
+/* 标题：独占剩余宽度，长值在盒内换行 */
+.s-json-tree-view .jt-title{
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  white-space: normal;
+  word-break: break-all;
+  color: var(--text-primary);
+}
+.s-json-tree-view .jt-tk{
+  color: var(--text-primary);
+}
+.s-json-tree-view .jt-struct{
+  cursor: pointer;
+}
+.s-json-tree-view .jt-colon{
+  color: var(--text-muted);
+}
+.s-json-tree-view .jt-val-string{ color: var(--jt-c-string); }
+.s-json-tree-view .jt-val-int,
+.s-json-tree-view .jt-val-float{ color: var(--jt-c-int); }
+.s-json-tree-view .jt-val-bool{ color: var(--jt-c-bool); }
+.s-json-tree-view .jt-val-null{ color: var(--jt-c-null); }
+/* 长值「查看」胶囊 */
+.s-json-tree-view .jt-view-btn{
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  font-size: var(--fs-xs);
+  line-height: 16px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  user-select: none;
+  vertical-align: baseline;
+}
+.s-json-tree-view .jt-view-btn:hover{
+  color: var(--bg-panel);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ============================================================
+   TreeValueDialog —— 作用域 .s-tree-value-dialog
+   长值查看弹窗走统一 DialogShell（头部/拖拽/页脚/居中由 .dlg 体系负责），
+   这里只定制正文：节点定位条 + 视图工具条 + 预格式化内容区。
+   ============================================================ */
+.s-tree-value-dialog .tvd-node{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.s-tree-value-dialog .tvd-key{
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.s-tree-value-dialog .tvd-path{
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: right;
+}
+.s-tree-value-dialog .tvd-toolbar{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* 原文 / JSON 视图切换：小胶囊分段（与树工具条 jt-seg 同形态） */
+.s-tree-value-dialog .tvd-seg{
+  display: inline-flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 2px;
+  height: 24px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.s-tree-value-dialog .tvd-seg-btn{
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  border-radius: 0 !important;
+  background: transparent;
+  padding: 0 10px;
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+.s-tree-value-dialog .tvd-seg-btn:hover{
+  color: var(--text-primary);
+}
+.s-tree-value-dialog .tvd-seg-btn.on{
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.s-tree-value-dialog .tvd-wrap-btn{
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+}
+.s-tree-value-dialog .tvd-wrap-btn:hover{
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+.s-tree-value-dialog .tvd-wrap-btn.on{
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+/* 内容区：吃掉正文剩余高度，独立滚动 */
+.s-tree-value-dialog .tvd-body{
+  flex: 1 1 auto;
+  min-height: 240px;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-app);
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+  color: var(--text-primary);
+  overscroll-behavior: contain;
+}
+.s-tree-value-dialog .tvd-body.nowrap{
+  white-space: pre;
+  word-break: normal;
+}
+/* 弹窗整体更高：长值查看需要足够阅读面积（默认 dlg 只按内容撑） */
+.s-tree-value-dialog.dlg{
+  max-width: 720px !important;
+}
+.s-tree-value-dialog .dlg-shell{
+  height: min(560px, calc(100vh - 140px));
+}

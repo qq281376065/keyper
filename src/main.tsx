@@ -10,6 +10,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import '@/styles/main.css'
 import '@/styles/components.css'
+import '@/styles/json-tree.css'
 /* Tailwind layer for components/ui (shadcn + Cult UI). Loaded after the
    hand-written sheets so utility classes win inside those components only. */
 import '@/styles/tailwind.css'

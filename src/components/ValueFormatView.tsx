@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '@/api'
 import { DialogIcon } from '@/components/DialogIcon'
+import { JsonTreeView } from '@/components/JsonTreeView'
 import { useI18n } from '@/i18n'
 import { useRedis } from '@/store/useRedis'
 import type { ValueFormatsApi } from '@/hooks/useValueFormats'
@@ -121,6 +122,16 @@ export function ValueFormatView({ formats, keyName }: { formats: ValueFormatsApi
           truncated={view.truncated}
           keyName={keyName}
         />
+      </div>
+    )
+  }
+
+  if (view.kind === 'tree') {
+    /* 树形视图不带格式头栏：格式名与「原始文本」返回在工具栏格式菜单里已有，
+     * 统计与展开/折叠在树自己的工具条上，头栏纯属重复占位 */
+    return (
+      <div className="format-view-wrap">
+        <JsonTreeView root={view.root} stats={view.stats} />
       </div>
     )
   }
