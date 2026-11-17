@@ -9,7 +9,7 @@
  * 多个 Workspace 同时挂载（非激活的用 hidden 隐藏），切换标签零重建：
  * 组件本地状态（树展开、滚动位置、行内编辑草稿）天然保留。
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { KeyBrowser } from '@/components/KeyBrowser'
 import { MemcachedKeyBrowser } from '@/components/MemcachedKeyBrowser'
 import { MemcachedValueViewer } from '@/components/MemcachedValueViewer'
@@ -27,14 +27,20 @@ export function Workspace({ connId, hidden }: { connId: string; hidden?: boolean
    * 这里按 id 取即可。取不到说明标签与会话失步（理论上不会发生），
    * 此时渲染空壳而不是抛错 —— 抛错会让整窗白屏。
    */
-  /*
-   * 每次渲染都重新取会话并重建 API 包装：
-   * - getSession 是 O(1) 的 Map 查询，重建包装成本极低；
-   * - 若用 useMemo 按 [session, connId] 缓存，会话在挂载后被创建/替换时
-   *   缓存会锁住旧的 null，表现为「标签打开了但键列表永远是空/加载中」。
-   */
   const session = getSession(connId)
-  const api = session ? makeSessionApi(session) : null
+  /*
+   * API 包装按 session 对象身份缓存（useMemo 依赖 [session, connId]）：
+   * - session 为 null 时不缓存有效值，下次渲染会话就绪（null → 对象）
+   *   依赖变化自然重建 —— 不会锁住旧的 null；
+   * - 会话被替换（断开重连）时对象身份变化，同样自然重建；
+   * - 同一会话的普通重渲染不再重建 ~40 个 bind 与 Context value，
+   *   子树的 useContext 消费者不再因 value 身份变化被连带重渲染。
+   * buildApi 内的 state 是 Proxy（读时取最新值），缓存包装不会锁住数据。
+   */
+  const api = useMemo(
+    () => (session ? makeSessionApi(session) : null),
+    [session, connId],
+  )
   const { settings, save: saveSettings } = useSettings()
 
   /**
