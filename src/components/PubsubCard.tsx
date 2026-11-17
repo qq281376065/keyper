@@ -4,8 +4,7 @@ import { DialogIcon } from '@/components/DialogIcon'
 import { tipProps } from '@/components/tip'
 import { useI18n } from '@/i18n'
 import { useRedis } from '@/store/useRedis'
-import { useObservable } from '@/store/subscription'
-import { useSessionStore } from '@/hooks/useSessionStore'
+import { useSessionFields } from '@/hooks/useSessionStore'
 import { useCoalescedStream } from '@/hooks/useCoalescedStream'
 import type { PubsubMessage } from '@shared/types'
 
@@ -21,7 +20,7 @@ const MAX_MESSAGES = 200
 export function PubsubCard() {
   const { t } = useI18n()
   const { state, activeConnection, notify } = useRedis()
-  useObservable(useSessionStore())
+  useSessionFields(['activeId'])
 
   const connected = activeConnection?.status === 'connected'
   const activeId = state.activeId

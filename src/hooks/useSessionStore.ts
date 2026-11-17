@@ -9,9 +9,11 @@
  */
 import { getSession, globalHolder, globalState } from '@/store/global'
 import { getSessionHolder } from '@/store/session'
-import { useContext, useSyncExternalStore } from 'react'
+import { useContext, useRef, useSyncExternalStore } from 'react'
 import { RedisSessionContext } from '@/store/useRedis'
 import type { Observable } from '@/store/subscription'
+import type { AppStore } from '@/store'
+import { storeFieldVersion } from '@/store/reactiveStore'
 
 /**
  * 取「当前组件该订阅的 store」：
@@ -42,4 +44,35 @@ export function useSessionStore(): Observable {
     if (holder) return holder
   }
   return globalHolder
+}
+
+/**
+ * 字段级会话订阅：只有列出的顶层字段被写入时才重渲染。
+ *
+ * 为什么需要：useObservable(useSessionStore()) 订阅整个会话 store，
+ * CLI 输出一行、搜索进度一跳都会让概览卡片（监控 / Pub/Sub / 慢查询）
+ * 跟着重渲染 —— 它们实际只读 activeId / serverInfo 等少数字段。
+ *
+ * 实现：store 为每个顶层字段维护独立版本号（深层写入沿路径归到根字段），
+ * 这里把「关心字段的版本拼接串」作为 useSyncExternalStore 的快照，
+ * 无关字段写入时快照不变，React 跳过重渲染。
+ *
+ * ⚠️ fields 必须是编译期可确定的常量数组（调用处写字面量）：
+ * 快照按字段列表计算，运行期变化会导致订阅口径漂移。
+ * 全局字段（connections / tabs / toast…）不在会话 store 里，
+ * 需要它们的组件仍用 useObservable(globalHolder) 或整店订阅。
+ */
+export function useSessionFields(fields: readonly string[]): void {
+  const holder = useSessionStore() as AppStore<object>
+  /* 快照缓存：版本串不变时返回同一引用，避免 useSyncExternalStore 误判 */
+  const snapshotRef = useRef('')
+  const getSnapshot = (): string => {
+    let next = ''
+    for (const field of fields) {
+      next += `${field}:${storeFieldVersion(holder.store, field)};`
+    }
+    if (next !== snapshotRef.current) snapshotRef.current = next
+    return snapshotRef.current
+  }
+  useSyncExternalStore(holder.subscribe, getSnapshot, getSnapshot)
 }

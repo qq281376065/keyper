@@ -4,8 +4,7 @@ import { DialogIcon } from '@/components/DialogIcon'
 import { tipProps } from '@/components/tip'
 import { useI18n } from '@/i18n'
 import { useRedis } from '@/store/useRedis'
-import { useObservable } from '@/store/subscription'
-import { useSessionStore } from '@/hooks/useSessionStore'
+import { useSessionFields } from '@/hooks/useSessionStore'
 import type { MemoryAnalysis, MemoryBucket } from '@shared/types'
 
 /** 每页行数：200 桶上限内分批展示，避免长表一次性铺满概览页 */
@@ -23,7 +22,7 @@ const PAGE_SIZE = 20
 export function MemoryCard() {
   const { t } = useI18n()
   const { state, activeConnection } = useRedis()
-  useObservable(useSessionStore())
+  useSessionFields(['activeId'])
 
   const [analysis, setAnalysis] = useState<MemoryAnalysis | null>(null)
   const [loading, setLoading] = useState(false)

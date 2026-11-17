@@ -6,8 +6,7 @@ import { VirtualRows } from '@/components/VirtualRows'
 import { tipProps } from '@/components/tip'
 import { useI18n, type MsgKey } from '@/i18n'
 import { useRedis } from '@/store/useRedis'
-import { useObservable } from '@/store/subscription'
-import { useSessionStore } from '@/hooks/useSessionStore'
+import { useSessionFields } from '@/hooks/useSessionStore'
 import { copyText } from '@/utils/clipboard'
 import type { SlowlogEntry, SlowlogOverview } from '@shared/types'
 
@@ -435,7 +434,7 @@ export function SlowlogCard({
 }) {
   const { t } = useI18n()
   const { state, activeConnection, notify } = useRedis()
-  useObservable(useSessionStore())
+  useSessionFields(['activeId'])
 
   const [overview, setOverview] = useState<SlowlogOverview | null>(null)
   const [loading, setLoading] = useState(false)

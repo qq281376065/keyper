@@ -9,9 +9,8 @@ import { SlowlogCard } from '@/components/SlowlogCard'
 import { tipProps } from '@/components/tip'
 import { useI18n } from '@/i18n'
 import type { MsgKey } from '@shared/i18n'
-import { useSessionStore } from '@/hooks/useSessionStore'
 import { useRedis } from '@/store/useRedis'
-import { useObservable } from '@/store/subscription'
+import { useSessionFields } from '@/hooks/useSessionStore'
 import type { VersionInfo } from '@shared/types'
 
 type ServerTab = 'info' | 'slowlog' | 'memory' | 'pubsub' | 'monitor' | 'keyspace'
@@ -143,7 +142,7 @@ export function ServerOverview() {
     return key ? t(key) : (raw ?? '-')
   }
   const { state, activeConnection, loadServerInfo } = useRedis()
-  useObservable(useSessionStore())
+  useSessionFields(['activeId', 'serverInfo'])
 
   const info = state.serverInfo
   const activeId = state.activeId

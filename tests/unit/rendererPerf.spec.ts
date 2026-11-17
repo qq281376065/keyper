@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
-import { createStore, storeBatch, storeSubscribe, storeVersion } from '@/store/reactiveStore'
+import { createStore, storeBatch, storeSubscribe, storeVersion, storeFieldVersion } from '@/store/reactiveStore'
 import { renderHook, act } from '@testing-library/react'
 import { useCoalescedStream } from '@/hooks/useCoalescedStream'
 
@@ -86,6 +86,53 @@ describe('reactiveStore · batch 批量写入', () => {
     })
     expect(listener).toHaveBeenCalledTimes(1)
     expect(store.nested.list).toEqual([1, 2])
+  })
+})
+
+describe('reactiveStore · 字段级版本', () => {
+  it('写入只递增被改字段的版本，无关字段不变', () => {
+    const store = createStore({ activeId: null as string | null, cliEntries: [] as string[], serverInfo: null as object | null })
+    expect(storeFieldVersion(store, 'activeId')).toBe(0)
+    store.cliEntries = ['line1']
+    expect(storeFieldVersion(store, 'cliEntries')).toBe(1)
+    expect(storeFieldVersion(store, 'activeId')).toBe(0)
+    expect(storeFieldVersion(store, 'serverInfo')).toBe(0)
+    store.activeId = 'conn-1'
+    expect(storeFieldVersion(store, 'activeId')).toBe(1)
+    expect(storeFieldVersion(store, 'cliEntries')).toBe(1)
+  })
+
+  it('深层写入沿路径归到根字段', () => {
+    const store = createStore({ keys: [] as Array<{ key: string }>, activeId: null as string | null })
+    store.keys.push({ key: 'a' })
+    expect(storeFieldVersion(store, 'keys')).toBe(1)
+    expect(storeFieldVersion(store, 'activeId')).toBe(0)
+    store.keys[0].key = 'b'
+    expect(storeFieldVersion(store, 'keys')).toBe(2)
+  })
+
+  it('batch 内多字段写入退出时各自递增一次', () => {
+    const store = createStore({ a: 0, b: 0, c: 0 })
+    storeBatch(store, () => {
+      store.a = 1
+      store.a = 2
+      store.b = 1
+    })
+    expect(storeFieldVersion(store, 'a')).toBe(1)
+    expect(storeFieldVersion(store, 'b')).toBe(1)
+    expect(storeFieldVersion(store, 'c')).toBe(0)
+  })
+
+  it('同值写入不递增字段版本', () => {
+    const store = createStore({ a: 1 })
+    store.a = 1
+    expect(storeFieldVersion(store, 'a')).toBe(0)
+  })
+
+  it('删除字段同样递增版本', () => {
+    const store = createStore({ obj: { x: 1 } as Record<string, number> })
+    delete store.obj.x
+    expect(storeFieldVersion(store, 'obj')).toBe(1)
   })
 })
 
