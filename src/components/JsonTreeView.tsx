@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { DialogIcon } from '@/components/DialogIcon'
+import { TreeValueDialog } from '@/components/TreeValueDialog'
 import { tipProps } from '@/components/tip'
 import { useI18n } from '@/i18n'
 import {
@@ -102,44 +102,6 @@ function TreeRow({ node, flags, isLast, expanded, onToggle, onView }: RowProps) 
   )
 }
 
-/** 长值查看弹窗：完整值 + 复制 */
-function LongValueDialog({ node, onClose }: { node: JsonTreeNode; onClose: () => void }) {
-  const { t } = useI18n()
-  const [copied, setCopied] = useState(false)
-  const text = node.fullText ?? node.leafText ?? ''
-
-  async function copy(): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    } catch {
-      /* 剪贴板不可用时静默 */
-    }
-  }
-
-  return createPortal(
-    <div className="jt-dlg-mask s-json-tree-view" onClick={onClose}>
-      <div className="jt-dlg" onClick={(event) => event.stopPropagation()}>
-        <div className="jt-dlg-head">
-          <span className="mono ellipsis">{node.key}</span>
-          <span className="jt-dlg-count mono">{t('valueFormats.treeChars', { count: text.length })}</span>
-          <span className="spacer" />
-          <button type="button" className="tool" onClick={() => void copy()}>
-            <DialogIcon name="copy" size={12} className="ti" />
-            {copied ? t('valueFormats.treeCopied') : t('common.copy')}
-          </button>
-          <button type="button" className="dlg-close" onClick={onClose} aria-label={t('common.close')}>
-            <DialogIcon name="cancel" size={13} />
-          </button>
-        </div>
-        <pre className="jt-dlg-body mono">{text}</pre>
-      </div>
-    </div>,
-    document.body,
-  )
-}
-
 export interface JsonTreeViewProps {
   root: JsonTreeNode
   stats: JsonTreeStats
@@ -213,7 +175,7 @@ export function JsonTreeView({ root, stats }: JsonTreeViewProps) {
           />
         </ul>
       </div>
-      {viewing ? <LongValueDialog node={viewing} onClose={() => setViewing(null)} /> : null}
+      {viewing ? <TreeValueDialog node={viewing} onClose={() => setViewing(null)} /> : null}
     </div>
   )
 }
