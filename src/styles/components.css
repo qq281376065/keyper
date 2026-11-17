@@ -11768,6 +11768,14 @@ body.col-resizing .col-handle::after{
   border: 1px solid var(--border);
   border-radius: 8px;
 }
+/*
+ * 品牌区的 GitHub 仓库入口：跟在版本号后面的小图标按钮。
+ * 尺寸 / hover / 胶囊半径与浮起阴影全部沿用 .bar-btn（与顶栏其余图标一致）；
+ * 顶栏整体是拖拽区（drag），这里必须 no-drag 豁免，否则点击被拖拽语义吞掉。
+ */
+.s-app.brand-repo, .s-app .brand-repo{
+  -webkit-app-region: no-drag;
+}
 .s-app.topbar-actions, .s-app .topbar-actions{
   display: flex;
   align-items: center;
@@ -11962,6 +11970,10 @@ body.col-resizing .col-handle::after{
   padding: 1px 6px;
   border: 1px solid var(--border);
   border-radius: 8px;
+}
+/* 品牌区 GitHub 仓库入口：同第一段块的定义（no-drag 豁免） */
+.s-app.brand-repo, .s-app .brand-repo{
+  -webkit-app-region: no-drag;
 }
 /*
  * 顶栏品牌图标的立体效果：与主页同源的悬浮逻辑，但图标只有 22px，
