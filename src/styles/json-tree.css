@@ -50,8 +50,41 @@
   align-items: center;
   gap: 6px;
   flex: 0 0 auto;
-  padding: 4px 10px;
+  /* 紧凑工具条：上下 2px（原 4px），整条高度随胶囊 24px 收敛 */
+  padding: 2px 10px;
   border-bottom: 1px solid var(--border);
+}
+/* 图标组合胶囊：凹槽 + 连续段，与值区 .seg-group 同形态但更矮（24px） */
+.s-json-tree-view .jt-seg{
+  display: inline-flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 2px;
+  height: 24px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+.s-json-tree-view .jt-seg-btn{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  /* 内部块方角、首尾圆头由容器 overflow 裁出 —— 分段控件语义 */
+  border-radius: 0 !important;
+  background: transparent;
+  padding: 0 8px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  box-shadow: none;
+  transition: background-color 0.15s, color 0.15s;
+}
+.s-json-tree-view .jt-seg-btn:hover{
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 .s-json-tree-view .jt-stat{
   color: var(--text-muted);

@@ -191,14 +191,15 @@ export function JsonTreeView({ root, stats }: JsonTreeViewProps) {
           {t('valueFormats.treeStat', { nodes: stats.nodes, depth: stats.maxDepth })}
         </span>
         <span className="spacer" />
-        <button type="button" className="tool" onClick={expandAll} {...tipProps(t('valueFormats.treeExpandAll'))}>
-          <DialogIcon name="expand" size={12} className="ti" />
-          {t('valueFormats.treeExpandAll')}
-        </button>
-        <button type="button" className="tool" onClick={collapseAll} {...tipProps(t('valueFormats.treeCollapseAll'))}>
-          <DialogIcon name="collapse" size={12} className="ti" />
-          {t('valueFormats.treeCollapseAll')}
-        </button>
+        {/* 图标组合胶囊：与值区工具条 seg-group 同形态（凹槽+连续段），高度更紧凑 */}
+        <div className="jt-seg">
+          <button type="button" className="jt-seg-btn" onClick={expandAll} {...tipProps(t('valueFormats.treeExpandAll'))}>
+            <DialogIcon name="expand" size={12} />
+          </button>
+          <button type="button" className="jt-seg-btn" onClick={collapseAll} {...tipProps(t('valueFormats.treeCollapseAll'))}>
+            <DialogIcon name="collapse" size={12} />
+          </button>
+        </div>
       </div>
       <div className="jt-body">
         <ul className="jt-ul jt-root">
