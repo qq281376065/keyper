@@ -1,0 +1,346 @@
+{
+  "schema_version": 1,
+  "topic": "keyper-perf-review",
+  "target_entities": [
+    {
+      "entity": "Keyper",
+      "aliases": [
+        "RedisDocter",
+        "keyper"
+      ],
+      "official_domains": []
+    }
+  ],
+  "evidence": [
+    {
+      "entity": "Keyper",
+      "claim": "getValue case 'string' client.get(key) value length nextCursor null",
+      "source_url": "file:electron/services/connection-manager.ts#L1390-L1394",
+      "source_type": "user_input",
+      "evidence_excerpt": "    switch (type) {\n      case 'string': {\n        const value = await client.get(key)\n        return { ...base, length: value?.length ?? 0, value, nextCursor: null }\n      }",
+      "evidence_basis": "user_input",
+      "confidence": "medium",
+      "status": "unverified",
+      "unverified_reason": "源码行已由 read_file 人工核对属实；校验器要求摘录内出现实体名 Keyper，而这些代码行不含产品名，词面绑定检查无法通过。证据本身为逐字抽取的源码（file: 路径+行号可复核），按契约保留为 unverified 并排除出 verified_facts，不伪造摘录。"
+    },
+    {
+      "entity": "Keyper",
+      "claim": "valueBinary getBuffer VALUE_BINARY_MAX_BYTES subarray truncated",
+      "source_url": "file:electron/services/connection-manager.ts#L1316-L1327",
+      "source_type": "user_input",
+      "evidence_excerpt": "  async valueBinary(\n    id: string,\n    key: string,\n    options: ValueBinaryOptions = {},\n  ): Promise<ValueBinaryResult> {\n    const client = this.mustGet(id)\n    const buffer = await client.getBuffer(key)\n    if (!buffer) return { base64: '', bytes: 0, truncated: false }\n\n    const bytes = buffer.length\n    const kept =\n      bytes > VALUE_BINARY_MAX_BYTES ? buffer.subarray(0, VALUE_BINARY_MAX_BYTES) : buffer",
+      "evidence_basis": "user_input",
+      "confidence": "medium",
+      "status": "unverified",
+      "unverified_reason": "源码行已由 read_file 人工核对属实；校验器要求摘录内出现实体名 Keyper，而这些代码行不含产品名，词面绑定检查无法通过。证据本身为逐字抽取的源码（file: 路径+行号可复核），按契约保留为 unverified 并排除出 verified_facts，不伪造摘录。"
+    },
+    {
+      "entity": "Keyper",
+      "claim": "valueBinary decode gzip gunzipSync inflateSync maxOutputLength",
+      "source_url": "file:electron/services/connection-manager.ts#L1334-L1345",
+      "source_type": "user_input",
+      "evidence_excerpt": "    if (options.decode) {\n      const requested = options.maxOutputBytes ?? VALUE_DECODE_MAX_BYTES\n      const maxOutputBytes = Math.min(\n        Math.max(requested, 64 * 1024),\n        VALUE_DECODE_MAX_BYTES_CAP,\n      )\n      try {\n        const decoded =\n          options.decode === 'gzip'\n            ? gunzipSync(kept, { maxOutputLength: maxOutputBytes })\n            : inflateSync(kept, { maxOutputLength: maxOutputBytes })\n        result.decodedText = decoded.toString('utf-8')",
+      "evidence_basis": "user_input",
+      "confidence": "medium",
+      "status": "unverified",
+      "unverified_reason": "源码行已由 read_file 人工核对属实；校验器要求摘录内出现实体名 Keyper，而这些代码行不含产品名，词面绑定检查无法通过。证据本身为逐字抽取的源码（file: 路径+行号可复核），按契约保留为 unverified 并排除出 verified_facts，不伪造摘录。"
+    },
+    {
+      "entity": "Keyper",
+      "claim": "memoryAnalysis pipeline memory USAGE scan COUNT 2000 exec",
+      "source_url": "file:electron/services/connection-manager.ts#L892-L918",
+      "source_type": "user_input",
+      "evidence_excerpt": "  async memoryAnalysis(id: string, depth = 1): Promise<MemoryAnalysis> {\n    const managed = this.pool.get(id)\n    if (!managed) throw new Error(t('connectionManager.connectionClosedConnectFirst'))\n    const client = managed.client\n\n    const level = Math.min(Math.max(Math.floor(depth) || 1, 1), 4)\n    const limit = ConnectionManager.MEMORY_SCAN_LIMIT\n    const buckets = new Map<string, MemoryBucket>()\n    let cursor = '0'\n    let scanned = 0\n    let truncated = false\n    let totalBytes = 0\n\n    do {\n      const [next, keys] = await client.scan(cursor, 'MATCH', '*', 'COUNT', 2000)\n      cursor = next\n\n      /* 剩余额度不足整批时截断：标记后只统计放得下的部分 */\n      const room = limit - scanned\n      const batch = room < keys.length ? keys.slice(0, room) : keys\n      if (batch.length < keys.length) truncated = true\n\n      for (let i = 0; i < batch.length; i += 100) {\n        const slice = batch.slice(i, i + 100)\n        const pipeline = client.pipeline()\n        for (const key of slice) pipeline.memory('USAGE', key)\n        const replies = await pipeline.exec()",
+      "evidence_basis": "user_input",
+      "confidence": "medium",
+      "status": "unverified",
+      "unverified_reason": "源码行已由 read_file 人工核对属实；校验器要求摘录内出现实体名 Keyper，而这些代码行不含产品名，词面绑定检查无法通过。证据本身为逐字抽取的源码（file: 路径+行号可复核），按契约保留为 unverified 并排除出 verified_facts，不伪造摘录。"
+    },
+    {
+      "entity": "Keyper",
+      "claim": "addZsetMember exists zscore zadd zcard await",
+      "source_url": "file:electron/services/connection-manager.ts#L1866-L1880",
+      "source_type": "user_input",
+      "evidence_excerpt": "  async addZsetMember(\n    id: string,\n    key: string,\n    member: string,\n    score: number,\n  ): Promise<OperationResult> {\n    const client = this.mustGet(id)\n    const target = member.trim()\n    if (!target) return { ok: false, message: t('common.memberContentCannotEmpty') }\n    if (!Number.isFinite(score)) return { ok: false, message: t('common.scoreNumber') }\n\n    const exists = await client.exists(key)\n    const existingScore = await client.zscore(key, target)\n    await client.zadd(key, score, target)\n    const total = await client.zcard(key)",
+      "evidence_basis": "user_input",
+      "confidence": "medium",
+      "status": "unverified",
+      "unverified_reason": "源码行已由 read_file 人工核对属实；校验器要求摘录内出现实体名 Keyper，而这些代码行不含产品名，词面绑定检查无法通过。证据本身为逐字抽取的源码（file: 路径+行号可复核），按契约保留为 unverified 并排除出 verified_facts，不伪造摘录。"
+    },
+    {
+      "entity": "Keyper",
+      "claim": "setValue stream xadd for row payload await",
+      "source_url": "file:electron/services/connection-manager.ts#L1661-L1677",
+      "source_type": "user_input",
+      "evidence_excerpt": "      case 'stream': {\n        await client.del(key)\n        /*\n         * 约定格式：每行 \"field :: value\"。\n         *\n         * 用 `*` 作为消息 ID 让 Redis 自动生成 —— 手工指定 ID 需要满足\n         * \"必须大于上一条\"的单调约束，让用户去填既容易出错也没有意义。\n         * 一行里没有 :: 的，整行当作 field、value 留空，\n         * 这样\"只要一个占位消息\"的场景可以直接敲一个词。\n         */\n        for (const row of payload as string[]) {\n          const index = row.indexOf('::')\n          const field = (index >= 0 ? row.slice(0, index) : row).trim()\n          const value = index >= 0 ? row.slice(index + 2).trim() : ''\n          if (!field) continue\n          await client.xadd(key, '*', field, value)\n        }",
+      "evidence_basis": "user_input",
+      "confidence": "medium",
+      "status": "unverified",
+      "unverified_reason": "源码行已由 read_file 人工核对属实；校验器要求摘录内出现实体名 Keyper，而这些代码行不含产品名，词面绑定检查无法通过。证据本身为逐字抽取的源码（file: 路径+行号可复核），按契约保留为 unverified 并排除出 verified_facts，不伪造摘录。"
+    },
+    {
+      "entity": "Keyper",
+      "claim": "deleteListElement lindex lset lrem token await",
+      "source_url": "file:electron/services/connection-manager.ts#L2179-L2194",
+      "source_type": "user_input",
+      "evidence_excerpt": "  async deleteListElement(id: string, key: string, index: number): Promise<OperationResult> {\n    const client = this.mustGet(id)\n    const length = await client.llen(key)\n    if (index < 0 || index >= length) {\n      return { ok: false, message: t('connectionManager.listPositionMissingLength') }\n    }\n\n    const current = await client.lindex(key, index)\n    if (current === null) return { ok: false, message: t('connectionManager.listPositionMissing') }\n\n    // 先用哨兵替换目标位置，再用 LREM 精确删除，避免误删同值的其他元素\n    const token = `__RDM_DEL_${Date.now()}_${Math.random().toString(36).slice(2)}__`\n    await client.lset(key, index, token)\n    await client.lrem(key, 1, token)\n\n    const left = await client.llen(key)",
+      "evidence_basis": "user_input",
+      "confidence": "medium",
+      "status": "unverified",
+      "unverified_reason": "源码行已由 read_file 人工核对属实；校验器要求摘录内出现实体名 Keyper，而这些代码行不含产品名，词面绑定检查无法通过。证据本身为逐字抽取的源码（file: 路径+行号可复核），按契约保留为 unverified 并排除出 verified_facts，不伪造摘录。"
+    },
+    {
+      "entity": "Keyper",
+      "claim": "renameKey exists rename await newKey",
+      "source_url": "file:electron/services/connection-manager.ts#L2314-L2326",
+      "source_type": "user_input",
+      "evidence_excerpt": "  async renameKey(id: string, key: string, newKey: string): Promise<OperationResult> {\n    const client = this.mustGet(id)\n    /*\n     * 目标键已存在时直接拒绝，而不是让 Redis 原生 RENAME 静默覆盖它。\n     * 覆盖会把一个无辜的键连同数据一起删掉，用户在界面上看不到任何预告 ——\n     * 单键重命名与批量重命名共用这里，批量场景下一次误覆盖可能波及上千个键。\n     * 需要覆盖时用户可以先删目标键，路径明确且不可误触。\n     */\n    const exists = await client.exists(newKey)\n    if (exists) {\n      throw new Error(t('connectionManager.targetKeyAlreadyExists', { key: newKey }))\n    }\n    await client.rename(key, newKey)",
+      "evidence_basis": "user_input",
+      "confidence": "medium",
+      "status": "unverified",
+      "unverified_reason": "源码行已由 read_file 人工核对属实；校验器要求摘录内出现实体名 Keyper，而这些代码行不含产品名，词面绑定检查无法通过。证据本身为逐字抽取的源码（file: 路径+行号可复核），按契约保留为 unverified 并排除出 verified_facts，不伪造摘录。"
+    },
+    {
+      "entity": "Keyper",
+      "claim": "probeTimer setInterval Promise.race ping setTimeout 3000",
+      "source_url": "file:electron/services/connection-manager.ts#L426-L432",
+      "source_type": "user_input",
+      "evidence_excerpt": "    managed.probeMisses = 0\n    managed.probeTimer = setInterval(() => {\n      if (managed.manualClose || client.status !== 'ready') return\n      Promise.race([\n        client.ping().then(() => true),\n        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3000)),\n      ]).then((alive) => {",
+      "evidence_basis": "user_input",
+      "confidence": "medium",
+      "status": "unverified",
+      "unverified_reason": "源码行已由 read_file 人工核对属实；校验器要求摘录内出现实体名 Keyper，而这些代码行不含产品名，词面绑定检查无法通过。证据本身为逐字抽取的源码（file: 路径+行号可复核），按契约保留为 unverified 并排除出 verified_facts，不伪造摘录。"
+    },
+    {
+      "entity": "Keyper",
+      "claim": "metrics read field new RegExp exec raw trim",
+      "source_url": "file:electron/services/connection-manager.ts#L735-L746",
+      "source_type": "user_input",
+      "evidence_excerpt": "  async metrics(id: string): Promise<MetricsSample> {\n    const client = this.mustGet(id)\n    const [[infoErr, info], [, dbsize]] = (await client\n      .pipeline()\n      .info()\n      .dbsize()\n      .exec()) as unknown as [[Error | null, string], [Error | null, number]]\n    if (infoErr) throw infoErr\n    const raw = info ?? ''\n    const read = (field: string): string =>\n      new RegExp(`${field}:([^\\\\r\\\\n]+)`).exec(raw)?.[1]?.trim() ?? ''\n    const num = (field: string): number => Number(read(field)) || 0",
+      "evidence_basis": "user_input",
+      "confidence": "medium",
+      "status": "unverified",
+      "unverified_reason": "源码行已由 read_file 人工核对属实；校验器要求摘录内出现实体名 Keyper，而这些代码行不含产品名，词面绑定检查无法通过。证据本身为逐字抽取的源码（file: 路径+行号可复核），按契约保留为 unverified 并排除出 verified_facts，不伪造摘录。"
+    },
+    {
+      "entity": "Keyper",
+      "claim": "searchAll scan COUNT 5000 emitSearchProgress found keys.length",
+      "source_url": "file:electron/services/connection-manager.ts#L1288-L1297",
+      "source_type": "user_input",
+      "evidence_excerpt": "      const [next, names] = await client.scan(cursor, 'MATCH', match, 'COUNT', 5000)\n      // SCAN 在键增删时可能重复返回同一键，去重后计入\n      for (const key of names) {\n        if (seen.has(key)) continue\n        seen.add(key)\n        if (keys.length < limit) keys.push(key)\n      }\n      cursor = next\n      this.emitSearchProgress({ connectionId: id, found: keys.length })\n    } while (cursor !== '0' && keys.length < limit)",
+      "evidence_basis": "user_input",
+      "confidence": "medium",
+      "status": "unverified",
+      "unverified_reason": "源码行已由 read_file 人工核对属实；校验器要求摘录内出现实体名 Keyper，而这些代码行不含产品名，词面绑定检查无法通过。证据本身为逐字抽取的源码（file: 路径+行号可复核），按契约保留为 unverified 并排除出 verified_facts，不伪造摘录。"
+    },
+    {
+      "entity": "Keyper",
+      "claim": "describeKeys pipeline type ttl exec keys",
+      "source_url": "file:electron/services/connection-manager.ts#L1169-L1176",
+      "source_type": "user_input",
+      "evidence_excerpt": "  private async describeKeys(client: Redis, keys: string[]): Promise<RedisKeyItem[]> {\n    if (!keys.length) return []\n    const pipeline = client.pipeline()\n    for (const key of keys) {\n      pipeline.type(key)\n      pipeline.ttl(key)\n    }\n    const replies = await pipeline.exec()",
+      "evidence_basis": "user_input",
+      "confidence": "medium",
+      "status": "unverified",
+      "unverified_reason": "源码行已由 read_file 人工核对属实；校验器要求摘录内出现实体名 Keyper，而这些代码行不含产品名，词面绑定检查无法通过。证据本身为逐字抽取的源码（file: 路径+行号可复核），按契约保留为 unverified 并排除出 verified_facts，不伪造摘录。"
+    },
+    {
+      "entity": "Keyper",
+      "claim": "deleteKeys client.del keys removed mustGet",
+      "source_url": "file:electron/services/connection-manager.ts#L1689-L1693",
+      "source_type": "user_input",
+      "evidence_excerpt": "  async deleteKeys(id: string, keys: string[]): Promise<OperationResult> {\n    if (!keys.length) return { ok: true, message: t('connectionManager.noKeysSelected') }\n    const client = this.mustGet(id)\n    const removed = await client.del(...keys)\n    return { ok: true, message: t('session.deletedCountKeys', { count: removed }) }",
+      "evidence_basis": "user_input",
+      "confidence": "medium",
+      "status": "unverified",
+      "unverified_reason": "源码行已由 read_file 人工核对属实；校验器要求摘录内出现实体名 Keyper，而这些代码行不含产品名，词面绑定检查无法通过。证据本身为逐字抽取的源码（file: 路径+行号可复核），按契约保留为 unverified 并排除出 verified_facts，不伪造摘录。"
+    },
+    {
+      "entity": "Keyper",
+      "claim": "runBulkTask for task.items await api.redis.remove item.key",
+      "source_url": "file:src/store/session.ts#L1156-L1188",
+      "source_type": "user_input",
+      "evidence_excerpt": "  async function runBulkTask(): Promise<void> {\n    const task = state.bulkTask\n    if (!task || task.running || !state.activeId) return\n\n    /*\n     * 固定本次任务所属的连接。\n     * 循环里若直接读 state.activeId，中途标签被关（dispose 置 null），\n     * 后面每个请求都失败并被记成\"处理失败\" —— 用户会看到几百条假失败。\n     */\n    const connIdNow = state.activeId\n\n    task.running = true\n    task.cancelled = false\n\n    for (const item of task.items) {\n      // 取消：停止后续处理，已完成的不可回滚\n      if (task.cancelled) break\n\n      /*\n       * 会话已销毁（标签关闭 / 连接断开）：立即收工。\n       * 继续跑只会产生一串\"未连接\"的失败记录，且任务对象可能已被丢弃。\n       */\n      if (state.activeId !== connIdNow) {\n        task.cancelled = true\n        break\n      }\n\n      try {\n        if (task.action === 'delete') {\n          const res = await api.redis.remove(connIdNow, [item.key])\n          if (!res.ok) throw new Error(res.error)\n          task.succeeded.push(item.key)\n          syncRemove([item.key])",
+      "evidence_basis": "user_input",
+      "confidence": "medium",
+      "status": "unverified",
+      "unverified_reason": "源码行已由 read_file 人工核对属实；校验器要求摘录内出现实体名 Keyper，而这些代码行不含产品名，词面绑定检查无法通过。证据本身为逐字抽取的源码（file: 路径+行号可复核），按契约保留为 unverified 并排除出 verified_facts，不伪造摘录。"
+    },
+    {
+      "entity": "Keyper",
+      "claim": "loadAll state.keys.push item ttlAt Date.now seen cursor",
+      "source_url": "file:src/store/session.ts#L570-L584",
+      "source_type": "user_input",
+      "evidence_excerpt": "      while (cursor !== '0' && state.keys.length < LOAD_ALL_LIMIT) {\n        if (state.activeId !== connIdNow) break\n        const res = await api.redis.scan(connIdNow, {\n          db: state.activeDb,\n          cursor,\n          match: state.pattern,\n          count: settings.pageSize,\n        })\n        if (!res.ok) throw new Error(res.error)\n\n        for (const item of res.data.keys) {\n          if (seen.has(item.key)) continue\n          seen.add(item.key)\n          state.keys.push({ ...item, ttlAt: Date.now() })\n        }",
+      "evidence_basis": "user_input",
+      "confidence": "medium",
+      "status": "unverified",
+      "unverified_reason": "源码行已由 read_file 人工核对属实；校验器要求摘录内出现实体名 Keyper，而这些代码行不含产品名，词面绑定检查无法通过。证据本身为逐字抽取的源码（file: 路径+行号可复核），按契约保留为 unverified 并排除出 verified_facts，不伪造摘录。"
+    },
+    {
+      "entity": "Keyper",
+      "claim": "loadKeys api.redis.scan count settings.pageSize cursor match",
+      "source_url": "file:src/store/session.ts#L493-L498",
+      "source_type": "user_input",
+      "evidence_excerpt": "      const res = await api.redis.scan(connIdNow, {\n        db,\n        cursor: reset ? '0' : state.cursor,\n        match,\n        count: settings.pageSize,\n      })",
+      "evidence_basis": "user_input",
+      "confidence": "medium",
+      "status": "unverified",
+      "unverified_reason": "源码行已由 read_file 人工核对属实；校验器要求摘录内出现实体名 Keyper，而这些代码行不含产品名，词面绑定检查无法通过。证据本身为逐字抽取的源码（file: 路径+行号可复核），按契约保留为 unverified 并排除出 verified_facts，不伪造摘录。"
+    },
+    {
+      "entity": "Keyper",
+      "claim": "createStore emit version listeners listener",
+      "source_url": "file:src/store/reactiveStore.ts#L36-L43",
+      "source_type": "user_input",
+      "evidence_excerpt": "export function createStore<T extends object>(initial: T, options: StoreOptions = {}): T {\n  const listeners = new Set<Listener>()\n  let version = 0\n\n  function emit(): void {\n    version += 1\n    for (const listener of [...listeners]) listener()\n  }",
+      "evidence_basis": "user_input",
+      "confidence": "medium",
+      "status": "unverified",
+      "unverified_reason": "源码行已由 read_file 人工核对属实；校验器要求摘录内出现实体名 Keyper，而这些代码行不含产品名，词面绑定检查无法通过。证据本身为逐字抽取的源码（file: 路径+行号可复核），按契约保留为 unverified 并排除出 verified_facts，不伪造摘录。"
+    },
+    {
+      "entity": "Keyper",
+      "claim": "useStringEditor prettyJson rawValue stringParsed jsonOk",
+      "source_url": "file:src/hooks/valueEditor/string.ts#L29-L43",
+      "source_type": "user_input",
+      "evidence_excerpt": "export function useStringEditor(ctx: ValueEditorContext) {\n  const { getValue, getKeyword, getPretty } = ctx\n  const { saveValue } = useRedis()\n\n  const value = getValue()\n  const keyword = getKeyword()\n  const pretty = getPretty()\n\n  /**\n   * string 值的解析结果只算一次，两处消费（显示文本 / 统计）：\n   * raw 是原始值，prettyText 是美化后的文本，jsonOk 标记是否合法 JSON。\n   */\n  const rawValue = typeof value?.value === 'string' ? value.value : ''\n  const parsed = prettyJson(rawValue)\n  const stringParsed = { raw: rawValue, prettyText: parsed.ok ? parsed.text : rawValue, jsonOk: parsed.ok }",
+      "evidence_basis": "user_input",
+      "confidence": "medium",
+      "status": "unverified",
+      "unverified_reason": "源码行已由 read_file 人工核对属实；校验器要求摘录内出现实体名 Keyper，而这些代码行不含产品名，词面绑定检查无法通过。证据本身为逐字抽取的源码（file: 路径+行号可复核），按契约保留为 unverified 并排除出 verified_facts，不伪造摘录。"
+    },
+    {
+      "entity": "Keyper",
+      "claim": "sanitize JSON.parse JSON.stringify value object",
+      "source_url": "file:src/api/index.ts#L28-L36",
+      "source_type": "user_input",
+      "evidence_excerpt": "function sanitize(value: unknown): unknown {\n  if (value === null || value === undefined) return value\n  if (typeof value === 'object') {\n    try {\n      return JSON.parse(JSON.stringify(value))\n    } catch {\n      return value\n    }\n  }",
+      "evidence_basis": "user_input",
+      "confidence": "medium",
+      "status": "unverified",
+      "unverified_reason": "源码行已由 read_file 人工核对属实；校验器要求摘录内出现实体名 Keyper，而这些代码行不含产品名，词面绑定检查无法通过。证据本身为逐字抽取的源码（file: 路径+行号可复核），按契约保留为 unverified 并排除出 verified_facts，不伪造摘录。"
+    },
+    {
+      "entity": "Keyper",
+      "claim": "appendLog fs.appendFileSync formatLine utf-8",
+      "source_url": "file:electron/services/log-service.ts#L126-L135",
+      "source_type": "user_input",
+      "evidence_excerpt": "export function appendLog(entry: LogEntry): void {\n  try {\n    ensureDir()\n    const today = dateKey(new Date())\n    if (lastPruneDay !== today) {\n      lastPruneDay = today\n      pruneOldLogs()\n    }\n    const file = path.join(logDir(), `${dateKey(new Date(entry.timestamp))}.log`)\n    fs.appendFileSync(file, `${formatLine(entry)}\\n`, 'utf-8')",
+      "evidence_basis": "user_input",
+      "confidence": "medium",
+      "status": "unverified",
+      "unverified_reason": "源码行已由 read_file 人工核对属实；校验器要求摘录内出现实体名 Keyper，而这些代码行不含产品名，词面绑定检查无法通过。证据本身为逐字抽取的源码（file: 路径+行号可复核），按契约保留为 unverified 并排除出 verified_facts，不伪造摘录。"
+    },
+    {
+      "entity": "Keyper",
+      "claim": "appendErrorLog pruneOldErrorLogs appendFileSync target",
+      "source_url": "file:electron/services/log-service.ts#L274-L287",
+      "source_type": "user_input",
+      "evidence_excerpt": "export function appendErrorLog(report: ErrorReport): void {\n  try {\n    ensureDir()\n    const file = errorFileOf(report.timestamp)\n    /* 超上限轮转：errors-yyyymmdd.log → errors-yyyymmdd-1.log …\n     * 排查通常只看最近一份，轮转序号从小到大即从旧到新 */\n    let target = file\n    let seq = 0\n    while (fs.existsSync(target) && fs.statSync(target).size > ERROR_FILE_MAX_BYTES) {\n      seq += 1\n      target = file.replace(/\\.log$/, `-${seq}.log`)\n    }\n    fs.appendFileSync(target, `${formatErrorBlock(report)}\\n\\n`, 'utf-8')\n    pruneOldErrorLogs()",
+      "evidence_basis": "user_input",
+      "confidence": "medium",
+      "status": "unverified",
+      "unverified_reason": "源码行已由 read_file 人工核对属实；校验器要求摘录内出现实体名 Keyper，而这些代码行不含产品名，词面绑定检查无法通过。证据本身为逐字抽取的源码（file: 路径+行号可复核），按契约保留为 unverified 并排除出 verified_facts，不伪造摘录。"
+    },
+    {
+      "entity": "Keyper",
+      "claim": "onData Buffer.concat buffer chunk",
+      "source_url": "file:electron/services/engines/memcached/client.ts#L178-L179",
+      "source_type": "user_input",
+      "evidence_excerpt": "  private onData(chunk: Buffer): void {\n    this.buffer = Buffer.concat([this.buffer, chunk])",
+      "evidence_basis": "user_input",
+      "confidence": "medium",
+      "status": "unverified",
+      "unverified_reason": "源码行已由 read_file 人工核对属实；校验器要求摘录内出现实体名 Keyper，而这些代码行不含产品名，词面绑定检查无法通过。证据本身为逐字抽取的源码（file: 路径+行号可复核），按契约保留为 unverified 并排除出 verified_facts，不伪造摘录。"
+    },
+    {
+      "entity": "Keyper",
+      "claim": "KeyBrowser treeNodes map KeyTreeNode node.path depth",
+      "source_url": "file:src/components/KeyBrowser.tsx#L1453-L1457",
+      "source_type": "user_input",
+      "evidence_excerpt": "        ) : connected && viewMode === 'tree' ? (\n          <>\n            {treeNodes.map((node) => (\n              <KeyTreeNode\n                key={node.path}",
+      "evidence_basis": "user_input",
+      "confidence": "medium",
+      "status": "unverified",
+      "unverified_reason": "源码行已由 read_file 人工核对属实；校验器要求摘录内出现实体名 Keyper，而这些代码行不含产品名，词面绑定检查无法通过。证据本身为逐字抽取的源码（file: 路径+行号可复核），按契约保留为 unverified 并排除出 verified_facts，不伪造摘录。"
+    },
+    {
+      "entity": "Keyper",
+      "claim": "save settings Object.assign res.data api.settings.save patch",
+      "source_url": "file:src/services/settings.ts#L123-L131",
+      "source_type": "user_input",
+      "evidence_excerpt": "async function save(patch: Partial<AppSettings>): Promise<void> {\n  Object.assign(settings, patch)\n  settings.keyBrowserWidth = clampKeyWidth(settings.keyBrowserWidth)\n  applyToDom()\n  const res = await api.settings.save(patch)\n  if (res.ok) {\n    Object.assign(settings, res.data)\n    settings.keyBrowserWidth = clampKeyWidth(settings.keyBrowserWidth)\n    applyToDom()",
+      "evidence_basis": "user_input",
+      "confidence": "medium",
+      "status": "unverified",
+      "unverified_reason": "源码行已由 read_file 人工核对属实；校验器要求摘录内出现实体名 Keyper，而这些代码行不含产品名，词面绑定检查无法通过。证据本身为逐字抽取的源码（file: 路径+行号可复核），按契约保留为 unverified 并排除出 verified_facts，不伪造摘录。"
+    },
+    {
+      "entity": "Keyper",
+      "claim": "Workspace getSession makeSessionApi session connId",
+      "source_url": "file:src/components/Workspace.tsx#L24-L37",
+      "source_type": "user_input",
+      "evidence_excerpt": "export function Workspace({ connId, hidden }: { connId: string; hidden?: boolean }) {\n  /**\n   * 会话必须在渲染期同步就绪：连接成功时 activateOrOpenTab 已经建好会话，\n   * 这里按 id 取即可。取不到说明标签与会话失步（理论上不会发生），\n   * 此时渲染空壳而不是抛错 —— 抛错会让整窗白屏。\n   */\n  /*\n   * 每次渲染都重新取会话并重建 API 包装：\n   * - getSession 是 O(1) 的 Map 查询，重建包装成本极低；\n   * - 若用 useMemo 按 [session, connId] 缓存，会话在挂载后被创建/替换时\n   *   缓存会锁住旧的 null，表现为「标签打开了但键列表永远是空/加载中」。\n   */\n  const session = getSession(connId)\n  const api = session ? makeSessionApi(session) : null",
+      "evidence_basis": "user_input",
+      "confidence": "medium",
+      "status": "unverified",
+      "unverified_reason": "源码行已由 read_file 人工核对属实；校验器要求摘录内出现实体名 Keyper，而这些代码行不含产品名，词面绑定检查无法通过。证据本身为逐字抽取的源码（file: 路径+行号可复核），按契约保留为 unverified 并排除出 verified_facts，不伪造摘录。"
+    },
+    {
+      "entity": "Keyper",
+      "claim": "pickSessionActions fn.bind session out key",
+      "source_url": "file:src/store/useRedis.ts#L137-L152",
+      "source_type": "user_input",
+      "evidence_excerpt": "function pickSessionActions(session: RedisSessionApi): Record<string, unknown> {\n  const out: Record<string, unknown> = {}\n  const keys = [\n    'loadDatabases', 'loadServerInfo', 'loadKeys', 'loadMore', 'loadAll', 'refreshKeys', 'switchDb',\n    'selectKey', 'markSelected', 'refreshSelected', 'loadMoreValue', 'readWholeValue', 'dropElementLocally',\n    'insertElementLocally', 'replaceElementLocally', 'renameFieldLocally', 'deleteKeys',\n    'openBulkTask', 'runBulkTask', 'cancelBulkTask', 'closeBulkTask',\n    'openMcBulkTask', 'runMcBulkTask', 'cancelMcBulkTask', 'closeMcBulkTask',\n    'saveValue', 'setTtl',\n    'renameKey', 'loadFavorites', 'toggleFavorite', 'removeFavorite', 'clearFavorites', 'openFavorite',\n    'runCli', 'clearCli', 'stopRemoteSearch', 'searchCurrentDb',\n  ]\n  for (const key of keys) {\n    const fn = (session as unknown as Record<string, (...a: unknown[]) => unknown>)[key]\n    out[key] = typeof fn === 'function' ? fn.bind(session) : fn\n  }",
+      "evidence_basis": "user_input",
+      "confidence": "medium",
+      "status": "unverified",
+      "unverified_reason": "源码行已由 read_file 人工核对属实；校验器要求摘录内出现实体名 Keyper，而这些代码行不含产品名，词面绑定检查无法通过。证据本身为逐字抽取的源码（file: 路径+行号可复核），按契约保留为 unverified 并排除出 verified_facts，不伪造摘录。"
+    },
+    {
+      "entity": "Keyper",
+      "claim": "SlowlogCard setInterval setNowMs Date.now 1000 loadSlowlog autoState",
+      "source_url": "file:src/components/SlowlogCard.tsx#L505-L523",
+      "source_type": "user_input",
+      "evidence_excerpt": "  /* 相对时间每秒刷新；页签不在前台时停表，避免隐藏面板持续重渲染 */\n  useEffect(() => {\n    if (!active) return\n    setNowMs(Date.now())\n    const timer = window.setInterval(() => setNowMs(Date.now()), 1000)\n    return () => window.clearInterval(timer)\n  }, [active])\n\n  /* 自动查询：只在前台页签运行；到点只刷新窗口，不重置筛选 */\n  useEffect(() => {\n    if (!active || !connected || !activeId || autoState !== 'running') return\n    const timer = window.setInterval(() => {\n      setNowMs(Date.now())\n      if (Date.now() - lastQueryRef.current >= AUTO_INTERVAL_MS) {\n        void loadSlowlog({ silent: true })\n      }\n    }, 1000)\n    return () => window.clearInterval(timer)\n  }, [active, connected, activeId, autoState, loadSlowlog])",
+      "evidence_basis": "user_input",
+      "confidence": "medium",
+      "status": "unverified",
+      "unverified_reason": "源码行已由 read_file 人工核对属实；校验器要求摘录内出现实体名 Keyper，而这些代码行不含产品名，词面绑定检查无法通过。证据本身为逐字抽取的源码（file: 路径+行号可复核），按契约保留为 unverified 并排除出 verified_facts，不伪造摘录。"
+    },
+    {
+      "entity": "Keyper",
+      "claim": "PubsubCard onPubsubMessage setMessages prev message MAX_MESSAGES",
+      "source_url": "file:src/components/PubsubCard.tsx#L103-L110",
+      "source_type": "user_input",
+      "evidence_excerpt": "  useEffect(() => {\n    const off = api.redis.onPubsubMessage((message) => {\n      /* 多连接并存时只显示当前连接的消息 */\n      if (message.connectionId !== activeIdRef.current) return\n      setMessages((prev) => {\n        const next = [...prev, message]\n        return next.length > MAX_MESSAGES ? next.slice(next.length - MAX_MESSAGES) : next\n      })",
+      "evidence_basis": "user_input",
+      "confidence": "medium",
+      "status": "unverified",
+      "unverified_reason": "源码行已由 read_file 人工核对属实；校验器要求摘录内出现实体名 Keyper，而这些代码行不含产品名，词面绑定检查无法通过。证据本身为逐字抽取的源码（file: 路径+行号可复核），按契约保留为 unverified 并排除出 verified_facts，不伪造摘录。"
+    },
+    {
+      "entity": "Keyper",
+      "claim": "sortTree localeCompare zh-CN numeric children sort",
+      "source_url": "file:src/utils/keyTree.ts#L73-L80",
+      "source_type": "user_input",
+      "evidence_excerpt": "function sortTree(node: KeyTreeNode): void {\n  node.children.sort((a, b) => {\n    // 含子级的目录节点排在前，同组内按自然序（支持 a2 < a10）\n    const groupA = a.children.length > 0 ? 0 : 1\n    const groupB = b.children.length > 0 ? 0 : 1\n    if (groupA !== groupB) return groupA - groupB\n    return a.label.localeCompare(b.label, 'zh-CN', { numeric: true })\n  })",
+      "evidence_basis": "user_input",
+      "confidence": "medium",
+      "status": "unverified",
+      "unverified_reason": "源码行已由 read_file 人工核对属实；校验器要求摘录内出现实体名 Keyper，而这些代码行不含产品名，词面绑定检查无法通过。证据本身为逐字抽取的源码（file: 路径+行号可复核），按契约保留为 unverified 并排除出 verified_facts，不伪造摘录。"
+    },
+    {
+      "entity": "Keyper",
+      "claim": "build outDir dist emptyOutDir target es2022 sourcemap isBuild",
+      "source_url": "file:vite.config.ts#L106-L112",
+      "source_type": "user_input",
+      "evidence_excerpt": "    build: {\n      outDir: 'dist',\n      emptyOutDir: true,\n      target: 'es2022',\n      sourcemap: !isBuild,\n    },\n  }",
+      "evidence_basis": "user_input",
+      "confidence": "medium",
+      "status": "unverified",
+      "unverified_reason": "源码行已由 read_file 人工核对属实；校验器要求摘录内出现实体名 Keyper，而这些代码行不含产品名，词面绑定检查无法通过。证据本身为逐字抽取的源码（file: 路径+行号可复核），按契约保留为 unverified 并排除出 verified_facts，不伪造摘录。"
+    }
+  ]
+}
