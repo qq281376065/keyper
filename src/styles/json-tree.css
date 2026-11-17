@@ -50,15 +50,24 @@
   align-items: center;
   gap: 6px;
   flex: 0 0 auto;
-  /* 紧凑工具条：上下 1px + 胶囊 20px + 边框 1px ≈ 23px */
-  padding: 1px 10px;
+  /*
+   * 固定整条 26px：内容垂直居中由 align-items:center 保证。
+   * 此前高度由内容撑开（统计行高 20px + padding），统计与胶囊的
+   * 视觉中心随字号/图标尺寸漂移；固定高度 + 居中是唯一稳定解。
+   */
+  height: 28px;
+  box-sizing: border-box;
+  padding: 0 10px;
   border-bottom: 1px solid var(--border);
 }
 .s-json-tree-view .jt-stat{
   color: var(--text-muted);
   font-size: var(--fs-xs);
-  /* 与胶囊垂直居中：行高对齐胶囊内容高，避免基线偏移 */
-  line-height: 20px;
+  /* 行高收紧到 1：文字盒高=字号，flex 居中按盒高对齐，
+     默认行高的上下留白会让视觉中心偏离几何中心 */
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
 }
 /* 图标组合胶囊：凹槽 + 连续段，与值区 .seg-group 同形态但更矮（20px） */
 .s-json-tree-view .jt-seg{
@@ -86,21 +95,44 @@
   color: var(--text-secondary);
   cursor: pointer;
   box-shadow: none;
-  transition: background-color 0.15s, color 0.15s;
+  transition: background-color 0.15s, color 0.15s, box-shadow 0.15s;
 }
 .s-json-tree-view .jt-seg-btn:hover{
   background: var(--bg-hover);
   color: var(--text-primary);
+  border-radius: 999px !important;
 }
-.s-json-tree-view .jt-stat{
-  color: var(--text-muted);
-  font-size: var(--fs-xs);
+/*
+ * 选中态：与值区 seg-group 同一套「状态色填充 + 反色文字 + 内描边」——
+ * accent-soft / accent 由各皮肤自带，9 套皮肤下都成立，不依赖灰度差。
+ */
+.s-json-tree-view .jt-seg-btn.on{
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 999px !important;
+  /* 品牌内描边 + 浮起阴影（项目按钮选中态规范，皮肤变量驱动） */
+  box-shadow:
+    var(--lift-shadow),
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 32%, transparent);
+}
+.s-json-tree-view .jt-seg-btn.on:hover{
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 .s-json-tree-view .jt-body{
   flex: 1;
   min-height: 0;
   overflow: auto;
   padding: 6px 10px 10px;
+}
+/*
+ * 树形格式专属：外层 .value-body 的 padding 归零。
+ * 树自带工具条（jt-toolbar）与内边距，外层再留 12px 8px 会出现双倍空隙；
+ * 仅树形命中（ValueViewer / MemcachedValueViewer 按 format==='tree' 挂类），
+ * 原文 / JSON 美化 / 解码视图等其他形态保持原有 padding 不变。
+ */
+.value-body.value-body-tree{
+  padding: 0;
 }
 .s-json-tree-view .jt-ul{
   list-style: none;

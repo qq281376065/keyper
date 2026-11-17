@@ -1782,7 +1782,9 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
 
           {/* 值区外层：承载刷新时的轻量 loading 遮罩（不改变内部布局） */}
           <div className="value-area" ref={areaRef}>
-            <div className="value-body">
+            {/* 树形格式自带工具条与内边距：外层 value-body 的 padding 归零，
+                其他格式（原文/JSON 美化/解码视图等）保持原有 12px 8px 不变 */}
+            <div className={`value-body${value.type === 'string' && valueFormats.format === 'tree' ? ' value-body-tree' : ''}`}>
               {value.type === 'stream' ? (
                 <div className="stream-tabs">
                   <button

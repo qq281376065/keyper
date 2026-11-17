@@ -109,16 +109,8 @@ export interface JsonTreeViewProps {
 
 export function JsonTreeView({ root, stats }: JsonTreeViewProps) {
   const { t } = useI18n()
-  /* 默认展开根 + 第一层结构节点：点开即见整体形状 */
-  const initialExpanded = useMemo(() => {
-    const set = new Set<string>([root.path])
-    if (root.children) {
-      for (const child of root.children) {
-        if (child.children) set.add(child.path)
-      }
-    }
-    return set
-  }, [root])
+  /* 默认全部折叠（只展开根）：与「全部折叠」胶囊的默认选中态一致 */
+  const initialExpanded = useMemo(() => new Set<string>([root.path]), [root])
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(initialExpanded)
   const [viewing, setViewing] = useState<JsonTreeNode | null>(null)
 
@@ -146,6 +138,18 @@ export function JsonTreeView({ root, stats }: JsonTreeViewProps) {
     setExpanded(new Set([root.path]))
   }
 
+  /*
+   * 胶囊选中态：反映当前展开程度（与键栏「全部展开/全部折叠」按钮同语义）。
+   * all  = 全部结构节点已展开；none = 只剩根；其余为 custom（两块都不选中）。
+   */
+  const structPaths = useMemo(() => collectStructPaths(root), [root])
+  const expandState: 'all' | 'none' | 'custom' =
+    structPaths.every((path) => expanded.has(path))
+      ? 'all'
+      : expanded.size <= 1 && expanded.has(root.path)
+        ? 'none'
+        : 'custom'
+
   return (
     <div className="jt-wrap s-json-tree-view">
       <div className="jt-toolbar">
@@ -155,10 +159,20 @@ export function JsonTreeView({ root, stats }: JsonTreeViewProps) {
         <span className="spacer" />
         {/* 图标组合胶囊：与值区工具条 seg-group 同形态（凹槽+连续段），高度更紧凑 */}
         <div className="jt-seg">
-          <button type="button" className="jt-seg-btn" onClick={expandAll} {...tipProps(t('valueFormats.treeExpandAll'))}>
+          <button
+            type="button"
+            className={`jt-seg-btn${expandState === 'all' ? ' on' : ''}`}
+            onClick={expandAll}
+            {...tipProps(t('valueFormats.treeExpandAll'))}
+          >
             <DialogIcon name="expand" size={12} />
           </button>
-          <button type="button" className="jt-seg-btn" onClick={collapseAll} {...tipProps(t('valueFormats.treeCollapseAll'))}>
+          <button
+            type="button"
+            className={`jt-seg-btn${expandState === 'none' ? ' on' : ''}`}
+            onClick={collapseAll}
+            {...tipProps(t('valueFormats.treeCollapseAll'))}
+          >
             <DialogIcon name="collapse" size={12} />
           </button>
         </div>

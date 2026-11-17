@@ -1129,7 +1129,8 @@ export function MemcachedValueViewer({ connectionId }: { connectionId: string })
       ) : null}
 
       <div className="value-area">
-        <div className="value-body">
+        {/* 树形格式时外层 padding 归零（与 Redis 侧同一规则），其他形态不变 */}
+        <div className={`value-body${valueFormats.format === 'tree' ? ' value-body-tree' : ''}`}>
           {editing ? (
             <div className="text-edit-area">
               <div className="edit-actions">
