@@ -620,6 +620,8 @@ const zhCN: Record<MsgKey, string> = {
   'ipc.recorded': '已记录',
   'ipc.saveSettings': '保存配置',
   'ipc.succeeded': '成功',
+  'ipc.bulkSummary': '{total} 键 · 成功 {ok} · 失败 {fail}',
+  'ipc.cancelled': '已取消',
   'ipc.textFile': '文本文件',
   'ipc.writeKey': '写入键',
   'keyBrowser.acceptGhost': '采纳',

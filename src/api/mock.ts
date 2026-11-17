@@ -45,6 +45,9 @@ import type {
   RedisValueType,
   ScanResult,
   SearchAllOptions,
+  BulkOpOptions,
+  BulkOpResult,
+  BulkProgress,
   SearchAllResult,
   SearchHistoryEntry,
   SearchProgress,
@@ -333,6 +336,17 @@ const searchProgressListeners = new Set<(progress: SearchProgress) => void>()
 
 function emitSearchProgress(progress: SearchProgress): void {
   for (const listener of searchProgressListeners) listener(progress)
+}
+
+/*
+ * 批量操作模拟：与真实主进程同构 —— 取消令牌 + 进度推送 + 真实改 KEYS。
+ * mock 契约同 setTtl：必须真实改数据，否则批量面板的验证全是假通过。
+ */
+const bulkTokens = new Map<string, number>()
+const bulkProgressListeners = new Set<(progress: BulkProgress) => void>()
+
+function emitBulkProgress(progress: BulkProgress): void {
+  for (const listener of bulkProgressListeners) listener(progress)
 }
 
 /** PSUBSCRIBE 的 glob 语义：* 任意串、? 单字符，其余原样 */
@@ -1875,6 +1889,66 @@ export const mockApi: RedisDesktopApi = {
     searchCancel: async (id: string): Promise<ApiResponse<OperationResult>> => {
       searchTokens.set(id, (searchTokens.get(id) ?? 0) + 1)
       return ok({ ok: true })
+    },
+    bulk: async (id: string, options: BulkOpOptions): Promise<ApiResponse<BulkOpResult>> => {
+      const keys = options.keys ?? []
+      const total = keys.length
+      const succeeded: string[] = []
+      const failed: Array<{ key: string; reason: string }> = []
+      const token = (bulkTokens.get(id) ?? 0) + 1
+      bulkTokens.set(id, token)
+      let cancelled = false
+      /* 分片模拟主进程节奏：每 20 键一段延迟 + 进度，令牌失效即停 */
+      const CHUNK = 20
+      for (let i = 0; i < keys.length; i += CHUNK) {
+        if (bulkTokens.get(id) !== token) {
+          cancelled = true
+          break
+        }
+        await delay(60)
+        for (const key of keys.slice(i, i + CHUNK)) {
+          const index = KEYS.findIndex((item) => item.key === key)
+          if (options.action === 'delete') {
+            if (index < 0) failed.push({ key, reason: `键 ${key} 已不存在` })
+            else {
+              KEYS.splice(index, 1)
+              succeeded.push(key)
+            }
+          } else if (options.action === 'ttl') {
+            if (index < 0) failed.push({ key, reason: `键 ${key} 已不存在` })
+            else {
+              KEYS[index].ttl = (options.ttlSeconds ?? 0) > 0 ? (options.ttlSeconds as number) : -1
+              succeeded.push(key)
+            }
+          } else {
+            const next = options.renameMap?.[key]
+            if (!next || next === key) {
+              succeeded.push(key)
+              continue
+            }
+            if (KEYS.some((item) => item.key === next)) {
+              failed.push({ key, reason: `目标键 ${next} 已存在` })
+            } else if (index < 0) {
+              failed.push({ key, reason: `键 ${key} 已不存在` })
+            } else {
+              KEYS[index].key = next
+              succeeded.push(key)
+            }
+          }
+        }
+        emitBulkProgress({ connectionId: id, done: Math.min(i + CHUNK, total), total })
+      }
+      return ok({ succeeded, failed, cancelled })
+    },
+    bulkCancel: async (id: string): Promise<ApiResponse<OperationResult>> => {
+      bulkTokens.set(id, (bulkTokens.get(id) ?? 0) + 1)
+      return ok({ ok: true })
+    },
+    onBulkProgress: (listener: (progress: BulkProgress) => void): (() => void) => {
+      bulkProgressListeners.add(listener)
+      return () => {
+        bulkProgressListeners.delete(listener)
+      }
     },
     onSearchProgress: (listener: (progress: SearchProgress) => void): (() => void) => {
       searchProgressListeners.add(listener)

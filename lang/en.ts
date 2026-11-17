@@ -621,6 +621,8 @@ const en = {
   'ipc.recorded': 'Recorded',
   'ipc.saveSettings': 'Save settings',
   'ipc.succeeded': 'Succeeded',
+  'ipc.bulkSummary': '{total} keys · {ok} succeeded · {fail} failed',
+  'ipc.cancelled': 'Cancelled',
   'ipc.textFile': 'Text file',
   'ipc.writeKey': 'Write key',
   'keyBrowser.acceptGhost': 'Accept',

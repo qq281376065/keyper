@@ -53,6 +53,9 @@ import type {
   EvalOptions,
   RefreshKeysOptions,
   RefreshKeysResult,
+  BulkOpOptions,
+  BulkOpResult,
+  BulkProgress,
 } from '../../shared/types'
 import { memoryPrefixOf, MEMORY_BUCKET_LIMIT } from '../../shared/keyspace'
 import { t } from '@shared/i18n'
@@ -421,6 +424,26 @@ class ConnectionManager {
   /** 全库搜索进度订阅者（ipc 层注册，转发到渲染层） */
   private searchProgressListeners = new Set<(progress: SearchProgress) => void>()
 
+  /*
+   * 批量操作取消令牌（按连接隔离，与 searchTokens 同一机制）。
+   * bulk 启动时递增并记住本轮令牌；bulkCancel / disconnect 再递增，
+   * 循环每个分片边界对比，不一致即停并保留已处理部分。
+   */
+  private bulkTokens = new Map<string, number>()
+
+  /** 批量操作进度订阅者（ipc 层注册，转发到渲染层） */
+  private bulkProgressListeners = new Set<(progress: BulkProgress) => void>()
+
+  /** 订阅批量操作进度，返回取消订阅函数 */
+  onBulkProgress(listener: (progress: BulkProgress) => void): () => void {
+    this.bulkProgressListeners.add(listener)
+    return () => this.bulkProgressListeners.delete(listener)
+  }
+
+  private emitBulkProgress(progress: BulkProgress): void {
+    for (const listener of this.bulkProgressListeners) listener(progress)
+  }
+
   /** 订阅全库搜索进度（ipc 层注册后转发到渲染层），返回取消订阅函数 */
   onSearchProgress(listener: (progress: SearchProgress) => void): () => void {
     this.searchProgressListeners.add(listener)
@@ -718,6 +741,8 @@ class ConnectionManager {
     this.keyspaceStop(id)
     // 作废在途全库搜索的令牌：断开后扫描循环下一批即停（不留幽灵扫描）
     this.searchTokens.set(id, (this.searchTokens.get(id) ?? 0) + 1)
+    // 在途批量操作同样作废（分片边界即停）
+    this.bulkTokens.set(id, (this.bulkTokens.get(id) ?? 0) + 1)
     // 隧道无论是否有活跃客户端都要关：可能是 connect 失败后残留
     tunnelManager.close(id)
     if (!managed) return { ok: true }
@@ -746,6 +771,7 @@ class ConnectionManager {
     this.pool.clear()
     // 全部连接断开：在途全库搜索一并作废（令牌清空后循环内对比必不一致）
     this.searchTokens.clear()
+    this.bulkTokens.clear()
     for (const id of [...this.pubsubClients.keys()]) {
       this.pubsubStop(id)
     }
@@ -1399,6 +1425,133 @@ class ConnectionManager {
   /** 取消该连接的在途全库搜索：递增令牌让扫描循环在下一批停下 */
   async cancelSearch(id: string): Promise<OperationResult> {
     this.searchTokens.set(id, (this.searchTokens.get(id) ?? 0) + 1)
+    return { ok: true }
+  }
+
+  /**
+   * 批量操作：循环整体在主进程执行（原渲染层逐键 invoke，千键 = 千次 IPC+RTT）。
+   *
+   * - delete：按 COMMAND_CHUNK 分片 DEL，逐键结果按回复判定（键不存在记失败，
+   *   与旧逐键路径的 DEL 返回 0 语义一致）；
+   * - ttl：分片 pipeline EXPIRE/PERSIST，单项失败不中断整批；
+   * - rename：逐键 EXISTS+RENAMENX pipeline（防覆盖语义与单键 renameKey 一致），
+   *   映射到自身的键跳过记成功。
+   *
+   * 取消：每个分片边界对比令牌；已处理部分保留在结果里（cancelled=true）。
+   * 进度：按分片推送并节流，渲染层据此更新进度条。
+   */
+  async bulk(id: string, options: BulkOpOptions): Promise<BulkOpResult> {
+    const managed = this.pool.get(id)
+    if (!managed) throw new Error(t('connectionManager.connectionClosedConnectFirst'))
+    const client = managed.client
+
+    const keys = options.keys ?? []
+    const total = keys.length
+    const succeeded: string[] = []
+    const failed: Array<{ key: string; reason: string }> = []
+    if (!total) return { succeeded, failed, cancelled: false }
+
+    const token = (this.bulkTokens.get(id) ?? 0) + 1
+    this.bulkTokens.set(id, token)
+    const isCancelled = (): boolean => this.bulkTokens.get(id) !== token
+
+    let cancelled = false
+    let done = 0
+    let lastProgressAt = 0
+    const report = (force = false): void => {
+      const now = Date.now()
+      if (force || now - lastProgressAt >= SEARCH_PROGRESS_INTERVAL_MS) {
+        lastProgressAt = now
+        this.emitBulkProgress({ connectionId: id, done, total })
+      }
+    }
+
+    if (options.action === 'delete') {
+      for (let i = 0; i < keys.length; i += COMMAND_CHUNK) {
+        if (isCancelled()) {
+          cancelled = true
+          break
+        }
+        const slice = keys.slice(i, i + COMMAND_CHUNK)
+        /* 逐键 DEL 进同一 pipeline：一次往返拿到每个键的删除结果 */
+        const pipeline = client.pipeline()
+        for (const key of slice) pipeline.del(key)
+        const replies = await pipeline.exec()
+        slice.forEach((key, j) => {
+          const [error, result] = replies?.[j] ?? [null, 0]
+          if (error) failed.push({ key, reason: toMessage(error) })
+          else if (Number(result) > 0) succeeded.push(key)
+          else failed.push({ key, reason: t('connectionManager.keyNoLongerExists', { key }) })
+        })
+        done += slice.length
+        report()
+      }
+    } else if (options.action === 'ttl') {
+      const seconds = Math.floor(options.ttlSeconds ?? 0)
+      for (let i = 0; i < keys.length; i += COMMAND_CHUNK) {
+        if (isCancelled()) {
+          cancelled = true
+          break
+        }
+        const slice = keys.slice(i, i + COMMAND_CHUNK)
+        const pipeline = client.pipeline()
+        for (const key of slice) {
+          if (seconds > 0) pipeline.expire(key, seconds)
+          else pipeline.persist(key)
+        }
+        const replies = await pipeline.exec()
+        slice.forEach((key, j) => {
+          const [error, result] = replies?.[j] ?? [null, 0]
+          if (error) failed.push({ key, reason: toMessage(error) })
+          else if (Number(result) === 1) succeeded.push(key)
+          else failed.push({ key, reason: t('connectionManager.keyNoLongerExists', { key }) })
+        })
+        done += slice.length
+        report()
+      }
+    } else {
+      /* rename：逐键 EXISTS+RENAMENX 同一 pipeline（2 命令 1 RTT） */
+      const map = options.renameMap ?? {}
+      for (const key of keys) {
+        if (isCancelled()) {
+          cancelled = true
+          break
+        }
+        const next = map[key]
+        if (!next || next === key) {
+          /* 前缀未命中 / 替换后无变化：不发起请求，直接记成功（与旧路径一致） */
+          succeeded.push(key)
+          done += 1
+          report()
+          continue
+        }
+        try {
+          const replies = await client.pipeline().exists(next).call('RENAMENX', key, next).exec()
+          const exists = Number(replies?.[0]?.[1]) || 0
+          if (exists) {
+            failed.push({ key, reason: t('connectionManager.targetKeyAlreadyExists', { key: next }) })
+          } else {
+            const renameErr = replies?.[1]?.[0]
+            if (renameErr) failed.push({ key, reason: toMessage(renameErr) })
+            else if (Number(replies?.[1]?.[1]) === 0) {
+              failed.push({ key, reason: t('connectionManager.targetKeyAlreadyExists', { key: next }) })
+            } else succeeded.push(key)
+          }
+        } catch (error) {
+          failed.push({ key, reason: toMessage(error) })
+        }
+        done += 1
+        report()
+      }
+    }
+
+    report(true)
+    return { succeeded, failed, cancelled }
+  }
+
+  /** 取消该连接的在途批量操作：递增令牌让循环在下一个分片边界停下 */
+  async bulkCancel(id: string): Promise<OperationResult> {
+    this.bulkTokens.set(id, (this.bulkTokens.get(id) ?? 0) + 1)
     return { ok: true }
   }
 

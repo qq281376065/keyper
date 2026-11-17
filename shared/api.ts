@@ -34,6 +34,9 @@ import type {
   ScanResult,
   SearchAllOptions,
   SearchAllResult,
+  BulkOpOptions,
+  BulkOpResult,
+  BulkProgress,
   SearchHistoryEntry,
   SearchProgress,
   ServerInfo,
@@ -317,6 +320,15 @@ export interface RedisDesktopApi {
     searchAll: (id: string, options?: SearchAllOptions) => Promise<ApiResponse<SearchAllResult>>
     /** 取消该连接的在途全库搜索（停止按钮 / 断开时调用） */
     searchCancel: (id: string) => Promise<ApiResponse<OperationResult>>
+    /**
+     * 批量操作（删除 / TTL / 重命名）：循环在主进程执行，一次 IPC 发起。
+     * 逐键失败明细与取消语义与旧逐键路径一致；进度经 onBulkProgress 推送。
+     */
+    bulk: (id: string, options: BulkOpOptions) => Promise<ApiResponse<BulkOpResult>>
+    /** 取消该连接的在途批量操作（当前分片执行完后停止） */
+    bulkCancel: (id: string) => Promise<ApiResponse<OperationResult>>
+    /** 订阅批量操作进度推送（主 → 渲染），返回取消订阅函数 */
+    onBulkProgress: (listener: (progress: BulkProgress) => void) => () => void
     /** 订阅全库搜索进度推送（主 → 渲染），返回取消订阅函数。与 onPubsubMessage 相同的桥接模式 */
     onSearchProgress: (listener: (progress: SearchProgress) => void) => () => void
     /**
@@ -675,6 +687,9 @@ export const IPC = {
   redisSearchProgress: 'redis:searchProgress',
   redisSearchAll: 'redis:searchAll',
   redisSearchCancel: 'redis:searchCancel',
+  redisBulk: 'redis:bulk',
+  redisBulkCancel: 'redis:bulkCancel',
+  redisBulkProgress: 'redis:bulkProgress',
   redisDatabases: 'redis:databases',
   redisScan: 'redis:scan',
   redisLookupKey: 'redis:lookupKey',
