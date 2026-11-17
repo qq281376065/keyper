@@ -2558,13 +2558,13 @@ class ConnectionManager {
     }
 
     /*
-     * 哨兵替换 + LREM + 复核 LLEN 同一 pipeline：
-     * 三条命令按序执行，与逐条 await 语义一致，省 2 个 RTT。
+     * 哨兵替换 + LREM + 复核 LLEN 用 MULTI 原子执行：
+     * pipeline 只保证按序发送，其他客户端可能在 LSET(哨兵) 与 LREM 之间
+     * 改动列表，让哨兵残留或误删。MULTI 杜绝中间态（与 insertListElement 同理）。
      */
     const token = `__RDM_DEL_${Date.now()}_${Math.random().toString(36).slice(2)}__`
-    const replies = await client.pipeline().lset(key, index, token).lrem(key, 1, token).llen(key).exec()
-    const lsetErr = replies?.[0]?.[0]
-    if (lsetErr) throw lsetErr
+    const replies = await client.multi().lset(key, index, token).lrem(key, 1, token).llen(key).exec()
+    this.assertTxOk(replies)
     const left = Number(replies?.[2]?.[1]) || 0
     return {
       ok: true,
@@ -2630,19 +2630,26 @@ class ConnectionManager {
     const pivot = await client.lindex(key, index)
     if (pivot === null) return { ok: false, message: t('connectionManager.referencePositionNoLonger') }
 
-    // LINSERT 以「值」为基准，遇到重复值会插错位置，因此同样用哨兵替换法。
-    // 三条命令同一 pipeline 按序执行（原 3 次串行往返）。
+    /*
+     * LINSERT 以「值」为基准，遇到重复值会插错位置，因此同样用哨兵替换法。
+     *
+     * ⚠️ 还原步骤的下标必须按插入方向修正：LINSERT BEFORE 把新元素插在
+     * 哨兵**前面**，哨兵随之后移一位（index+1）；AFTER 则哨兵位置不变。
+     * 原实现固定用 index 还原，BEFORE 场景会把刚插入的新值覆盖掉、
+     * 哨兵永久留在列表里（集成测试实测踩中，属历史 bug，此处一并修复）。
+     *
+     * 三步用 MULTI 原子执行：pipeline 只保证按序发送，不阻止其他客户端
+     * 在 LSET(哨兵) 与 LINSERT 之间改动列表。
+     */
     const token = `__RDM_PIVOT_${Date.now()}_${Math.random().toString(36).slice(2)}__`
+    const restoreIndex = position === 'before' ? index + 1 : index
     const replies = await client
-      .pipeline()
+      .multi()
       .lset(key, index, token)
       .call('LINSERT', key, position === 'before' ? 'BEFORE' : 'AFTER', token, value)
-      .lset(key, index, pivot)
+      .lset(key, restoreIndex, pivot)
       .exec()
-    const firstErr = replies?.[0]?.[0]
-    if (firstErr) throw firstErr
-    const insertErr = replies?.[1]?.[0]
-    if (insertErr) throw insertErr
+    this.assertTxOk(replies)
 
     return {
       ok: true,
