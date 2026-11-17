@@ -62,6 +62,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   keySeparator: ':',
   confirmDelete: true,
   logRetentionDays: 30,
+  /* 更新通道代理：可选项，默认关闭（直连） */
+  proxy: { mode: 'off', url: '' },
   /* 界面状态记忆：与主进程 DEFAULT_SETTINGS 保持一致 */
   theme: 'system',
   viewMode: 'tree',

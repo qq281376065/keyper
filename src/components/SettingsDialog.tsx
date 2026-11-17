@@ -4,6 +4,7 @@ import { DialogShell } from '@/components/DialogShell'
 import { DialogIcon } from '@/components/DialogIcon'
 import { tipProps } from '@/components/tip'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -18,6 +19,7 @@ import { setThemeMode, useTheme, type ThemeMode } from '@/services/theme'
 import { useRedis } from '@/store/useRedis'
 import { useObservable } from '@/store/subscription'
 import { globalHolder } from '@/store/global'
+import type { ProxyMode } from '@shared/types'
 
 const FONT_SIZES = [12, 13, 14, 15, 16]
 const PAGE_SIZES = [100, 200, 500, 1000]
@@ -59,6 +61,56 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   useObservable(globalHolder)
 
   const [logPath, setLogPath] = useState('')
+
+  /* ---------------------------------------------------- 网络代理（更新通道） */
+  /* 地址草稿：输入过程不落盘，失焦 / 回车才提交（避免每键一次 IPC + 代理重配） */
+  const [proxyDraft, setProxyDraft] = useState(settings.proxy.url)
+  const [detecting, setDetecting] = useState(false)
+  const [detectNote, setDetectNote] = useState<string | null>(null)
+  /* 外部保存（如自动检测填充）后同步草稿；用户正在输入时不覆盖 */
+  const [proxyFocused, setProxyFocused] = useState(false)
+  useEffect(() => {
+    if (!proxyFocused) setProxyDraft(settings.proxy.url)
+  }, [settings.proxy.url, proxyFocused])
+
+  async function setProxyMode(mode: ProxyMode): Promise<void> {
+    /* 切到手动时带上当前草稿地址；切走时保留地址以便切回 */
+    await save({ proxy: { mode, url: mode === 'manual' ? proxyDraft : settings.proxy.url } })
+  }
+
+  async function commitProxyUrl(): Promise<void> {
+    const url = proxyDraft.trim()
+    if (url === settings.proxy.url) return
+    await save({ proxy: { mode: settings.proxy.mode, url } })
+  }
+
+  async function detectProxy(): Promise<void> {
+    setDetecting(true)
+    setDetectNote(null)
+    try {
+      const res = await api.settings.detectProxy()
+      if (!res.ok) throw new Error(res.error)
+      if (res.data.found && res.data.url) {
+        /* 检测到代理：自动填充并切到手动模式（用户可再改回关闭/系统） */
+        setProxyDraft(res.data.url)
+        await save({ proxy: { mode: 'manual', url: res.data.url } })
+        setDetectNote(
+          res.data.source === 'system'
+            ? t('settingsDialog.proxyDetectedSystem')
+            : res.data.source === 'env'
+              ? t('settingsDialog.proxyDetectedEnv')
+              : t('settingsDialog.proxyDetectedSession'),
+        )
+        notify('ok', t('settingsDialog.proxyDetectedFilled'))
+      } else {
+        setDetectNote(t('settingsDialog.proxyNotFound'))
+      }
+    } catch (error) {
+      notify('err', error instanceof Error ? error.message : t('settingsDialog.proxyDetectFailed'))
+    } finally {
+      setDetecting(false)
+    }
+  }
 
   /* 配置文件位置（便携模式可能回退到系统目录，需要如实展示） */
   const [configDir, setConfigDir] = useState('')
@@ -321,6 +373,84 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             <span className="set-hint">{t('settingsDialog.afterClosingDeletionApplies')}</span>
           </div>
         </div>
+      </section>
+
+      {/* ---------------------------------------------------- 网络代理（更新通道） */}
+      <section className="dlg-section">
+        <h3 className="dlg-section-title">{t('settingsDialog.networkProxy')}</h3>
+
+        <div className="set-row">
+          <span className="set-label">{t('settingsDialog.proxyMode')}</span>
+          <div className="set-control">
+            <div className="segmented">
+              <button
+                type="button"
+                className={settings.proxy.mode === 'off' ? 'on' : ''}
+                onClick={() => void setProxyMode('off')}
+              >
+                {t('settingsDialog.proxyOff')}
+              </button>
+              <button
+                type="button"
+                className={settings.proxy.mode === 'system' ? 'on' : ''}
+                onClick={() => void setProxyMode('system')}
+              >
+                {t('settingsDialog.proxySystem')}
+              </button>
+              <button
+                type="button"
+                className={settings.proxy.mode === 'manual' ? 'on' : ''}
+                onClick={() => void setProxyMode('manual')}
+              >
+                {t('settingsDialog.proxyManual')}
+              </button>
+            </div>
+            <span className="set-hint">{t('settingsDialog.proxyScopeHint')}</span>
+          </div>
+        </div>
+
+        {settings.proxy.mode === 'manual' ? (
+          <div className="set-row is-block">
+            <span className="set-label">{t('settingsDialog.proxyAddress')}</span>
+            <div className="set-control is-block">
+              <div className="proxy-address-row">
+                <Input
+                  value={proxyDraft}
+                  onChange={(event) => setProxyDraft(event.target.value)}
+                  onFocus={() => setProxyFocused(true)}
+                  onBlur={() => {
+                    setProxyFocused(false)
+                    void commitProxyUrl()
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault()
+                      void commitProxyUrl()
+                    }
+                  }}
+                  className="mono proxy-input"
+                  placeholder="http://127.0.0.1:7890"
+                  spellCheck={false}
+                  autoComplete="off"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="foot-btn proxy-detect"
+                  disabled={detecting}
+                  onClick={() => void detectProxy()}
+                  {...tipProps(t('settingsDialog.proxyDetectHint'))}
+                >
+                  <DialogIcon name={detecting ? 'refresh' : 'search'} size={12} className={detecting ? 'spin' : undefined} />
+                  {detecting ? t('settingsDialog.proxyDetecting') : t('settingsDialog.proxyDetect')}
+                </Button>
+              </div>
+              <span className="set-hint">
+                {detectNote ?? t('settingsDialog.proxyAddressHint')}
+              </span>
+            </div>
+          </div>
+        ) : null}
       </section>
 
       {/* ---------------------------------------------------- 操作日志 */}

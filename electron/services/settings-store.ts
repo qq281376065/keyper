@@ -9,6 +9,7 @@ import {
   setActiveLocale,
   type LocaleCode,
 } from '../../shared/i18n'
+import { DEFAULT_PROXY, normalizeProxySettings } from './proxy-rules'
 
 /**
  * 应用设置持久化。
@@ -27,6 +28,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   keySeparator: ':',
   confirmDelete: true,
   logRetentionDays: 30,
+  /* 更新通道代理：可选项，默认关闭（直连），保持历史行为 */
+  proxy: { ...DEFAULT_PROXY },
   /* 界面状态记忆：首次启动用保守默认，不猜测用户偏好 */
   theme: 'system',
   viewMode: 'tree',
@@ -75,6 +78,7 @@ export function loadSettings(): AppSettings {
   try {
     const raw = JSON.parse(fs.readFileSync(file, 'utf-8')) as Partial<AppSettings>
     const merged = { ...DEFAULT_SETTINGS, ...raw }
+    merged.proxy = normalizeProxySettings(raw.proxy)
     merged.locale = isLocale(raw.locale)
       ? raw.locale
       : (systemLocale ?? DEFAULT_SETTINGS.locale)
@@ -103,6 +107,8 @@ export function saveSettings(patch: Partial<AppSettings>): AppSettings {
   merged.logRetentionDays = Math.min(Math.max(merged.logRetentionDays || 30, 1), 365)
   if (!merged.keySeparator) merged.keySeparator = DEFAULT_SETTINGS.keySeparator
   merged.locale = normalizeLocale(merged.locale)
+  /* 代理设置收敛：非法模式/地址回退直连，绝不让更新通道挂在坏配置上 */
+  merged.proxy = normalizeProxySettings(merged.proxy)
 
   const file = settingsFile()
   fs.mkdirSync(path.dirname(file), { recursive: true })

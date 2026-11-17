@@ -728,6 +728,27 @@ export type ApiResponse<T> =
 /** ---------------------------------------------------------------- 设置 */
 
 /** 应用级设置（持久化于 <userData>/settings.json） */
+/** ---------------------------------------------------------------- 网络代理（更新通道） */
+
+/** 代理模式：关闭（直连，默认）/ 跟随系统 / 手动地址 */
+export type ProxyMode = 'off' | 'system' | 'manual'
+
+export interface ProxySettings {
+  mode: ProxyMode
+  /** manual 模式的代理地址，如 http://127.0.0.1:7890 或 socks5://127.0.0.1:1080 */
+  url: string
+}
+
+/** 自动检测本地代理的结果 */
+export interface ProxyDetectResult {
+  /** 是否检测到可用代理设置 */
+  found: boolean
+  /** 检测到的代理地址（已规范成 http://host:port / socks5://host:port） */
+  url: string | null
+  /** 来源说明：系统注册表 / 会话解析 / 环境变量 */
+  source: 'system' | 'session' | 'env' | null
+}
+
 export interface AppSettings {
   /** 界面基准字号（px），其余字号由它推导 */
   fontSize: number
@@ -747,6 +768,15 @@ export interface AppSettings {
   confirmDelete: boolean
   /** 操作日志保留天数 */
   logRetentionDays: number
+
+  /**
+   * 更新检查 / 下载的网络代理（可选项，默认关闭 = 直连）。
+   * 只作用于版本检查与安装包下载，不影响 Redis / Memcached 连接。
+   *   · off    —— 直连（默认，保持历史行为）
+   *   · system —— 跟随系统代理设置
+   *   · manual —— 手动指定代理地址（http:// 或 socks5://，可含端口）
+   */
+  proxy: ProxySettings
 
   /* -------------------------------------------------- 以下为界面状态记忆 */
 

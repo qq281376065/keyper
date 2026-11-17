@@ -4,6 +4,7 @@ import type { RedisDesktopApi } from '../shared/api'
 import type {
   ApiResponse,
   AppSettings,
+  ProxyDetectResult,
   CliResult,
   ConnectionExportOptions,
   ConnectionExportResult,
@@ -117,6 +118,7 @@ const api: RedisDesktopApi = {
     save: (patch) => invoke<AppSettings>(IPC.settingsSave, patch),
     configInfo: () =>
       invoke<{ dir: string; portable: boolean; reason: string | null }>(IPC.settingsConfigInfo),
+    detectProxy: () => invoke<ProxyDetectResult>(IPC.proxyDetect),
   },
 
   searchHistory: {
