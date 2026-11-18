@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { gunzip, inflate } from 'node:zlib'
 import Redis from 'ioredis'
+import { isValidPort } from '../../shared/validation'
 import { tunnelManager, openTunnel, closeTunnel, type Tunnel } from './ssh-tunnel'
 import {
   VALUE_BINARY_MAX_BYTES,
@@ -596,6 +597,9 @@ class ConnectionManager {
    * 这里改为一次性独立隧道：开自己的、测完关自己的，与 connect 完全隔离。
    */
   async test(config: RedisConnectionConfig): Promise<OperationResult> {
+    if (!isValidPort(config.port)) {
+      return { ok: false, message: t('connectionTransfer.invalidPort') }
+    }
     let standalone: Tunnel | undefined
     let endpoint: Endpoint
     try {
@@ -642,6 +646,10 @@ class ConnectionManager {
   }
 
   async connect(config: RedisConnectionConfig): Promise<ConnectionState> {
+    /* 入口兜底：非法端口直接报「端口无效」，不让它变成误导性的网络错误 */
+    if (!isValidPort(config.port)) {
+      throw new Error(t('connectionTransfer.invalidPort'))
+    }
     await this.disconnect(config.id)
 
     /*

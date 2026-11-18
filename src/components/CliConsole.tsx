@@ -11,6 +11,7 @@ import { globalHolder } from '@/store/global'
 import { useSessionStore } from '@/hooks/useSessionStore'
 import { useI18n } from '@/i18n'
 import { buildCliSuggestions, type CliSuggestion } from '@/utils/cliSuggest'
+import { redactCliSecrets } from '@shared/cli-redact'
 import { copyText } from '@/utils/clipboard'
 
 /**
@@ -154,7 +155,7 @@ export function CliConsole() {
       }
     }
 
-    state.cliHistory.push(command)
+    state.cliHistory.push(redactCliSecrets(command))
     state.cliHistoryIndex = state.cliHistory.length
     if (state.activeId) void api.cliHistory.record(state.activeId, command)
     setInput('')

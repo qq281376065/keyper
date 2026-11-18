@@ -117,3 +117,19 @@ export function saveSettings(patch: Partial<AppSettings>): AppSettings {
   setActiveLocale(merged.locale)
   return merged
 }
+
+/**
+ * 连接删除时清理该连接的树展开快照（expandedPaths 按 connId@db 分桶），返回清理桶数。
+ * 与 search-history / favorites / cli-history 的按连接清理同一意图：
+ * 连接都没了，展开快照只会让 settings.json 无限膨胀。
+ */
+export function pruneConnectionExpandedPaths(connId: string): number {
+  const settings = loadSettings()
+  const prefix = `${connId}@`
+  const scopes = Object.keys(settings.expandedPaths).filter((key) => key.startsWith(prefix))
+  if (!scopes.length) return 0
+  const next = { ...settings.expandedPaths }
+  for (const scope of scopes) delete next[scope]
+  saveSettings({ expandedPaths: next })
+  return scopes.length
+}

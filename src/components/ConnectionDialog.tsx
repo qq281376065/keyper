@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/select'
 import { useI18n } from '@/i18n'
 import type { MsgKey } from '@shared/i18n'
+import { isValidPort } from '@shared/validation'
 import { useRedis } from '@/store/useRedis'
 import type { CacheConnectionConfig, RedisConnectionConfig, SshAuthMethod, SshHop } from '@shared/types'
 import { ENGINES, engineMeta } from '@/utils/engine'
@@ -243,7 +244,7 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
     return null
   })()
 
-  const canSubmit = form.name.trim().length > 0 && form.host.trim().length > 0 && sshError === null
+  const canSubmit = form.name.trim().length > 0 && form.host.trim().length > 0 && isValidPort(form.port) && sshError === null
 
   function payload(): CacheConnectionConfig {
     /*
@@ -545,7 +546,11 @@ export function ConnectionDialog({ initial, onClose }: ConnectionDialogProps) {
                     type="number"
                     min="1"
                     max="65535"
+                    aria-invalid={!isValidPort(form.port)}
                   />
+                  {!isValidPort(form.port) && (
+                    <p className="ssh-error">{t('connectionTransfer.invalidPort')}</p>
+                  )}
                 </div>
               </div>
 

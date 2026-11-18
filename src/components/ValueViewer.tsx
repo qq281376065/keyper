@@ -1308,6 +1308,14 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
   async function tickAutoRefresh(): Promise<void> {
     if (autoRefreshing.current) return
     /*
+     * 标签被切走（Workspace display:none）时停表：
+     * Activity 只暂停「同一标签内隐藏 pane」的 effect，跨标签的
+     * display:none 不会暂停 —— 不加这道门控，后台标签会每 5s
+     * 白打一次 Redis（SSH 场景还白耗隧道流量）。切回时 effect
+     * 依赖 active 重新拉起，状态不清（保活定案）。
+     */
+    if (!active) return
+    /*
      * 三种情况刻意跳过刷新，避免打断用户操作或造成无谓请求：
      * 1. 有弹窗打开（编辑 / TTL / 重命名）—— 刷新会让弹窗依据的旧值突然变化；
      * 2. 右键菜单打开 —— 菜单锚定在具体行上，数据变化会让它指向错位；
@@ -1336,11 +1344,11 @@ function ValueDetailPane({ value, loading, refreshing, active, onRenamed }: Valu
   }
 
   useEffect(() => {
-    if (!autoRefresh) return
+    if (!autoRefresh || !active) return
     const timer = setInterval(() => void tickAutoRefresh(), AUTO_REFRESH_INTERVAL)
     return () => clearInterval(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoRefresh])
+  }, [autoRefresh, active])
 
   // 切换类型 / 断开连接时自动关闭：自动刷新对 string 无意义
   useEffect(() => {
