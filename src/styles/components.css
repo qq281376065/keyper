@@ -7179,11 +7179,17 @@
   color: var(--text-primary);
 }
 .settings-dialog .segmented button.on, .s-settings-dialog .segmented button.on{
-  background: var(--bg-elevated);
-  color: var(--text-primary);
+  /*
+   * 选中态跟随当前皮肤：accent-soft 底 + accent 文字 + 品牌内描边 + 浮起阴影，
+   * 与值区 seg-group / 树形 jt-seg 同一套语义（9 套皮肤变量驱动）。
+   * 原实现用 bg-elevated 灰底，在多数皮肤下与凹槽几乎同色，看不出选中。
+   */
+  background: var(--accent-soft);
+  color: var(--accent);
   font-weight: 600;
-  /* 轻投影让选中项"浮"出凹槽，比整块填强调色更克制，也不刺眼 */
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
+  box-shadow:
+    var(--lift-shadow),
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 32%, transparent);
 }
 .s-settings-dialog select{
   font-size: var(--fs-md);

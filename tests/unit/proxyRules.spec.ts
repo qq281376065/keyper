@@ -72,9 +72,15 @@ describe('normalizeProxySettings · 设置收敛', () => {
     })
   })
 
-  it('manual + 非法地址：回退 off（不留半残配置）', () => {
-    expect(normalizeProxySettings({ mode: 'manual', url: '' })).toEqual({ mode: 'off', url: '' })
-    expect(normalizeProxySettings({ mode: 'manual', url: 'ftp://x' })).toEqual({ mode: 'off', url: '' })
+  it('manual + 空地址：保留 manual（用户刚切换还没填，输入框要可见）', () => {
+    expect(normalizeProxySettings({ mode: 'manual', url: '' })).toEqual({ mode: 'manual', url: '' })
+  })
+
+  it('manual + 非法地址：保留 manual 与原值（让用户看到并改正，生效层按直连兜底）', () => {
+    expect(normalizeProxySettings({ mode: 'manual', url: 'ftp://x' })).toEqual({
+      mode: 'manual',
+      url: 'ftp://x',
+    })
   })
 })
 
