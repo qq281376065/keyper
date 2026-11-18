@@ -376,7 +376,15 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  /* 独立滚动容器，避免滚动链传导到外层页面 */
+  /*
+   * 全局规则（滚轮死区教训）：overscroll-behavior: contain 只允许出现在
+   * 「最外层滚动边界」（如本层、页面级 .ov-tab-pane）。嵌套的内层滚动容器
+   * （.set-main / .uri-batch-list / .transfer-list / .transfer-issues /
+   * .tvd-body / .lua-result pre / .sl-occ-virtual）一律不加 contain：
+   * 内层自身不溢出时，contain 会按规范切断滚轮向外层可滚祖先的滚动链，
+   * 滚轮完全无响应（事件未被 preventDefault 也不滚动）。弹窗内外层页面
+   * 本就被 modal 锁住，contain 的「防传导」收益在内层并不存在。
+   */
   overscroll-behavior: contain;
   /*
    * 始终为滚动条留位：展开 SSH 后内容变长、出现滚动条时，若不留位
@@ -1789,7 +1797,7 @@
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--bg-elevated);
-  overscroll-behavior: contain;
+  /* 嵌套容器不加 contain：条目不足不溢出时避免滚轮死区（见 .dlg-body 注释） */
   scrollbar-gutter: stable;
 }
 
@@ -1980,7 +1988,7 @@
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--bg-elevated);
-  overscroll-behavior: contain;
+  /* 嵌套容器不加 contain：条目不足不溢出时避免滚轮死区（见 .dlg-body 注释） */
 }
 
 .transfer-item {
@@ -2035,7 +2043,7 @@
   gap: 6px;
   max-height: 180px;
   overflow-y: auto;
-  overscroll-behavior: contain;
+  /* 嵌套容器不加 contain：问题不足不溢出时避免滚轮死区（见 .dlg-body 注释） */
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -2086,4 +2094,196 @@
   flex: 0 0 auto;
   height: 30px;
   font-size: var(--fs-sm);
+}
+
+/* ------------------------------------------------------------------ 侧栏导航布局（方案 A · side-panel） */
+/*
+ * 正文负外边距抵消 .dlg-body 的 16px 18px 22px 内边距，
+ * 让侧栏底色与分隔线贴到弹窗边缘（头尾仍由 DialogShell 负责）。
+ */
+.dlg .set-layout {
+  display: flex;
+  align-items: stretch;
+  margin: -16px -18px -22px;
+  /*
+   * 正文高度：四个分组共用同一高度，切换分组时弹窗不随之伸缩
+   * （组间行数不同，自适应高度会让弹窗上下跳 —— 用户反馈的「页面抖动」）。
+   * 用 flex + max-height 而不是固定 height：高窗口下仍是 440px；
+   * 矮窗口下 .dlg-shell 被视口压缩时正文随之收缩，溢出交给右侧
+   * .set-main 内部滚动 —— 左侧导航与弹窗外壳、页脚始终稳定。
+   */
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 440px;
+}
+/*
+ * 设置弹窗外层正文不滚动：滚动只发生在右侧 .set-main。
+ * 若外层 .dlg-body 可滚，矮窗口下会连同左侧导航一起滚走；
+ * 同时去掉 overscroll-behavior: contain —— 实测在本项目 Chromium 里，
+ * 内层滚动容器带 contain 时滚轮默认滚动被整体吞掉（事件未被
+ * preventDefault 也不滚动），去掉后滚轮恢复正常。弹窗外背景本就被
+ * modal 锁住，无需 contain 防滚动链。
+ */
+.dlg.settings-dialog .dlg-body {
+  /*
+   * 固定正文高度（与原 .set-layout height:440px 同一意图）：四个分组
+   * 共用同一高度，切换分组时弹窗不上下跳。矮窗口下由 .dlg-shell 的
+   * flex 收缩 + max-height 兜底压缩，溢出交给右侧 .set-main 内部滚动。
+   */
+  height: 440px;
+  overflow: hidden;
+  overscroll-behavior: auto;
+}
+.dlg .set-nav {
+  flex: 0 0 158px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 14px 10px;
+  background: var(--bg-app);
+  border-right: 1px solid var(--border);
+}
+.dlg .set-nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 11px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--fs-md);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+.dlg .set-nav-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+/*
+ * 选中态：accent-soft 底 + accent 文字 + 品牌内描边 + 浮起阴影，
+ * 与值区 seg-group / 设置胶囊同一套皮肤变量语义（9 套皮肤自动跟随）。
+ * 左侧 3px 强调色指示条由 ::before 表达，贴住导航内边距边缘。
+ */
+.dlg .set-nav-item.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+  box-shadow:
+    var(--lift-shadow),
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 32%, transparent);
+}
+.dlg .set-nav-item.on::before {
+  content: "";
+  position: absolute;
+  left: -10px;
+  top: 20%;
+  bottom: 20%;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--accent);
+}
+.dlg .set-nav-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dlg .set-nav-count {
+  flex: 0 0 auto;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+}
+.dlg .set-nav-item.on .set-nav-count {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+}
+.dlg .set-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  /* flex 行内纵向滚动的前提：允许被压缩到内容高度以下 */
+  min-height: 0;
+  padding: 18px 22px 20px;
+  /* 组内滚动：内容多于可用高度时只滚右侧正文，左侧导航与外壳不动。
+     不加 overscroll-behavior: contain（见 .settings-dialog .dlg-body 注释） */
+  overflow-y: auto;
+}
+.dlg .set-main-title {
+  margin: 0 0 4px;
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.dlg .set-main-sub {
+  margin: 0 0 14px;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+/* 单行设置：左标签右控件，底部分隔线；最后一行不带线 */
+.dlg .set-nav-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.dlg .set-nav-row:last-child {
+  border-bottom: none;
+}
+.dlg .set-nav-row.is-block {
+  align-items: flex-start;
+}
+.dlg .set-nav-label {
+  flex: 0 0 auto;
+  max-width: 46%;
+  font-size: var(--fs-md);
+  color: var(--text-primary);
+}
+.dlg .set-nav-label small {
+  display: block;
+  margin-top: 1px;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.dlg .set-nav-control {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px 12px;
+  min-width: 0;
+}
+.dlg .set-nav-control.is-block {
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+/* 皮肤行控件可能换行（7 个皮肤胶囊），允许整行控件占满宽度 */
+.dlg .set-nav-row.is-block .set-nav-control:not(.is-block) {
+  flex: 1 1 auto;
+}
+/*
+ * 侧栏布局里的分段控件收紧一档：右侧控件区比旧版表单窄，
+ * 7 个皮肤胶囊按默认 padding 会挤到标签列。字号降一档、内边距收窄，
+ * 胶囊总宽约省 25%，皮肤行单行放得下，其余行也更透气。
+ */
+.dlg .set-layout .segmented button {
+  padding: 4px 9px;
+  font-size: var(--fs-sm);
+}
+.dlg .set-layout .segmented {
+  gap: 2px;
+  padding: 2px;
+  min-height: 30px;
 }
