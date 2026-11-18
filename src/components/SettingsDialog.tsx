@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '@/api'
 import { DialogShell } from '@/components/DialogShell'
-import { DialogIcon } from '@/components/DialogIcon'
+import { DialogIcon, type DialogIconName } from '@/components/DialogIcon'
 import { tipProps } from '@/components/tip'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -51,7 +51,25 @@ const SKINS: Array<{ value: ThemeMode; label: MsgKey }> = [
   { value: 'berry', label: 'theme.berry' },
 ]
 
-/** 全局设置弹窗：外观 / 数据浏览 / 操作日志三组 */
+/**
+ * 侧栏导航分组（方案 A · side-panel）。
+ * count 是该组设置项数量，徽标展示；新增设置项时同步更新。
+ */
+type GroupId = 'appearance' | 'browser' | 'network' | 'logs'
+const GROUPS: Array<{ id: GroupId; icon: DialogIconName; label: MsgKey; sub: MsgKey; count: number }> = [
+  { id: 'appearance', icon: 'theme', label: 'settingsDialog.appearance', sub: 'settingsDialog.groupAppearanceSub', count: 6 },
+  { id: 'browser', icon: 'list', label: 'settingsDialog.dataBrowser', sub: 'settingsDialog.groupBrowserSub', count: 3 },
+  { id: 'network', icon: 'globe', label: 'settingsDialog.networkProxy', sub: 'settingsDialog.groupNetworkSub', count: 2 },
+  { id: 'logs', icon: 'document', label: 'common.activityLog', sub: 'settingsDialog.groupLogsSub', count: 3 },
+]
+
+/**
+ * 全局设置弹窗 —— 侧栏导航布局（方案 A）。
+ *
+ * 左侧分组导航（图标 + 计数徽标 + 强调色指示条），右侧只显示当前组：
+ * 每组一屏，不再四组长滚动。头尾仍是 DialogShell（拖拽 / 页脚 / 居中不变），
+ * 正文用负外边距抵消 .dlg-body 的内边距，让侧栏底色贴到弹窗边缘。
+ */
 export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const { t } = useI18n()
   const { settings, save } = useSettings()
@@ -60,57 +78,8 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   useObservable(settingsHolder)
   useObservable(globalHolder)
 
+  const [group, setGroup] = useState<GroupId>('appearance')
   const [logPath, setLogPath] = useState('')
-
-  /* ---------------------------------------------------- 网络代理（更新通道） */
-  /* 地址草稿：输入过程不落盘，失焦 / 回车才提交（避免每键一次 IPC + 代理重配） */
-  const [proxyDraft, setProxyDraft] = useState(settings.proxy.url)
-  const [detecting, setDetecting] = useState(false)
-  const [detectNote, setDetectNote] = useState<string | null>(null)
-  /* 外部保存（如自动检测填充）后同步草稿；用户正在输入时不覆盖 */
-  const [proxyFocused, setProxyFocused] = useState(false)
-  useEffect(() => {
-    if (!proxyFocused) setProxyDraft(settings.proxy.url)
-  }, [settings.proxy.url, proxyFocused])
-
-  async function setProxyMode(mode: ProxyMode): Promise<void> {
-    /* 切到手动时带上当前草稿地址；切走时保留地址以便切回 */
-    await save({ proxy: { mode, url: mode === 'manual' ? proxyDraft : settings.proxy.url } })
-  }
-
-  async function commitProxyUrl(): Promise<void> {
-    const url = proxyDraft.trim()
-    if (url === settings.proxy.url) return
-    await save({ proxy: { mode: settings.proxy.mode, url } })
-  }
-
-  async function detectProxy(): Promise<void> {
-    setDetecting(true)
-    setDetectNote(null)
-    try {
-      const res = await api.settings.detectProxy()
-      if (!res.ok) throw new Error(res.error)
-      if (res.data.found && res.data.url) {
-        /* 检测到代理：自动填充并切到手动模式（用户可再改回关闭/系统） */
-        setProxyDraft(res.data.url)
-        await save({ proxy: { mode: 'manual', url: res.data.url } })
-        setDetectNote(
-          res.data.source === 'system'
-            ? t('settingsDialog.proxyDetectedSystem')
-            : res.data.source === 'env'
-              ? t('settingsDialog.proxyDetectedEnv')
-              : t('settingsDialog.proxyDetectedSession'),
-        )
-        notify('ok', t('settingsDialog.proxyDetectedFilled'))
-      } else {
-        setDetectNote(t('settingsDialog.proxyNotFound'))
-      }
-    } catch (error) {
-      notify('err', error instanceof Error ? error.message : t('settingsDialog.proxyDetectFailed'))
-    } finally {
-      setDetecting(false)
-    }
-  }
 
   /* 配置文件位置（便携模式可能回退到系统目录，需要如实展示） */
   const [configDir, setConfigDir] = useState('')
@@ -160,6 +129,72 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
     notify('ok', t('settingsDialog.defaultSettingsRestored'))
   }
 
+  /* ---------------------------------------------------- 网络代理（更新通道） */
+  /* 地址草稿：输入过程不落盘，失焦 / 回车才提交（避免每键一次 IPC + 代理重配） */
+  const [proxyDraft, setProxyDraft] = useState(settings.proxy.url)
+  const [detecting, setDetecting] = useState(false)
+  const [detectNote, setDetectNote] = useState<string | null>(null)
+  /* 外部保存（如自动检测填充）后同步草稿；用户正在输入时不覆盖 */
+  const [proxyFocused, setProxyFocused] = useState(false)
+  useEffect(() => {
+    if (!proxyFocused) setProxyDraft(settings.proxy.url)
+  }, [settings.proxy.url, proxyFocused])
+
+  async function setProxyMode(next: ProxyMode): Promise<void> {
+    /* 切到手动时带上当前草稿地址；切走时保留地址以便切回 */
+    await save({ proxy: { mode: next, url: next === 'manual' ? proxyDraft : settings.proxy.url } })
+  }
+
+  async function commitProxyUrl(): Promise<void> {
+    const url = proxyDraft.trim()
+    if (url === settings.proxy.url) return
+    await save({ proxy: { mode: settings.proxy.mode, url } })
+  }
+
+  async function detectProxy(): Promise<void> {
+    setDetecting(true)
+    setDetectNote(null)
+    try {
+      const res = await api.settings.detectProxy()
+      if (!res.ok) throw new Error(res.error)
+      if (res.data.found && res.data.url) {
+        /* 检测到代理：自动填充并切到手动模式（用户可再改回关闭/系统） */
+        setProxyDraft(res.data.url)
+        await save({ proxy: { mode: 'manual', url: res.data.url } })
+        setDetectNote(
+          res.data.source === 'system'
+            ? t('settingsDialog.proxyDetectedSystem')
+            : res.data.source === 'env'
+              ? t('settingsDialog.proxyDetectedEnv')
+              : t('settingsDialog.proxyDetectedSession'),
+        )
+        notify('ok', t('settingsDialog.proxyDetectedFilled'))
+      } else {
+        setDetectNote(t('settingsDialog.proxyNotFound'))
+      }
+    } catch (error) {
+      notify('err', error instanceof Error ? error.message : t('settingsDialog.proxyDetectFailed'))
+    } finally {
+      setDetecting(false)
+    }
+  }
+
+  /* ---------------------------------------------------- 行渲染助手 */
+  /** 单行设置：左标签（可带副标题），右控件；底部分隔线 */
+  function row(label: string, control: React.ReactNode, sub?: string, block = false) {
+    return (
+      <div className={`set-nav-row${block ? ' is-block' : ''}`}>
+        <div className="set-nav-label">
+          {label}
+          {sub ? <small>{sub}</small> : null}
+        </div>
+        <div className="set-nav-control">{control}</div>
+      </div>
+    )
+  }
+
+  const active = GROUPS.find((g) => g.id === group) ?? GROUPS[0]!
+
   return (
     <DialogShell
       icon="settings"
@@ -182,355 +217,308 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
         </>
       }
     >
-      {/* ---------------------------------------------------- 外观 */}
-      <section className="dlg-section">
-        <h3 className="dlg-section-title">{t('settingsDialog.appearance')}</h3>
-
-        <div className="set-row">
-          <span className="set-label">{t('settingsDialog.theme')}</span>
-          <div className="set-control">
-            <div className="segmented">
-              {THEMES.map((item) => (
-                <button
-                  key={item.value}
-                  type="button"
-                  className={mode === item.value ? 'on' : ''}
-                  onClick={() => setThemeMode(item.value)}
-                >
-                  {t(item.label)}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="set-row">
-          <span className="set-label">{t('settingsDialog.themeSkin')}</span>
-          <div className="set-control">
-            <div className="segmented">
-              {SKINS.map((item) => (
-                <button
-                  key={item.value}
-                  type="button"
-                  className={mode === item.value ? 'on' : ''}
-                  onClick={() => setThemeMode(item.value)}
-                >
-                  {t(item.label)}
-                </button>
-              ))}
-            </div>
-            <span className="set-hint">{t('settingsDialog.eachSkinLightDarkVariants')}</span>
-          </div>
-        </div>
-
-        <div className="set-row">
-          <span className="set-label">{t('settingsDialog.fontSize')}</span>
-          <div className="set-control">
-            <div className="segmented">
-              {FONT_SIZES.map((size) => (
-                <button
-                  key={size}
-                  type="button"
-                  className={settings.fontSize === size ? 'on' : ''}
-                  onClick={() => void update({ fontSize: size })}
-                >
-                  {size}
-                </button>
-              ))}
-            </div>
-            <span className="set-hint">{t('settingsDialog.baseFontSizeOtherSizes')}</span>
-          </div>
-        </div>
-
-        <div className="set-row">
-          <label className="set-label" htmlFor="ui-font">
-            {t('settingsDialog.uiFont')}
-          </label>
-          <div className="set-control">
-            <Select value={settings.uiFont} onValueChange={(next) => void update({ uiFont: next })}>
-              <SelectTrigger id="ui-font" className="dlg-select set-select">
-                <SelectValue placeholder={t('settingsDialog.selectFont')} />
-              </SelectTrigger>
-              <SelectContent className="dlg-select-menu">
-                {UI_FONTS.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
-                    {t(item.label)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div className="set-row">
-          <label className="set-label" htmlFor="mono-font">
-            {t('settingsDialog.codeFont')}
-          </label>
-          <div className="set-control">
-            <Select
-              value={settings.monoFont}
-              onValueChange={(next) => void update({ monoFont: next })}
+      <div className="set-layout">
+        {/* ---------------- 左侧分组导航 ---------------- */}
+        <nav className="set-nav" aria-label={t('app.settings')}>
+          {GROUPS.map((g) => (
+            <button
+              key={g.id}
+              type="button"
+              className={`set-nav-item${group === g.id ? ' on' : ''}`}
+              onClick={() => setGroup(g.id)}
             >
-              <SelectTrigger id="mono-font" className="dlg-select set-select">
-                <SelectValue placeholder={t('settingsDialog.selectFont')} />
-              </SelectTrigger>
-              <SelectContent className="dlg-select-menu">
-                {MONO_FONTS.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
-                    {t(item.label)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <span className="set-hint mono">Aa 0123</span>
-          </div>
-        </div>
+              <DialogIcon name={g.icon} size={13} />
+              <span className="set-nav-name">{t(g.label)}</span>
+              <span className="set-nav-count mono">{g.count}</span>
+            </button>
+          ))}
+        </nav>
 
-        <div className="set-row">
-          <span className="set-label">{t('settingsDialog.uiDensity')}</span>
-          <div className="set-control">
-            <div className="segmented">
-              <button
-                type="button"
-                className={settings.density === 'compact' ? 'on' : ''}
-                onClick={() => void update({ density: 'compact' })}
-              >
-                {t('settingsDialog.compact')}
-              </button>
-              <button
-                type="button"
-                className={settings.density === 'cozy' ? 'on' : ''}
-                onClick={() => void update({ density: 'cozy' })}
-              >
-                {t('settingsDialog.comfortable')}
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
+        {/* ---------------- 右侧当前组 ---------------- */}
+        <div className="set-main">
+          <h4 className="set-main-title">{t(active.label)}</h4>
+          <p className="set-main-sub">{t(active.sub)}</p>
 
-      {/* ---------------------------------------------------- 数据浏览 */}
-      <section className="dlg-section">
-        <h3 className="dlg-section-title">{t('settingsDialog.dataBrowser')}</h3>
-
-        <div className="set-row">
-          <span className="set-label">{t('settingsDialog.keysLoadedPerPage')}</span>
-          <div className="set-control">
-            <div className="segmented">
-              {PAGE_SIZES.map((size) => (
-                <button
-                  key={size}
-                  type="button"
-                  className={settings.pageSize === size ? 'on' : ''}
-                  onClick={() => void update({ pageSize: size })}
-                >
-                  {size}
-                </button>
+          {group === 'appearance' ? (
+            <>
+              {row(t('settingsDialog.theme'), (
+                <div className="segmented">
+                  {THEMES.map((item) => (
+                    <button
+                      key={item.value}
+                      type="button"
+                      className={mode === item.value ? 'on' : ''}
+                      onClick={() => setThemeMode(item.value)}
+                    >
+                      {t(item.label)}
+                    </button>
+                  ))}
+                </div>
               ))}
-            </div>
-            <span className="set-hint">{t('settingsDialog.countPerScan')}</span>
-          </div>
-        </div>
-
-        <div className="set-row">
-          <span className="set-label">{t('settingsDialog.keyNameDelimiter')}</span>
-          <div className="set-control">
-            <div className="segmented sep-segmented">
-              {SEPARATORS.map((sep) => (
-                <button
-                  key={sep}
-                  type="button"
-                  className={`mono${settings.keySeparator === sep ? ' on' : ''}`}
-                  onClick={() => void update({ keySeparator: sep })}
-                >
-                  {sep}
-                </button>
+              {row(t('settingsDialog.themeSkin'), (
+                <div className="segmented">
+                  {SKINS.map((item) => (
+                    <button
+                      key={item.value}
+                      type="button"
+                      className={mode === item.value ? 'on' : ''}
+                      onClick={() => setThemeMode(item.value)}
+                    >
+                      {t(item.label)}
+                    </button>
+                  ))}
+                </div>
+              ), t('settingsDialog.eachSkinLightDarkVariants'), true)}
+              {row(t('settingsDialog.fontSize'), (
+                <div className="segmented">
+                  {FONT_SIZES.map((size) => (
+                    <button
+                      key={size}
+                      type="button"
+                      className={settings.fontSize === size ? 'on' : ''}
+                      onClick={() => void update({ fontSize: size })}
+                    >
+                      {size}
+                    </button>
+                  ))}
+                </div>
+              ), t('settingsDialog.baseFontSizeOtherSizes'))}
+              {row(t('settingsDialog.uiFont'), (
+                <Select value={settings.uiFont} onValueChange={(next) => void update({ uiFont: next })}>
+                  <SelectTrigger className="dlg-select set-select">
+                    <SelectValue placeholder={t('settingsDialog.selectFont')} />
+                  </SelectTrigger>
+                  <SelectContent className="dlg-select-menu">
+                    {UI_FONTS.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {t(item.label)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               ))}
-            </div>
-            <span className="set-hint">{t('settingsDialog.defaultHierarchySymbolForTree')}</span>
-          </div>
-        </div>
+              {row(t('settingsDialog.codeFont'), (
+                <Select value={settings.monoFont} onValueChange={(next) => void update({ monoFont: next })}>
+                  <SelectTrigger className="dlg-select set-select">
+                    <SelectValue placeholder={t('settingsDialog.selectFont')} />
+                  </SelectTrigger>
+                  <SelectContent className="dlg-select-menu">
+                    {MONO_FONTS.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {t(item.label)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ))}
+              {row(t('settingsDialog.uiDensity'), (
+                <div className="segmented">
+                  <button
+                    type="button"
+                    className={settings.density === 'compact' ? 'on' : ''}
+                    onClick={() => void update({ density: 'compact' })}
+                  >
+                    {t('settingsDialog.compact')}
+                  </button>
+                  <button
+                    type="button"
+                    className={settings.density === 'cozy' ? 'on' : ''}
+                    onClick={() => void update({ density: 'cozy' })}
+                  >
+                    {t('settingsDialog.comfortable')}
+                  </button>
+                </div>
+              ))}
+            </>
+          ) : null}
 
-        <div className="set-row">
-          <span className="set-label">{t('settingsDialog.confirmBeforeDeletingKeys')}</span>
-          <div className="set-control">
-            <div className="segmented">
-              <button
-                type="button"
-                className={settings.confirmDelete ? 'on' : ''}
-                onClick={() => void update({ confirmDelete: true })}
-              >
-                {t('settingsDialog.on')}
-              </button>
-              <button
-                type="button"
-                className={!settings.confirmDelete ? 'on' : ''}
-                onClick={() => void update({ confirmDelete: false })}
-              >
-                {t('common.close')}
-              </button>
-            </div>
-            <span className="set-hint">{t('settingsDialog.afterClosingDeletionApplies')}</span>
-          </div>
-        </div>
-      </section>
+          {group === 'browser' ? (
+            <>
+              {row(t('settingsDialog.keysLoadedPerPage'), (
+                <div className="segmented">
+                  {PAGE_SIZES.map((size) => (
+                    <button
+                      key={size}
+                      type="button"
+                      className={settings.pageSize === size ? 'on' : ''}
+                      onClick={() => void update({ pageSize: size })}
+                    >
+                      {size}
+                    </button>
+                  ))}
+                </div>
+              ), t('settingsDialog.countPerScan'))}
+              {row(t('settingsDialog.keyNameDelimiter'), (
+                <div className="segmented sep-segmented">
+                  {SEPARATORS.map((sep) => (
+                    <button
+                      key={sep}
+                      type="button"
+                      className={`mono${settings.keySeparator === sep ? ' on' : ''}`}
+                      onClick={() => void update({ keySeparator: sep })}
+                    >
+                      {sep}
+                    </button>
+                  ))}
+                </div>
+              ), t('settingsDialog.defaultHierarchySymbolForTree'))}
+              {row(t('settingsDialog.confirmBeforeDeletingKeys'), (
+                <div className="segmented">
+                  <button
+                    type="button"
+                    className={settings.confirmDelete ? 'on' : ''}
+                    onClick={() => void update({ confirmDelete: true })}
+                  >
+                    {t('settingsDialog.on')}
+                  </button>
+                  <button
+                    type="button"
+                    className={!settings.confirmDelete ? 'on' : ''}
+                    onClick={() => void update({ confirmDelete: false })}
+                  >
+                    {t('common.close')}
+                  </button>
+                </div>
+              ), t('settingsDialog.afterClosingDeletionApplies'))}
+            </>
+          ) : null}
 
-      {/* ---------------------------------------------------- 网络代理（更新通道） */}
-      <section className="dlg-section">
-        <h3 className="dlg-section-title">{t('settingsDialog.networkProxy')}</h3>
+          {group === 'network' ? (
+            <>
+              {row(t('settingsDialog.proxyMode'), (
+                <div className="segmented">
+                  <button
+                    type="button"
+                    className={settings.proxy.mode === 'off' ? 'on' : ''}
+                    onClick={() => void setProxyMode('off')}
+                  >
+                    {t('settingsDialog.proxyOff')}
+                  </button>
+                  <button
+                    type="button"
+                    className={settings.proxy.mode === 'system' ? 'on' : ''}
+                    onClick={() => void setProxyMode('system')}
+                  >
+                    {t('settingsDialog.proxySystem')}
+                  </button>
+                  <button
+                    type="button"
+                    className={settings.proxy.mode === 'manual' ? 'on' : ''}
+                    onClick={() => void setProxyMode('manual')}
+                  >
+                    {t('settingsDialog.proxyManual')}
+                  </button>
+                </div>
+              ), t('settingsDialog.proxyScopeHint'))}
+              {settings.proxy.mode === 'manual' ? (
+                <div className="set-nav-row is-block">
+                  <div className="set-nav-label">{t('settingsDialog.proxyAddress')}</div>
+                  <div className="set-nav-control is-block">
+                    <div className="proxy-address-row">
+                      <Input
+                        value={proxyDraft}
+                        onChange={(event) => setProxyDraft(event.target.value)}
+                        onFocus={() => setProxyFocused(true)}
+                        onBlur={() => {
+                          setProxyFocused(false)
+                          void commitProxyUrl()
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault()
+                            void commitProxyUrl()
+                          }
+                        }}
+                        className="mono proxy-input"
+                        placeholder="http://127.0.0.1:7890"
+                        spellCheck={false}
+                        autoComplete="off"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="foot-btn proxy-detect"
+                        disabled={detecting}
+                        onClick={() => void detectProxy()}
+                        {...tipProps(t('settingsDialog.proxyDetectHint'))}
+                      >
+                        <DialogIcon name={detecting ? 'refresh' : 'search'} size={12} className={detecting ? 'spin' : undefined} />
+                        {detecting ? t('settingsDialog.proxyDetecting') : t('settingsDialog.proxyDetect')}
+                      </Button>
+                    </div>
+                    <span className="set-hint">
+                      {detectNote ?? t('settingsDialog.proxyAddressHint')}
+                    </span>
+                  </div>
+                </div>
+              ) : null}
+            </>
+          ) : null}
 
-        <div className="set-row">
-          <span className="set-label">{t('settingsDialog.proxyMode')}</span>
-          <div className="set-control">
-            <div className="segmented">
-              <button
-                type="button"
-                className={settings.proxy.mode === 'off' ? 'on' : ''}
-                onClick={() => void setProxyMode('off')}
-              >
-                {t('settingsDialog.proxyOff')}
-              </button>
-              <button
-                type="button"
-                className={settings.proxy.mode === 'system' ? 'on' : ''}
-                onClick={() => void setProxyMode('system')}
-              >
-                {t('settingsDialog.proxySystem')}
-              </button>
-              <button
-                type="button"
-                className={settings.proxy.mode === 'manual' ? 'on' : ''}
-                onClick={() => void setProxyMode('manual')}
-              >
-                {t('settingsDialog.proxyManual')}
-              </button>
-            </div>
-            <span className="set-hint">{t('settingsDialog.proxyScopeHint')}</span>
-          </div>
-        </div>
-
-        {settings.proxy.mode === 'manual' ? (
-          <div className="set-row is-block">
-            <span className="set-label">{t('settingsDialog.proxyAddress')}</span>
-            <div className="set-control is-block">
-              <div className="proxy-address-row">
-                <Input
-                  value={proxyDraft}
-                  onChange={(event) => setProxyDraft(event.target.value)}
-                  onFocus={() => setProxyFocused(true)}
-                  onBlur={() => {
-                    setProxyFocused(false)
-                    void commitProxyUrl()
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault()
-                      void commitProxyUrl()
-                    }
-                  }}
-                  className="mono proxy-input"
-                  placeholder="http://127.0.0.1:7890"
-                  spellCheck={false}
-                  autoComplete="off"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="foot-btn proxy-detect"
-                  disabled={detecting}
-                  onClick={() => void detectProxy()}
-                  {...tipProps(t('settingsDialog.proxyDetectHint'))}
-                >
-                  <DialogIcon name={detecting ? 'refresh' : 'search'} size={12} className={detecting ? 'spin' : undefined} />
-                  {detecting ? t('settingsDialog.proxyDetecting') : t('settingsDialog.proxyDetect')}
-                </Button>
+          {group === 'logs' ? (
+            <>
+              {row(t('settingsDialog.retentionDays'), (
+                <div className="segmented">
+                  {RETENTIONS.map((days) => (
+                    <button
+                      key={days}
+                      type="button"
+                      className={settings.logRetentionDays === days ? 'on' : ''}
+                      onClick={() => void update({ logRetentionDays: days })}
+                    >
+                      {t('settingsDialog.days', { days })}
+                    </button>
+                  ))}
+                </div>
+              ), t('settingsDialog.expiredFilesCleanedUp'))}
+              <div className="set-nav-row is-block">
+                <div className="set-nav-label">{t('serverOverview.configFile')}</div>
+                <div className="set-nav-control is-block">
+                  <div className="path-box">
+                    <span className="path mono" {...tipProps(configDir)}>
+                      {configDir || '—'}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="foot-btn path-open"
+                      onClick={() => void openLogDir()}
+                    >
+                      <DialogIcon name="folder-open" size={12} />
+                      {t('settingsDialog.openDirectory')}
+                    </Button>
+                  </div>
+                  <span className="set-hint">{configNote}</span>
+                </div>
               </div>
-              <span className="set-hint">
-                {detectNote ?? t('settingsDialog.proxyAddressHint')}
-              </span>
-            </div>
-          </div>
-        ) : null}
-      </section>
-
-      {/* ---------------------------------------------------- 操作日志 */}
-      <section className="dlg-section">
-        <h3 className="dlg-section-title">{t('common.activityLog')}</h3>
-
-        <div className="set-row">
-          <span className="set-label">{t('settingsDialog.retentionDays')}</span>
-          <div className="set-control">
-            <div className="segmented">
-              {RETENTIONS.map((days) => (
-                <button
-                  key={days}
-                  type="button"
-                  className={settings.logRetentionDays === days ? 'on' : ''}
-                  onClick={() => void update({ logRetentionDays: days })}
-                >
-                  {t('settingsDialog.days', { days })}
-                </button>
-              ))}
-            </div>
-            <span className="set-hint">{t('settingsDialog.expiredFilesCleanedUp')}</span>
-          </div>
+              <div className="set-nav-row is-block">
+                <div className="set-nav-label">{t('settingsDialog.logDirectory')}</div>
+                <div className="set-nav-control is-block">
+                  <div className="path-box">
+                    <span className="path mono" {...tipProps(logPath)}>
+                      {logPath || '—'}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="foot-btn path-open"
+                      onClick={() => void openLogDir()}
+                    >
+                      <DialogIcon name="folder-open" size={12} />
+                      {t('settingsDialog.openDirectory')}
+                    </Button>
+                  </div>
+                  <span className="set-hint">
+                    {t('settingsDialog.logsManualActionsOnly')}{' '}
+                    <code className="mono">yyyymmdd.log</code>
+                    {t('settingsDialog.onePerLineForEasy')}
+                  </span>
+                </div>
+              </div>
+            </>
+          ) : null}
         </div>
-
-        {/*
-          路径行：标签在左，路径块独占右侧整宽（min-width: 0 让它能省略）。
-          路径是长字符串且含本地用户名，必须能省略 —— 撑破布局比显示不全更糟。
-        */}
-        <div className="set-row is-block">
-          <span className="set-label">{t('serverOverview.configFile')}</span>
-          <div className="set-control is-block">
-            <div className="path-box">
-              <span className="path mono" {...tipProps(configDir)}>
-                {configDir || '—'}
-              </span>
-              <Button
-                type="button"
-                variant="outline"
-                className="foot-btn path-open"
-                onClick={() => void openLogDir()}
-              >
-                <DialogIcon name="folder-open" size={12} />
-                {t('settingsDialog.openDirectory')}
-              </Button>
-            </div>
-            {/*
-              便携模式可能因目录不可写而回退到系统目录，
-              这里如实说明 —— 否则用户会疑惑"为什么配置文件不在程序目录里"。
-            */}
-            <span className="set-hint">{configNote}</span>
-          </div>
-        </div>
-
-        <div className="set-row is-block">
-          <span className="set-label">{t('settingsDialog.logDirectory')}</span>
-          <div className="set-control is-block">
-            <div className="path-box">
-              <span className="path mono" {...tipProps(logPath)}>
-                {logPath || '—'}
-              </span>
-              <Button
-                type="button"
-                variant="outline"
-                className="foot-btn path-open"
-                onClick={() => void openLogDir()}
-              >
-                <DialogIcon name="folder-open" size={12} />
-                {t('settingsDialog.openDirectory')}
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        <p className="set-note">
-          {t('settingsDialog.logsManualActionsOnly')}{' '}
-          <code className="mono">yyyymmdd.log</code>
-          {t('settingsDialog.onePerLineForEasy')}
-        </p>
-      </section>
+      </div>
     </DialogShell>
   )
 }
