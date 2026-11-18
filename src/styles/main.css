@@ -5,6 +5,10 @@
    ============================================================ */
 :root {
   /* ---------------------------------------------------------- 暗色（默认） */
+  /* 明暗档由 data-scheme 驱动（首帧脚本与 theme.ts 都写它）：
+     原生控件（滚动条/输入框光标/下拉）跟随主题。走 CSS 属性而非
+     style.colorScheme —— 生产 CSP style-src 'self' 拦内联样式。 */
+  color-scheme: dark;
   --bg-app: #15171c;
   --bg-panel: #1b1e25;
   --bg-elevated: #21252e;
@@ -1436,3 +1440,16 @@ body.dialog-dragging * {
  */
 
 
+
+/*
+ * 明暗档 → color-scheme（原生控件跟随主题）。
+ * data-scheme 由首帧脚本（index.html）与 theme.ts 的 apply 写入；
+ * 放在文件末尾，覆盖 :root 的默认 dark。亮色皮肤组与磁贴投影的
+ * 亮色组保持同一份名单（berry 也是亮色）。
+ */
+:root[data-scheme="light"] {
+  color-scheme: light;
+}
+:root[data-scheme="dark"] {
+  color-scheme: dark;
+}

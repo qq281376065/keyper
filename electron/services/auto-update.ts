@@ -95,8 +95,25 @@ function initialize(): void {
     /*
      * generic 源要求目录下同时有 latest.yml 与安装包（electron-builder
      * 的产物直接上传即可）。setFeedURL 会覆盖打包时写入的 app-update.yml。
+     *
+     * 安全：仅放行 https。http 源的 latest.yml（含 sha512）可被中间人
+     * 整体替换，exe 校验形同虚设。内网 http 源属明确的用户自担场景，
+     * 需显式 KEYPER_ALLOW_HTTP_FEED=1 才启用。
      */
-    autoUpdater.setFeedURL({ provider: 'generic', url: FEED_URL })
+    let feedOk = true
+    try {
+      const parsed = new URL(FEED_URL)
+      if (parsed.protocol !== 'https:' && process.env.KEYPER_ALLOW_HTTP_FEED !== '1') {
+        feedOk = false
+        console.warn('[updater] 更新源不是 https，已拒绝启用（内网 http 源请设 KEYPER_ALLOW_HTTP_FEED=1）:', FEED_URL)
+      }
+    } catch {
+      feedOk = false
+      console.warn('[updater] 更新源地址非法，已拒绝启用:', FEED_URL)
+    }
+    if (feedOk) {
+      autoUpdater.setFeedURL({ provider: 'generic', url: FEED_URL })
+    }
   }
 
   autoUpdater.on('download-progress', (progress: ProgressInfo) => {

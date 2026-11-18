@@ -230,7 +230,7 @@ await waitMounted()
 await sleep(900)
 const theme = await ev(`(() => ({
   theme: document.documentElement.getAttribute('data-theme'),
-  scheme: document.documentElement.style.colorScheme,
+  scheme: getComputedStyle(document.documentElement).colorScheme,
   accent: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim(),
 }))()`)
 check('主题切换：ocean 皮肤首帧生效且强调色随主题变化',

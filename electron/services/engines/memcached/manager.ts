@@ -1,5 +1,6 @@
 import { gunzip, inflate } from 'node:zlib'
 import { t } from '@shared/i18n'
+import { isValidPort } from '../../../../shared/validation'
 import {
   VALUE_BINARY_MAX_BYTES,
   VALUE_DECODE_MAX_BYTES,
@@ -132,6 +133,9 @@ class MemcachedManager {
    * 走 tunnelManager 会拆掉该连接正在承载流量的共享隧道。
    */
   async test(config: MemcachedConnectionConfig): Promise<OperationResult> {
+    if (!isValidPort(config.port)) {
+      return { ok: false, message: t('connectionTransfer.invalidPort') }
+    }
     let standalone: Tunnel | undefined
     let endpoint: { host: string; port: number }
     try {
@@ -173,6 +177,10 @@ class MemcachedManager {
 
   /** 建立连接。返回的状态对象只包含 Memcached 该有的字段。 */
   async connect(config: MemcachedConnectionConfig): Promise<MemcachedConnectionState> {
+    /* 入口兜底：非法端口直接报「端口无效」，与 Redis 侧同一规则 */
+    if (!isValidPort(config.port)) {
+      throw new Error(t('connectionTransfer.invalidPort'))
+    }
     /* 重复连接先清掉旧的，避免同一 id 上挂着两套池与两条隧道 */
     this.disconnect(config.id)
 

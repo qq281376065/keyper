@@ -8,8 +8,9 @@
       /*
        * 在首帧渲染前确定主题，避免亮暗切换闪烁。
        * 皮肤即主题：皮肤值时 data-theme 直接取皮肤 id，
-       * colorScheme 按皮肤自带的明暗归并，
-       * 与 useTheme.ts 的 SKIN_SCHEME 保持一致。
+       * 明暗档写 data-scheme（CSS [data-scheme] 驱动 color-scheme），
+       * 与 theme.ts 的 SKIN_SCHEME 保持一致。
+       * 不写 style.colorScheme：生产 CSP style-src 'self' 会拦内联样式。
        */
       (function () {
         var SCHEME = {
@@ -31,7 +32,7 @@
           if (RETIRED[stored]) stored = RETIRED[stored]
           if (SCHEME[stored]) {
             document.documentElement.dataset.theme = stored
-            document.documentElement.style.colorScheme = SCHEME[stored]
+            document.documentElement.dataset.scheme = SCHEME[stored]
             return
           }
           var dark =
@@ -39,7 +40,7 @@
             (stored === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
           var theme = dark ? 'dark' : 'light'
           document.documentElement.dataset.theme = theme
-          document.documentElement.style.colorScheme = theme
+          document.documentElement.dataset.scheme = theme
         } catch (error) {
           document.documentElement.dataset.theme = 'dark'
         }

@@ -73,4 +73,41 @@ function wrapApi(source: object, depth = 0): unknown {
   return out
 }
 
-export const api: RedisDesktopApi = bridge ? (wrapApi(bridge) as RedisDesktopApi) : mockApi
+/**
+ * 生产构建里 mock 被 strip-mock-in-production 剔成空壳（vite.config.ts）。
+ * 纯浏览器打开 dist 时 bridge 不存在、mockApi 又是 {} —— 直接交给渲染层
+ * 会在首个 api 调用处抛裸 TypeError（getEnvInfo/settings.get/...）。
+ *
+ * 这里给空壳兜一层 Proxy：任何方法返回明确的失败响应（事件订阅返回
+ * 空取消函数），界面按既有 res.ok 分支走错误提示而不是崩溃。
+ * Electron 生产包有 bridge，永远不经过这条路径。
+ */
+function unavailableApi(): RedisDesktopApi {
+  const fail = () =>
+    Promise.resolve({ ok: false as const, error: '此构建仅支持在 Keyper 桌面应用内运行；浏览器预览请用 npm run dev:web' })
+  const handler: ProxyHandler<Record<string, unknown>> = {
+    get(_target, prop) {
+      if (typeof prop !== 'string') return undefined
+      /* 事件订阅（on*）同步返回取消函数，其余方法返回失败响应 */
+      if (prop.startsWith('on')) return () => () => {}
+      /* 少数同步方法（closeHandled/confirmClose）返回空操作 */
+      if (prop === 'closeHandled' || prop === 'confirmClose') return () => {}
+      return new Proxy({} as Record<string, unknown>, {
+        get(_t, method) {
+          if (typeof method !== 'string') return undefined
+          if (method.startsWith('on')) return () => () => {}
+          if (method === 'closeHandled' || method === 'confirmClose') return () => {}
+          return fail
+        },
+      })
+    },
+  }
+  return new Proxy({} as Record<string, unknown>, handler) as unknown as RedisDesktopApi
+}
+
+const hasMock = Object.keys(mockApi).length > 0
+export const api: RedisDesktopApi = bridge
+  ? (wrapApi(bridge) as RedisDesktopApi)
+  : hasMock
+    ? mockApi
+    : unavailableApi()

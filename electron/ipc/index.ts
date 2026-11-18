@@ -2,6 +2,7 @@ import { BrowserWindow, app, dialog, ipcMain } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
 import { IPC } from '../../shared/api'
+import { redactCliSecrets } from '../../shared/cli-redact'
 import { t } from '@shared/i18n'
 import type {
   CacheConnectionConfig,
@@ -56,7 +57,7 @@ import {
   removeLuaScripts,
   saveLuaScript,
 } from '../services/lua-script-store'
-import { loadSettings, saveSettings } from '../services/settings-store'
+import { loadSettings, saveSettings, pruneConnectionExpandedPaths } from '../services/settings-store'
 import { applyUpdateProxy, detectLocalProxy } from '../services/proxy-service'
 import { configInfo } from '../services/config-path'
 import { CLOSE_CONFIRM, CLOSE_HANDLED, closeSignal } from '../services/close-signal'
@@ -239,7 +240,8 @@ function describe(
     const engine = engineOfId(first)
     switch (channel) {
       case IPC.redisCli:
-        return { connectionName, engine, detail: String(args[1] ?? '') }
+        /* 凭据打码：AUTH / HELLO AUTH 的密码不进操作日志（见 shared/cli-redact） */
+        return { connectionName, engine, detail: redactCliSecrets(String(args[1] ?? '')) }
       case IPC.redisEval: {
         const script = String(args[1] ?? '')
         const options = (args[2] ?? {}) as EvalOptions
@@ -686,6 +688,8 @@ export function registerIpcHandlers(): void {
     /* 收藏与 CLI 历史同样按连接分桶，连接删除后一并清理 */
     pruneConnectionFavorites(String(id))
     pruneConnectionCliHistory(String(id))
+    /* 树展开快照（expandedPaths）按 connId@db 分桶，同样随连接清理 */
+    pruneConnectionExpandedPaths(String(id))
     if (pruned > 0) {
       void appendLog({
         timestamp: Date.now(),
@@ -901,7 +905,10 @@ export function registerIpcHandlers(): void {
     return connectionManager.disconnect(id as string)
   })
 
-  handle<boolean>(IPC.connectionStatus, (id) => connectionManager.isConnected(id as string))
+  handle<boolean>(IPC.connectionStatus, (id) =>
+    /* 双引擎：Memcached 连接由独立管理器持有，只查 Redis 会恒 false */
+    connectionManager.isConnected(id as string) || memcachedManager.owns(id as string),
+  )
 
   // -------------------------------------------------------- 数据浏览
   handle<ServerInfo>(IPC.redisInfo, (id) => connectionManager.serverInfo(id as string))

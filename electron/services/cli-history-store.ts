@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import type { CliHistoryFile } from '../../shared/types'
 import { CLI_HISTORY_LIMIT } from '../../shared/limits'
+import { redactCliSecrets } from '../../shared/cli-redact'
 import { configFile } from './config-path'
 
 /**
@@ -52,9 +53,11 @@ export function getCliHistory(connId: string): string[] {
   return loadFile()[connId] ?? []
 }
 
-/** 记录一次执行，返回该连接最新列表（新的在前） */
+/** 记录一次执行，返回该连接最新列表（新的在前）。
+ *  凭据命令（AUTH / HELLO AUTH）落盘前打码 —— 历史文件是明文 JSON，
+ *  不能成为绕过连接配置加密层的泄露点（与操作日志同一规则）。 */
 export function recordCliHistory(connId: string, command: string): string[] {
-  const trimmed = command.trim()
+  const trimmed = redactCliSecrets(command)
   if (!trimmed) return getCliHistory(connId)
 
   const data = loadFile()

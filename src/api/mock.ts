@@ -14,6 +14,7 @@ import {
 import { APP_VERSION } from '@/services/errorReport'
 import { memoryPrefixOf, MEMORY_BUCKET_LIMIT } from '@shared/keyspace'
 import { FAVORITES_LIMIT, CLI_HISTORY_LIMIT } from '@shared/limits'
+import { redactCliSecrets } from '@shared/cli-redact'
 import type {
   ApiResponse,
   AppSettings,
@@ -742,7 +743,7 @@ function mockCliHistoryOf(connId: string): string[] {
 }
 
 function mockRecordCliHistory(connId: string, command: string): string[] {
-  const trimmed = command.trim()
+  const trimmed = redactCliSecrets(command)
   if (!trimmed) return mockCliHistoryOf(connId)
   const bucket = mockCliHistory[connId] ?? []
   const lower = trimmed.toLowerCase()

@@ -54,3 +54,7 @@ scripts/*
 # 根目录的崩溃转储与量测产物
 xargs.exe.stackdump
 card-layers-*.png
+
+# 打包临时目录与 asar 锁测试产物（本地遗留物，不入库）
+.pack-tmp/
+_lock-test.asar
