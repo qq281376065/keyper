@@ -240,7 +240,7 @@ jobs:
             # 用 HEAD 探状态，别把 81MB 的安装包再下一遍；GitHub 会 302 到对象存储，必须跟跳转
             probe "$base/$f" "$f" || exit 1
           done
-          count=$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq "[] | .[] | select(.tag_name==\"$TAG\") | .id" | wc -l)
+          count=$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq ".[] | select(.tag_name==\"$TAG\") | .id" | wc -l)
           if [ "$count" != "1" ]; then
             echo "::error::标签 $TAG 挂着 $count 个 Release，下载路径只会解析到其中一个"
             exit 1
