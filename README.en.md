@@ -20,16 +20,23 @@ registering it; no existing code path has to change.
 > shared type contracts and packaging configuration follow that structure; the renderer has been
 > rebuilt around a multi-engine architecture.
 
-Current version: `1.1.6`
+Current version: `1.1.7`
 
-What changed in this release (1.1.5 → 1.1.6):
+What changed in this release (1.1.6 → 1.1.7):
+
+- **Network proxy in global settings** (optional, off by default = direct connection, preserving existing behavior): three modes — Off / Follow system / Manual. Manual addresses accept `http://` / `socks5://` (protocol optional, paths and credentials stripped automatically), saved on Enter or blur, preserved when switching modes; invalid configs converge back to direct.
+- **Auto-detect local proxy**: one click probes system proxy settings (Windows registry) / environment variables / session proxy resolution (including PAC); a detected proxy is filled in automatically and the mode switches to Manual, with a source note.
+- **Updates go through the proxy**: version checks and installer downloads (including blockmap differential chunks) follow the setting, applied immediately on save without restart; the proxy only affects the update channel, never Redis / Memcached connections.
+- **Full regression**: 24 specs / 268 tests (23 new proxy-rule unit tests), 1687 i18n keys, 15 style-convention assertions, type checking for both projects all pass; browser-verified default-off, mode switching, detect-and-fill, Enter-to-save, persistence across reopen, and address retention.
+
+Previous release (1.1.5 → 1.1.6):
 
 - **Tree-structure view for string values (Redis + Memcached)**: the format menu gains a "Tree structure" option — valid JSON objects/arrays convert to a tree with ± collapse boxes, │├└ connector lines, semantic type icons (object blue braces / array purple brackets / string blue dot / int green / bool yellow / null red) and structural counts `{Object:n}` / `[Array:n]`. Defaults to fully collapsed (the capsule's selected state tracks expansion); expand/collapse are icon-only segmented capsules; subtrees render lazily so huge JSON only pays for what is expanded. Long strings are truncated with a "View" dialog built on the shared DialogShell (raw / pretty-JSON toggle, word wrap, char/line/byte stats, copy). Non-JSON or scalar values get a readable error.
 - **Skin refresh**: Forest / Aurora retired; **Phosphor** (dark) and **Berry Pop** (light) join the lineup. Existing settings migrate automatically (forest→phosphor, aurora→berry); the total stays at nine skins.
 - **CSS slimming**: removed 604 legacy dual-form selectors left over from the Vue port (two full className scans confirmed zero same-element hits; 26 rules with real dual-mount usage kept). Source 414KB→397KB, built CSS 346KB→339KB, zero visual regression.
 - **Full regression**: 23 specs / 245 tests (27 real-Redis integration tests skip without the disposable instance), 1670 i18n keys, 15 style-convention assertions, type checking for both projects, production build and CSP validation all pass; browser-verified tree expand/collapse, long-value dialog, skin switching, context menus and settings dialog with no style regression.
 
-Previous release (1.1.4 → 1.1.5):
+Earlier (1.1.4 → 1.1.5):
 
 - **Performance pass (main process)**: very large string values now load in segments via STRLEN + GETRANGE (2MB first page, 2MB per continuation, 32MB hard cap for copy/export whole reads; multi-byte UTF-8 characters are never split across segments), so a single huge key can no longer exhaust memory and IPC. Binary reads probe the size first and fetch only the capped range; gzip / zlib decompression is now asynchronous (no longer blocks the main-process event loop). Whole-key saves run atomically in MULTI with 500-element chunking, and stream rewrites take a single round trip. Seven micro-operations (add member / delete element / rename, etc.) are merged into one pipeline each (saving 2–4 RTTs per action over SSH tunnels); renames use RENAMENX to keep the no-overwrite guarantee.
 - **Bulk operations moved into the main process**: delete / TTL / prefix-rename now start with one IPC call and execute in chunks in the main process — a 1000-key task drops from 1000 IPC round trips to 1. Per-key failure details, cancellation (stops at the next chunk boundary) and list synchronization are preserved; the operation log writes one summary per task.
