@@ -7,7 +7,8 @@ import { registerIpcHandlers } from './ipc'
 import { connectionManager } from './services/connection-manager'
 import { appendErrorLog, flushLogs, pruneOldLogs } from './services/log-service'
 import { configDir, scriptsDir } from './services/config-path'
-import { setSystemLocale, syncMainLocale } from './services/settings-store'
+import { loadSettings, setSystemLocale, syncMainLocale } from './services/settings-store'
+import { applyUpdateProxy } from './services/proxy-service'
 import { CLOSE_CONFIRM, CLOSE_HANDLED, closeSignal } from './services/close-signal'
 
 /**
@@ -544,6 +545,8 @@ if (!gotTheLock) {
       trace('scripts dir init failed', { error: String(error) })
     }
     registerIpcHandlers()
+    // 启动时把已保存的代理设置应用到更新通道（默认 off = 直连，行为不变）
+    void applyUpdateProxy(loadSettings().proxy)
     // 启动时清一次超出保留天数的历史日志
     pruneOldLogs()
     createMainWindow()

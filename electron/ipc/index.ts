@@ -57,6 +57,7 @@ import {
   saveLuaScript,
 } from '../services/lua-script-store'
 import { loadSettings, saveSettings } from '../services/settings-store'
+import { applyUpdateProxy, detectLocalProxy } from '../services/proxy-service'
 import { configInfo } from '../services/config-path'
 import { CLOSE_CONFIRM, CLOSE_HANDLED, closeSignal } from '../services/close-signal'
 import { checkForUpdate, openUpdatePage } from '../services/update-service'
@@ -71,6 +72,7 @@ import {
 import type {
   ApiResponse,
   AppSettings,
+  ProxyDetectResult,
   CliResult,
   ConnectionExportOptions,
   ConnectionExportResult,
@@ -511,9 +513,17 @@ export function registerIpcHandlers(): void {
   // -------------------------------------------------------- 设置
   handle<AppSettings>(IPC.settingsGet, () => loadSettings())
 
-  handle<AppSettings>(IPC.settingsSave, (patch) =>
-    saveSettings((patch ?? {}) as Partial<AppSettings>),
-  )
+  handle<AppSettings>(IPC.settingsSave, async (patch) => {
+    const saved = saveSettings((patch ?? {}) as Partial<AppSettings>)
+    /* 代理设置变更即时应用到更新通道（updater 会话 + 兜底检查会话），无需重启 */
+    if (patch && typeof patch === 'object' && 'proxy' in (patch as object)) {
+      await applyUpdateProxy(saved.proxy)
+    }
+    return saved
+  })
+
+  /* 自动检测本地代理设置（系统注册表 / 环境变量 / 会话解析），供设置面板填充 */
+  handle<ProxyDetectResult>(IPC.proxyDetect, () => detectLocalProxy())
 
   // 配置文件位置（便携模式可能回退到 userData，界面需要如实告知）
   handle<{ dir: string; portable: boolean; reason: string | null }>(IPC.settingsConfigInfo, () =>

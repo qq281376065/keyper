@@ -37,6 +37,7 @@
     "vitest.config.ts",
     "scripts/**/*.ts",
     "tests/unit/credentialCrypto.spec.ts",
+    "tests/unit/proxyRules.spec.ts",
     "tests/unit/connectionManagerPerf.spec.ts",
     "tests/unit/memcachedClient.spec.ts",
     "tests/unit/memcachedManager.spec.ts",

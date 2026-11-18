@@ -2066,3 +2066,24 @@
   width: 380px !important;
   max-width: calc(100vw - 40px) !important;
 }
+
+/* ------------------------------------------------------------------ 网络代理（更新通道） */
+/* 地址输入 + 自动检测按钮同行：输入吃掉剩余宽度，按钮固定不收缩 */
+.dlg .proxy-address-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+}
+.dlg .proxy-input.proxy-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 30px;
+  font-size: var(--fs-xs);
+}
+.dlg .proxy-detect.proxy-detect {
+  flex: 0 0 auto;
+  height: 30px;
+  font-size: var(--fs-sm);
+}

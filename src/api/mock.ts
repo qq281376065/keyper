@@ -970,6 +970,7 @@ const DEFAULT_MOCK_SETTINGS: AppSettings = {
   keySeparator: ':',
   confirmDelete: true,
   logRetentionDays: 30,
+  proxy: { mode: 'off', url: '' },
   theme: 'system',
   viewMode: 'tree',
   cliCollapsed: true,
@@ -1189,6 +1190,11 @@ export const mockApi: RedisDesktopApi = {
     // 浏览器预览没有真实文件系统，给一个示意路径
     configInfo: async () =>
       ok({ dir: '（浏览器预览无配置文件）', portable: false, reason: '当前运行在浏览器预览模式' }),
+    /* 浏览器预览：模拟检测到一个本地代理，便于验证填充交互 */
+    detectProxy: async () => {
+      await delay(400)
+      return ok({ found: true, url: 'http://127.0.0.1:7890', source: 'system' as const })
+    },
   },
 
   searchHistory: {

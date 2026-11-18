@@ -1,6 +1,7 @@
 import type {
   ApiResponse,
   AppSettings,
+  ProxyDetectResult,
   CliResult,
   ConnectionStatus,
   ConnectionState,
@@ -106,6 +107,8 @@ export interface RedisDesktopApi {
     save: (patch: Partial<AppSettings>) => Promise<ApiResponse<AppSettings>>
     /** 配置文件所在目录（便携模式可能回退到 userData） */
     configInfo: () => Promise<ApiResponse<{ dir: string; portable: boolean; reason: string | null }>>
+    /** 自动检测本地代理设置（系统注册表 / 环境变量 / 会话解析），供设置面板填充 */
+    detectProxy: () => Promise<ApiResponse<ProxyDetectResult>>
   }
 
   /**
@@ -615,6 +618,7 @@ export const IPC = {
   settingsGet: 'settings:get',
   settingsSave: 'settings:save',
   settingsConfigInfo: 'settings:configInfo',
+  proxyDetect: 'proxy:detect',
 
   searchHistoryGet: 'searchHistory:get',
   searchHistoryRecord: 'searchHistory:record',
