@@ -1029,23 +1029,38 @@ class ConnectionManager {
       const batch = room < keys.length ? keys.slice(0, room) : keys
       if (batch.length < keys.length) truncated = true
 
-      for (let i = 0; i < batch.length; i += 100) {
-        const slice = batch.slice(i, i + 100)
-        const pipeline = client.pipeline()
-        for (const key of slice) pipeline.memory('USAGE', key)
-        const replies = await pipeline.exec()
-        slice.forEach((key, j) => {
-          const reply = replies?.[j]
-          /* pipeline 回复是 [err, result]：键已删除时 result 为 null，按 0 计 */
-          const bytes = reply?.[0] ? 0 : Math.max(0, Number(reply?.[1]) || 0)
-          const prefix = memoryPrefixOf(key, level)
-          const bucket = buckets.get(prefix) ?? { prefix, keys: 0, bytes: 0 }
-          bucket.keys += 1
-          bucket.bytes += bytes
-          buckets.set(prefix, bucket)
-          scanned += 1
-          totalBytes += bytes
-        })
+      /*
+       * 批内 100 键一组 pipeline；组间 4 路并发（原串行 await）。
+       * SSH 隧道下单程 50-150ms，2000 键 = 20 组，串行 20 RTT → 并发 5 轮。
+       * 并发只发 MEMORY USAGE 读命令，ioredis 单连接上 pipeline 交错安全；
+       * 聚合在每组回复后同步进行，scanned/totalBytes 不会竞态。
+       */
+      const slices: string[][] = []
+      for (let i = 0; i < batch.length; i += 100) slices.push(batch.slice(i, i + 100))
+      const CONCURRENCY = 4
+      for (let i = 0; i < slices.length; i += CONCURRENCY) {
+        const group = slices.slice(i, i + CONCURRENCY)
+        const results = await Promise.all(
+          group.map((slice) => {
+            const pipeline = client.pipeline()
+            for (const key of slice) pipeline.memory('USAGE', key)
+            return pipeline.exec().then((replies) => ({ slice, replies }))
+          }),
+        )
+        for (const { slice, replies } of results) {
+          slice.forEach((key, j) => {
+            const reply = replies?.[j]
+            /* pipeline 回复是 [err, result]：键已删除时 result 为 null，按 0 计 */
+            const bytes = reply?.[0] ? 0 : Math.max(0, Number(reply?.[1]) || 0)
+            const prefix = memoryPrefixOf(key, level)
+            const bucket = buckets.get(prefix) ?? { prefix, keys: 0, bytes: 0 }
+            bucket.keys += 1
+            bucket.bytes += bytes
+            buckets.set(prefix, bucket)
+            scanned += 1
+            totalBytes += bytes
+          })
+        }
       }
 
       if (truncated) break
