@@ -20,16 +20,22 @@ registering it; no existing code path has to change.
 > shared type contracts and packaging configuration follow that structure; the renderer has been
 > rebuilt around a multi-engine architecture.
 
-Current version: `1.1.7`
+Current version: `1.1.8`
 
-What changed in this release (1.1.6 → 1.1.7):
+What changed in this release (1.1.7 → 1.1.8):
+
+- **Fix: manual proxy with an empty address bounced back to Off** — switching to Manual while the address was still empty made the settings validator treat "manual + empty" as invalid and converge it back to Off, snapping the user's choice away. Mode selection is now decoupled from address validation: empty or invalid addresses keep Manual mode (the input stays visible and editable, the original value stays correctable), while the effective proxy config still falls back to direct for empty/invalid addresses so a broken config can never hang the update channel.
+- **Settings segmented selection color follows the skin** — the global-settings segmented controls used a gray elevated background for the selected item (nearly identical to the groove in most skins, making selection invisible). Now accent-soft background + accent text + brand inset stroke + lift shadow, the same skin-variable semantics as the value toolbar and tree view, following all nine skins automatically.
+- **Full regression**: 24 specs / 269 tests, 1687 i18n keys, 15 style-convention assertions, type checking for both projects all pass; browser-verified Manual mode stays put with an empty address, and selection colors track five skins (Sakura / Phosphor / Ocean / Berry Pop / Dark) correctly.
+
+Previous release (1.1.6 → 1.1.7):
 
 - **Network proxy in global settings** (optional, off by default = direct connection, preserving existing behavior): three modes — Off / Follow system / Manual. Manual addresses accept `http://` / `socks5://` (protocol optional, paths and credentials stripped automatically), saved on Enter or blur, preserved when switching modes; invalid configs converge back to direct.
 - **Auto-detect local proxy**: one click probes system proxy settings (Windows registry) / environment variables / session proxy resolution (including PAC); a detected proxy is filled in automatically and the mode switches to Manual, with a source note.
 - **Updates go through the proxy**: version checks and installer downloads (including blockmap differential chunks) follow the setting, applied immediately on save without restart; the proxy only affects the update channel, never Redis / Memcached connections.
 - **Full regression**: 24 specs / 268 tests (23 new proxy-rule unit tests), 1687 i18n keys, 15 style-convention assertions, type checking for both projects all pass; browser-verified default-off, mode switching, detect-and-fill, Enter-to-save, persistence across reopen, and address retention.
 
-Previous release (1.1.5 → 1.1.6):
+Earlier (1.1.5 → 1.1.6):
 
 - **Tree-structure view for string values (Redis + Memcached)**: the format menu gains a "Tree structure" option — valid JSON objects/arrays convert to a tree with ± collapse boxes, │├└ connector lines, semantic type icons (object blue braces / array purple brackets / string blue dot / int green / bool yellow / null red) and structural counts `{Object:n}` / `[Array:n]`. Defaults to fully collapsed (the capsule's selected state tracks expansion); expand/collapse are icon-only segmented capsules; subtrees render lazily so huge JSON only pays for what is expanded. Long strings are truncated with a "View" dialog built on the shared DialogShell (raw / pretty-JSON toggle, word wrap, char/line/byte stats, copy). Non-JSON or scalar values get a readable error.
 - **Skin refresh**: Forest / Aurora retired; **Phosphor** (dark) and **Berry Pop** (light) join the lineup. Existing settings migrate automatically (forest→phosphor, aurora→berry); the total stays at nine skins.
