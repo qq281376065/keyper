@@ -388,7 +388,7 @@
   font-size: var(--fs-sm);
   line-height: 1.6;
   color: var(--text-primary);
-  overscroll-behavior: contain;
+  /* 嵌套容器不加 contain：值不足不溢出时避免滚轮死区（见 .dlg-body 注释） */
 }
 .s-tree-value-dialog .tvd-body.nowrap{
   white-space: pre;

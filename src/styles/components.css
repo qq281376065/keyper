@@ -7718,7 +7718,8 @@
 .s-slowlog-card .sl-occ-virtual{
   max-height: 224px;
   overflow-y: auto;
-  overscroll-behavior: contain;
+  /* 嵌套于 .ov-tab-pane：不加 contain，行数不足不溢出时避免滚轮死区
+     （见 connection-dialog.css .dlg-body 的全局规则注释） */
   scrollbar-gutter: stable;
 }
 .s-slowlog-card .sl-occrow{
@@ -14813,7 +14814,7 @@ body.col-resizing .col-handle::after{
   padding: 8px 10px;
   overflow-x: auto;
   overflow-y: auto;
-  overscroll-behavior: contain;
+  /* 嵌套容器不加 contain：结果不足不溢出时避免滚轮死区（见 .dlg-body 注释） */
   scrollbar-gutter: stable;
   white-space: pre-wrap;
   word-break: break-all;
