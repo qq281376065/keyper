@@ -20,9 +20,21 @@ registering it; no existing code path has to change.
 > shared type contracts and packaging configuration follow that structure; the renderer has been
 > rebuilt around a multi-engine architecture.
 
-Current version: `1.1.9`
+Current version: `1.1.10`
 
-What changed in this release (1.1.8 → 1.1.9):
+What changed in this release (1.1.9 → 1.1.10):
+
+- **Security: CLI credential redaction** — passwords in `AUTH` / `HELLO ... AUTH` are masked to `***` in the operation log, CLI history, session echo, and mock (execution still uses the original), no longer persisted in plaintext.
+- **Security: SSH private keys encrypted at rest** — private keys get the same enc2 treatment as login passwords; legacy plaintext keys auto-migrate on read; the "rename-only save preserves old ciphertext" protection now covers keys too.
+- **Fix: main connection port validation** — invalid ports (0 / 65536+ / non-integer) show an inline error and disable submit, with a backstop at both engines' connect/test entry, instead of a misleading network error.
+- **Fix: hidden tabs stop auto-refresh** — a tab you switched away from no longer hits Redis every 5s in the background (saves SSH tunnel traffic); it resumes on return without clearing state.
+- **Fix: production bundle no longer crashes in a plain browser** — dist served from a static server shows a friendly notice instead of a raw TypeError; the first-frame theme script now writes data-scheme, eliminating the production CSP inline-style violation.
+- **Perf: key memory analysis runs 4 pipeline batches concurrently** — 2000 keys over SSH drop from 20 round-trips to 5 rounds.
+- **Build: fonts vendored, geist/next removed (-203MB of dependencies) + Electron 45.3.4** (eMudhra certificate-trust hardening + Chromium 156.0.8078.100); trimmed 13 groups of dead dialog CSS (-49KB in the bundle).
+- **Misc**: tree-expansion snapshots pruned on connection removal; connection:status covers Memcached; update feed restricted to https.
+- **Full regression**: 26 specs / 292 tests (23 new), 1695 i18n keys, 15 style assertions, 11 e2e assertions, type checking for both projects all pass; browser-verified on both dev and production channels plus a packaged build.
+
+Previous release (1.1.8 → 1.1.9):
 
 - **Global settings redesigned as a side-panel layout (Scheme A)** — left group navigation (icons + count badges + accent indicator bars), right pane shows only the active group; all four groups share a fixed body height so the dialog no longer jumps when switching groups; the network-proxy group is folded into the new layout.
 - **Dialog wheel fix: only the right pane scrolls** — content areas with a scrollbar now respond to the mouse wheel; in the settings dialog the left navigation stays fixed and overflow scrolls only inside the right pane, instead of dragging the navigation along in short windows.
