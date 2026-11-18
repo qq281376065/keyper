@@ -113,8 +113,10 @@ export function appliedTheme(mode: ThemeMode): AppliedTheme {
 function apply(theme: AppliedTheme): void {
   const root = document.documentElement
   root.dataset.theme = theme
-  // 让原生控件（滚动条、输入框光标、下拉）跟随主题；皮肤归并到自身明暗档
-  root.style.colorScheme =
+  // 让原生控件（滚动条、输入框光标、下拉）跟随主题；皮肤归并到自身明暗档。
+  // 写 data-scheme 由 CSS [data-scheme] 驱动 color-scheme，不写内联样式 ——
+  // 与首帧脚本同一机制，生产 CSP style-src 'self' 下不被拦。
+  root.dataset.scheme =
     theme === 'light' || theme === 'dark' ? theme : SKIN_SCHEME[theme]
 }
 

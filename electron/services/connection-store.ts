@@ -84,18 +84,19 @@ export class SecureStringError extends Error {
 type PersistedShape = (Omit<RedisConnectionConfig, 'password' | 'ssh'> | MemcachedConnectionConfig) & {
   password?: string
   /**
-   * SSH 配置也含凭据（登录密码 / 私钥口令），与 Redis 密码同等待遇。
-   * 私钥正文本身不算机密（用户从文件里粘贴，磁盘上已有），不做加密以免拖慢读写。
+   * SSH 配置也含凭据（登录密码 / 私钥口令 / 私钥正文），与 Redis 密码同等待遇。
+   * 私钥即凭据：配置文件被拷走不该连私钥一起泄露（roadmap 1.4）。
+   * 历史明文私钥仍可解（unsealSecret 无前缀原样返回），保存时自动加密。
    */
   ssh?: SshConfig
 }
 
 /**
  * 只加密凭据字段，其余原样透传。
- * SSH 私钥内容可能长达数 KB，逐字段改写而不是整体序列化，
+ * SSH 私钥与登录密码/口令同等待遇 —— 私钥即凭据，配置文件被拷走
+ * 不该连私钥一起泄露（roadmap 1.4）。逐字段改写而不是整体序列化，
  * 避免在加解密时反复拼装大字符串。
- * 中间跳板（hops）的登录密码/口令与本体同等待遇 —— 堡垒机链上
- * 每一跳都是独立凭据，任何一环明文落盘都是泄露点。
+ * 中间跳板（hops）的每一跳都是独立凭据，任何一环明文落盘都是泄露点。
  */
 function sealSsh(ssh: SshConfig | undefined): SshConfig | undefined {
   if (!ssh) return undefined
@@ -103,6 +104,7 @@ function sealSsh(ssh: SshConfig | undefined): SshConfig | undefined {
     ...ssh,
     password: ssh.password ? encryptPassword(ssh.password) : undefined,
     passphrase: ssh.passphrase ? encryptPassword(ssh.passphrase) : undefined,
+    privateKey: ssh.privateKey ? encryptPassword(ssh.privateKey) : undefined,
     hops: sealHops(ssh.hops),
   }
 }
@@ -113,6 +115,7 @@ function unsealSsh(ssh: SshConfig | undefined): SshConfig | undefined {
     ...ssh,
     password: decryptPassword(ssh.password),
     passphrase: decryptPassword(ssh.passphrase),
+    privateKey: decryptPassword(ssh.privateKey),
     hops: unsealHops(ssh.hops),
   }
 }
@@ -124,6 +127,7 @@ function sealHops(hops: SshHop[] | undefined): SshHop[] | undefined {
     ...hop,
     password: hop.password ? encryptPassword(hop.password) : undefined,
     passphrase: hop.passphrase ? encryptPassword(hop.passphrase) : undefined,
+    privateKey: hop.privateKey ? encryptPassword(hop.privateKey) : undefined,
   }))
 }
 
@@ -133,6 +137,7 @@ function unsealHops(hops: SshHop[] | undefined): SshHop[] | undefined {
     ...hop,
     password: decryptPassword(hop.password),
     passphrase: decryptPassword(hop.passphrase),
+    privateKey: decryptPassword(hop.privateKey),
   }))
 }
 
@@ -160,12 +165,14 @@ function mergeSsh(item: SshConfig, prevSsh: SshConfig): SshConfig {
     ...item,
     password: preserveCredential(item.password, prevSsh.password),
     passphrase: preserveCredential(item.passphrase, prevSsh.passphrase),
+    privateKey: preserveCredential(item.privateKey, prevSsh.privateKey),
     hops: item.hops?.map((hop, index) => {
       const prevHop = prevSsh.hops?.[index]
       return {
         ...hop,
         password: preserveCredential(hop.password, prevHop?.password),
         passphrase: preserveCredential(hop.passphrase, prevHop?.passphrase),
+        privateKey: preserveCredential(hop.privateKey, prevHop?.privateKey),
       }
     }),
   }
@@ -201,6 +208,13 @@ export function loadConnections(): CacheConnectionConfig[] {
       }
 
       /*
+       * 历史明文私钥迁移标记：1.1.9 及更早版本私钥不加密（无前缀明文）。
+       * 本次能读到就标记待迁移，保存时改写为 enc2:，不留明文尾巴。
+       * 只标记「非空且无任何已知前缀」的私钥；enc2/enc/raw 形态不动。
+       */
+      if (item.ssh && hasPlaintextPrivateKey(item.ssh)) needsMigration = true
+
+      /*
        * SSH 凭据解密失败时**不能把密文形态的 ssh 原样交回界面**。
        *
        * 曾经的做法是 `ssh = item.ssh`（密文保留），后果链条：
@@ -229,7 +243,8 @@ export function loadConnections(): CacheConnectionConfig[] {
             ...original,
             password: undefined,
             passphrase: undefined,
-            hops: original.hops?.map((hop) => ({ ...hop, password: undefined, passphrase: undefined })),
+            privateKey: undefined,
+            hops: original.hops?.map((hop) => ({ ...hop, password: undefined, passphrase: undefined, privateKey: undefined })),
           }
         }
       }
@@ -272,20 +287,23 @@ export function loadConnections(): CacheConnectionConfig[] {
          */
         let changed = false
         for (const item of list) {
-          if (!isLegacyCipher(item.password)) continue
-          let plain: string | undefined
-          try {
-            plain = unsealSecret(item.password)
-          } catch {
-            continue /* 解不开的不动，交给界面提示重填 */
+          /* 旧格式主密码：能解开才改写为 enc2 */
+          if (isLegacyCipher(item.password)) {
+            let plain: string | undefined
+            try {
+              plain = unsealSecret(item.password)
+            } catch {
+              plain = undefined /* 解不开的不动，交给界面提示重填 */
+            }
+            if (plain !== undefined) {
+              const sealed = sealSecret(plain)
+              if (sealed && sealed !== item.password) {
+                item.password = sealed
+                changed = true
+              }
+            }
           }
-          if (plain === undefined) continue
-          const sealed = sealSecret(plain)
-          if (sealed && sealed !== item.password) {
-            item.password = sealed
-            changed = true
-          }
-          /* SSH 凭据同步迁移（本体 + 每一跳） */
+          /* SSH 凭据同步迁移（本体 + 每一跳）：旧 enc: 格式 + 历史明文私钥 */
           if (item.ssh) changed = migrateSshCiphers(item.ssh) || changed
         }
         if (changed) {
@@ -307,8 +325,10 @@ export function loadConnections(): CacheConnectionConfig[] {
 }
 
 /**
- * SSH 凭据的旧格式迁移（本体 + 每一跳）。
- * 只处理 enc: 形态且能解开的字段，返回是否有改动。
+ * SSH 凭据迁移（本体 + 每一跳），返回是否有改动。两类：
+ *   · enc: 旧格式且能解开 → 改写为 enc2:；
+ *   · 历史明文私钥（1.1.9 及更早不加密，无任何前缀）→ 直接加密。
+ * 私钥明文检测只看「非空且无已知前缀」，enc2/enc/raw 形态一律不动。
  */
 function migrateSshCiphers(ssh: SshConfig): boolean {
   let changed = false
@@ -324,17 +344,35 @@ function migrateSshCiphers(ssh: SshConfig): boolean {
       return value
     }
   }
-  const nextPassword = upgrade(ssh.password)
-  const nextPassphrase = upgrade(ssh.passphrase)
-  ssh.password = nextPassword
-  ssh.passphrase = nextPassphrase
+  const sealPlaintextKey = (value: string | undefined): string | undefined => {
+    if (!isPlaintextSecret(value)) return value
+    const sealed = sealSecret(value)
+    if (sealed && sealed !== value) changed = true
+    return sealed ?? value
+  }
+  ssh.password = upgrade(ssh.password)
+  ssh.passphrase = upgrade(ssh.passphrase)
+  ssh.privateKey = sealPlaintextKey(ssh.privateKey)
   if (ssh.hops) {
     for (const hop of ssh.hops) {
       hop.password = upgrade(hop.password)
       hop.passphrase = upgrade(hop.passphrase)
+      hop.privateKey = sealPlaintextKey(hop.privateKey)
     }
   }
   return changed
+}
+
+/** 无已知前缀的非空凭据 = 历史明文（unsealSecret 对它的语义是原样返回） */
+function isPlaintextSecret(value: string | undefined): boolean {
+  if (!value) return false
+  return !value.startsWith('enc2:') && !value.startsWith('enc:') && !value.startsWith('raw:')
+}
+
+/** SSH 配置（含每一跳）里是否存在历史明文私钥 */
+function hasPlaintextPrivateKey(ssh: SshConfig): boolean {
+  if (isPlaintextSecret(ssh.privateKey)) return true
+  return ssh.hops?.some((hop) => isPlaintextSecret(hop.privateKey)) ?? false
 }
 
 export function saveConnections(list: CacheConnectionConfig[]): void {
