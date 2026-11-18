@@ -4,6 +4,7 @@ import { settings } from '@/services/settings'
 import { defineStore, type AppStore } from '@/store'
 import { renamedKey } from '@/utils/renamedKey'
 import { isReadonlyCliCommand } from '@/utils/cliReadonly'
+import { redactCliSecrets } from '@shared/cli-redact'
 import { emitMcKeysChanged } from '@/utils/memcachedEvents'
 import type {
   ConnectionStatus,
@@ -1563,7 +1564,9 @@ export function createSession(
   async function runCli(command: string): Promise<void> {
     const trimmed = command.trim()
     if (!trimmed || !state.activeId) return
-    state.cliEntries.push({ kind: 'input', text: trimmed, at: Date.now() })
+    /* 回显打码：AUTH/HELLO AUTH 的密码不进会话日志（与持久化历史同一规则）。
+       下发仍用原文 —— 打码只影响展示与落盘，不影响执行。 */
+    state.cliEntries.push({ kind: 'input', text: redactCliSecrets(trimmed), at: Date.now() })
     state.cliRunning = true
     try {
       const res = await api.redis.cli(state.activeId, trimmed)
