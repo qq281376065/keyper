@@ -20,9 +20,16 @@ registering it; no existing code path has to change.
 > shared type contracts and packaging configuration follow that structure; the renderer has been
 > rebuilt around a multi-engine architecture.
 
-Current version: `1.1.8`
+Current version: `1.1.9`
 
-What changed in this release (1.1.7 → 1.1.8):
+What changed in this release (1.1.8 → 1.1.9):
+
+- **Global settings redesigned as a side-panel layout (Scheme A)** — left group navigation (icons + count badges + accent indicator bars), right pane shows only the active group; all four groups share a fixed body height so the dialog no longer jumps when switching groups; the network-proxy group is folded into the new layout.
+- **Dialog wheel fix: only the right pane scrolls** — content areas with a scrollbar now respond to the mouse wheel; in the settings dialog the left navigation stays fixed and overflow scrolls only inside the right pane, instead of dragging the navigation along in short windows.
+- **Wheel dead-zone root cause fixed + global rule** — when a nested scroll container does not itself overflow, `overscroll-behavior: contain` cuts the wheel's scroll chain to outer scrollable ancestors per spec (nothing scrolls even though no listener calls preventDefault). Removed the same pattern in six more places (URI batch / import preview / issues / slowlog / Lua result / tree value); the rule is now documented: contain belongs only on the outermost scroll boundary.
+- **Full regression**: 24 specs / 269 tests, 15 style-convention assertions, type checking for both projects all pass; browser-verified tall/short windows × four-group switching keep the dialog size constant (576 / 420px), the left navigation never moves, right-pane wheel up/down works, and the connection dialog's input-wheel chaining plus scrolling after expanding SSH both work.
+
+Previous release (1.1.7 → 1.1.8):
 
 - **Fix: manual proxy with an empty address bounced back to Off** — switching to Manual while the address was still empty made the settings validator treat "manual + empty" as invalid and converge it back to Off, snapping the user's choice away. Mode selection is now decoupled from address validation: empty or invalid addresses keep Manual mode (the input stays visible and editable, the original value stays correctable), while the effective proxy config still falls back to direct for empty/invalid addresses so a broken config can never hang the update channel.
 - **Settings segmented selection color follows the skin** — the global-settings segmented controls used a gray elevated background for the selected item (nearly identical to the groove in most skins, making selection invisible). Now accent-soft background + accent text + brand inset stroke + lift shadow, the same skin-variable semantics as the value toolbar and tree view, following all nine skins automatically.
