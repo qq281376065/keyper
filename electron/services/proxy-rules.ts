@@ -39,7 +39,17 @@ export function normalizeProxyUrl(input: string): ProxyUrlCheck {
   return { ok: true, normalized }
 }
 
-/** 设置收敛：非法模式回退 off；manual 但地址非法时同样回退 off（避免半残配置） */
+/**
+ * 设置收敛：非法模式回退 off。
+ *
+ * manual 模式的地址处理（修复「点手动被弹回关闭」）：
+ *   · 空地址 —— 保留 manual + 空串。用户刚切到手动还没填地址是正常中间态，
+ *     输入框要可见可填；此时 buildProxyConfig 按直连处理，不会挂坏配置。
+ *   · 非空但非法 —— 同样保留 manual + 原值，让用户能看到自己填了什么并改正；
+ *     生效层面 buildProxyConfig 仍按直连兜底。
+ *   · 合法 —— 规范化保存。
+ * 只有「模式本身非法」才回退 off；地址问题不再连带篡改用户选择的模式。
+ */
 export function normalizeProxySettings(value: unknown): ProxySettings {
   if (!value || typeof value !== 'object') return { ...DEFAULT_PROXY }
   const raw = value as Partial<ProxySettings>
@@ -47,9 +57,9 @@ export function normalizeProxySettings(value: unknown): ProxySettings {
     raw.mode === 'system' || raw.mode === 'manual' ? raw.mode : 'off'
   const url = typeof raw.url === 'string' ? raw.url.trim() : ''
   if (mode === 'manual') {
+    if (!url) return { mode, url: '' }
     const check = normalizeProxyUrl(url)
-    if (!check.ok) return { ...DEFAULT_PROXY }
-    return { mode, url: check.normalized }
+    return { mode, url: check.ok ? check.normalized : url }
   }
   return { mode, url: mode === 'off' ? '' : url }
 }
