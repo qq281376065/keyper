@@ -9,6 +9,13 @@
   var ZH = {};
   var ZH_TITLE = doc.title;
   var ZH_DESC = (doc.querySelector('meta[name="description"]') || {}).content || "";
+  var pageUrl = window.location.href.split("#")[0];
+  var canonical = doc.querySelector('link[rel="canonical"]');
+  var ogUrl = doc.querySelector('meta[property="og:url"]');
+  var ogImage = doc.querySelector('meta[property="og:image"]');
+  if (canonical) canonical.setAttribute("href", pageUrl);
+  if (ogUrl) ogUrl.setAttribute("content", pageUrl);
+  if (ogImage) ogImage.setAttribute("content", new URL(ogImage.getAttribute("content"), pageUrl).href);
 
   /* ---------- dictionary snapshot (index.html is authored in zh-CN) ---------- */
   function nodes() {

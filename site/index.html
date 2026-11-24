@@ -4,14 +4,14 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Keyper · 多引擎键值缓存管理工具（开源）</title>
-<meta name="description" content="Keyper 是基于 Electron + React 19 + TypeScript 的跨平台键值缓存管理工具，同时支持 Redis 与 Memcached。本地优先、零遥测、引擎可插拔，Apache-2.0 开源。" />
+<meta name="description" content="Keyper 是基于 Electron 45 + React 19 + TypeScript 7 的跨平台键值缓存管理工具，同时支持 Redis 与 Memcached。本地优先、零遥测、引擎可插拔，Apache-2.0 开源。" />
 <meta name="color-scheme" content="dark light" />
 <meta property="og:title" content="Keyper · 多引擎键值缓存管理工具（开源）" />
-<meta property="og:description" content="Electron + React 19 + TypeScript 构建的 Redis / Memcached 桌面客户端。本地优先、引擎可插拔、发布全程可审计。" />
+<meta property="og:description" content="Electron 45 + React 19 + TypeScript 7 构建的 Redis / Memcached 桌面客户端。本地优先、引擎可插拔、发布全程可审计。" />
 <meta property="og:type" content="website" />
-<meta property="og:url" content="https://qq281376065.github.io/keyper/" />
-<link rel="canonical" href="https://qq281376065.github.io/keyper/" />
-<meta property="og:image" content="https://qq281376065.github.io/keyper/assets/screenshots/key-browser-dark.png" />
+<meta property="og:url" content="" />
+<link rel="canonical" href="" />
+<meta property="og:image" content="assets/screenshots/key-browser-dark.png" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%23CE3F33'/%3E%3Cpath d='M22 15v34M42 15 26.5 32 42 49' stroke='%23fff' stroke-width='6.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E" />
 <link rel="stylesheet" href="assets/css/site.css" />
 </head>
@@ -76,7 +76,7 @@
     <div class="hero-copy">
       <div class="badges">
         <span class="badge"><i class="dot dot-brand"></i><span data-i18n="hero.badge.oss">开源 · Apache-2.0</span></span>
-        <span class="badge" data-i18n="hero.badge.stack">Electron + React 19 + TypeScript</span>
+        <span class="badge" data-i18n="hero.badge.stack">Electron 45 + React 19 + TypeScript 7</span>
         <span class="badge"><i class="dot dot-ok"></i><span data-i18n="hero.badge.notelemetry">零遥测</span></span>
       </div>
 
@@ -168,9 +168,9 @@
   <div class="wrap stats">
     <div class="stat"><b>2</b><span data-i18n="stat.engines">引擎模块（Redis / Memcached 互相隔离）</span></div>
     <div class="stat"><b>6</b><span data-i18n="stat.types">种数据结构读写与可视化</span></div>
-    <div class="stat"><b>9</b><span data-i18n="stat.skins">套皮肤，CSS 变量驱动</span></div>
+    <div class="stat"><b>7</b><span data-i18n="stat.skins">套皮肤 + 明暗模式，CSS 变量驱动</span></div>
     <div class="stat"><b>3</b><span data-i18n="stat.langs">种界面语言，编译期校验</span></div>
-    <div class="stat"><b>21</b><span data-i18n="stat.tests">个 vitest 单元测试文件</span></div>
+    <div class="stat"><b>27</b><span data-i18n="stat.tests">个 vitest 单元测试文件</span></div>
     <div class="stat"><b>100<i>%</i></b><span data-i18n="stat.ts">TypeScript，主进程与渲染层同一套类型契约</span></div>
   </div>
 </section>
@@ -188,7 +188,7 @@
       <article class="card">
         <span class="card-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18V8m5 10V5m5 13v-7m5 7V9"/><path d="M3 21h18"/></svg></span>
         <h3 data-i18n="p1.h">本地优先</h3>
-        <p data-i18n-html="p1.p">连接配置、应用设置与操作日志全部落在本机配置目录。运行期唯一的外部请求是更新检查，而且可以用 <code>KEYPER_UPDATE_URL</code> 指向内网镜像。</p>
+        <p data-i18n-html="p1.p">连接配置、应用设置与操作日志全部落在本机配置目录。Keyper 不运行自己的账号或遥测服务；连接 Redis / Memcached / SSH 与检查更新会产生必要的网络请求，更新源可用 <code>KEYPER_UPDATE_URL</code> 指向内网镜像。</p>
       </article>
       <article class="card">
         <span class="card-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v6c0 4.2 2.9 7.6 7 9 4.1-1.4 7-4.8 7-9V6l-7-3Z"/><path d="m9 12 2.2 2.2L15.5 10"/></svg></span>
@@ -240,12 +240,12 @@
             <li data-i18n="eng.redis.1">多 DB 切换 + 分页 <code>SCAN</code> + 模式匹配 + 前端二次筛选</li>
             <li data-i18n="eng.redis.2">六种数据结构：string / hash / list / set / zset / stream，各自匹配对应的编辑语义</li>
             <li data-i18n="eng.redis.3">Pub/Sub 订阅：频道实底 chip、模式虚线 chip，可单个退订</li>
-            <li data-i18n="eng.redis.4">慢查询日志、键内存分析（按前缀聚合）、键空间通知位配置</li>
-            <li data-i18n="eng.redis.5">监控曲线：2 秒采样、保留 450 点，六个指标各一张折线图</li>
+            <li data-i18n="eng.redis.4">慢查询指纹工作台、键内存分析（按前缀聚合）、键空间通知位配置</li>
+            <li data-i18n="eng.redis.5">监控主图 + 迷你卡：内存趋势、均值与峰值、配额占比，2 秒采样并保留 450 点</li>
             <li data-i18n="eng.redis.6">SSH 隧道与多级跳板，生产实例也能安全直连</li>
-            <li data-i18n="eng.redis.7">内置 CLI：370 条命令补全、历史按连接持久化、结果直接回显</li>
+            <li data-i18n="eng.redis.7">内置 CLI：370 条命令补全、历史按连接持久化、结果直接回显，AUTH 自动打码</li>
             <li data-i18n="eng.redis.8">Stream 管理：消费组与 PEL、<code>XACK</code> / <code>XCLAIM</code> / <code>XTRIM</code>，低版本自动隐藏入口</li>
-            <li data-i18n="eng.redis.9">Lua 运行器：全局脚本库、<code>KEYS</code> / <code>ARGS</code>、<code>EVAL_RO</code> 与 <code>SCRIPT KILL</code></li>
+            <li data-i18n="eng.redis.9">Lua 运行器：每脚本一个 <code>.lua</code> 文件、旧脚本库自动迁移，支持 <code>KEYS</code> / <code>ARGS</code>、<code>EVAL_RO</code> 与 <code>SCRIPT KILL</code></li>
           </ul>
         </div>
         <aside class="split-side">
@@ -257,9 +257,9 @@
               <span><i class="t t-list"></i>list <em data-i18n="eng.redis.rw.rw">读写</em></span>
               <span><i class="t t-set"></i>set <em data-i18n="eng.redis.rw.rw">读写</em></span>
               <span><i class="t t-zset"></i>zset <em data-i18n="eng.redis.rw.rw">读写</em></span>
-              <span><i class="t t-stream"></i>stream <em data-i18n="eng.redis.rw.ro">只读</em></span>
+              <span><i class="t t-stream"></i>stream <em data-i18n="eng.redis.rw.ro">可管理</em></span>
             </div>
-            <p class="mini-note" data-i18n="eng.redis.note">stream 是追加写日志：改历史 entry 会破坏消费位点、删 entry 会造成消费缺口，因此只提供复制类操作。这是设计决定，不是没做完。</p>
+            <p class="mini-note" data-i18n="eng.redis.note">stream 是追加写日志：不支持直接改写历史 entry，但消费组、消费者、PEL 与 <code>XACK</code> / <code>XCLAIM</code> / <code>XTRIM</code> 等管理操作可在值区完成。</p>
           </div>
           <figure class="shot" data-full="assets/screenshots/key-value-zset.png" tabindex="0" role="button">
             <img src="assets/screenshots/key-value-zset.png" alt="zset 值表格" loading="lazy" />
@@ -321,20 +321,26 @@
       <article class="feat"><h4 data-i18n="f.8.h">连接导入导出</h4><p data-i18n="f.8.p">导出为带格式头的 JSON，凭据默认剥离，勾选包含需二次确认；导入先出逐条预览（冲突 / 已连接 / 非法条目），默认新建 ID、可切换按 ID 覆盖。URI 批量导入支持注释、最多 200 行、逐行报错且只导入合法行。</p></article>
       <article class="feat"><h4 data-i18n="f.9.h">应用内增量更新</h4><p data-i18n="f.9.p">在「检查更新」面板内直接下载并安装，走 blockmap 差分只传变化分块，显示百分比、已下载 / 总量与速度；面板可隐藏而下载继续，完成后可选「稍后」或「重启并安装」。</p></article>
       <article class="feat"><h4 data-i18n="f.10.h">三语言界面</h4><p data-i18n="f.10.p">简体中文 / 繁體中文 / English，右上角即时切换并持久化，首次启动按操作系统语言自动选择；主进程文案（错误信息、日志）随设置同步切换。</p></article>
-      <article class="feat"><h4 data-i18n="f.11.h">九套皮肤</h4><p data-i18n="f.11.p">配色全部由 CSS 变量驱动，组件不感知主题——新增皮肤只需补一组变量。皮肤切换不重载窗口，首帧即生效，不会闪回默认主题。</p></article>
+      <article class="feat"><h4 data-i18n="f.11.h">七套皮肤 + 明暗模式</h4><p data-i18n="f.11.p">配色全部由 CSS 变量驱动，组件不感知主题。皮肤切换不重载窗口，首帧即生效；已下线的 forest / aurora 配置会自动迁移，不会退回默认主题。</p></article>
       <article class="feat"><h4 data-i18n="f.12.h">错误落盘</h4><p data-i18n="f.12.p">渲染层与主进程异常写入 <code>logs/errors-yyyymmdd.log</code>，带堆栈与 5 秒去重，便于把一份日志直接贴进 Issue。</p></article>
       <article class="feat"><h4 data-i18n="f.13.h">TTL 倒计时</h4><p data-i18n="f.13.p">键列表与值区每秒递减剩余时间；归零后向服务端复核一次——过期键从列表消失、值区清空，不会出现「倒计时已结束、界面还展示缓存」的错觉。</p></article>
       <article class="feat"><h4 data-i18n="f.14.h">键收藏</h4><p data-i18n="f.14.p">树形与平铺视图共用一套收藏区，行内可单独移除；底部状态栏汇总收藏数与当前筛选命中，分组沿用全局键名分隔符。</p></article>
       <article class="feat"><h4 data-i18n="f.15.h">值格式解码</h4><p data-i18n="f.15.p">自动识别 JSON / JWT / Base64 / PHP 序列化 / gzip / zlib / 图片 / Hex / MessagePack，检测结论写进状态栏，原文与解码视图一键切换，不猜二进制内容。</p></article>
       <article class="feat"><h4 data-i18n="f.16.h">CLI 命令补全</h4><p data-i18n="f.16.p">内置 370 条命令目录：输入时展开补全面板，历史按连接持久化，结果可复制、可清屏；按连接分标签，会话互不串台。</p></article>
       <article class="feat"><h4 data-i18n="f.17.h">Stream 管理</h4><p data-i18n="f.17.p">消费组与消费者明细、PEL 查看与 <code>XACK</code> / <code>XCLAIM</code>、单条 <code>XDEL</code>、<code>XTRIM</code> 裁剪；服务端版本不支持的能力直接隐藏入口，而不是点了才报错。</p></article>
-      <article class="feat"><h4 data-i18n="f.18.h">Lua 运行器</h4><p data-i18n="f.18.p">全局脚本库支持命名保存、单条与批量删除；<code>KEYS</code> / <code>ARGS</code> 传参，带 <code>EVAL_RO</code> 只读开关与 <code>SCRIPT KILL</code>。脚本原样交给服务端执行，权限等同于连接所用账号。</p></article>
+      <article class="feat"><h4 data-i18n="f.18.h">Lua 运行器</h4><p data-i18n="f.18.p">每个脚本保存为独立 <code>.lua</code> 文件，旧 JSON 脚本库首次启动自动迁移；支持名称与大小校验、<code>KEYS</code> / <code>ARGS</code>、<code>EVAL_RO</code> 与 <code>SCRIPT KILL</code>。脚本权限等同于连接账号。</p></article>
+      <article class="feat"><h4 data-i18n="f.19.h">监控主图与迷你卡</h4><p data-i18n="f.19.p">概览监控以内存趋势为主图，标出均值、阶段峰值、全局峰值与配额占比；下方迷你卡覆盖每秒操作、连接数、命中率、键总数与淘汰键。</p></article>
+      <article class="feat"><h4 data-i18n="f.20.h">慢查询指纹工作台</h4><p data-i18n="f.20.p">最近 100 条慢查询按指纹或客户端分组，支持筛选、复制、15 秒自动查询与清空；明细虚拟滚动，底部密度图快速呈现分布。</p></article>
+      <article class="feat"><h4 data-i18n="f.21.h">string 树形视图</h4><p data-i18n="f.21.p">JSON / 格式化文本可按对象与数组逐层展开、折叠和定位；原文、解码与树形视图共用同一份数据，不改变实际值。</p></article>
+      <article class="feat"><h4 data-i18n="f.22.h">全局网络代理</h4><p data-i18n="f.22.p">代理默认关闭，可手动配置或从系统自动检测；更新检查与安装包下载走同一通道，不改变 Redis / Memcached / SSH 的连接路径。</p></article>
+      <article class="feat"><h4 data-i18n="f.23.h">设置侧栏布局</h4><p data-i18n="f.23.p">全局设置改为固定左导航 + 独立滚动右面板，切换分组不带动窗体跳动；弹窗滚轮只在实际滚动边界接管。</p></article>
+      <article class="feat"><h4 data-i18n="f.24.h">凭据与日志打码</h4><p data-i18n="f.24.p">SSH 私钥与口令加密落盘，历史明文自动迁移；CLI 的 <code>AUTH</code> / <code>HELLO AUTH</code> 在日志、历史与回显中统一打码，执行仍使用原始凭据。</p></article>
     </div>
 
     <div class="callout">
       <div class="callout-txt">
         <h4 data-i18n="feat.callout.h">性能不是靠"感觉快"</h4>
-        <p data-i18n="feat.callout.p">安装包体积、构建产物体积、渲染耗时都被量化记录：Electron 运行时语言包从 50+ 种裁到界面真正使用的 3 种，渲染层依赖归入 devDependencies 使 asar 只含生产依赖，安装包从 84.0 MB 降到 75.4 MB（-10.3%），app.asar 从 18.9 MiB 降到 3.7 MiB。</p>
+        <p data-i18n="feat.callout.p">安装包体积、构建产物体积与渲染耗时都被量化记录：运行时语言包裁到界面使用的 3 种、生产依赖分层使 asar 只含运行所需代码；此前安装包从 84.0 MB 降到 75.4 MB、app.asar 从 18.9 MiB 降到 3.7 MiB。后续又裁剪 13 组废弃弹窗死 CSS（产物 -49 KB）、字体内置移除 geist / next 依赖（-203 MB），键内存分析改为批间 4 路并发。</p>
       </div>
       <div class="callout-nums">
         <div><b data-i18n="feat.callout.v1">-10.3<i>%</i></b><span data-i18n="feat.callout.n1">安装包体积</span></div>
@@ -351,8 +357,8 @@
   <div class="wrap">
     <div class="sec-head">
       <span class="eyebrow" data-i18n="gal.eyebrow">界面</span>
-      <h2 data-i18n="gal.h2">同一份数据，九种皮肤</h2>
-      <p data-i18n="gal.p">配色由 CSS 变量驱动，切换只改 <code>data-theme</code>，布局与组件完全不动。因此皮肤不是"另一套界面"，而是同一套界面的另一种取值。</p>
+      <h2 data-i18n="gal.h2">明暗模式与七套皮肤</h2>
+      <p data-i18n="gal.p">配色由 CSS 变量驱动，切换只改 <code>data-theme</code>，布局与组件完全不动。当前提供明暗模式与七套皮肤；forest / aurora 已下线并自动迁移，下方保留这两张历史截图用于对照设计演进。</p>
     </div>
 
     <div class="skins">
@@ -360,11 +366,11 @@
       <figure class="skin" data-full="assets/screenshots/key-browser-light.png" tabindex="0" role="button"><img src="assets/screenshots/key-browser-light.png" alt="light" loading="lazy" /><figcaption><i class="sw" style="--sw:#F4F5F7"></i><span data-i18n="skin.light">亮色 · Light</span></figcaption></figure>
       <figure class="skin" data-full="assets/screenshots/key-browser-ocean.png" tabindex="0" role="button"><img src="assets/screenshots/key-browser-ocean.png" alt="ocean" loading="lazy" /><figcaption><i class="sw" style="--sw:#0E2A3C"></i><span data-i18n="skin.ocean">深海 · Ocean</span></figcaption></figure>
       <figure class="skin" data-full="assets/screenshots/key-browser-solarized.png" tabindex="0" role="button"><img src="assets/screenshots/key-browser-solarized.png" alt="solarized" loading="lazy" /><figcaption><i class="sw" style="--sw:#F2E6CE"></i><span data-i18n="skin.solarized">晒淡 · Solarized</span></figcaption></figure>
-      <figure class="skin" data-full="assets/screenshots/key-browser-forest.png" tabindex="0" role="button"><img src="assets/screenshots/key-browser-forest.png" alt="forest" loading="lazy" /><figcaption><i class="sw" style="--sw:#16301F"></i><span data-i18n="skin.forest">森林 · Forest</span></figcaption></figure>
+      <figure class="skin" data-full="assets/screenshots/key-browser-forest.png" tabindex="0" role="button"><img src="assets/screenshots/key-browser-forest.png" alt="forest" loading="lazy" /><figcaption><i class="sw" style="--sw:#16301F"></i><span data-i18n="skin.forest">森林 · 已下线</span></figcaption></figure>
       <figure class="skin" data-full="assets/screenshots/key-browser-sakura.png" tabindex="0" role="button"><img src="assets/screenshots/key-browser-sakura.png" alt="sakura" loading="lazy" /><figcaption><i class="sw" style="--sw:#F7DDE5"></i><span data-i18n="skin.sakura">樱花 · Sakura</span></figcaption></figure>
       <figure class="skin" data-full="assets/screenshots/key-browser-mint.png" tabindex="0" role="button"><img src="assets/screenshots/key-browser-mint.png" alt="mint" loading="lazy" /><figcaption><i class="sw" style="--sw:#DCF0E6"></i><span data-i18n="skin.mint">薄荷 · Mint</span></figcaption></figure>
       <figure class="skin" data-full="assets/screenshots/key-browser-mist.png" tabindex="0" role="button"><img src="assets/screenshots/key-browser-mist.png" alt="mist" loading="lazy" /><figcaption><i class="sw" style="--sw:#E4E9F2"></i><span data-i18n="skin.mist">薄雾 · Mist</span></figcaption></figure>
-      <figure class="skin" data-full="assets/screenshots/key-browser-aurora.png" tabindex="0" role="button"><img src="assets/screenshots/key-browser-aurora.png" alt="aurora" loading="lazy" /><figcaption><i class="sw" style="--sw:#141033"></i><span data-i18n="skin.aurora">极光 · Aurora</span></figcaption></figure>
+      <figure class="skin" data-full="assets/screenshots/key-browser-aurora.png" tabindex="0" role="button"><img src="assets/screenshots/key-browser-aurora.png" alt="aurora" loading="lazy" /><figcaption><i class="sw" style="--sw:#141033"></i><span data-i18n="skin.aurora">极光 · 已下线</span></figcaption></figure>
     </div>
 
     <div class="gal-tabs" role="tablist" aria-label="gallery">
@@ -380,7 +386,7 @@
       <div class="gal-grid g2">
         <figure class="shot big" data-full="assets/screenshots/home-dark.png" tabindex="0" role="button"><img src="assets/screenshots/home-dark.png" alt="" loading="lazy" /><figcaption data-i18n="gal.home.1">主页 · 暗色：功能导览九宫格与快捷键速查</figcaption></figure>
         <figure class="shot big" data-full="assets/screenshots/home-light.png" tabindex="0" role="button"><img src="assets/screenshots/home-light.png" alt="" loading="lazy" /><figcaption data-i18n="gal.home.2">主页 · 亮色：卡片底色按「面板色 + 页面底色」现算</figcaption></figure>
-        <figure class="shot" data-full="assets/screenshots/home-aurora.png" tabindex="0" role="button"><img src="assets/screenshots/home-aurora.png" alt="" loading="lazy" /><figcaption data-i18n="gal.home.3">主页 · 极光</figcaption></figure>
+        <figure class="shot" data-full="assets/screenshots/home-aurora.png" tabindex="0" role="button"><img src="assets/screenshots/home-aurora.png" alt="" loading="lazy" /><figcaption data-i18n="gal.home.3">主页 · 极光（历史截图）</figcaption></figure>
         <figure class="shot" data-full="assets/screenshots/home-sakura.png" tabindex="0" role="button"><img src="assets/screenshots/home-sakura.png" alt="" loading="lazy" /><figcaption data-i18n="gal.home.4">主页 · 樱花</figcaption></figure>
       </div>
     </div>
@@ -389,7 +395,7 @@
         <figure class="shot big" data-full="assets/screenshots/key-browser-tree.png" tabindex="0" role="button"><img src="assets/screenshots/key-browser-tree.png" alt="" loading="lazy" /><figcaption data-i18n="gal.b.1">树形视图：按分隔符逐段建层，目录节点显示子树内键数量</figcaption></figure>
         <figure class="shot big" data-full="assets/screenshots/key-browser-tree-light.png" tabindex="0" role="button"><img src="assets/screenshots/key-browser-tree-light.png" alt="" loading="lazy" /><figcaption data-i18n="gal.b.2">树形视图 · 亮色</figcaption></figure>
         <figure class="shot" data-full="assets/screenshots/search-result.png" tabindex="0" role="button"><img src="assets/screenshots/search-result.png" alt="" loading="lazy" /><figcaption data-i18n="gal.b.3">全库搜索：SCAN 下沉主进程，边扫边推进、可中止</figcaption></figure>
-        <figure class="shot" data-full="assets/screenshots/key-browser-aurora.png" tabindex="0" role="button"><img src="assets/screenshots/key-browser-aurora.png" alt="" loading="lazy" /><figcaption data-i18n="gal.b.4">平铺视图 · 极光</figcaption></figure>
+        <figure class="shot" data-full="assets/screenshots/key-browser-aurora.png" tabindex="0" role="button"><img src="assets/screenshots/key-browser-aurora.png" alt="" loading="lazy" /><figcaption data-i18n="gal.b.4">平铺视图 · 极光（历史截图）</figcaption></figure>
       </div>
     </div>
     <div class="gal-panel" data-g="value">
@@ -458,7 +464,7 @@
           <div class="abox"><b>connection-manager</b><span data-i18n="arch.b6">Redis 连接池 + 全部 Redis 命令</span></div>
           <div class="abox"><b>engines/memcached</b><span data-i18n="arch.b7">client / manager / pool，与 Redis 完全隔离</span></div>
           <div class="abox"><b>ssh-tunnel</b><span data-i18n="arch.b8">本地端口转发，多级跳板</span></div>
-          <div class="abox"><b>credential-crypto</b><span data-i18n="arch.b9">safeStorage 加密，不可用时降级并标记</span></div>
+          <div class="abox"><b>credential-crypto</b><span data-i18n="arch.b9">AES-256-GCM；Windows DPAPI / safeStorage 保护主密钥</span></div>
           <div class="abox"><b>log-service</b><span data-i18n="arch.b10">手动操作日志，按天分片、超期清理</span></div>
           <div class="abox"><b>auto-update</b><span data-i18n="arch.b11">electron-updater 差分下载与安装</span></div>
           <div class="abox"><b>i18n</b><span data-i18n="arch.b12">主进程文案随设置同步切换</span></div>
@@ -504,10 +510,10 @@
 │   ├── App.tsx  api/  store/  hooks/
 │   ├── components/  services/  styles/
 │   └── preview/             <span class="cmt"># 纯浏览器预览页</span>
-├── tests/unit/              <span class="cmt"># 21 个 vitest spec</span>
+├── tests/unit/              <span class="cmt"># 27 个 vitest spec</span>
 ├── docs/                    <span class="cmt"># 架构、约定与踩坑记录</span>
 ├── build/                   <span class="cmt"># 图标与 NSIS 定制脚本</span>
-└── .github/workflows/       <span class="cmt"># ci.yml + release.yml + site.yml</span></code></pre>
+└── .github/workflows/       <span class="cmt"># ci / release / release-mac / site</span></code></pre>
         </div>
       </div>
       <div class="arch-col">
@@ -515,13 +521,13 @@
         <table class="tbl">
           <thead><tr><th data-i18n="arch.tbl.layer">层</th><th data-i18n="arch.tbl.pick">选型</th><th data-i18n="arch.tbl.note">说明</th></tr></thead>
           <tbody>
-            <tr><td data-i18n="arch.row1.l">主进程</td><td class="mono">Electron 33 + TS 5.7</td><td data-i18n="arch.row1.n">窗口、IPC、连接池、引擎注册表</td></tr>
-            <tr><td data-i18n="arch.row2.l">渲染进程</td><td class="mono">React 19 + Vite 6</td><td data-i18n="arch.row2.n">界面与交互，状态层在 src/store/</td></tr>
+            <tr><td data-i18n="arch.row1.l">主进程</td><td class="mono">Electron 45 + TS 7</td><td data-i18n="arch.row1.n">窗口、IPC、连接池、引擎注册表</td></tr>
+            <tr><td data-i18n="arch.row2.l">渲染进程</td><td class="mono">React 19.3 + Vite 6</td><td data-i18n="arch.row2.n">界面与交互，状态层在 src/store/</td></tr>
             <tr><td data-i18n="arch.row3.l">编译优化</td><td class="mono">React Compiler 1.0</td><td data-i18n="arch.row3.n">构建期自动记忆化，直接用 React 自带 runtime</td></tr>
             <tr><td data-i18n="arch.row4.l">通信</td><td class="mono">contextBridge</td><td data-i18n="arch.row4.n">上下文隔离，渲染进程不接触 Node</td></tr>
             <tr><td data-i18n="arch.row5.l">Redis 客户端</td><td class="mono">ioredis 5</td><td data-i18n="arch.row5.n">TLS / ACL / 分页 SCAN</td></tr>
             <tr><td data-i18n="arch.row6.l">应用内更新</td><td class="mono">electron-updater 6</td><td data-i18n="arch.row6.n">blockmap 差分、进度、退出时自动安装</td></tr>
-            <tr><td data-i18n="arch.row7.l">CI / 发布</td><td class="mono">GitHub Actions</td><td data-i18n="arch.row7.n">push/PR 全量校验，标签出包并发布 Release</td></tr>
+            <tr><td data-i18n="arch.row7.l">CI / 发布</td><td class="mono">GitHub Actions</td><td data-i18n="arch.row7.n">CI 校验；标签发布 Windows，手动发布 macOS 与站点</td></tr>
             <tr><td data-i18n="arch.row8.l">打包</td><td class="mono">electron-builder</td><td data-i18n="arch.row8.n">NSIS / DMG / AppImage+deb，仅打包 3 个界面语言</td></tr>
           </tbody>
         </table>
@@ -545,7 +551,7 @@
     <div class="sec-head">
       <span class="eyebrow" data-i18n="sec.eyebrow">安全</span>
       <h2 data-i18n="sec.h2">凭据只留在你这一侧</h2>
-      <p data-i18n="sec.p">Keyper 没有账号体系、没有服务端，也没有把连接信息发往任何第三方的代码路径。下面是可以在源码里逐条核对的实现细节。</p>
+      <p data-i18n="sec.p">Keyper 没有账号体系，也不自营服务端或遥测服务；除访问你主动配置的 Redis / Memcached / SSH 与更新源外，不会把连接信息发往其他第三方。下面是可以在源码里逐条核对的实现细节。</p>
     </div>
 
     <div class="cards cards-2 sec-cards">
@@ -559,7 +565,7 @@
       </article>
       <article class="card card-wide">
         <h3 data-i18n="s.3.h">凭据存储与传输</h3>
-        <p data-i18n="s.3.p">连接密码优先调用系统钥匙串（<code>safeStorage</code>）加密后落盘；仅在钥匙串不可用时降级为明文，并以 <code>raw:</code> 前缀显式标记。导出文件默认剥离凭据；显式勾选「包含凭据」后，Redis / SSH 密码、私钥与口令会以明文写入用户选择的文件并需二次确认——不做二次加密，需自行保管。</p>
+        <p data-i18n="s.3.p">连接密码、SSH 私钥与口令使用 AES-256-GCM 加密，密文以 <code>enc2:</code> 前缀落盘；主密钥写入本机 <code>keys.bin</code>，Windows 上优先由 DPAPI 保护，其次 safeStorage。只有加密或取钥失败才降级为 <code>raw:</code> 明文，旧 <code>enc:</code> 与历史明文私钥会自动迁移。CLI 的 <code>AUTH</code> / <code>HELLO AUTH</code> 在日志、历史和回显中打码。导出默认剥离凭据；显式包含时写入明文并需二次确认。</p>
       </article>
       <article class="card card-wide">
         <h3 data-i18n="s.4.h">导航与外链</h3>
@@ -567,11 +573,11 @@
       </article>
       <article class="card card-wide">
         <h3 data-i18n="s.5.h">更新链路</h3>
-        <p data-i18n="s.5.p">自动更新从配置的 GitHub Releases（HTTPS）拉取，安装包与增量元数据必须同源发布；可用 <code>KEYPER_UPDATE_URL</code> 指向内网 / 镜像的 generic 更新源。未打包版本自动跳过自动更新，回退到版本页检查。</p>
+        <p data-i18n="s.5.p">自动更新默认从 GitHub Releases 经 HTTPS 拉取，安装包与增量元数据必须同源发布；可通过 <code>KEYPER_UPDATE_URL</code> 指向 generic 更新源。仅 HTTP 的更新源默认拒绝，需显式设置 <code>KEYPER_ALLOW_HTTP_FEED=1</code> 才允许。网络代理默认关闭，启用后更新检查与下载走同一代理通道，不影响 Redis / Memcached / SSH。未打包版本跳过自动更新，回退到版本页检查。</p>
       </article>
       <article class="card card-wide">
         <h3 data-i18n="s.6.h">安装器环境检查</h3>
-        <p data-i18n="s.6.p">传统「检查 VC++ / .NET / Node.js」在这里是无效检查——运行时随包携带，主进程不调用任何外部程序。安装页实际检测会导致「装完打不开」的条件：Windows 内部版本 ≥ 17763、必须 x64（不通过硬性中止）、磁盘 ≥ 600 MB、安装目录实写探针文件。</p>
+        <p data-i18n="s.6.p">无需单独检查 VC++ / .NET / Node.js：Electron 运行时随包携带，不依赖外部运行时。安装页实际检测会导致「装完打不开」的条件：Windows 内部版本 ≥ 17763、必须 x64（不通过硬性中止）、磁盘 ≥ 600 MB、安装目录实写探针文件。</p>
       </article>
     </div>
 
@@ -580,9 +586,9 @@
       <p data-i18n="lim.p">开源的价值在于把没做的事也写清楚。以下是已知边界，欢迎在 Issue 里讨论优先级。</p>
       <ul class="lim-list">
         <li><span class="lim-k" data-i18n="lim.1.k">代码签名</span><span data-i18n="lim.1.v">Windows 安装包目前未做代码签名，正式分发前应补齐，以避免 SmartScreen 告警。</span></li>
-        <li><span class="lim-k" data-i18n="lim.2.k">平台产物</span><span data-i18n="lim.2.v">发布流水线当前产出 Windows NSIS 安装包；macOS / Linux 的打包配置就绪但尚未产出安装包。</span></li>
+        <li><span class="lim-k" data-i18n="lim.2.k">平台产物</span><span data-i18n="lim.2.v">正式发布提供 Windows NSIS 安装包与 macOS x64 / arm64 DMG；macOS DMG 由手动工作流按标签构建。Linux 目前仅支持源码构建，尚无官方安装包。</span></li>
         <li><span class="lim-k" data-i18n="lim.3.k">凭据导出</span><span data-i18n="lim.3.v">勾选「包含凭据」的导出文件是明文，不做二次加密。</span></li>
-        <li><span class="lim-k" data-i18n="lim.4.k">钥匙串降级</span><span data-i18n="lim.4.v">系统钥匙串不可用时凭据降级为明文存储，以 <code>raw:</code> 前缀标记。</span></li>
+        <li><span class="lim-k" data-i18n="lim.4.k">凭据保护</span><span data-i18n="lim.4.v">Windows 优先 DPAPI，其次 safeStorage；safeStorage 不可用并不等于立即明文。仅当加密或取钥失败才降级为 <code>raw:</code>，并保留历史数据的迁移与显式导出边界。</span></li>
         <li><span class="lim-k" data-i18n="lim.5.k">JSON 美化</span><span data-i18n="lim.5.v">只对 string 提供。容器类型本就是结构化展示，逐项缩进会让行高参差、信息密度下降——这是设计决定。</span></li>
         <li><span class="lim-k" data-i18n="lim.6.k">Lua 脚本</span><span data-i18n="lim.6.v">运行器把脚本原样交给服务端执行，权限等同于当前连接所用账号；<code>EVAL_RO</code> 只是改用只读命令，不是沙箱。</span></li>
       </ul>
@@ -609,8 +615,8 @@
     <div class="panel is-on" data-panel="i-dl">
       <div class="dl-card">
         <div class="dl-main">
-          <div class="dl-ver"><span class="mono" data-i18n="ins.dl.file">Keyper-&lt;最新版本&gt;-win-x64.exe</span><span class="chip" data-i18n="ins.dl.chip">NSIS · x64</span></div>
-          <p data-i18n="ins.dl.p">构建产物落在 <code>release/&lt;版本&gt;/</code>，同目录生成 <code>latest.yml</code> 与 <code>*.blockmap</code>（增量更新分块索引），安装目录内打包 <code>app-update.yml</code>（更新源配置）。安装包的 sha512 校验值以 Release 中的 <code>latest.yml</code> 为准。</p>
+          <div class="dl-ver"><span class="mono" data-i18n="ins.dl.file">Keyper-&lt;版本&gt;-win-x64.exe / Keyper-&lt;版本&gt;-mac-{x64,arm64}.dmg</span><span class="chip" data-i18n="ins.dl.chip">NSIS / DMG</span></div>
+          <p data-i18n="ins.dl.p">Windows 构建产物落在 <code>release/&lt;版本&gt;/</code>，同目录生成 <code>latest.yml</code> 与 <code>*.blockmap</code>（增量更新分块索引），安装目录内打包 <code>app-update.yml</code>（更新源配置）。macOS 提供 x64 / arm64 DMG，由手动工作流按标签构建并发布到同一 Release；校验值与元数据以对应 Release 为准。</p>
           <ul class="ticks ticks-sm">
             <li data-i18n="ins.dl.1">Windows 10 1809（内部版本 17763）及以上，x64</li>
             <li data-i18n="ins.dl.2">安装时把安装目录写入当前用户 PATH，卸载按分号边界逐段移除，重复安装不产生重复条目</li>
@@ -621,7 +627,7 @@
         <div class="dl-side">
           <a class="btn btn-primary btn-block" href="https://github.com/qq281376065/keyper/releases" target="_blank" rel="noopener noreferrer" data-i18n="ins.dl.btn">到 GitHub Releases 下载</a>
           <a class="btn btn-line btn-block" href="https://github.com/qq281376065/keyper/releases/latest" target="_blank" rel="noopener noreferrer" data-i18n="ins.dl.btn2">最新版本说明</a>
-          <p class="dl-note" data-i18n="ins.dl.note">安装包未做代码签名，首次运行可能遇到系统提示。</p>
+          <p class="dl-note" data-i18n="ins.dl.note">Windows 安装包当前未做代码签名，首次运行可能遇到系统或安全软件提示。</p>
         </div>
       </div>
     </div>
@@ -636,7 +642,7 @@ npm run dist         <span class="cmt"># 当前平台打包</span>
 npm run dist:win     <span class="cmt"># Windows 安装包</span>
 npm run dist:win:alt <span class="cmt"># 换一个输出目录，避免与旧产物混在一起</span></code></pre>
       </div>
-      <p class="panel-note" data-i18n="ins.src.p">要求 Node.js ≥ 18。构建脚本会先跑 <code>typecheck</code>，类型不过就不产出产物；构建末尾自动写入 CSP 哈希，可用 <code>npm run csp:check</code> 复核。</p>
+      <p class="panel-note" data-i18n="ins.src.p">要求 Node.js ≥ 22.12.0。构建脚本会先跑 <code>typecheck</code>，类型不过就不产出产物；构建末尾自动写入 CSP 哈希，可用 <code>npm run csp:check</code> 复核。<code>npm run dist</code> 可为当前平台打包；官方 Linux 安装包尚未发布。</p>
     </div>
 
     <div class="panel" data-panel="i-dev">
@@ -694,7 +700,7 @@ export ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/   <span class="cm
       <div class="pipe-step">
         <span class="pipe-n">04</span>
         <h4>vitest</h4>
-        <p data-i18n="rel.s4">21 个单元测试 spec，覆盖引擎隔离、凭据加密、格式解码与 i18n。</p>
+        <p data-i18n="rel.s4">27 个单元测试 spec，覆盖引擎隔离、凭据加密、格式解码与 i18n。</p>
       </div>
       <div class="pipe-arrow" aria-hidden="true"></div>
       <div class="pipe-step">
@@ -706,15 +712,17 @@ export ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/   <span class="cm
 
     <div class="rel-cols">
       <div class="rel-col">
-        <h3 data-i18n="rel.gh">两条工作流</h3>
+        <h3 data-i18n="rel.gh">四条工作流</h3>
         <table class="tbl">
           <thead><tr><th data-i18n="rel.tbl.wf">工作流</th><th data-i18n="rel.tbl.trig">触发</th><th data-i18n="rel.tbl.body">内容</th></tr></thead>
           <tbody>
-            <tr><td class="mono">ci.yml</td><td data-i18n="rel.ci.trig">push（任意分支）/ PR 到默认分支</td><td data-i18n="rel.ci.body">npm ci → i18n:check → typecheck → vitest → vite build</td></tr>
+            <tr><td class="mono">ci.yml</td><td data-i18n="rel.ci.trig">push / PR</td><td data-i18n="rel.ci.body">npm ci → i18n:check → typecheck → vitest → vite build</td></tr>
             <tr><td class="mono">release.yml</td><td data-i18n="rel.rl.trig">推送 v* 标签 / 手动运行</td><td data-i18n="rel.rl.body">校验标签与版本一致 → 从标签附注导出 release-notes.md（根目录与 build/ 各一份）→ 保留该标签资产最全的 Release，草稿先取消 → Windows 打包并追加安装包、latest.yml 与 blockmap → 重试探测下载地址并复核 Release 数量</td></tr>
+            <tr><td class="mono">release-mac.yml</td><td data-i18n="rel.mac.trig">手动选择标签运行</td><td data-i18n="rel.mac.body">校验标签与版本一致 → 构建 x64 / arm64 DMG 与更新元数据 → 追加到同一 Release</td></tr>
+            <tr><td class="mono">site.yml</td><td data-i18n="rel.site.trig">push 到 main 且 site/** 或工作流变化 / 手动运行</td><td data-i18n="rel.site.body">校验中英 key、资源与标签 → 上传 site/ → 部署 GitHub Pages</td></tr>
           </tbody>
         </table>
-        <p class="note" data-i18n="rel.ghnote">标签触发自动发布 Release，手动运行默认只构建、勾上 <code>publish</code> 才发布。同一版本要重发走手动运行；删除或移动标签会让 GitHub 连带删掉对应的 Release。</p>
+        <p class="note" data-i18n="rel.ghnote">标签触发自动发布 Release，手动运行默认只构建、勾上 <code>publish</code> 才发布。同一版本要重发走手动运行；删除或移动标签会让对应 Release 降级为草稿，公开下载直链随之失效，应避免改动已发布标签。</p>
       </div>
       <div class="rel-col">
         <h3 data-i18n="rel.upd">应用内更新</h3>
@@ -744,13 +752,55 @@ set KEYPER_UPDATE_URL=https://mirror.internal/keyper/</code></pre>
 
     <div class="tl">
       <article class="tl-item is-on">
+        <div class="tl-side"><b data-i18n="chg.kn11">安全与运行时</b></div>
+        <div class="tl-body">
+          <h4 data-i18n="chg.n11.h">把升级和安全边界一起收紧</h4>
+          <ul class="ticks ticks-sm">
+            <li data-i18n="chg.n11.1">运行时推进到 Electron 45、React 19.3、TypeScript 7 与 Vite 6，继续保留 contextBridge 白名单与渲染层沙箱</li>
+            <li data-i18n="chg.n11.2">凭据改为 AES-256-GCM + 本机密钥保护，CLI 的认证命令在日志、历史与回显中统一打码</li>
+            <li data-i18n="chg.n11.3">更新源默认 HTTPS，代理只承载更新检查与下载，不改变数据库和 SSH 的连接路径</li>
+          </ul>
+        </div>
+      </article>
+      <article class="tl-item">
+        <div class="tl-side"><b data-i18n="chg.kn12">可观测性</b></div>
+        <div class="tl-body">
+          <h4 data-i18n="chg.n12.h">从趋势图走向诊断工作台</h4>
+          <ul class="ticks ticks-sm">
+            <li data-i18n="chg.n12.1">概览监控以 450 点内存趋势为主图，均值、阶段峰值、全局峰值与配额占比直接标出，下方补齐迷你指标卡</li>
+            <li data-i18n="chg.n12.2">慢查询按指纹或客户端聚合，提供筛选、复制、自动查询与密度图，长列表使用虚拟滚动</li>
+          </ul>
+        </div>
+      </article>
+      <article class="tl-item">
+        <div class="tl-side"><b data-i18n="chg.kn13">浏览与主题</b></div>
+        <div class="tl-body">
+          <h4 data-i18n="chg.n13.h">看清值，也不丢失界面偏好</h4>
+          <ul class="ticks ticks-sm">
+            <li data-i18n="chg.n13.1">string 的 JSON 与格式化文本支持逐层展开、折叠和定位，与原文、解码视图共用同一份数据</li>
+            <li data-i18n="chg.n13.2">皮肤收敛为七套并保留明暗模式，已下线的 forest / aurora 自动迁移到最接近的主题</li>
+            <li data-i18n="chg.n13.3">长 TTL 的到期复核按最大定时器延迟分段，避免 32 位延迟溢出造成值区反复刷新</li>
+          </ul>
+        </div>
+      </article>
+      <article class="tl-item">
+        <div class="tl-side"><b data-i18n="chg.kn14">网络与设置</b></div>
+        <div class="tl-body">
+          <h4 data-i18n="chg.n14.h">把环境差异关进明确的配置里</h4>
+          <ul class="ticks ticks-sm">
+            <li data-i18n="chg.n14.1">新增默认关闭的全局代理，可手动配置或自动检测系统设置，仅作用于应用更新流量</li>
+            <li data-i18n="chg.n14.2">设置改为固定侧栏与独立滚动面板，切换分组不再带动整个窗体跳动</li>
+          </ul>
+        </div>
+      </article>
+      <article class="tl-item">
         <div class="tl-side"><b data-i18n="chg.kn1">发版加固</b></div>
         <div class="tl-body">
           <h4 data-i18n="chg.n1.h">让每个标签只对应一份可信产物</h4>
           <ul class="ticks ticks-sm">
             <li data-i18n="chg.n1.1">发版说明只写一处（附注标签正文），由工作流导出根目录与 <code>build/</code> 两份：前者成为 Release 正文，后者进 <code>latest.yml</code> 供客户端更新面板显示，避免两处文案各写各的</li>
             <li data-i18n="chg.n1.2">同一个标签只保留资产最全的一份 Release，被降级成草稿的先取消草稿、其余删除；发布后重试探测下载地址并复核 Release 数量</li>
-            <li data-i18n="chg.n1.3">把「删标签 / 强推会让 GitHub 连带删掉 Release」写进文档，重发同一版本改走手动运行并勾选 publish</li>
+            <li data-i18n="chg.n1.3">把「删除或移动已发布标签会让对应 Release 降级为草稿」写进文档，公开下载直链会随之中断；重发同一版本改走手动运行并勾选 publish</li>
           </ul>
         </div>
       </article>
@@ -780,7 +830,7 @@ set KEYPER_UPDATE_URL=https://mirror.internal/keyper/</code></pre>
         <div class="tl-body">
           <h4 data-i18n="chg.n4.h">倒计时、收藏与格式解码</h4>
           <ul class="ticks ticks-sm">
-            <li data-i18n="chg.n4.1">TTL 倒计时每秒递减，归零后向服务端复核：过期键从列表消失、值区清空，界面不再展示已经不存在的缓存</li>
+            <li data-i18n="chg.n4.1">TTL 倒计时每秒递减，归零后向服务端复核；长 TTL 按最大定时器延迟分段，避免延迟溢出导致值区不停刷新</li>
             <li data-i18n="chg.n4.2">树形与平铺视图共用一套收藏区，状态栏汇总收藏数与筛选命中</li>
             <li data-i18n="chg.n4.3">值格式自动识别 JSON / JWT / Base64 / PHP 序列化 / gzip / 图片 / MessagePack，检测结论写进状态栏，原文与解码视图随时切换</li>
           </ul>
@@ -836,9 +886,9 @@ set KEYPER_UPDATE_URL=https://mirror.internal/keyper/</code></pre>
         <div class="tl-body">
           <h4 data-i18n="chg.7.h">把"手感"当成一等公民</h4>
           <ul class="ticks ticks-sm">
-            <li data-i18n="chg.7.1">15 类图标按钮统一 hover 阴影，与页签、连接磁贴共用同一档影子，9 套皮肤自动跟随</li>
+            <li data-i18n="chg.7.1">15 类图标按钮统一 hover 阴影，与页签、连接磁贴共用同一档影子，明暗模式与七套皮肤自动跟随</li>
             <li data-i18n="chg.7.2">13 个组件里的原生 <code>title</code> 全部换成项目统一的自绘提示，并修掉嵌套提示消失不复现的缺陷</li>
-            <li data-i18n="chg.7.3">修复九套浅色皮肤下主页卡片全是纯白——覆盖规则写在 <code>@layer components</code> 里，被 Tailwind 的 utilities 层静默压过</li>
+            <li data-i18n="chg.7.3">修复浅色皮肤下主页卡片全是纯白——覆盖规则写在 <code>@layer components</code> 里，被 Tailwind 的 utilities 层静默压过</li>
             <li data-i18n="chg.7.4">新增 <code>README.en.md</code>，章节、表格、代码块与截图与中文版一一对应</li>
           </ul>
         </div>
@@ -957,11 +1007,11 @@ npm run i18n:check   <span class="cmt"># 4.</span></code></pre>
     <div class="faq">
       <details open>
         <summary data-i18n="faq.1.q">数据会上传到任何地方吗？</summary>
-        <p data-i18n="faq.1.a">不会。Keyper 没有账号体系也没有自己的服务端，连接配置、设置与操作日志都落在本机配置目录。运行期唯一的外部请求是自动更新检查，指向 GitHub Releases，并且可以用 <code>KEYPER_UPDATE_URL</code> 换成内网镜像。</p>
+        <p data-i18n="faq.1.a">Keyper 没有账号体系，也不自营遥测服务；连接配置、设置与操作日志都落在本机配置目录。访问你配置的 Redis / Memcached / SSH 服务，以及检查或下载应用更新，会产生必要网络请求。更新默认走 HTTPS，可切换内网镜像并配置仅作用于更新流量的代理。</p>
       </details>
       <details>
-        <summary data-i18n="faq.2.q">为什么 stream 只能读不能改？</summary>
-        <p data-i18n="faq.2.a">stream 是追加写的消息日志：改历史 entry 会破坏消费位点语义，删 entry 会造成消费缺口。所以值区只提供复制类操作，并明确标注只读——这是设计决定，不是没做完。</p>
+        <summary data-i18n="faq.2.q">Stream 支持哪些管理操作？</summary>
+        <p data-i18n="faq.2.a">值区支持消费组与消费者明细、PEL 查看，以及 <code>XACK</code> / <code>XCLAIM</code> / 单条 <code>XDEL</code> / <code>XTRIM</code>。Keyper 不提供直接改写历史 entry 的编辑器，以免破坏消息日志与消费位点语义；服务端不支持的能力会自动隐藏入口。</p>
       </details>
       <details>
         <summary data-i18n="faq.3.q">为什么 JSON 美化只对 string 提供？</summary>
@@ -969,11 +1019,11 @@ npm run i18n:check   <span class="cmt"># 4.</span></code></pre>
       </details>
       <details>
         <summary data-i18n="faq.4.q">支持哪些服务端版本？</summary>
-        <p data-i18n="faq.4.a">Redis 7.x 及以上（字段级 TTL 等能力按版本探测，低版本会隐藏对应入口并在状态栏说明原因）；Memcached 优先使用 <code>lru_crawler metadump</code>，旧服务端自动回退 <code>stats cachedump</code> 并标注结果可能不完整。</p>
+        <p data-i18n="faq.4.a">Redis 功能按服务端版本能力探测，不以单一最低版本一刀切：Stream 消费组基础能力需 Redis 5.0，<code>XPENDING IDLE</code> 需 6.2，lag 需 7.0，hash / set 字段级 TTL 需 7.4；不支持的功能会隐藏并说明原因。Memcached 优先使用 <code>lru_crawler metadump</code>，旧服务端自动回退 <code>stats cachedump</code> 并标注结果可能不完整。</p>
       </details>
       <details>
         <summary data-i18n="faq.5.q">有 macOS / Linux 安装包吗？</summary>
-        <p data-i18n="faq.5.a">electron-builder 的 DMG / AppImage + deb 配置已就绪，但发布流水线目前只产出 Windows NSIS 安装包。可以在源码里用 <code>npm run dist</code> 为当前平台打包。</p>
+        <p data-i18n="faq.5.a">有 macOS x64 / arm64 DMG，由手动发布工作流按标签构建，并与 Windows 安装包放在同一 GitHub Release。Linux 的 AppImage / deb 配置已就绪，但尚无官方发布产物；可在源码环境用 <code>npm run dist</code> 为当前平台打包。</p>
       </details>
       <details>
         <summary data-i18n="faq.6.q">许可证是什么？</summary>
